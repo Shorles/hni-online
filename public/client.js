@@ -12,10 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalTitle = document.getElementById('modal-title');
     let modalText = document.getElementById('modal-text');
     let modalButton = document.getElementById('modal-button');
+    const controlsWrapper = document.getElementById('action-buttons-wrapper'); // Pegamos a referência aqui fora
 
     socket.on('assignPlayer', (playerKey) => {
         myPlayerKey = playerKey;
         lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1 (Nathan)' : '2 (Ivan)'}</strong>.</p>`;
+
+        // *** NOVA LÓGICA DE COR DOS BOTÕES ***
+        // Define a cor dos botões uma única vez, com base em quem o jogador é.
+        if (playerKey === 'player1') {
+            controlsWrapper.classList.add('p1-controls');
+        } else {
+            controlsWrapper.classList.add('p2-controls');
+        }
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -80,9 +89,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('round-info').innerText = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: ${turnName}`;
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2');
+        
+        // --- REMOVA OU COMENTE ESTE BLOCO ---
+        // A lógica de cor dos botões foi movida para o evento 'assignPlayer'
+        /*
         const controlsWrapper = document.getElementById('action-buttons-wrapper');
         controlsWrapper.classList.remove('p1-controls', 'p2-controls');
-        if (state.whoseTurn) controlsWrapper.classList.add(state.whoseTurn === 'player1' ? 'p1-controls' : 'p2-controls');
+        if (state.whoseTurn) {
+            controlsWrapper.classList.add(state.whoseTurn === 'player1' ? 'p1-controls' : 'p2-controls');
+        }
+        */
+        // --- FIM DO BLOCO A SER REMOVIDO ---
+
         const isMyTurn = state.whoseTurn === myPlayerKey && state.phase === 'turn';
         document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
             const move = state.moves[btn.dataset.move];
