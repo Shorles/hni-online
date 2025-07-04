@@ -45,12 +45,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const wasWaiting = currentGameState?.phase === 'waiting';
         currentGameState = gameState;
         
-        // **A CORREÇÃO CRÍTICA ESTÁ AQUI**
-        // Se a fase do jogo não é mais 'esperando', força a troca para a tela de luta.
         if (gameState.phase !== 'waiting' && lobbyScreen.classList.contains('active')) {
             lobbyScreen.classList.remove('active');
             fightScreen.classList.add('active');
-            modal.classList.add('hidden'); // Garante que nenhum modal do lobby fique aberto
+            modal.classList.add('hidden');
         }
         
         updateUI(gameState);
@@ -113,15 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showInteractiveModal(title, text, btnText, action) {
         modalTitle.innerText = title; modalText.innerHTML = text; modalButton.innerText = btnText;
-        modalButton.style.display = 'inline-block'; modalButton.disabled = false;
-        
-        const twoPlayersReady = currentGameState && currentGameState.phase !== 'waiting';
-        // O botão só fica ativo se a luta já começou de verdade
-        modalButton.disabled = !twoPlayersReady;
-        if(!twoPlayersReady && text.includes("iniciativa")){
-            modalText.innerHTML = "Aguardando oponente entrar para rolar...";
-        }
-
+        modalButton.style.display = 'inline-block';
         modalButton.onclick = () => {
             modalButton.disabled = true;
             socket.emit('playerAction', action);
@@ -151,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playSound(DICE_SOUNDS[Math.floor(Math.random() * DICE_SOUNDS.length)]);
             const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3P-' : 'D3A-') : (playerKey === 'player1' ? 'diceP' : 'diceA');
             const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-            diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
+            diceContainer.style.backgroundImage = `url('/images/${imagePrefix}${rollValue}.png')`;
             diceContainer.classList.remove('hidden');
             const hideAndResolve = () => {
                 diceOverlay.classList.add('hidden');
