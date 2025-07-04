@@ -12,7 +12,10 @@ body {
     height: 720px;
     position: absolute;
     overflow: hidden;
-    background-color: #333;
+    /* IMAGEM DE FUNDO APLICADA AQUI */
+    background-image: url('images/Ringue.png');
+    background-size: cover;
+    background-position: center;
     transform-origin: top left;
 }
 
@@ -22,6 +25,7 @@ body {
 
 /* --- NOVA TELA DE LOBBY --- */
 #lobby-screen {
+    /* COR DE FUNDO PARA SOBREPOR A IMAGEM DO WRAPPER */
     background-color: #1a1a1a;
     gap: 20px;
 }
@@ -55,14 +59,11 @@ body {
 }
 
 /* --- TELA DE LUTA --- */
+/* REVERTEMOS PARA A VERSÃO ORIGINAL QUE FUNCIONAVA */
 #fight-screen { 
-    justify-content: space-between;
+    justify-content: flex-end; 
     padding: 0; 
     box-sizing: border-box; 
-    /* CORREÇÃO DO NOME DO ARQUIVO PARA "Ringue.png" (CASE-SENSITIVE) */
-    background-image: url('images/Ringue.png'); 
-    background-size: cover; 
-    background-position: center; 
     position: relative; 
     overflow: hidden; 
 }
