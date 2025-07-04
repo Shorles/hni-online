@@ -225,10 +225,10 @@ body {
 #action-buttons-wrapper.p2-controls .action-btn { background-color: #c82333; }
 #action-buttons-wrapper.p2-controls .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
 
-/* ESTILOS PARA BOTÕES DE ROLAGEM CORRIGIDOS */
+/* ESTILOS PARA BOTÕES DE ROLAGEM */
 .roll-dice-button {
     position: absolute;
-    bottom: 450px; /* >>> Posição vertical ajustada <<< */
+    bottom: 450px; 
     padding: 10px 15px;
     font-size: 1em;
     font-weight: bold;
@@ -244,8 +244,8 @@ body {
 .roll-dice-button:hover {
     transform: scale(1.05);
 }
-#player1-roll-btn { left: 200px; } /* >>> Posição horizontal ajustada <<< */
-#player2-roll-btn { right: 200px; } /* >>> Posição horizontal ajustada <<< */
+#player1-roll-btn { left: 200px; }
+#player2-roll-btn { right: 200px; }
 
 
 /* MODAL */
@@ -258,8 +258,9 @@ body {
 /* DADOS */
 #dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 50; cursor: pointer; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
-#player1-dice-result { right: 400px; bottom: 530px; }
-#player2-dice-result { left: 400px; bottom: 530px; }
+/* >>> CORREÇÃO DA POSIÇÃO DOS DADOS <<< */
+#player1-dice-result { left: 400px; bottom: 530px; }
+#player2-dice-result { right: 400px; bottom: 530px; }
 
 /* PLACAR DE DECISÃO */
 #scorecard { width: 100%; margin-top: 15px; border-collapse: collapse; text-align: left; }
