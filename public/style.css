@@ -238,7 +238,7 @@ body {
 
 #fight-log-container { 
     flex-basis: 40%;
-    height: 180px;
+    height: 200px; /* >>> Aumentado <<< */
     background-color: rgba(0,0,0,0.6); 
     border: 2px solid #555; 
     border-radius: 10px; 
@@ -260,22 +260,19 @@ body {
 
 /* BOTÕES DE AÇÃO */
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-#move-buttons { display: none; flex-wrap: wrap; gap: 10px; justify-content: center; }
-/* >>> Torna os botões visíveis apenas quando o wrapper tem a classe apropriada <<< */
-#action-buttons-wrapper.p1-view #p1-move-buttons,
-#action-buttons-wrapper.p2-view #p2-move-buttons { display: flex; }
+#move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 
 .action-btn, #end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
 #end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6c757d; }
 .action-btn:disabled, #end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
 
-/* >>> NOVAS REGRAS DE CORES <<< */
-.p1-actions .action-btn { background-color: #c82333; } /* VERMELHO para P1 */
-.p1-actions .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
+/* >>> REGRAS DE CORES CORRIGIDAS E SIMPLIFICADAS <<< */
+#action-buttons-wrapper.p1-colors .action-btn { background-color: #c82333; } /* VERMELHO para P1 */
+#action-buttons-wrapper.p1-colors .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
 
-.p2-actions .action-btn { background-color: #007bff; } /* AZUL para P2 */
-.p2-actions .action-btn:hover:not(:disabled) { background-color: #0056b3; }
+#action-buttons-wrapper.p2-colors .action-btn { background-color: #007bff; } /* AZUL para P2 */
+#action-buttons-wrapper.p2-colors .action-btn:hover:not(:disabled) { background-color: #0056b3; }
 
 /* BOTÕES DE ROLAGEM */
 .roll-dice-button {
