@@ -3,12 +3,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentGameState = null;
     const socket = io();
 
-    // *** ÁUDIOS PRÉ-CARREGADOS PARA EVITAR ERROS ***
     const SOUNDS = {
         jab: [new Audio('sons/jab01.mp3'), new Audio('sons/jab02.mp3'), new Audio('sons/jab03.mp3')],
         strong: [new Audio('sons/baseforte01.mp3'), new Audio('sons/baseforte02.mp3')],
         dice: [new Audio('sons/dice1.mp3'), new Audio('sons/dice2.mp3'), new Audio('sons/dice3.mp3')],
-        critical: [new Audio('sons/Critical.mp3')]
+        critical: [new Audio('sons/Critical.mp3')],
+        miss: [new Audio('sons/Esquiva.mp3')]
     };
 
     function playRandomSound(soundType) {
@@ -16,8 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (soundArray && soundArray.length > 0) {
             const randomIndex = Math.floor(Math.random() * soundArray.length);
             const sound = soundArray[randomIndex];
-            sound.currentTime = 0; // Permite que o som seja tocado novamente mesmo se já estiver tocando
-            sound.play().catch(e => console.error("Erro ao tocar som:", e)); // Captura erros de autoplay
+            sound.currentTime = 0;
+            sound.play().catch(e => console.error("Erro ao tocar som:", e));
         }
     }
 
@@ -31,8 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalText = document.getElementById('modal-text');
     let modalButton = document.getElementById('modal-button');
     const controlsWrapper = document.getElementById('action-buttons-wrapper'); 
-
-    // --- OUVINTES DE EVENTOS ---
 
     socket.on('playSound', (soundType) => {
         playRandomSound(soundType);
