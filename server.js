@@ -1,4 +1,4 @@
-// VERSÃO FINAL E DEFINITIVA - server.js
+// VERSÃO SHOWTIME - server.js
 
 const express = require('express');
 const http = require('http');
@@ -92,7 +92,7 @@ function handleKnockdown(state, downedPlayerKey) {
 }
 
 function sendNextActionModal(room) {
-    if (!room) return;
+    if (!room || room.players.length < 2) return;
     const state = room.state;
     const getPlayerSocket = (playerKey) => room.players.find(p => p.playerKey === playerKey);
     let targetPlayer = null;
@@ -110,7 +110,6 @@ function sendNextActionModal(room) {
             }
             break;
     }
-
     if (targetPlayer && modalData) {
         io.to(targetPlayer.id).emit('showModal', {
             ...modalData,
@@ -130,15 +129,14 @@ io.on('connection', (socket) => {
             io.to(socket.id).emit('assignPlayer', 'player2');
             logMessage(room.state, `${room.state.fighters.player2.nome} entrou. Preparem-se!`, 'log-info');
             room.state.phase = 'initiative_p1';
-            io.to(roomId).emit('gameUpdate', room.state);
-            sendNextActionModal(room);
         } else {
             const newRoomId = uuidv4().substring(0, 6); socket.join(newRoomId); socket.currentRoomId = newRoomId;
             games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: createNewGameState() };
             room = games[newRoomId]; socket.emit('assignPlayer', 'player1');
             socket.emit('roomCreated', newRoomId);
-            io.to(newRoomId).emit('gameUpdate', room.state);
         }
+        io.to(room.id).emit('gameUpdate', room.state);
+        sendNextActionModal(room);
     });
 
     socket.on('playerAction', (action) => {
