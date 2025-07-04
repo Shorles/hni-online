@@ -153,7 +153,7 @@ body {
     50% { transform: translateX(50px) scaleX(-1); }
 }
 @keyframes player2-attack-lunge { 
-    50% { transform: translateX(-50px) scaleX(-1); } /* Mantém o espelhamento do P2 */
+    50% { transform: translateX(-50px) scaleX(-1); }
 }
 @keyframes hit-flash { 
     0%, 100% { filter: brightness(1); } 
@@ -178,7 +178,7 @@ body {
 } 
 #player2-fight-img { 
     right: 380px;
-    transform: scaleX(-1); /* >>> P2 AGORA ESPELHADO <<< */
+    transform: scaleX(-1); 
 } 
 
 /* CLASSES DE ANIMAÇÃO */
@@ -225,10 +225,10 @@ body {
 #action-buttons-wrapper.p2-controls .action-btn { background-color: #c82333; }
 #action-buttons-wrapper.p2-controls .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
 
-/* >>> NOVOS ESTILOS PARA BOTÕES DE ROLAGEM <<< */
+/* ESTILOS PARA BOTÕES DE ROLAGEM CORRIGIDOS */
 .roll-dice-button {
     position: absolute;
-    bottom: 250px;
+    bottom: 450px; /* >>> Posição vertical ajustada <<< */
     padding: 10px 15px;
     font-size: 1em;
     font-weight: bold;
@@ -244,8 +244,8 @@ body {
 .roll-dice-button:hover {
     transform: scale(1.05);
 }
-#player1-roll-btn { left: 180px; }
-#player2-roll-btn { right: 180px; }
+#player1-roll-btn { left: 200px; } /* >>> Posição horizontal ajustada <<< */
+#player2-roll-btn { right: 200px; } /* >>> Posição horizontal ajustada <<< */
 
 
 /* MODAL */

@@ -194,7 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // >>> Lógica para mostrar/esconder os novos botões de rolagem
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
         if (myPlayerKey === targetPlayerKey) {
             const btn = document.getElementById(`${myPlayerKey}-roll-btn`);
@@ -223,15 +222,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (targetPlayerKey === myPlayerKey) {
-            // Agora apenas para knockdown e talvez futuras ações com modal
             showInteractiveModal(title, text, btnText, action);
         } else {
             const activePlayerName = currentGameState.fighters[targetPlayerKey]?.nome || 'oponente';
             if (modalType === 'knockdown') {
                 showInfoModal(`${activePlayerName} caiu!`, "Aguarde a contagem...");
-            } else {
-                // Se não for um modal específico, pode-se optar por não mostrar nada ao oponente
-                // ou uma mensagem genérica se necessário. Aqui, optamos por não mostrar nada.
             }
         }
     });
@@ -249,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         showInteractiveModal("Definir Atributos do Oponente", modalContentHtml, "Confirmar Atributos", null);
         
-        // A lógica do botão é definida dentro da função do modal
         modalButton.onclick = () => {
             const agi = document.getElementById('p2-stat-agi').value;
             const res = document.getElementById('p2-stat-res').value;
@@ -259,15 +253,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            modalButton.disabled = true;
-            modalButton.innerText = "Aguarde...";
-            
             const action = {
                 type: 'set_p2_stats',
                 playerKey: myPlayerKey,
                 stats: { agi, res }
             };
             socket.emit('playerAction', action);
+            
+            // >>> CORREÇÃO: Esconde o modal imediatamente após o clique.
+            modal.classList.add('hidden');
         };
     });
 
@@ -344,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalButton.parentNode.replaceChild(newButton, modalButton);
         modalButton = document.getElementById('modal-button');
         
-        if (action) { // Apenas atribui onclick se uma ação for fornecida
+        if (action) {
             modalButton.onclick = () => {
                 modalButton.disabled = true;
                 modalButton.innerText = "Aguarde...";
