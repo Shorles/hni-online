@@ -95,51 +95,52 @@ function handleKnockdown(state, downedPlayerKey) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0 };
 }
 
-// *** NOVA FUNÇÃO CENTRAL PARA ENVIAR MODAIS ***
 function dispatchActionModal(room) {
     const { state, id: roomId } = room;
     let modalPayload = null;
+    let targetPlayerKey = null;
 
     switch (state.phase) {
         case 'initiative_p1':
+            targetPlayerKey = 'player1';
             modalPayload = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } };
             break;
         case 'initiative_p2':
+            targetPlayerKey = 'player2';
             modalPayload = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } };
             break;
         case 'defense_p1':
+            targetPlayerKey = 'player1';
             modalPayload = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } };
             break;
         case 'defense_p2':
+            targetPlayerKey = 'player2';
             modalPayload = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } };
             break;
         case 'knockdown':
-            const { knockdownInfo } = state;
-            if (knockdownInfo) {
+            if (state.knockdownInfo) {
+                targetPlayerKey = state.knockdownInfo.downedPlayer;
                 modalPayload = {
-                    title: `Você caiu!`, text: `Tentativas restantes: ${4 - knockdownInfo.attempts}`,
-                    btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: knockdownInfo.downedPlayer }
+                    title: `Você caiu!`, text: `Tentativas restantes: ${4 - state.knockdownInfo.attempts}`,
+                    btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey }
                 };
             }
             break;
         default:
-            // Para fases como 'turn', 'gameover', etc., nos certificamos de que nenhum modal esteja aberto
             io.to(roomId).emit('hideModal');
             return;
     }
 
-    if (modalPayload) {
-        // Enviamos o modal para a sala TODA. O cliente decidirá o que mostrar.
-        io.to(roomId).emit('showModal', modalPayload);
+    if (modalPayload && targetPlayerKey) {
+        io.to(roomId).emit('showModal', { ...modalPayload, targetPlayerKey });
     }
 }
 
 io.on('connection', (socket) => {
     socket.on('joinGame', (roomId) => {
-        let room;
         if (roomId && games[roomId] && games[roomId].players.length === 1) {
             socket.join(roomId);
-            room = games[roomId];
+            const room = games[roomId];
             room.players.push({ id: socket.id, playerKey: 'player2' });
             socket.currentRoomId = roomId;
 
@@ -150,19 +151,17 @@ io.on('connection', (socket) => {
             room.state.phase = 'initiative_p1';
             
             io.to(roomId).emit('gameUpdate', room.state);
-            dispatchActionModal(room); // *** CHAMADA INICIAL PARA O MODAL ***
+            dispatchActionModal(room); 
 
         } else {
             const newRoomId = uuidv4().substring(0, 6);
             socket.join(newRoomId);
             socket.currentRoomId = newRoomId;
             games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: createNewGameState() };
-            room = games[newRoomId];
             
             socket.emit('assignPlayer', 'player1');
             socket.emit('roomCreated', newRoomId);
-            io.to(newRoomId).emit('gameUpdate', room.state);
-            // Nenhum modal é enviado aqui, esperamos o jogador 2
+            io.to(newRoomId).emit('gameUpdate', games[newRoomId].state);
         }
     });
 
@@ -174,14 +173,19 @@ io.on('connection', (socket) => {
         const state = room.state;
         const playerKey = action.playerKey;
 
-        // Proteção para evitar que o jogador errado realize uma ação
-        if (state.phase.includes(playerKey) && state.phase !== `initiative_${playerKey}` && state.phase !== `defense_${playerKey}` && state.phase !== 'turn' && state.phase !== 'knockdown') {
-             if (state.whoseTurn !== playerKey) return;
+        // Guarda de Validação Simplificada: A ação deve corresponder à fase atual
+        const expectedPhase = `${action.type.split('_')[1]}_${playerKey}`;
+        if ((action.type.startsWith('roll_') && state.phase !== expectedPhase)) {
+            // Ação de rolagem fora de hora, ignora.
+            return;
+        }
+        if ((action.type === 'attack' || action.type === 'end_turn') && (state.phase !== 'turn' || state.whoseTurn !== playerKey)) {
+            // Ação de turno fora da vez/fase, ignora.
+            return;
         }
 
         switch (action.type) {
             case 'roll_initiative':
-                if (state.phase !== `initiative_${playerKey}`) return; // Impede ação fora de fase
                 const roll = rollD(6);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 state.initiativeRolls[playerKey] = roll + state.fighters[playerKey].agi;
@@ -198,7 +202,6 @@ io.on('connection', (socket) => {
                 break;
 
             case 'roll_defense':
-                if (state.phase !== `defense_${playerKey}`) return; // Impede ação fora de fase
                 const defRoll = rollD(3);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 state.fighters[playerKey].def = defRoll + state.fighters[playerKey].res;
@@ -213,7 +216,6 @@ io.on('connection', (socket) => {
                 break;
 
             case 'attack':
-                if (state.whoseTurn !== playerKey || state.phase !== 'turn') return;
                 const move = state.moves[action.move];
                 if (state.fighters[playerKey].pa >= move.cost) {
                     state.fighters[playerKey].pa -= move.cost;
@@ -224,9 +226,7 @@ io.on('connection', (socket) => {
                 break;
 
             case 'end_turn':
-                if (state.whoseTurn === playerKey && state.phase === 'turn') {
-                     endTurn(state);
-                }
+                endTurn(state);
                 break;
 
             case 'request_get_up':
@@ -241,7 +241,7 @@ io.on('connection', (socket) => {
                     logMessage(state, `Ele se levantou!`, 'log-info');
                     state.fighters[playerKey].res--;
                     state.fighters[playerKey].hp = state.fighters[playerKey].res * 5;
-                    state.phase = 'turn'; // Volta para a fase de turno
+                    state.phase = 'turn'; 
                     state.knockdownInfo = null;
                 } else if (info.attempts >= 4) {
                     logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
@@ -251,17 +251,12 @@ io.on('connection', (socket) => {
                 break;
         }
 
-        // Após QUALQUER ação, atualizamos os clientes e despachamos o próximo modal.
         io.to(roomId).emit('gameUpdate', room.state);
-        dispatchActionModal(room); // *** CHAMADA APÓS CADA AÇÃO ***
+        dispatchActionModal(room);
     });
 
     socket.on('disconnect', () => { /* ... */ });
 });
-
-
-// ***** REMOVEMOS O SETINTERVAL COMPLETAMENTE *****
-
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));

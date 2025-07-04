@@ -55,7 +55,16 @@ body {
 }
 
 /* --- TELA DE LUTA --- */
-#fight-screen { justify-content: flex-end; padding: 0; box-sizing: border-box; background-image: url('images/ringue.png'); background-size: cover; background-position: center; position: relative; overflow: hidden; }
+#fight-screen { 
+    justify-content: space-between; /* <-- ESTA É A ALTERAÇÃO */
+    padding: 0; 
+    box-sizing: border-box; 
+    background-image: url('images/ringue.png'); 
+    background-size: cover; 
+    background-position: center; 
+    position: relative; 
+    overflow: hidden; 
+}
 #fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
 @keyframes player-attack-lunge { 50% { transform: translateX(40px); } }
 @keyframes opponent-attack-lunge { 50% { transform: translateX(-40px); } }
