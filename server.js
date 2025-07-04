@@ -1,5 +1,4 @@
-//  VERSÃO FINAL E CORRIGIDA DO SERVER.JS
-// (Sem declarações duplicadas)
+//  VERSÃO COMPLETA E MODIFICADA DO SERVER.JS (COM EVENTOS DE SOM)
 
 const express = require('express');
 const http = require('http');
@@ -41,7 +40,28 @@ function executeAttack(state, attackerKey, defenderKey, moveName) {
     if (roll === 1) { logMessage(state, "Erro Crítico!", 'log-miss'); }
     else if (roll === 6) { logMessage(state, "Acerto Crítico!", 'log-crit'); hit = true; crit = true; }
     else { if (attackValue >= defender.def) { logMessage(state, "Acertou!", 'log-hit'); hit = true; } else { logMessage(state, "Errou!", 'log-miss'); } }
+    
     if (hit) {
+        // Encontra o roomId para poder emitir o som
+        const roomId = Object.values(games).find(room => room.state === state)?.id;
+        if (roomId) {
+            if (crit) {
+                io.to(roomId).emit('playSound', 'critical');
+            } else {
+                // Mapeia o golpe para um tipo de som
+                switch (moveName) {
+                    case 'Jab':
+                        io.to(roomId).emit('playSound', 'jab');
+                        break;
+                    case 'Direto':
+                    case 'Upper':
+                    case 'Liver Blow':
+                        io.to(roomId).emit('playSound', 'strong');
+                        break;
+                }
+            }
+        }
+
         let damage = crit ? move.damage * 2 : move.damage;
         defender.hp = Math.max(0, defender.hp - damage);
         attacker.hitsLanded++; defender.totalDamageTaken += damage;
@@ -203,6 +223,7 @@ io.on('connection', (socket) => {
 
         switch (action.type) {
             case 'roll_initiative':
+                io.to(roomId).emit('playSound', 'dice'); // Som do dado
                 const roll = rollD(6);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 state.initiativeRolls[playerKey] = roll + state.fighters[playerKey].agi;
@@ -219,6 +240,7 @@ io.on('connection', (socket) => {
                 break;
 
             case 'roll_defense':
+                io.to(roomId).emit('playSound', 'dice'); // Som do dado
                 const defRoll = rollD(3);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 state.fighters[playerKey].def = defRoll + state.fighters[playerKey].res;

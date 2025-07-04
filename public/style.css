@@ -56,10 +56,11 @@ body {
 
 /* --- TELA DE LUTA --- */
 #fight-screen { 
-    justify-content: space-between; /* <-- ESTA É A ALTERAÇÃO */
+    justify-content: space-between;
     padding: 0; 
     box-sizing: border-box; 
-    background-image: url('images/ringue.png'); 
+    /* CORREÇÃO DO NOME DO ARQUIVO PARA "Ringue.png" (CASE-SENSITIVE) */
+    background-image: url('images/Ringue.png'); 
     background-size: cover; 
     background-position: center; 
     position: relative; 
