@@ -36,24 +36,8 @@
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
-                <!-- ÁREA JOGADOR 2 (AGORA NA ESQUERDA) -->
-                <div class="fighter-info" id="player2-area">
-                    <h2 id="player2-fight-name">Jogador 2</h2>
-                    <div class="stats-bar">
-                        <span>HP: </span>
-                        <div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div>
-                        <span id="player2-hp-text">15 / 15</span>
-                    </div>
-                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player2-pa-dots"></div></div>
-                    <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player2-def-text">0</span></div>
-                    <p>Acertos: <span id="player2-hits">0</span></p>
-                </div>
-                <!-- LOG DE LUTA (CENTRAL) -->
-                <div id="fight-log-container">
-                    <h2 id="round-info">ROUND 1</h2>
-                    <div id="fight-log"></div>
-                </div>
-                <!-- ÁREA JOGADOR 1 (AGORA NA DIREITA) -->
+                <!-- ORDEM ORIGINAL RESTAURADA: P1 PRIMEIRO -->
+                <!-- ÁREA JOGADOR 1 (ESQUERDA NO CÓDIGO) -->
                 <div class="fighter-info" id="player1-area">
                     <h2 id="player1-fight-name">Jogador 1</h2>
                     <div class="stats-bar">
@@ -64,6 +48,23 @@
                     <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player1-pa-dots"></div></div>
                     <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player1-def-text">0</span></div>
                     <p>Acertos: <span id="player1-hits">0</span></p>
+                </div>
+                <!-- LOG DE LUTA (CENTRAL) -->
+                <div id="fight-log-container">
+                    <h2 id="round-info">ROUND 1</h2>
+                    <div id="fight-log"></div>
+                </div>
+                <!-- ÁREA JOGADOR 2 (DIREITA NO CÓDIGO) -->
+                <div class="fighter-info" id="player2-area">
+                    <h2 id="player2-fight-name">Jogador 2</h2>
+                    <div class="stats-bar">
+                        <span>HP: </span>
+                        <div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div>
+                        <span id="player2-hp-text">15 / 15</span>
+                    </div>
+                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player2-pa-dots"></div></div>
+                    <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player2-def-text">0</span></div>
+                    <p>Acertos: <span id="player2-hits">0</span></p>
                 </div>
             </div>
             <!-- BOTÕES DE AÇÃO -->

@@ -145,17 +145,26 @@ body {
 @keyframes player-attack-lunge { 50% { transform: translateX(40px); } }
 @keyframes opponent-attack-lunge { 50% { transform: translateX(-40px); } }
 .fighter-img { position: absolute; width: 150px; height: 150px; object-fit: contain; bottom: 370px; z-index: 10; transition: opacity 0.2s ease-in-out, transform 0.2s ease; }
-/* Posições Invertidas */
-#player1-fight-img { right: 380px; }
-#player2-fight-img { left: 380px; }
 
-/* Animações Invertidas */
-#player1-fight-img.is-attacking-player1 { animation: opponent-attack-lunge 0.4s ease-in-out; }
-#player2-fight-img.is-attacking-player2 { animation: player-attack-lunge 0.4s ease-in-out; }
+/* Posições Originais Restauradas */
+#player1-fight-img { left: 380px; }
+#player2-fight-img { right: 380px; }
+#player1-fight-img.is-attacking-player1 { animation: player-attack-lunge 0.4s ease-in-out; }
+#player2-fight-img.is-attacking-player2 { animation: opponent-attack-lunge 0.4s ease-in-out; }
 
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(2.5); } 50% { filter: brightness(1); } }
 .is-hit { animation: hit-flash 1s ease-in-out; }
-.fight-ui-container { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
+
+/* LÓGICA DE INVERSÃO VISUAL COM CSS */
+.fight-ui-container { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: flex-start; 
+    width: 100%;
+    flex-direction: row-reverse; /* ESTA É A MÁGICA! */
+}
+/* FIM DA LÓGICA DE INVERSÃO */
+
 .fighter-info { flex-basis: 30%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
 .fighter-info.active-turn { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
 .fighter-info p { margin: 0; font-size: 0.9em; }
@@ -198,9 +207,9 @@ body {
 /* --- DADOS --- */
 #dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 50; cursor: pointer; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
-/* Posições Invertidas */
-#player1-dice-result { right: 400px; bottom: 530px; }
-#player2-dice-result { left: 400px; bottom: 530px; }
+/* Posições Originais Restauradas */
+#player1-dice-result { left: 400px; bottom: 530px; }
+#player2-dice-result { right: 400px; bottom: 530px; }
 
 /* --- PLACAR DE DECISÃO --- */
 #scorecard { width: 100%; margin-top: 15px; border-collapse: collapse; text-align: left; }
