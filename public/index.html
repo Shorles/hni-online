@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HNI Battle Online</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="game-wrapper">
+
+    <!-- NOVA TELA DE LOBBY -->
+    <div id="lobby-screen" class="screen active">
+        <h1>Hajime no Ippo: Batalha Online</h1>
+        <div id="lobby-content">
+            <p>Aguardando conexão...</p>
+        </div>
+        <div id="share-container" class="hidden">
+            <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
+            <div id="share-link" title="Clique para copiar">Carregando...</div>
+        </div>
+    </div>
+
+    <!-- TELA DE LUTA (Começa oculta) -->
+    <div id="fight-screen" class="screen">
+        <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
+        <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
+
+        <div id="fight-ui-wrapper">
+            <div class="fight-ui-container">
+                <!-- ÁREA JOGADOR 1 -->
+                <div class="fighter-info" id="player1-area">
+                    <h2 id="player1-fight-name">Nathan</h2>
+                    <div class="stats-bar">
+                        <span>HP: </span>
+                        <div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div>
+                        <span id="player1-hp-text">10 / 10</span>
+                    </div>
+                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player1-pa-dots"></div></div>
+                    <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player1-def-text">0</span></div>
+                    <p>Acertos: <span id="player1-hits">0</span></p>
+                </div>
+                <!-- LOG DE LUTA -->
+                <div id="fight-log-container">
+                    <h2 id="round-info">ROUND 1</h2>
+                    <div id="fight-log"></div>
+                </div>
+                <!-- ÁREA JOGADOR 2 -->
+                <div class="fighter-info" id="player2-area">
+                    <h2 id="player2-fight-name">Ivan</h2>
+                    <div class="stats-bar">
+                        <span>HP: </span>
+                        <div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div>
+                        <span id="player2-hp-text">15 / 15</span>
+                    </div>
+                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player2-pa-dots"></div></div>
+                    <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player2-def-text">0</span></div>
+                    <p>Acertos: <span id="player2-hits">0</span></p>
+                </div>
+            </div>
+            <!-- BOTÕES DE AÇÃO -->
+            <div id="action-buttons-wrapper">
+                <div id="move-buttons">
+                    <button class="action-btn" data-move="Jab">Jab (1 PA)</button>
+                    <button class="action-btn" data-move="Direto">Direto (2 PA)</button>
+                    <button class="action-btn" data-move="Upper">Upper (3 PA)</button>
+                    <button class="action-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
+                    <button id="end-turn-btn">ENCERRAR O TURNO</button>
+                </div>
+                <div id="utility-buttons">
+                    <button id="forfeit-btn">Jogar a Toalha</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overlay e containers para os dados -->
+        <div id="dice-overlay" class="hidden"></div>
+        <div id="player1-dice-result" class="dice-result hidden"></div>
+        <div id="player2-dice-result" class="dice-result hidden"></div>
+    </div>
+
+    <!-- MODAL PARA POPUPS -->
+    <div id="modal" class="hidden">
+        <div id="modal-content">
+            <h3 id="modal-title">Título</h3>
+            <div id="modal-text">Texto.</div>
+            <button id="modal-button">OK</button>
+        </div>
+    </div>
+
+</div> <!-- Fim do #game-wrapper -->
+
+<script src="/socket.io/socket.io.js"></script> <!-- Importa a biblioteca do Socket.IO -->
+<script src="client.js"></script> <!-- Nosso novo arquivo de lógica do cliente -->
+</body>
+</html>
