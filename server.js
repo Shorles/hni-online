@@ -22,7 +22,7 @@ const rollAttackD6 = () => { const r = rollD(100); if (r <= 5) return 6; if (r <
 
 function createNewGameState() {
     return {
-        fighters: {}, pendingP2Choice: null,
+        fighters: {}, pendingP2Choice: null, winner: null,
         moves: MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
     };
@@ -30,17 +30,18 @@ function createNewGameState() {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
-function executeAttack(state, attackerKey, defenderKey, moveName) {
+function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
+    // >>> NOVO: Dispara a animação de ataque para todos os clientes
+    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
+
     const attacker = state.fighters[attackerKey], defender = state.fighters[defenderKey], move = state.moves[moveName];
     const roll = rollAttackD6(); let hit = false, crit = false;
     const attackValue = roll + attacker.agi - move.penalty;
     logMessage(state, `${attacker.nome}: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
     
-    const roomId = Object.values(games).find(room => room.state === state)?.id;
-
     if (roll === 1) { 
         logMessage(state, "Erro Crítico!", 'log-miss'); 
-        if (roomId) io.to(roomId).emit('playSound', 'miss');
+        io.to(roomId).emit('playSound', 'miss');
     }
     else if (roll === 6) { 
         logMessage(state, "Acerto Crítico!", 'log-crit'); 
@@ -53,21 +54,23 @@ function executeAttack(state, attackerKey, defenderKey, moveName) {
             hit = true; 
         } else { 
             logMessage(state, "Errou!", 'log-miss'); 
-            if (roomId) io.to(roomId).emit('playSound', 'miss');
+            io.to(roomId).emit('playSound', 'miss');
         } 
     }
     
     if (hit) {
-        if (roomId) {
-            if (crit) {
-                io.to(roomId).emit('playSound', 'critical');
-            } else {
-                switch (moveName) {
-                    case 'Jab': io.to(roomId).emit('playSound', 'jab'); break;
-                    default: io.to(roomId).emit('playSound', 'strong'); break;
-                }
+        // >>> NOVO: Dispara a animação de dano no defensor
+        io.to(roomId).emit('triggerHitAnimation', { defenderKey });
+        
+        if (crit) {
+            io.to(roomId).emit('playSound', 'critical');
+        } else {
+            switch (moveName) {
+                case 'Jab': io.to(roomId).emit('playSound', 'jab'); break;
+                default: io.to(roomId).emit('playSound', 'strong'); break;
             }
         }
+        
         let damage = crit ? move.damage * 2 : move.damage;
         defender.hp = Math.max(0, defender.hp - damage);
         attacker.hitsLanded++; defender.totalDamageTaken += damage;
@@ -140,6 +143,8 @@ function isActionValid(state, action) {
             return (type === 'attack' || type === 'end_turn') && playerKey === state.whoseTurn;
         case 'knockdown':
             return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
+        case 'gameover':
+            return false; // Nenhuma ação é válida quando o jogo acaba
         default:
             return false;
     }
@@ -178,6 +183,10 @@ function dispatchActionModal(room) {
                 };
             }
             break;
+        case 'gameover':
+            const winnerName = state.winner ? state.fighters[state.winner].nome : "Ninguém";
+            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: `VITÓRIA DE ${winnerName.toUpperCase()}`});
+            return; // Encerra a função aqui para não esconder o modal de vitória
         default:
             io.to(roomId).emit('hideModal');
             return;
@@ -197,14 +206,15 @@ io.on('connection', (socket) => {
 
         const newState = createNewGameState();
         const res = Math.max(1, parseInt(player1Data.res, 10));
+        const hp = res * 5; // HP = RES x 5
         newState.fighters.player1 = {
             nome: player1Data.nome,
             img: player1Data.img,
             agi: parseInt(player1Data.agi, 10),
             res: res,
             originalRes: res,
-            hpMax: res * 10,
-            hp: res * 10,
+            hpMax: hp,
+            hp: hp,
             pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
         };
 
@@ -257,14 +267,15 @@ io.on('connection', (socket) => {
                 const player2Data = state.pendingP2Choice;
                 const stats = action.stats;
                 const res = Math.max(1, parseInt(stats.res, 10));
+                const hp = res * 5; // HP = RES x 5
                 state.fighters.player2 = {
                     nome: player2Data.nome,
                     img: player2Data.img,
                     agi: parseInt(stats.agi, 10),
                     res: res,
                     originalRes: res,
-                    hpMax: res * 10,
-                    hp: res * 10,
+                    hpMax: hp,
+                    hp: hp,
                     pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
                 };
                 delete state.pendingP2Choice;
@@ -309,8 +320,13 @@ io.on('connection', (socket) => {
                 if (state.fighters[playerKey].pa >= move.cost) {
                     state.fighters[playerKey].pa -= move.cost;
                     const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
-                    executeAttack(state, playerKey, defenderKey, action.move);
-                    if (state.fighters[defenderKey].hp <= 0) handleKnockdown(state, defenderKey);
+                    
+                    // >>> MUDANÇA: Passa 'io' e 'roomId' para a função de ataque
+                    executeAttack(state, playerKey, defenderKey, action.move, io, roomId);
+                    
+                    if (state.fighters[defenderKey].hp <= 0) {
+                        handleKnockdown(state, defenderKey);
+                    }
                 }
                 break;
 
@@ -328,8 +344,11 @@ io.on('connection', (socket) => {
                 logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar: ${totalRoll}`, 'log-info');
                 if (totalRoll >= 7) {
                     logMessage(state, `Ele se levantou!`, 'log-info');
-                    state.fighters[playerKey].res--;
-                    state.fighters[playerKey].hp = state.fighters[playerKey].res * 5;
+                    const fighter = state.fighters[playerKey];
+                    fighter.res--;
+                    const newHp = fighter.res * 5; // Recalcula HP com a nova RES
+                    fighter.hp = newHp;
+                    fighter.hpMax = newHp;
                     state.phase = 'turn'; 
                     state.knockdownInfo = null;
                 } else if (info.attempts >= 4) {

@@ -147,18 +147,30 @@ body {
     overflow: hidden; 
 }
 #fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
-@keyframes player-attack-lunge { 50% { transform: translateX(40px); } }
-@keyframes opponent-attack-lunge { 50% { transform: translateX(-40px); } }
-.fighter-img { position: absolute; width: 150px; height: 150px; object-fit: contain; bottom: 370px; z-index: 10; transition: opacity 0.2s ease-in-out, transform 0.2s ease; }
+
+/* >>> NOVAS ANIMAÇÕES <<< */
+@keyframes player1-attack-lunge { 50% { transform: translateX(50px); } }
+@keyframes player2-attack-lunge { 50% { transform: translateX(-50px); } }
+@keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
+
+.fighter-img { 
+    position: absolute; 
+    width: 200px; /* Aumentado para melhor visualização */
+    height: 200px;
+    object-fit: contain; 
+    bottom: 350px; 
+    z-index: 10; 
+    transition: transform 0.2s ease;
+}
 
 /* Inversão Visual dos Lutadores */
-#player1-fight-img { right: 380px; }
-#player2-fight-img { left: 380px; }
-#player1-fight-img.is-attacking-player1 { animation: opponent-attack-lunge 0.4s ease-in-out; }
-#player2-fight-img.is-attacking-player2 { animation: player-attack-lunge 0.4s ease-in-out; }
+#player1-fight-img { left: 380px; transform: scaleX(-1); } /* P1 na esquerda, invertido */
+#player2-fight-img { right: 380px; } /* P2 na direita */
 
-@keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(2.5); } 50% { filter: brightness(1); } }
-.is-hit { animation: hit-flash 1s ease-in-out; }
+/* >>> NOVAS CLASSES DE ANIMAÇÃO <<< */
+.is-attacking-player1 { animation: player1-attack-lunge 0.4s ease-in-out; }
+.is-attacking-player2 { animation: player2-attack-lunge 0.4s ease-in-out; }
+.is-hit { animation: hit-flash 0.5s ease-in-out; }
 
 /* Inversão Visual dos Painéis de UI */
 .fight-ui-container { 
@@ -166,7 +178,6 @@ body {
     justify-content: space-between; 
     align-items: flex-start; 
     width: 100%;
-    flex-direction: row-reverse; 
 }
 
 .fighter-info { flex-basis: 30%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
@@ -188,6 +199,7 @@ body {
 #fight-log p { margin: 5px; padding-bottom: 5px; border-bottom: 1px dashed #444; font-size: 0.9em; }
 .log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
 .highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; vertical-align: middle; }
+.turn-highlight { font-weight: bold; color: #dc3545; }
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
 #move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .action-btn, #end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }

@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label>RES: <input type="number" class="res-input" value="${stats.res}"></label>
                 </div>`
                 : `<div class="char-stats-display">
-                    <span>AGI: ${stats.agi}</span> | <span>RES: ${stats.res}</span>
+                    <span>AGI: ?</span> | <span>RES: ?</span>
                    </div>`;
 
             card.innerHTML = `
@@ -136,6 +136,29 @@ document.addEventListener('DOMContentLoaded', () => {
         playRandomSound(soundType);
     });
 
+    // >>> NOVO: Ouvinte para animação de ataque
+    socket.on('triggerAttackAnimation', ({ attackerKey }) => {
+        const attackerImg = document.getElementById(`${attackerKey}-fight-img`);
+        if (attackerImg) {
+            const animationClass = `is-attacking-${attackerKey}`;
+            attackerImg.classList.add(animationClass);
+            setTimeout(() => {
+                attackerImg.classList.remove(animationClass);
+            }, 400); // Duração da animação
+        }
+    });
+
+    // >>> NOVO: Ouvinte para animação de dano
+    socket.on('triggerHitAnimation', ({ defenderKey }) => {
+        const defenderImg = document.getElementById(`${defenderKey}-fight-img`);
+        if (defenderImg) {
+            defenderImg.classList.add('is-hit');
+            setTimeout(() => {
+                defenderImg.classList.remove('is-hit');
+            }, 500); // Duração da animação
+        }
+    });
+
     socket.on('assignPlayer', (playerKey) => {
         myPlayerKey = playerKey;
         lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1' : '2'}</strong>.</p>`;
@@ -178,6 +201,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentGameState) return;
 
         const { title, text, btnText, action, targetPlayerKey, modalType } = payload;
+        
+        if (modalType === 'gameover') {
+            showInfoModal(title, text);
+            return;
+        }
 
         if (targetPlayerKey === myPlayerKey) {
             showInteractiveModal(title, text, btnText, action);
@@ -251,7 +279,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         for (const key of ['player1', 'player2']) {
             const fighter = state.fighters[key];
-            if (!fighter) continue;
+            if (!fighter) {
+                // Limpa a UI se o lutador não existir
+                document.getElementById(`${key}-fight-name`).innerText = `Jogador ${key === 'player1' ? 1 : 2}`;
+                document.getElementById(`${key}-hp-text`).innerText = `- / -`;
+                document.getElementById(`${key}-hp-bar`).style.width = `100%`;
+                document.getElementById(`${key}-def-text`).innerText = `0`;
+                document.getElementById(`${key}-hits`).innerText = `0`;
+                document.getElementById(`${key}-pa-dots`).innerHTML = '';
+                continue;
+            };
             document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
             document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
             document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
@@ -261,19 +298,30 @@ document.addEventListener('DOMContentLoaded', () => {
             paContainer.innerHTML = '';
             for (let i = 0; i < fighter.pa; i++) paContainer.innerHTML += '<div class="pa-dot"></div>';
         }
-        const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : (state.phase === 'p2_stat_assignment' ? 'Definindo Atributos' : '...');
-        document.getElementById('round-info').innerText = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: ${turnName}`;
+
+        const roundInfoEl = document.getElementById('round-info');
+        if (state.phase === 'gameover') {
+            const winnerName = state.winner ? state.fighters[state.winner].nome : "Ninguém";
+            roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
+        } else {
+            const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : (state.phase === 'p2_stat_assignment' ? 'Definindo Atributos' : '...');
+            roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
+        }
+        
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2');
         
         const isMyTurn = state.whoseTurn === myPlayerKey && state.phase === 'turn';
+        const isGameOver = state.phase === 'gameover';
+        
         document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
             const move = state.moves[btn.dataset.move];
             const fighterPA = (myPlayerKey && state.fighters[myPlayerKey]) ? state.fighters[myPlayerKey].pa : 0;
-            btn.disabled = !isMyTurn || !move || move.cost > fighterPA;
+            btn.disabled = !isMyTurn || !move || move.cost > fighterPA || isGameOver;
         });
-        document.getElementById('end-turn-btn').disabled = !isMyTurn;
-        document.getElementById('forfeit-btn').disabled = state.phase === 'gameover';
+        document.getElementById('end-turn-btn').disabled = !isMyTurn || isGameOver;
+        document.getElementById('forfeit-btn').disabled = isGameOver;
+
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
