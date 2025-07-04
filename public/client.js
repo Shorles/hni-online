@@ -20,8 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalTitle = document.getElementById('modal-title');
     let modalText = document.getElementById('modal-text');
     let modalButton = document.getElementById('modal-button');
-    const controlsWrapper = document.getElementById('action-buttons-wrapper');
-    const moveButtonsContainer = document.getElementById('move-buttons');
+    const p1Controls = document.getElementById('p1-controls');
+    const p2Controls = document.getElementById('p2-controls');
 
     // --- DADOS E ÁUDIO ---
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
@@ -49,8 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCharacterSelection('p1');
         }
         confirmBtn.addEventListener('click', onConfirmSelection);
-        document.querySelectorAll('#move-buttons .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
-        document.getElementById('end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        
+        document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
+        document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        
+        document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
+        document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        
         document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator') socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey }) };
     }
 
@@ -92,20 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('playSound', playRandomSound);
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
-
     socket.on('assignPlayer', (playerKey) => { myPlayerKey = playerKey; const msg = playerKey === 'spectator' ? 'Você está <strong>assistindo</strong> a partida.' : `Você é o <strong>Jogador ${playerKey === 'player1' ? '1' : '2'}</strong>.`; lobbyContent.innerHTML = `<p>${msg}</p>`; });
-
-    socket.on('roomCreated', (roomId) => {
-        currentRoomId = roomId;
-        const p2Url = `${window.location.origin}?room=${roomId}`;
-        const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
-        shareLinkP2.textContent = p2Url;
-        shareLinkSpectator.textContent = specUrl;
-        shareContainer.classList.remove('hidden');
-        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
-        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-    });
-
+    socket.on('roomCreated', (roomId) => { currentRoomId = roomId; const p2Url = `${window.location.origin}?room=${roomId}`; const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`; shareLinkP2.textContent = p2Url; shareLinkSpectator.textContent = specUrl; shareContainer.classList.remove('hidden'); shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2); shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator); });
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
@@ -137,30 +130,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
-
-    socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType }) => {
-        if (modalType === 'gameover') { showInfoModal(title, text); return; }
-        if (targetPlayerKey === myPlayerKey) {
-            showInteractiveModal(title, text, btnText, action);
-        } else {
-            const activePlayerName = currentGameState?.fighters[targetPlayerKey]?.nome || 'oponente';
-            if (modalType === 'knockdown') showInfoModal(`${activePlayerName} caiu!`, "Aguarde a contagem...");
-        }
-    });
-
+    socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType }) => { if (modalType === 'gameover') { showInfoModal(title, text); return; } if (targetPlayerKey === myPlayerKey) { showInteractiveModal(title, text, btnText, action); } else { const activePlayerName = currentGameState?.fighters[targetPlayerKey]?.nome || 'oponente'; if (modalType === 'knockdown') showInfoModal(`${activePlayerName} caiu!`, "Aguarde a contagem..."); } });
     socket.on('promptP2Stats', (p2data) => {
         const modalContentHtml = `<p>O Jogador 2 escolheu <strong>${p2data.nome}</strong>.</p><img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;"><p>Defina os atributos dele:</p><div style="display: flex; justify-content: center; gap: 20px; color: #fff; padding: 10px 0;"><label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label><label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label></div>`;
         showInteractiveModal("Definir Atributos do Oponente", modalContentHtml, "Confirmar Atributos", null);
-        modalButton.onclick = () => {
-            const agi = document.getElementById('p2-stat-agi').value;
-            const res = document.getElementById('p2-stat-res').value;
-            if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) { alert("Valores inválidos para AGI/RES."); return; }
-            const action = { type: 'set_p2_stats', playerKey: myPlayerKey, stats: { agi, res } };
-            socket.emit('playerAction', action);
-            modal.classList.add('hidden');
-        };
+        modalButton.onclick = () => { const agi = document.getElementById('p2-stat-agi').value; const res = document.getElementById('p2-stat-res').value; if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) { alert("Valores inválidos para AGI/RES."); return; } const action = { type: 'set_p2_stats', playerKey: myPlayerKey, stats: { agi, res } }; socket.emit('playerAction', action); modal.classList.add('hidden'); };
     });
-
     socket.on('hideModal', () => modal.classList.add('hidden'));
     socket.on('diceRoll', showDiceRollAnimation);
     socket.on('opponentDisconnected', () => { showInfoModal("Oponente Desconectado", "Fim de jogo. Recarregue a página."); document.querySelectorAll('button').forEach(btn => btn.disabled = true); });
@@ -183,40 +158,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'gameover') roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
-        else {
-            const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : '...';
-            roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
-        }
+        else { const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : '...'; roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`; }
         
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2');
         
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
-        const isMyTurn = state.whoseTurn === myPlayerKey;
 
-        // Lógica de cores dos botões
-        controlsWrapper.classList.remove('p1-colors', 'p2-colors');
-        if (isSpectator) {
-            if (state.whoseTurn) controlsWrapper.classList.add(`${state.whoseTurn}-colors`);
-        } else if (myPlayerKey) {
-            controlsWrapper.classList.add(`${myPlayerKey}-colors`);
-        }
-        
-        // Lógica de visibilidade e estado dos botões
-        const showButtonsForPlayer = !isSpectator && !isGameOver && state.phase === 'turn';
-        const showButtonsForSpectator = isSpectator && state.phase === 'turn';
-        
-        if (showButtonsForPlayer || showButtonsForSpectator) {
-            moveButtonsContainer.style.display = 'flex';
-            const activeFighterPA = state.fighters[state.whoseTurn]?.pa || 0;
-            document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
-                const moveCost = state.moves[btn.dataset.move]?.cost;
-                btn.disabled = isSpectator || !isMyTurn || moveCost > activeFighterPA;
-            });
-            document.getElementById('end-turn-btn').disabled = isSpectator || !isMyTurn;
-        } else {
-            moveButtonsContainer.style.display = 'none';
+        // Lógica de exibição e estado dos botões
+        const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
+        const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
+
+        if (myPlayerKey === 'player1') {
+            p1Controls.classList.remove('hidden');
+            p2Controls.classList.add('hidden');
+            const p1_pa = state.fighters.player1?.pa || 0;
+            document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.disabled = !p1_is_turn || (state.moves[btn.dataset.move]?.cost > p1_pa));
+            document.getElementById('p1-end-turn-btn').disabled = !p1_is_turn;
+        } else if (myPlayerKey === 'player2') {
+            p1Controls.classList.add('hidden');
+            p2Controls.classList.remove('hidden');
+            const p2_pa = state.fighters.player2?.pa || 0;
+            document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.disabled = !p2_is_turn || (state.moves[btn.dataset.move]?.cost > p2_pa));
+            document.getElementById('p2-end-turn-btn').disabled = !p2_is_turn;
+        } else if (isSpectator) {
+            p1Controls.classList.toggle('hidden', !p1_is_turn);
+            p2Controls.classList.toggle('hidden', !p2_is_turn);
+            document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => btn.disabled = true);
         }
 
         document.getElementById('forfeit-btn').disabled = isGameOver || isSpectator;
