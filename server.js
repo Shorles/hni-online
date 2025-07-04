@@ -1,4 +1,4 @@
-// VERSÃO FINAL E COMPLETA DO SERVER.JS
+//  VERSÃO CORRIGIDA DO SERVER.JS
 
 const express = require('express');
 const http = require('http');
@@ -70,7 +70,7 @@ function processEndRound(state) {
         state.currentTurn = 1;
         state.fighters.player1.pa = 3; state.fighters.player2.pa = 3;
         logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-info');
-        state.phase = 'defense_p1';
+        state.phase = 'initiative_p1'; // Reinicia o ciclo com iniciativa
     } else {
         state.fighters.player1.pa += 3; state.fighters.player2.pa += 3;
         logMessage(state, `--- Fim da Rodada ${state.currentTurn - 1} ---`, 'log-turn');
@@ -81,13 +81,9 @@ function processEndRound(state) {
 
 function endFightByDecision(state) {
     state.phase = 'decision';
-    // ... (A lógica de pontuação seria adicionada aqui)
-    let p1Score = 10 - state.fighters.player1.knockdowns;
-    let p2Score = 10 - state.fighters.player2.knockdowns;
     // ...
-    logMessage(state, "A luta vai para a decisão dos juízes!", 'log-info');
     state.phase = 'gameover';
-    // (Simplificado por brevidade)
+    // ...
 }
 
 function handleKnockdown(state, downedPlayerKey) {
@@ -151,11 +147,17 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 state.fighters[playerKey].def = defRoll + state.fighters[playerKey].res;
                 logMessage(state, `${state.fighters[playerKey].nome} definiu defesa: ${state.fighters[playerKey].def}`, 'log-info');
-                if (playerKey === 'player1') state.phase = 'defense_p2';
-                else state.phase = 'turn';
+                if (playerKey === 'player1') {
+                    state.phase = 'defense_p2';
+                } else {
+                    // *** ESTA É A CORREÇÃO ***
+                    // Após o P2 rolar a defesa, a fase de turnos começa.
+                    logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn');
+                    state.phase = 'turn';
+                }
                 break;
             case 'attack':
-                if (state.whoseTurn !== playerKey) return;
+                if (state.whoseTurn !== playerKey || state.phase !== 'turn') return;
                 const move = state.moves[action.move];
                 if (state.fighters[playerKey].pa >= move.cost) {
                     state.fighters[playerKey].pa -= move.cost;
@@ -165,11 +167,11 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'end_turn':
-                if (state.whoseTurn === playerKey) endTurn(state);
+                if (state.whoseTurn === playerKey && state.phase === 'turn') endTurn(state);
                 break;
             case 'request_get_up':
                 const info = state.knockdownInfo;
-                if (info.downedPlayer !== playerKey) return;
+                if (!info || info.downedPlayer !== playerKey || state.phase !== 'knockdown') return;
                 info.attempts++;
                 const getUpRoll = rollD(6);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
@@ -196,32 +198,37 @@ io.on('connection', (socket) => {
 
 // Envia os modais de ação para os jogadores corretos
 setInterval(() => {
-    for (const roomId in games) {
-        const room = games[roomId];
-        const state = room.state;
-        const p1 = room.players[0], p2 = room.players[1];
-        if (!p1 || !p2) continue; // Jogo ainda não começou
+    try {
+        for (const roomId in games) {
+            const room = games[roomId];
+            const state = room.state;
+            const p1 = room.players.find(p => p.playerKey === 'player1');
+            const p2 = room.players.find(p => p.playerKey === 'player2');
 
-        if (state.phase === 'initiative_p1') {
-            io.to(p1.id).emit('showModal', { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } });
-        } else if (state.phase === 'initiative_p2') {
-            io.to(p2.id).emit('showModal', { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } });
-        } else if (state.phase === 'defense_p1') {
-            io.to(p1.id).emit('showModal', { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } });
-        } else if (state.phase === 'defense_p2') {
-            io.to(p2.id).emit('showModal', { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } });
-        } else if (state.phase === 'knockdown') {
-            const info = state.knockdownInfo;
-            const downedPlayer = room.players.find(p => p.playerKey === info.downedPlayer);
-            if (downedPlayer) {
-                io.to(downedPlayer.id).emit('showModal', {
-                    title: `Você caiu!`, text: `Tentativas restantes: ${4 - info.attempts}`,
-                    btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: info.downedPlayer }
-                });
+            if (state.phase === 'initiative_p1') {
+                if(p1) io.to(p1.id).emit('showModal', { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } });
+            } else if (state.phase === 'initiative_p2') {
+                if(p2) io.to(p2.id).emit('showModal', { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } });
+            } else if (state.phase === 'defense_p1') {
+                if(p1) io.to(p1.id).emit('showModal', { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } });
+            } else if (state.phase === 'defense_p2') {
+                if(p2) io.to(p2.id).emit('showModal', { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } });
+            } else if (state.phase === 'knockdown') {
+                const info = state.knockdownInfo;
+                if (!info) continue;
+                const downedPlayer = room.players.find(p => p.playerKey === info.downedPlayer);
+                if (downedPlayer) {
+                    io.to(downedPlayer.id).emit('showModal', {
+                        title: `Você caiu!`, text: `Tentativas restantes: ${4 - info.attempts}`,
+                        btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: info.downedPlayer }
+                    });
+                }
             }
         }
+    } catch (error) {
+        console.error("Erro no loop de envio de modais:", error);
     }
-}, 1000); // Verifica o estado a cada segundo
+}, 1000);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
