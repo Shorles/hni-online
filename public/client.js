@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null; // será 'player1', 'player2' ou 'spectator'
     let currentGameState = null;
-    let currentRoomId = null;
+    // >>> CORREÇÃO: Pega o ID da sala da URL no início para P2 e Espectadores
+    let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
 
     // --- DADOS DOS PERSONAGENS ---
@@ -95,9 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room');
-        
         let playerData = {
             nome: selectedCard.dataset.name,
             img: selectedCard.dataset.img,
@@ -106,11 +104,11 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmBtn.disabled = true;
         selectionScreen.classList.remove('active');
 
-        if (roomId) {
-            socket.emit('joinGame', { roomId, player2Data: playerData });
+        if (currentRoomId) { // Jogador 2
+            socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
             lobbyScreen.classList.add('active');
             lobbyContent.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
-        } else {
+        } else { // Jogador 1
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
@@ -120,15 +118,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- LÓGICA DE INICIALIZAÇÃO ---
     const urlParams = new URLSearchParams(window.location.search);
-    const roomIdFromUrl = urlParams.get('room');
     const isSpectator = urlParams.get('spectate') === 'true';
 
-    if (isSpectator && roomIdFromUrl) {
+    if (isSpectator && currentRoomId) {
         selectionScreen.classList.remove('active');
         lobbyScreen.classList.add('active');
         lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
-        socket.emit('spectateGame', roomIdFromUrl);
-    } else if (roomIdFromUrl) {
+        socket.emit('spectateGame', currentRoomId);
+    } else if (currentRoomId) {
         selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
         confirmBtn.innerText = 'Entrar na Luta';
         renderCharacterSelection('p2');
@@ -175,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('roomCreated', (roomId) => {
-        currentRoomId = roomId;
+        currentRoomId = roomId; // P1 define seu ID de sala aqui
         const p2Url = `${window.location.origin}?room=${roomId}`;
         const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
 
@@ -203,12 +200,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     socket.on('gameUpdate', (gameState) => {
-        // >>> Captura o ID da sala a partir do estado para uso do espectador
-        if (!currentRoomId) {
-            const roomInGames = Object.values(games).find(g => g.state === gameState);
-            if (roomInGames) currentRoomId = roomInGames.id;
-        }
-        
         currentGameState = gameState;
         
         if(gameState.fighters.player1) document.getElementById('player1-fight-img').src = gameState.fighters.player1.img;
@@ -217,6 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateUI(gameState);
         
+        // Esta é a lógica que move para a tela de luta. Agora deve funcionar para todos.
         if (gameState.phase !== 'waiting' && gameState.phase !== 'p2_stat_assignment' && !fightScreen.classList.contains('active')) {
             lobbyScreen.classList.remove('active');
             selectionScreen.classList.remove('active');
@@ -244,7 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
              btn.disabled = true;
              btn.onclick = null;
         } else {
-            // Outro jogador
             btn.classList.add('inactive');
             btn.disabled = true;
             btn.onclick = null;
