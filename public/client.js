@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let myPlayerKey = null;
+    let myPlayerKey = null; // será 'player1', 'player2' ou 'spectator'
     let currentGameState = null;
+    let currentRoomId = null;
     const socket = io();
 
     // --- DADOS DOS PERSONAGENS ---
@@ -43,7 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectionTitle = document.getElementById('selection-title');
     const lobbyContent = document.getElementById('lobby-content');
     const shareContainer = document.getElementById('share-container');
-    const shareLink = document.getElementById('share-link');
+    const shareLinkP2 = document.getElementById('share-link-p2');
+    const shareLinkSpectator = document.getElementById('share-link-spectator');
+    const copySpectatorLinkInGameBtn = document.getElementById('copy-spectator-link-ingame');
     let modal = document.getElementById('modal');
     let modalTitle = document.getElementById('modal-title');
     let modalText = document.getElementById('modal-text');
@@ -103,11 +106,11 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmBtn.disabled = true;
         selectionScreen.classList.remove('active');
 
-        if (roomId) { // Jogador 2 entrando
+        if (roomId) {
             socket.emit('joinGame', { roomId, player2Data: playerData });
             lobbyScreen.classList.add('active');
             lobbyContent.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
-        } else { // Jogador 1 criando
+        } else {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
@@ -118,12 +121,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE INICIALIZAÇÃO ---
     const urlParams = new URLSearchParams(window.location.search);
     const roomIdFromUrl = urlParams.get('room');
+    const isSpectator = urlParams.get('spectate') === 'true';
 
-    if (roomIdFromUrl) {
+    if (isSpectator && roomIdFromUrl) {
+        // Lógica para Espectador
+        selectionScreen.classList.remove('active');
+        lobbyScreen.classList.add('active');
+        lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
+        socket.emit('spectateGame', roomIdFromUrl);
+    } else if (roomIdFromUrl) {
+        // Lógica para Jogador 2
         selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
         confirmBtn.innerText = 'Entrar na Luta';
         renderCharacterSelection('p2');
     } else {
+        // Lógica para Jogador 1
         selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
         confirmBtn.innerText = 'Criar Jogo';
         renderCharacterSelection('p1');
@@ -158,25 +170,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('assignPlayer', (playerKey) => {
         myPlayerKey = playerKey;
-        lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1' : '2'}</strong>.</p>`;
-        if (playerKey === 'player1') {
-            controlsWrapper.classList.add('p1-controls');
+        if (playerKey === 'spectator') {
+            lobbyContent.innerHTML = `<p>Você está <strong>assistindo</strong> a partida.</p>`;
         } else {
-            controlsWrapper.classList.add('p2-controls');
+            lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1' : '2'}</strong>.</p>`;
         }
     });
 
     socket.on('roomCreated', (roomId) => {
-        const url = `${window.location.origin}?room=${roomId}`;
-        shareLink.textContent = url;
+        currentRoomId = roomId;
+        const p2Url = `${window.location.origin}?room=${roomId}`;
+        const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
+
+        shareLinkP2.textContent = p2Url;
+        shareLinkSpectator.textContent = specUrl;
+
         shareContainer.classList.remove('hidden');
-        shareLink.onclick = () => {
-            navigator.clipboard.writeText(url).then(() => {
-                shareLink.textContent = 'Copiado!';
-                setTimeout(() => { shareLink.textContent = url; }, 2000);
-            });
-        };
+        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
     });
+    
+    function copyToClipboard(text, element) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = element.textContent;
+            element.textContent = 'Copiado!';
+            setTimeout(() => { element.textContent = originalText; }, 2000);
+        });
+    }
+
+    copySpectatorLinkInGameBtn.onclick = () => {
+        const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
+        copyToClipboard(specUrl, copySpectatorLinkInGameBtn);
+    };
 
     socket.on('gameUpdate', (gameState) => {
         currentGameState = gameState;
@@ -191,19 +216,27 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyScreen.classList.remove('active');
             selectionScreen.classList.remove('active');
             fightScreen.classList.add('active');
+            if (myPlayerKey !== 'spectator') {
+                copySpectatorLinkInGameBtn.classList.remove('hidden');
+            }
         }
     });
 
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
+        const btn = document.getElementById(`${targetPlayerKey}-roll-btn`);
+        btn.innerText = text;
+
         if (myPlayerKey === targetPlayerKey) {
-            const btn = document.getElementById(`${myPlayerKey}-roll-btn`);
-            btn.innerText = text;
             btn.onclick = () => {
                 socket.emit('playerAction', action);
                 btn.classList.add('hidden');
             };
-            btn.classList.remove('hidden');
+            btn.disabled = false;
+        } else {
+            btn.onclick = null;
+            btn.disabled = true;
         }
+        btn.classList.remove('hidden');
     });
 
     socket.on('hideRollButtons', () => {
@@ -260,7 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             socket.emit('playerAction', action);
             
-            // >>> CORREÇÃO: Esconde o modal imediatamente após o clique.
             modal.classList.add('hidden');
         };
     });
@@ -311,16 +343,38 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2');
         
+        // Lógica de habilitar/desabilitar botões
         const isMyTurn = state.whoseTurn === myPlayerKey && state.phase === 'turn';
+        const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
-        
+
         document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
             const move = state.moves[btn.dataset.move];
-            const fighterPA = (myPlayerKey && state.fighters[myPlayerKey]) ? state.fighters[myPlayerKey].pa : 0;
-            btn.disabled = !isMyTurn || !move || move.cost > fighterPA || isGameOver;
+            const fighterPA = (myPlayerKey && state.fighters[myPlayerKey]) ? state.fighters[myPlayerKey]?.pa : 0;
+            const playerControlsId = state.whoseTurn === 'player1' ? 'p1-controls' : 'p2-controls';
+
+            if (isSpectator) {
+                controlsWrapper.className = `p1-controls p2-controls`; // Mostra ambas as cores
+                btn.disabled = true; // Sempre desabilitado para espectador
+            } else {
+                btn.disabled = !isMyTurn || !move || move.cost > fighterPA || isGameOver;
+                controlsWrapper.className = myPlayerKey === 'player1' ? 'p1-controls' : 'p2-controls';
+            }
         });
+
         document.getElementById('end-turn-btn').disabled = !isMyTurn || isGameOver;
-        document.getElementById('forfeit-btn').disabled = isGameOver;
+        document.getElementById('forfeit-btn').disabled = isGameOver || isSpectator;
+        
+        // Espectadores veem os botões de ambos os jogadores
+        if (isSpectator) {
+            document.getElementById('player1-area').classList.add('p1-controls');
+            document.getElementById('player2-area').classList.add('p2-controls');
+            // Mostra os botões do jogador da vez para o espectador
+            document.getElementById('action-buttons-wrapper').classList.remove('p1-controls', 'p2-controls');
+            if (state.whoseTurn) {
+                document.getElementById('action-buttons-wrapper').classList.add(`${state.whoseTurn}-controls`);
+            }
+        }
 
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');

@@ -25,7 +25,10 @@
         </div>
         <div id="share-container" class="hidden">
             <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
-            <div id="share-link" title="Clique para copiar">Carregando...</div>
+            <div id="share-link-p2" class="share-link" title="Clique para copiar">Carregando...</div>
+            <br>
+            <p>Ou envie este link para espectadores:</p>
+            <div id="share-link-spectator" class="share-link" title="Clique para copiar">Carregando...</div>
         </div>
     </div>
 
@@ -33,6 +36,9 @@
     <div id="fight-screen" class="screen">
         <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
         <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
+
+        <!-- >>> NOVO BOTÃO DE COPIAR LINK DE ESPECTADOR <<< -->
+        <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
@@ -81,7 +87,7 @@
             </div>
         </div>
 
-        <!-- >>> NOVOS BOTÕES DE ROLAGEM <<< -->
+        <!-- BOTÕES DE ROLAGEM -->
         <button id="player1-roll-btn" class="roll-dice-button hidden"></button>
         <button id="player2-roll-btn" class="roll-dice-button hidden"></button>
 

@@ -154,7 +154,6 @@ function dispatchAction(room) {
     let modalPayload = null;
     let targetPlayerKey = null;
 
-    // >>> Limpa os botões de rolagens anteriores a cada nova ação
     io.to(roomId).emit('hideRollButtons');
 
     switch (state.phase) {
@@ -215,7 +214,12 @@ io.on('connection', (socket) => {
             pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
         };
 
-        games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: newState };
+        games[newRoomId] = { 
+            id: newRoomId, 
+            players: [{ id: socket.id, playerKey: 'player1' }], 
+            spectators: [], // >>> Adiciona array de espectadores
+            state: newState 
+        };
         
         socket.emit('assignPlayer', 'player1');
         socket.emit('roomCreated', newRoomId);
@@ -243,6 +247,24 @@ io.on('connection', (socket) => {
         
         const p1socketId = room.players.find(p => p.playerKey === 'player1').id;
         io.to(p1socketId).emit('promptP2Stats', player2Data);
+    });
+
+    // >>> NOVO EVENTO PARA ESPECTADORES
+    socket.on('spectateGame', (roomId) => {
+        const room = games[roomId];
+        if (!room) {
+            socket.emit('error', { message: 'Sala não encontrada.' });
+            return;
+        }
+
+        socket.join(roomId);
+        room.spectators.push(socket.id);
+        socket.currentRoomId = roomId;
+        
+        socket.emit('assignPlayer', 'spectator');
+        socket.emit('gameUpdate', room.state);
+        logMessage(room.state, 'Um espectador entrou na sala.');
+        io.to(roomId).emit('gameUpdate', room.state);
     });
 
     socket.on('playerAction', (action) => {
@@ -356,11 +378,29 @@ io.on('connection', (socket) => {
         }
 
         io.to(roomId).emit('gameUpdate', room.state);
-        // >>> MUDANÇA: Nome da função para refletir seu novo propósito
         dispatchAction(room);
     });
 
-    socket.on('disconnect', () => { /* ... */ });
+    socket.on('disconnect', () => {
+        const roomId = socket.currentRoomId;
+        if (!roomId || !games[roomId]) return;
+
+        const room = games[roomId];
+        // Remove jogador ou espectador da sala
+        const playerIndex = room.players.findIndex(p => p.id === socket.id);
+        if (playerIndex > -1) {
+            // Se um jogador desconecta, o jogo deveria ser encerrado para todos
+            io.to(roomId).emit('opponentDisconnected');
+            delete games[roomId];
+        } else {
+            const spectatorIndex = room.spectators.indexOf(socket.id);
+            if (spectatorIndex > -1) {
+                room.spectators.splice(spectatorIndex, 1);
+                logMessage(room.state, 'Um espectador saiu.');
+                io.to(roomId).emit('gameUpdate', room.state);
+            }
+        }
+    });
 });
 
 const PORT = process.env.PORT || 3000;
