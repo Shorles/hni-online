@@ -212,7 +212,7 @@ body {
 }
 
 .fighter-info { 
-    flex-basis: 28%; /* >>> Reduzido <<< */
+    flex-basis: 28%;
     padding: 10px; 
     background-color: rgba(0, 0, 0, 0.7); 
     border: 2px solid #555; 
@@ -237,8 +237,8 @@ body {
 .defense-text { position: absolute; font-size: 1.2em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
 
 #fight-log-container { 
-    flex-basis: 40%; /* >>> Aumentado <<< */
-    height: 180px; /* >>> Aumentado <<< */
+    flex-basis: 40%;
+    height: 180px;
     background-color: rgba(0,0,0,0.6); 
     border: 2px solid #555; 
     border-radius: 10px; 
@@ -256,18 +256,26 @@ body {
 .log-turn { color: #fff; font-weight: bold; }
 .highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; vertical-align: middle; }
 .turn-highlight { font-weight: bold; color: #dc3545; }
-.log-move-name { font-weight: bold; font-size: 1.1em; color: #dc3545; } /* >>> Novo estilo para nome do golpe <<< */
+.log-move-name { font-weight: bold; font-size: 1.1em; color: #dc3545; }
 
+/* BOTÕES DE AÇÃO */
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-#move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+#move-buttons { display: none; flex-wrap: wrap; gap: 10px; justify-content: center; }
+/* >>> Torna os botões visíveis apenas quando o wrapper tem a classe apropriada <<< */
+#action-buttons-wrapper.p1-view #p1-move-buttons,
+#action-buttons-wrapper.p2-view #p2-move-buttons { display: flex; }
+
 .action-btn, #end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
 #end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6c757d; }
 .action-btn:disabled, #end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
-#action-buttons-wrapper.p1-controls .action-btn { background-color: #007bff; }
-#action-buttons-wrapper.p1-controls .action-btn:hover:not(:disabled) { background-color: #0056b3; }
-#action-buttons-wrapper.p2-controls .action-btn { background-color: #c82333; }
-#action-buttons-wrapper.p2-controls .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
+
+/* >>> NOVAS REGRAS DE CORES <<< */
+.p1-actions .action-btn { background-color: #c82333; } /* VERMELHO para P1 */
+.p1-actions .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
+
+.p2-actions .action-btn { background-color: #007bff; } /* AZUL para P2 */
+.p2-actions .action-btn:hover:not(:disabled) { background-color: #0056b3; }
 
 /* BOTÕES DE ROLAGEM */
 .roll-dice-button {

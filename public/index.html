@@ -37,7 +37,6 @@
         <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
         <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
 
-        <!-- >>> NOVO BOTÃO DE COPIAR LINK DE ESPECTADOR <<< -->
         <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
 
         <div id="fight-ui-wrapper">
@@ -74,12 +73,20 @@
             </div>
             <!-- BOTÕES DE AÇÃO -->
             <div id="action-buttons-wrapper">
-                <div id="move-buttons">
+                <!-- >>> ESTRUTURA DE BOTÕES SEPARADA POR JOGADOR <<< -->
+                <div id="p1-move-buttons" class="move-buttons p1-actions">
                     <button class="action-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn" data-move="Direto">Direto (2 PA)</button>
                     <button class="action-btn" data-move="Upper">Upper (3 PA)</button>
                     <button class="action-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
-                    <button id="end-turn-btn">ENCERRAR O TURNO</button>
+                    <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
+                </div>
+                 <div id="p2-move-buttons" class="move-buttons p2-actions">
+                    <button class="action-btn" data-move="Jab">Jab (1 PA)</button>
+                    <button class="action-btn" data-move="Direto">Direto (2 PA)</button>
+                    <button class="action-btn" data-move="Upper">Upper (3 PA)</button>
+                    <button class="action-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
+                    <button id="p2-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
                 <div id="utility-buttons">
                     <button id="forfeit-btn">Jogar a Toalha</button>
@@ -97,7 +104,7 @@
         <div id="player2-dice-result" class="dice-result hidden"></div>
     </div>
 
-    <!-- MODAL (Usado para Knockdown, Vitória, etc.) -->
+    <!-- MODAL -->
     <div id="modal" class="hidden">
         <div id="modal-content">
             <h3 id="modal-title">Título</h3>
