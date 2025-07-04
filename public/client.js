@@ -50,13 +50,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         confirmBtn.addEventListener('click', onConfirmSelection);
         
+        // Eventos de ataque
         document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
-        document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-        
         document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
+        
+        // Eventos de fim de turno
+        document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         
-        document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator') socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey }) };
+        // Evento de desistência
+        document.getElementById('forfeit-btn').onclick = () => {
+            if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.whoseTurn === myPlayerKey) {
+                showForfeitConfirmation();
+            }
+        };
+    }
+
+    function showForfeitConfirmation() {
+        const modalContentHtml = `
+            <p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p>
+            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+                <button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button>
+                <button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button>
+            </div>`;
+        showInfoModal("Jogar a Toalha", modalContentHtml);
+        document.getElementById('confirm-forfeit-btn').onclick = () => {
+            socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey });
+            modal.classList.add('hidden');
+        };
+        document.getElementById('cancel-forfeit-btn').onclick = () => {
+            modal.classList.add('hidden');
+        };
     }
 
     function onConfirmSelection() {
@@ -165,30 +189,39 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
-
+        
         // Lógica de exibição e estado dos botões
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
+        // Jogador 1
         if (myPlayerKey === 'player1') {
             p1Controls.classList.remove('hidden');
             p2Controls.classList.add('hidden');
             const p1_pa = state.fighters.player1?.pa || 0;
-            document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.disabled = !p1_is_turn || (state.moves[btn.dataset.move]?.cost > p1_pa));
-            document.getElementById('p1-end-turn-btn').disabled = !p1_is_turn;
-        } else if (myPlayerKey === 'player2') {
+            document.querySelectorAll('#p1-controls button').forEach(btn => btn.disabled = !p1_is_turn || isGameOver);
+            document.querySelectorAll('#p1-controls .action-btn').forEach(btn => {
+                if(state.moves[btn.dataset.move]?.cost > p1_pa) btn.disabled = true;
+            });
+        } 
+        // Jogador 2
+        else if (myPlayerKey === 'player2') {
             p1Controls.classList.add('hidden');
             p2Controls.classList.remove('hidden');
             const p2_pa = state.fighters.player2?.pa || 0;
-            document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.disabled = !p2_is_turn || (state.moves[btn.dataset.move]?.cost > p2_pa));
-            document.getElementById('p2-end-turn-btn').disabled = !p2_is_turn;
-        } else if (isSpectator) {
+            document.querySelectorAll('#p2-controls button').forEach(btn => btn.disabled = !p2_is_turn || isGameOver);
+            document.querySelectorAll('#p2-controls .action-btn').forEach(btn => {
+                if(state.moves[btn.dataset.move]?.cost > p2_pa) btn.disabled = true;
+            });
+        } 
+        // Espectador
+        else if (isSpectator) {
             p1Controls.classList.toggle('hidden', !p1_is_turn);
             p2Controls.classList.toggle('hidden', !p2_is_turn);
             document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => btn.disabled = true);
         }
 
-        document.getElementById('forfeit-btn').disabled = isGameOver || isSpectator;
+        document.getElementById('forfeit-btn').disabled = isGameOver || isSpectator || state.whoseTurn !== myPlayerKey;
 
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
@@ -213,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
         diceOverlay.classList.remove('hidden');
-        const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3P-' : 'D3A-') : (playerKey === 'player1' ? 'diceP' : 'diceA');
+        const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') : (playerKey === 'player1' ? 'diceA' : 'diceP');
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
         if (diceContainer) {
             diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;

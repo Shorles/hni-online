@@ -238,7 +238,7 @@ body {
 
 #fight-log-container { 
     flex-basis: 40%;
-    height: 220px; /* >>> AUMENTADO MAIS UM POUCO <<< */
+    height: 220px;
     background-color: rgba(0,0,0,0.6); 
     border: 2px solid #555; 
     border-radius: 10px; 
@@ -263,13 +263,15 @@ body {
 .move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .action-btn, .end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
 .end-turn-btn { background-color: #ffc107; color: #000; }
-#forfeit-btn { background-color: #6c757d; }
+#forfeit-btn { background-color: #6f42c1; } /* >>> Cor ROXA <<< */
+#forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
+
 .action-btn:disabled, .end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
 
-.p1-btn { background-color: #c82333; } /* VERMELHO para P1 */
+.p1-btn { background-color: #c82333; }
 .p1-btn:hover:not(:disabled) { background-color: #a71d2a; }
 
-.p2-btn { background-color: #007bff; } /* AZUL para P2 */
+.p2-btn { background-color: #007bff; }
 .p2-btn:hover:not(:disabled) { background-color: #0056b3; }
 
 /* BOTÕES DE ROLAGEM */

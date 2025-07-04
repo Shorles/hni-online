@@ -35,7 +35,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
 
     const attacker = state.fighters[attackerKey], defender = state.fighters[defenderKey], move = state.moves[moveName];
     
-    // >>> ALTERAÇÃO: Adiciona log específico para o golpe usado.
     logMessage(state, `${attacker.nome} usa <span class="log-move-name">${moveName}</span>!`);
 
     const roll = rollAttackD6(); let hit = false, crit = false;
@@ -142,7 +141,8 @@ function isActionValid(state, action) {
         case 'defense_p2':
             return type === 'roll_defense' && playerKey === 'player2';
         case 'turn':
-            return (type === 'attack' || type === 'end_turn') && playerKey === state.whoseTurn;
+            // >>> Adiciona 'forfeit' como ação válida durante o turno <<<
+            return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
         case 'knockdown':
             return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
         case 'gameover':
@@ -184,8 +184,10 @@ function dispatchAction(room) {
             }
             break;
         case 'gameover':
-            const winnerName = state.winner ? state.fighters[state.winner].nome : "Ninguém";
-            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: `VITÓRIA DE ${winnerName.toUpperCase()}`});
+            const winner = state.fighters[state.winner];
+            const loser = state.fighters[state.winner === 'player1' ? 'player2' : 'player1'];
+            const reason = state.reason || `VITÓRIA DE ${winner.nome.toUpperCase()}`;
+            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason});
             return;
         default:
             io.to(roomId).emit('hideModal');
@@ -285,6 +287,16 @@ io.on('connection', (socket) => {
         const playerKey = action.playerKey;
 
         switch (action.type) {
+            case 'forfeit':
+                const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
+                state.winner = winnerKey;
+                state.phase = 'gameover';
+                const loserName = state.fighters[playerKey].nome;
+                const winnerName = state.fighters[winnerKey].nome;
+                state.reason = `${loserName} jogou a toalha. Vitória de ${winnerName}!`;
+                logMessage(state, state.reason, 'log-crit');
+                break;
+            
             case 'set_p2_stats':
                 const player2Data = state.pendingP2Choice;
                 const stats = action.stats;
