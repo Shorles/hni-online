@@ -1,9 +1,9 @@
-// VERSÃO FINAL REESCRITA - client.js
+// VERSÃO FINAL CORRIGIDA v2 - client.js
 
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
     let currentGameState = null;
-    const socket = io({ transports: ['websocket'], upgrade: false }); // Força o uso de WebSockets
+    const socket = io({ transports: ['websocket'], upgrade: false });
 
     const lobbyScreen = document.getElementById('lobby-screen'), fightScreen = document.getElementById('fight-screen'),
           lobbyContent = document.getElementById('lobby-content'), shareContainer = document.getElementById('share-container'),
@@ -11,13 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
           modalTitle = document.getElementById('modal-title'), modalText = document.getElementById('modal-text'),
           modalButton = document.getElementById('modal-button');
 
-    // O servidor nos atribuiu um papel (P1 ou P2)
     socket.on('assignPlayer', (playerKey) => {
         myPlayerKey = playerKey;
         lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1 (Nathan)' : '2 (Ivan)'}</strong>.</p>`;
     });
 
-    // O servidor criou uma sala para nós (somente P1 recebe)
     socket.on('roomCreated', (roomId) => {
         const url = `${window.location.origin}?room=${roomId}`;
         shareLink.textContent = url;
@@ -28,32 +26,29 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // O servidor enviou um novo estado de jogo. Esta é a função mais importante!
     socket.on('gameUpdate', (gameState) => {
+        const wasWaiting = currentGameState?.phase === 'waiting';
         currentGameState = gameState;
-        if (gameState.phase !== 'waiting' && lobbyScreen.classList.contains('active')) {
-            lobbyScreen.classList.remove('active'); fightScreen.classList.add('active');
+        // Se o jogo começou de verdade (saiu da fase de espera), esconde o lobby.
+        if (wasWaiting && gameState.phase !== 'waiting' && lobbyScreen.classList.contains('active')) {
+            lobbyScreen.classList.remove('active');
+            fightScreen.classList.add('active');
+            // Esconde qualquer modal que possa estar aberto do lobby
+            modal.classList.add('hidden');
         }
         updateUI(gameState);
     });
 
-    // O servidor quer mostrar um modal (para rolar dados, etc.)
     socket.on('showModal', ({ title, text, btnText, action }) => {
-        const actingPlayer = currentGameState.fighters[action.playerKey]?.nome || '...';
-        // Mostra o modal interativo para o jogador correto
         if (action.playerKey === myPlayerKey) {
             showInteractiveModal(title, text, btnText, action);
-        } 
-        // Mostra um modal informativo para o outro jogador
-        else {
-            showInfoModal(title, `Aguardando ${actingPlayer} agir...`);
+        } else {
+            showInfoModal(title, `Aguardando ${currentGameState.fighters[action.playerKey].nome} agir...`);
         }
     });
-    
-    // O servidor mandou uma animação de dado
+
     socket.on('diceRoll', ({ playerKey, rollValue, diceType }) => showDiceRollAnimation(playerKey, rollValue, diceType));
     
-    // O oponente desconectou
     socket.on('opponentDisconnected', () => {
         showInfoModal("Oponente Desconectado", "Seu oponente saiu. Recarregue a página para jogar novamente.");
         document.querySelectorAll('button').forEach(btn => btn.disabled = true);
@@ -95,29 +90,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showInteractiveModal(title, text, btnText, action) {
-        modalTitle.innerText = title; modalText.innerHTML = text; modalButton.innerText = btnText;
-        modalButton.style.display = 'inline-block'; modalButton.disabled = false;
-        
-        const twoPlayersReady = currentGameState && currentGameState.phase !== 'waiting';
-        // O botão só fica ativo se a luta já começou de verdade
-        modalButton.disabled = !twoPlayersReady;
-        if(!twoPlayersReady && text.includes("iniciativa")){
-            modalText.innerHTML = "Aguardando oponente entrar para rolar...";
-        }
-
-        modalButton.onclick = () => { modalButton.disabled = true; socket.emit('playerAction', action); };
+        modalTitle.innerText = title;
+        modalText.innerHTML = text;
+        modalButton.innerText = btnText;
+        modalButton.style.display = 'inline-block';
+        modalButton.disabled = false;
+        modalButton.onclick = () => {
+            modalButton.disabled = true;
+            socket.emit('playerAction', action);
+        };
         modal.classList.remove('hidden');
     }
 
     function showInfoModal(title, text) {
-        modalTitle.innerText = title; modalText.innerHTML = text;
-        modalButton.style.display = 'none'; modal.classList.remove('hidden');
+        modalTitle.innerText = title;
+        modalText.innerHTML = text;
+        modalButton.style.display = 'none';
+        modal.classList.remove('hidden');
     }
 
     const DICE_SOUNDS = ['dice1.mp3', 'dice2.mp3', 'dice3.mp3'];
     function playSound(soundFile) {
-        const sfxVolume = 0.5; if (sfxVolume <= 0) return;
-        const audio = new Audio(`sons/${soundFile}`); audio.volume = sfxVolume;
+        const sfxVolume = 0.5;
+        if (sfxVolume <= 0) return;
+        const audio = new Audio(`sons/${soundFile}`);
+        audio.volume = sfxVolume;
         audio.play().catch(e => console.error("Erro ao tocar som:", e));
     };
 
@@ -130,7 +127,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const diceContainer = document.getElementById(`${playerKey}-dice-result`);
             diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
             diceContainer.classList.remove('hidden');
-            const hideAndResolve = () => { diceOverlay.classList.add('hidden'); diceContainer.classList.add('hidden'); resolve(); };
+            const hideAndResolve = () => {
+                diceOverlay.classList.add('hidden');
+                diceContainer.classList.add('hidden');
+                resolve();
+            };
             diceOverlay.addEventListener('click', hideAndResolve, { once: true });
             setTimeout(hideAndResolve, 2000);
         });
