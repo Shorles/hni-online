@@ -76,6 +76,11 @@ body {
     display: block;
     margin-top: 5px;
 }
+.char-card .char-stats-display {
+    margin-top: 10px;
+    font-size: 1em;
+    color: #ccc;
+}
 .char-card .char-stats input {
     width: 50px;
     text-align: center;

@@ -22,7 +22,7 @@ const rollAttackD6 = () => { const r = rollD(100); if (r <= 5) return 6; if (r <
 
 function createNewGameState() {
     return {
-        fighters: {},
+        fighters: {}, pendingP2Choice: null,
         moves: MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
     };
@@ -126,6 +126,8 @@ function isActionValid(state, action) {
     const { type, playerKey } = action;
 
     switch (state.phase) {
+        case 'p2_stat_assignment':
+            return type === 'set_p2_stats' && playerKey === 'player1';
         case 'initiative_p1':
             return type === 'roll_initiative' && playerKey === 'player1';
         case 'initiative_p2':
@@ -152,24 +154,25 @@ function dispatchActionModal(room) {
     switch (state.phase) {
         case 'initiative_p1':
             targetPlayerKey = 'player1';
-            modalPayload = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } };
+            modalPayload = { modalType: 'initiative', title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } };
             break;
         case 'initiative_p2':
             targetPlayerKey = 'player2';
-            modalPayload = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } };
+            modalPayload = { modalType: 'initiative', title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } };
             break;
         case 'defense_p1':
             targetPlayerKey = 'player1';
-            modalPayload = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } };
+            modalPayload = { modalType: 'defense', title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } };
             break;
         case 'defense_p2':
             targetPlayerKey = 'player2';
-            modalPayload = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } };
+            modalPayload = { modalType: 'defense', title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } };
             break;
         case 'knockdown':
             if (state.knockdownInfo) {
                 targetPlayerKey = state.knockdownInfo.downedPlayer;
                 modalPayload = {
+                    modalType: 'knockdown',
                     title: `Você caiu!`, text: `Tentativas restantes: ${4 - state.knockdownInfo.attempts}`,
                     btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey }
                 };
@@ -222,28 +225,17 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         room.players.push({ id: socket.id, playerKey: 'player2' });
         socket.currentRoomId = roomId;
-
-        // ***** A LINHA QUE FALTAVA FOI REINSERIDA AQUI *****
         socket.emit('assignPlayer', 'player2');
         
         const state = room.state;
-        const res = Math.max(1, parseInt(player2Data.res, 10));
-        state.fighters.player2 = {
-            nome: player2Data.nome,
-            img: player2Data.img,
-            agi: parseInt(player2Data.agi, 10),
-            res: res,
-            originalRes: res,
-            hpMax: res * 10,
-            hp: res * 10,
-            pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
-        };
+        state.pendingP2Choice = player2Data;
+        logMessage(state, `${player2Data.nome} entrou. Aguardando P1 definir atributos...`);
+        state.phase = 'p2_stat_assignment';
 
-        logMessage(state, `${state.fighters.player2.nome} entrou. Preparem-se!`);
-        state.phase = 'initiative_p1';
-        
         io.to(roomId).emit('gameUpdate', state);
-        dispatchActionModal(room); 
+        
+        const p1socketId = room.players.find(p => p.playerKey === 'player1').id;
+        io.to(p1socketId).emit('promptP2Stats', player2Data);
     });
 
     socket.on('playerAction', (action) => {
@@ -261,6 +253,25 @@ io.on('connection', (socket) => {
         const playerKey = action.playerKey;
 
         switch (action.type) {
+            case 'set_p2_stats':
+                const player2Data = state.pendingP2Choice;
+                const stats = action.stats;
+                const res = Math.max(1, parseInt(stats.res, 10));
+                state.fighters.player2 = {
+                    nome: player2Data.nome,
+                    img: player2Data.img,
+                    agi: parseInt(stats.agi, 10),
+                    res: res,
+                    originalRes: res,
+                    hpMax: res * 10,
+                    hp: res * 10,
+                    pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
+                };
+                delete state.pendingP2Choice;
+                logMessage(state, `${state.fighters.player2.nome} teve seus atributos definidos por P1. Preparem-se!`);
+                state.phase = 'initiative_p1';
+                break;
+
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice');
                 const roll = rollD(6);
