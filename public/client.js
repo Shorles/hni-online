@@ -1,15 +1,27 @@
-// VERSÃO FINAL CORRIGIDA v2 - client.js
+// VERSÃO FINAL E DEFINITIVA - client.js
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- ESTADO DO LADO DO CLIENTE ---
     let myPlayerKey = null;
     let currentGameState = null;
+
+    // Conecta ao servidor, forçando WebSocket para maior confiabilidade no Render
     const socket = io({ transports: ['websocket'], upgrade: false });
 
-    const lobbyScreen = document.getElementById('lobby-screen'), fightScreen = document.getElementById('fight-screen'),
-          lobbyContent = document.getElementById('lobby-content'), shareContainer = document.getElementById('share-container'),
-          shareLink = document.getElementById('share-link'), modal = document.getElementById('modal'),
-          modalTitle = document.getElementById('modal-title'), modalText = document.getElementById('modal-text'),
-          modalButton = document.getElementById('modal-button');
+    // --- MANIPULADORES DE DOM (ELEMENTOS DA PÁGINA) ---
+    const lobbyScreen = document.getElementById('lobby-screen');
+    const fightScreen = document.getElementById('fight-screen');
+    const lobbyContent = document.getElementById('lobby-content');
+    const shareContainer = document.getElementById('share-container');
+    const shareLink = document.getElementById('share-link');
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalText = document.getElementById('modal-text');
+    const modalButton = document.getElementById('modal-button');
+
+    // ===================================================================
+    // 1. OUVINTES DE EVENTOS DO SERVIDOR
+    // ===================================================================
 
     socket.on('assignPlayer', (playerKey) => {
         myPlayerKey = playerKey;
@@ -21,38 +33,47 @@ document.addEventListener('DOMContentLoaded', () => {
         shareLink.textContent = url;
         lobbyContent.innerHTML += `<p>Aguardando oponente...</p>`;
         shareContainer.classList.remove('hidden');
-        shareLink.onclick = () => navigator.clipboard.writeText(url).then(() => {
-            shareLink.textContent = 'Copiado!'; setTimeout(() => { shareLink.textContent = url; }, 2000);
-        });
+        shareLink.onclick = () => {
+            navigator.clipboard.writeText(url).then(() => {
+                shareLink.textContent = 'Copiado!';
+                setTimeout(() => { shareLink.textContent = url; }, 2000);
+            });
+        };
     });
 
     socket.on('gameUpdate', (gameState) => {
-        const wasWaiting = currentGameState?.phase === 'waiting';
         currentGameState = gameState;
-        // Se o jogo começou de verdade (saiu da fase de espera), esconde o lobby.
-        if (wasWaiting && gameState.phase !== 'waiting' && lobbyScreen.classList.contains('active')) {
+        
+        // **A CORREÇÃO CRÍTICA ESTÁ AQUI**
+        // Se a fase do jogo não é mais 'esperando', força a troca para a tela de luta.
+        if (gameState.phase !== 'waiting' && lobbyScreen.classList.contains('active')) {
             lobbyScreen.classList.remove('active');
             fightScreen.classList.add('active');
-            // Esconde qualquer modal que possa estar aberto do lobby
-            modal.classList.add('hidden');
+            modal.classList.add('hidden'); // Garante que nenhum modal do lobby fique aberto
         }
+        
         updateUI(gameState);
     });
 
     socket.on('showModal', ({ title, text, btnText, action }) => {
+        const actingPlayerName = currentGameState.fighters[action.playerKey]?.nome || '...';
         if (action.playerKey === myPlayerKey) {
             showInteractiveModal(title, text, btnText, action);
         } else {
-            showInfoModal(title, `Aguardando ${currentGameState.fighters[action.playerKey].nome} agir...`);
+            showInfoModal(title, `Aguardando ${actingPlayerName} agir...`);
         }
     });
 
     socket.on('diceRoll', ({ playerKey, rollValue, diceType }) => showDiceRollAnimation(playerKey, rollValue, diceType));
-    
+
     socket.on('opponentDisconnected', () => {
         showInfoModal("Oponente Desconectado", "Seu oponente saiu. Recarregue a página para jogar novamente.");
         document.querySelectorAll('button').forEach(btn => btn.disabled = true);
     });
+
+    // ===================================================================
+    // 2. FUNÇÕES DE INTERFACE E VISUAIS
+    // ===================================================================
 
     function updateUI(state) {
         if (!state) return;
@@ -90,11 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showInteractiveModal(title, text, btnText, action) {
-        modalTitle.innerText = title;
-        modalText.innerHTML = text;
-        modalButton.innerText = btnText;
-        modalButton.style.display = 'inline-block';
-        modalButton.disabled = false;
+        modalTitle.innerText = title; modalText.innerHTML = text; modalButton.innerText = btnText;
+        modalButton.style.display = 'inline-block'; modalButton.disabled = false;
         modalButton.onclick = () => {
             modalButton.disabled = true;
             socket.emit('playerAction', action);
@@ -103,8 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showInfoModal(title, text) {
-        modalTitle.innerText = title;
-        modalText.innerHTML = text;
+        modalTitle.innerText = title; modalText.innerHTML = text;
         modalButton.style.display = 'none';
         modal.classList.remove('hidden');
     }
@@ -125,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playSound(DICE_SOUNDS[Math.floor(Math.random() * DICE_SOUNDS.length)]);
             const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3P-' : 'D3A-') : (playerKey === 'player1' ? 'diceP' : 'diceA');
             const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-            diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
+            diceContainer.style.backgroundImage = `url('/images/${imagePrefix}${rollValue}.png')`;
             diceContainer.classList.remove('hidden');
             const hideAndResolve = () => {
                 diceOverlay.classList.add('hidden');
@@ -136,6 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(hideAndResolve, 2000);
         });
     }
+
+    // ===================================================================
+    // 3. EMISSORES DE EVENTOS
+    // ===================================================================
 
     document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
         btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey });
