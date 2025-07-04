@@ -10,17 +10,8 @@
 
 <div id="game-wrapper">
 
-    <!-- NOVA TELA DE SELEÇÃO DE PERSONAGENS (COMEÇA ATIVA) -->
-    <div id="selection-screen" class="screen active">
-        <h1 id="selection-title">Selecione seu Lutador</h1>
-        <div id="character-list-container">
-            <!-- Os personagens serão inseridos aqui pelo client.js -->
-        </div>
-        <button id="confirm-selection-btn">Confirmar</button>
-    </div>
-
-    <!-- TELA DE LOBBY (Começa oculta) -->
-    <div id="lobby-screen" class="screen">
+    <!-- NOVA TELA DE LOBBY -->
+    <div id="lobby-screen" class="screen active">
         <h1>Hajime no Ippo: Batalha Online</h1>
         <div id="lobby-content">
             <p>Aguardando conexão...</p>
@@ -40,7 +31,7 @@
             <div class="fight-ui-container">
                 <!-- ÁREA JOGADOR 1 -->
                 <div class="fighter-info" id="player1-area">
-                    <h2 id="player1-fight-name">Jogador 1</h2>
+                    <h2 id="player1-fight-name">Nathan</h2>
                     <div class="stats-bar">
                         <span>HP: </span>
                         <div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div>
@@ -57,7 +48,7 @@
                 </div>
                 <!-- ÁREA JOGADOR 2 -->
                 <div class="fighter-info" id="player2-area">
-                    <h2 id="player2-fight-name">Jogador 2</h2>
+                    <h2 id="player2-fight-name">Ivan</h2>
                     <div class="stats-bar">
                         <span>HP: </span>
                         <div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div>
@@ -100,7 +91,7 @@
 
 </div> <!-- Fim do #game-wrapper -->
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="client.js"></script>
+<script src="/socket.io/socket.io.js"></script> <!-- Importa a biblioteca do Socket.IO -->
+<script src="client.js"></script> <!-- Nosso novo arquivo de lógica do cliente -->
 </body>
 </html>
