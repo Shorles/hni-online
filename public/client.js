@@ -62,7 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.dataset.name = name;
             card.dataset.img = `images/${name}.png`;
             
-            // Player 1 pode editar stats, Player 2 não.
             const statsHtml = playerType === 'p1'
                 ? `<div class="char-stats">
                     <label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label>
@@ -112,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
-            lobbyScreen.classList.add('active'); // Mostra a tela de lobby para P1.
+            lobbyScreen.classList.add('active'); 
         }
     });
 
@@ -120,11 +119,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomIdFromUrl = urlParams.get('room');
 
-    if (roomIdFromUrl) { // É o Jogador 2
+    if (roomIdFromUrl) {
         selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
         confirmBtn.innerText = 'Entrar na Luta';
         renderCharacterSelection('p2');
-    } else { // É o Jogador 1
+    } else {
         selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
         confirmBtn.innerText = 'Criar Jogo';
         renderCharacterSelection('p1');
@@ -136,7 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
         playRandomSound(soundType);
     });
 
-    // >>> NOVO: Ouvinte para animação de ataque
     socket.on('triggerAttackAnimation', ({ attackerKey }) => {
         const attackerImg = document.getElementById(`${attackerKey}-fight-img`);
         if (attackerImg) {
@@ -144,18 +142,17 @@ document.addEventListener('DOMContentLoaded', () => {
             attackerImg.classList.add(animationClass);
             setTimeout(() => {
                 attackerImg.classList.remove(animationClass);
-            }, 400); // Duração da animação
+            }, 400); 
         }
     });
 
-    // >>> NOVO: Ouvinte para animação de dano
     socket.on('triggerHitAnimation', ({ defenderKey }) => {
         const defenderImg = document.getElementById(`${defenderKey}-fight-img`);
         if (defenderImg) {
             defenderImg.classList.add('is-hit');
             setTimeout(() => {
                 defenderImg.classList.remove('is-hit');
-            }, 500); // Duração da animação
+            }, 500);
         }
     });
 
@@ -197,6 +194,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // >>> Lógica para mostrar/esconder os novos botões de rolagem
+    socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
+        if (myPlayerKey === targetPlayerKey) {
+            const btn = document.getElementById(`${myPlayerKey}-roll-btn`);
+            btn.innerText = text;
+            btn.onclick = () => {
+                socket.emit('playerAction', action);
+                btn.classList.add('hidden');
+            };
+            btn.classList.remove('hidden');
+        }
+    });
+
+    socket.on('hideRollButtons', () => {
+        document.getElementById('player1-roll-btn').classList.add('hidden');
+        document.getElementById('player2-roll-btn').classList.add('hidden');
+    });
+
     socket.on('showModal', (payload) => {
         if (!currentGameState) return;
 
@@ -208,13 +223,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (targetPlayerKey === myPlayerKey) {
+            // Agora apenas para knockdown e talvez futuras ações com modal
             showInteractiveModal(title, text, btnText, action);
         } else {
             const activePlayerName = currentGameState.fighters[targetPlayerKey]?.nome || 'oponente';
             if (modalType === 'knockdown') {
                 showInfoModal(`${activePlayerName} caiu!`, "Aguarde a contagem...");
             } else {
-                showInfoModal(title, `Aguardando ${activePlayerName} agir...`);
+                // Se não for um modal específico, pode-se optar por não mostrar nada ao oponente
+                // ou uma mensagem genérica se necessário. Aqui, optamos por não mostrar nada.
             }
         }
     });
@@ -230,16 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
     
-        modalTitle.innerText = "Definir Atributos do Oponente";
-        modalText.innerHTML = modalContentHtml;
-        modalButton.innerText = "Confirmar Atributos";
-        modalButton.style.display = 'inline-block';
-        modalButton.disabled = false;
+        showInteractiveModal("Definir Atributos do Oponente", modalContentHtml, "Confirmar Atributos", null);
         
-        const newButton = modalButton.cloneNode(true);
-        modalButton.parentNode.replaceChild(newButton, modalButton);
-        modalButton = document.getElementById('modal-button');
-    
+        // A lógica do botão é definida dentro da função do modal
         modalButton.onclick = () => {
             const agi = document.getElementById('p2-stat-agi').value;
             const res = document.getElementById('p2-stat-res').value;
@@ -259,8 +269,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             socket.emit('playerAction', action);
         };
-    
-        modal.classList.remove('hidden');
     });
 
     socket.on('hideModal', () => {
@@ -280,7 +288,6 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const key of ['player1', 'player2']) {
             const fighter = state.fighters[key];
             if (!fighter) {
-                // Limpa a UI se o lutador não existir
                 document.getElementById(`${key}-fight-name`).innerText = `Jogador ${key === 'player1' ? 1 : 2}`;
                 document.getElementById(`${key}-hp-text`).innerText = `- / -`;
                 document.getElementById(`${key}-hp-bar`).style.width = `100%`;
@@ -301,10 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'gameover') {
-            const winnerName = state.winner ? state.fighters[state.winner].nome : "Ninguém";
             roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
         } else {
-            const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : (state.phase === 'p2_stat_assignment' ? 'Definindo Atributos' : '...');
+            const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : (state.phase.includes('initiative') || state.phase.includes('defense') ? 'Rolando dados...' : '...');
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
         }
         
@@ -331,16 +337,20 @@ document.addEventListener('DOMContentLoaded', () => {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
         modalButton.innerText = btnText;
-        modalButton.style.display = 'inline-block';
+        modalButton.style.display = btnText ? 'inline-block' : 'none';
         modalButton.disabled = false;
+
         const newButton = modalButton.cloneNode(true);
         modalButton.parentNode.replaceChild(newButton, modalButton);
         modalButton = document.getElementById('modal-button');
-        modalButton.onclick = () => {
-            modalButton.disabled = true;
-            modalButton.innerText = "Aguarde...";
-            socket.emit('playerAction', action);
-        };
+        
+        if (action) { // Apenas atribui onclick se uma ação for fornecida
+            modalButton.onclick = () => {
+                modalButton.disabled = true;
+                modalButton.innerText = "Aguarde...";
+                socket.emit('playerAction', action);
+            };
+        }
         modal.classList.remove('hidden');
     }
 

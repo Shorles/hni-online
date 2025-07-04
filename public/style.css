@@ -148,12 +148,12 @@ body {
 }
 #fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
 
-/* >>> ANIMAÇÕES CORRIGIDAS <<< */
+/* ANIMAÇÕES */
 @keyframes player1-attack-lunge { 
-    50% { transform: translateX(50px) scaleX(-1); } /* Mantém o espelhamento durante a animação */
+    50% { transform: translateX(50px) scaleX(-1); }
 }
 @keyframes player2-attack-lunge { 
-    50% { transform: translateX(-50px); } 
+    50% { transform: translateX(-50px) scaleX(-1); } /* Mantém o espelhamento do P2 */
 }
 @keyframes hit-flash { 
     0%, 100% { filter: brightness(1); } 
@@ -163,7 +163,7 @@ body {
 
 .fighter-img { 
     position: absolute; 
-    width: 200px; 
+    width: 200px;
     height: 200px;
     object-fit: contain; 
     bottom: 350px; 
@@ -171,27 +171,22 @@ body {
     transition: transform 0.2s ease;
 }
 
-/* Inversão Visual dos Lutadores */
+/* POSICIONAMENTO E ESPELHAMENTO DOS LUTADORES */
 #player1-fight-img { 
     left: 380px; 
-    transform: scaleX(-1); /* P1 na esquerda, espelhado para encarar o P2 */
+    transform: scaleX(-1); 
 } 
 #player2-fight-img { 
-    right: 380px; /* P2 na direita */
+    right: 380px;
+    transform: scaleX(-1); /* >>> P2 AGORA ESPELHADO <<< */
 } 
 
-/* >>> CLASSES DE ANIMAÇÃO <<< */
-.is-attacking-player1 { 
-    animation: player1-attack-lunge 0.4s ease-in-out; 
-}
-.is-attacking-player2 { 
-    animation: player2-attack-lunge 0.4s ease-in-out; 
-}
-.is-hit { 
-    animation: hit-flash 0.5s ease-in-out; 
-}
+/* CLASSES DE ANIMAÇÃO */
+.is-attacking-player1 { animation: player1-attack-lunge 0.4s ease-in-out; }
+.is-attacking-player2 { animation: player2-attack-lunge 0.4s ease-in-out; }
+.is-hit { animation: hit-flash 0.5s ease-in-out; }
 
-/* Inversão Visual dos Painéis de UI */
+/* PAINÉIS DE UI */
 .fight-ui-container { 
     display: flex; 
     justify-content: space-between; 
@@ -225,28 +220,48 @@ body {
 #end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6c757d; }
 .action-btn:disabled, #end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
-
-/* CORES DOS BOTÕES */
 #action-buttons-wrapper.p1-controls .action-btn { background-color: #007bff; }
 #action-buttons-wrapper.p1-controls .action-btn:hover:not(:disabled) { background-color: #0056b3; }
 #action-buttons-wrapper.p2-controls .action-btn { background-color: #c82333; }
 #action-buttons-wrapper.p2-controls .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
 
-/* --- MODAL --- */
+/* >>> NOVOS ESTILOS PARA BOTÕES DE ROLAGEM <<< */
+.roll-dice-button {
+    position: absolute;
+    bottom: 250px;
+    padding: 10px 15px;
+    font-size: 1em;
+    font-weight: bold;
+    color: #000;
+    background-color: #ffeb3b;
+    border: 2px solid #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 10px #ffeb3b;
+    z-index: 100;
+    transition: transform 0.2s ease;
+}
+.roll-dice-button:hover {
+    transform: scale(1.05);
+}
+#player1-roll-btn { left: 180px; }
+#player2-roll-btn { right: 180px; }
+
+
+/* MODAL */
 #modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
 #modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 600px; }
 #modal-title { margin-top: 0; }
 #modal-text { margin: 15px 0; text-align: left; }
 #modal-button { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; }
 
-/* --- DADOS --- */
+/* DADOS */
 #dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 50; cursor: pointer; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
-/* Inversão Visual dos Dados */
 #player1-dice-result { right: 400px; bottom: 530px; }
 #player2-dice-result { left: 400px; bottom: 530px; }
 
-/* --- PLACAR DE DECISÃO --- */
+/* PLACAR DE DECISÃO */
 #scorecard { width: 100%; margin-top: 15px; border-collapse: collapse; text-align: left; }
 #scorecard th, #scorecard td { padding: 8px; border-bottom: 1px solid #555; }
 #scorecard th { background-color: #444; }

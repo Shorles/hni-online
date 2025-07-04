@@ -36,7 +36,6 @@
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
-                <!-- ORDEM ORIGINAL RESTAURADA: P1 PRIMEIRO -->
                 <!-- ÁREA JOGADOR 1 (ESQUERDA NO CÓDIGO) -->
                 <div class="fighter-info" id="player1-area">
                     <h2 id="player1-fight-name">Jogador 1</h2>
@@ -82,13 +81,17 @@
             </div>
         </div>
 
+        <!-- >>> NOVOS BOTÕES DE ROLAGEM <<< -->
+        <button id="player1-roll-btn" class="roll-dice-button hidden"></button>
+        <button id="player2-roll-btn" class="roll-dice-button hidden"></button>
+
         <!-- OVERLAYS -->
         <div id="dice-overlay" class="hidden"></div>
         <div id="player1-dice-result" class="dice-result hidden"></div>
         <div id="player2-dice-result" class="dice-result hidden"></div>
     </div>
 
-    <!-- MODAL -->
+    <!-- MODAL (Usado para Knockdown, Vitória, etc.) -->
     <div id="modal" class="hidden">
         <div id="modal-content">
             <h3 id="modal-title">Título</h3>
