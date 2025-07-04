@@ -24,8 +24,8 @@
 
     <!-- TELA DE LUTA (Começa oculta) -->
     <div id="fight-screen" class="screen">
-        <img src="/images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
-        <img src="/images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
+        <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
+        <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
@@ -38,7 +38,7 @@
                         <span id="player1-hp-text">10 / 10</span>
                     </div>
                     <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player1-pa-dots"></div></div>
-                    <div class="defense-display"><img src="/images/def.png" alt="Defesa"><span class="defense-text" id="player1-def-text">0</span></div>
+                    <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player1-def-text">0</span></div>
                     <p>Acertos: <span id="player1-hits">0</span></p>
                 </div>
                 <!-- LOG DE LUTA -->
@@ -55,7 +55,7 @@
                         <span id="player2-hp-text">15 / 15</span>
                     </div>
                     <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player2-pa-dots"></div></div>
-                    <div class="defense-display"><img src="/images/def.png" alt="Defesa"><span class="defense-text" id="player2-def-text">0</span></div>
+                    <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player2-def-text">0</span></div>
                     <p>Acertos: <span id="player2-hits">0</span></p>
                 </div>
             </div>
@@ -91,7 +91,7 @@
 
 </div> <!-- Fim do #game-wrapper -->
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="client.js"></script>
+<script src="/socket.io/socket.io.js"></script> <!-- Importa a biblioteca do Socket.IO -->
+<script src="client.js"></script> <!-- Nosso novo arquivo de lógica do cliente -->
 </body>
 </html>
