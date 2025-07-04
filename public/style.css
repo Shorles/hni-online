@@ -148,14 +148,22 @@ body {
 }
 #fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
 
-/* >>> NOVAS ANIMAÇÕES <<< */
-@keyframes player1-attack-lunge { 50% { transform: translateX(50px); } }
-@keyframes player2-attack-lunge { 50% { transform: translateX(-50px); } }
-@keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
+/* >>> ANIMAÇÕES CORRIGIDAS <<< */
+@keyframes player1-attack-lunge { 
+    50% { transform: translateX(50px) scaleX(-1); } /* Mantém o espelhamento durante a animação */
+}
+@keyframes player2-attack-lunge { 
+    50% { transform: translateX(-50px); } 
+}
+@keyframes hit-flash { 
+    0%, 100% { filter: brightness(1); } 
+    25%, 75% { filter: brightness(3); } 
+    50% { filter: brightness(1); } 
+}
 
 .fighter-img { 
     position: absolute; 
-    width: 200px; /* Aumentado para melhor visualização */
+    width: 200px; 
     height: 200px;
     object-fit: contain; 
     bottom: 350px; 
@@ -164,13 +172,24 @@ body {
 }
 
 /* Inversão Visual dos Lutadores */
-#player1-fight-img { left: 380px; transform: scaleX(-1); } /* P1 na esquerda, invertido */
-#player2-fight-img { right: 380px; } /* P2 na direita */
+#player1-fight-img { 
+    left: 380px; 
+    transform: scaleX(-1); /* P1 na esquerda, espelhado para encarar o P2 */
+} 
+#player2-fight-img { 
+    right: 380px; /* P2 na direita */
+} 
 
-/* >>> NOVAS CLASSES DE ANIMAÇÃO <<< */
-.is-attacking-player1 { animation: player1-attack-lunge 0.4s ease-in-out; }
-.is-attacking-player2 { animation: player2-attack-lunge 0.4s ease-in-out; }
-.is-hit { animation: hit-flash 0.5s ease-in-out; }
+/* >>> CLASSES DE ANIMAÇÃO <<< */
+.is-attacking-player1 { 
+    animation: player1-attack-lunge 0.4s ease-in-out; 
+}
+.is-attacking-player2 { 
+    animation: player2-attack-lunge 0.4s ease-in-out; 
+}
+.is-hit { 
+    animation: hit-flash 0.5s ease-in-out; 
+}
 
 /* Inversão Visual dos Painéis de UI */
 .fight-ui-container { 
