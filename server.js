@@ -53,11 +53,8 @@ function endTurn(state) {
     const lastPlayerKey = state.whoseTurn;
     state.whoseTurn = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
     const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
-    if (lastPlayerWentFirst) {
-        state.phase = 'turn';
-    } else {
-        processEndRound(state);
-    }
+    if (lastPlayerWentFirst) { state.phase = 'turn'; } 
+    else { processEndRound(state); }
 }
 
 function processEndRound(state) {
@@ -95,12 +92,13 @@ function handleKnockdown(state, downedPlayerKey) {
 
 io.on('connection', (socket) => {
     socket.on('joinGame', (roomId) => {
+        let room;
         if (roomId && games[roomId] && games[roomId].players.length === 1) {
-            socket.join(roomId); const room = games[roomId];
+            socket.join(roomId); room = games[roomId];
             room.players.push({ id: socket.id, playerKey: 'player2' });
             socket.currentRoomId = roomId;
             io.to(room.players[0].id).emit('assignPlayer', 'player1');
-            io.to(room.players[1].id).emit('assignPlayer', 'player2');
+            io.to(socket.id).emit('assignPlayer', 'player2');
             logMessage(room.state, `${room.state.fighters.player2.nome} entrou. Preparem-se!`, 'log-info');
             room.state.phase = 'initiative_p1';
             io.to(roomId).emit('gameUpdate', room.state);
@@ -108,7 +106,8 @@ io.on('connection', (socket) => {
             const newRoomId = uuidv4().substring(0, 6); socket.join(newRoomId);
             socket.currentRoomId = newRoomId;
             games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: createNewGameState() };
-            socket.emit('assignPlayer', 'player1'); socket.emit('roomCreated', newRoomId);
+            socket.emit('assignPlayer', 'player1');
+            socket.emit('roomCreated', newRoomId);
             io.to(newRoomId).emit('gameUpdate', games[newRoomId].state);
         }
     });
@@ -117,22 +116,27 @@ io.on('connection', (socket) => {
         const roomId = socket.currentRoomId; if (!roomId || !games[roomId]) return;
         const room = games[roomId], state = room.state, playerKey = action.playerKey;
         if (!playerKey) return;
-
+        
         switch (action.type) {
             case 'roll_initiative':
-                // **A CORREÇÃO PRINCIPAL ESTÁ AQUI**
                 if (state.phase !== `initiative_${playerKey}`) return; // Impede ação fora de hora
                 const roll = rollD(6);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 state.initiativeRolls[playerKey] = roll + state.fighters[playerKey].agi;
                 logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: ${state.initiativeRolls[playerKey]}`, 'log-info');
+                
                 if (playerKey === 'player1') {
                     state.phase = 'initiative_p2';
-                } else { // Quando o Jogador 2 rola
-                    if (state.initiativeRolls.player1 >= state.initiativeRolls.player2) { state.whoseTurn = 'player1'; state.didPlayer1GoFirst = true; }
-                    else { state.whoseTurn = 'player2'; state.didPlayer1GoFirst = false; }
+                } else { // Jogador 2 rolou
+                    if (state.initiativeRolls.player1 >= state.initiativeRolls.player2) {
+                        state.whoseTurn = 'player1';
+                        state.didPlayer1GoFirst = true;
+                    } else {
+                        state.whoseTurn = 'player2';
+                        state.didPlayer1GoFirst = false;
+                    }
                     logMessage(state, `${state.fighters[state.whoseTurn].nome} venceu a iniciativa!`, 'log-info');
-                    state.phase = 'defense_p1'; // Avança para a próxima fase corretamente
+                    state.phase = 'defense_p1'; // **A CORREÇÃO CRÍTICA**
                 }
                 break;
             case 'roll_defense':
@@ -141,9 +145,10 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 state.fighters[playerKey].def = defRoll + state.fighters[playerKey].res;
                 logMessage(state, `${state.fighters[playerKey].nome} definiu defesa: ${state.fighters[playerKey].def}`, 'log-info');
+                
                 if (playerKey === 'player1') {
                     state.phase = 'defense_p2';
-                } else {
+                } else { // Jogador 2 rolou
                     logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn');
                     state.phase = 'turn';
                 }
@@ -184,21 +189,22 @@ io.on('connection', (socket) => {
     });
 });
 
-// Loop simples e direto para enviar os modais corretos
 setInterval(() => {
     try {
         for (const roomId in games) {
-            const room = games[roomId]; const state = room.state;
+            const room = games[roomId];
+            const state = room.state;
             const p1 = room.players.find(p => p.playerKey === 'player1');
             const p2 = room.players.find(p => p.playerKey === 'player2');
-            if (state.phase === 'initiative_p1') {
-                if(p1) io.to(p1.id).emit('showModal', { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } });
-            } else if (state.phase === 'initiative_p2') {
-                if(p2) io.to(p2.id).emit('showModal', { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } });
-            } else if (state.phase === 'defense_p1') {
-                if(p1) io.to(p1.id).emit('showModal', { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } });
-            } else if (state.phase === 'defense_p2') {
-                if(p2) io.to(p2.id).emit('showModal', { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } });
+
+            if (state.phase === 'initiative_p1' && p1) {
+                io.to(p1.id).emit('showModal', { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } });
+            } else if (state.phase === 'initiative_p2' && p2) {
+                io.to(p2.id).emit('showModal', { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } });
+            } else if (state.phase === 'defense_p1' && p1) {
+                io.to(p1.id).emit('showModal', { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } });
+            } else if (state.phase === 'defense_p2' && p2) {
+                io.to(p2.id).emit('showModal', { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } });
             } else if (state.phase === 'knockdown') {
                 const info = state.knockdownInfo; if (!info) continue;
                 const downedPlayer = room.players.find(p => p.playerKey === info.downedPlayer);
