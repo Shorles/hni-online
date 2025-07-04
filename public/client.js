@@ -1,20 +1,23 @@
-// VERSÃO DE TESTE - client.js
+// VERSÃO FINAL REESCRITA - client.js
 
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
     let currentGameState = null;
-    const socket = io();
+    const socket = io({ transports: ['websocket'], upgrade: false }); // Força o uso de WebSockets
+
     const lobbyScreen = document.getElementById('lobby-screen'), fightScreen = document.getElementById('fight-screen'),
           lobbyContent = document.getElementById('lobby-content'), shareContainer = document.getElementById('share-container'),
           shareLink = document.getElementById('share-link'), modal = document.getElementById('modal'),
           modalTitle = document.getElementById('modal-title'), modalText = document.getElementById('modal-text'),
           modalButton = document.getElementById('modal-button');
 
+    // O servidor nos atribuiu um papel (P1 ou P2)
     socket.on('assignPlayer', (playerKey) => {
         myPlayerKey = playerKey;
-        lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1 (TesteEnvio)' : '2 (Ivan)'}</strong>.</p>`;
+        lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1 (Nathan)' : '2 (Ivan)'}</strong>.</p>`;
     });
 
+    // O servidor criou uma sala para nós (somente P1 recebe)
     socket.on('roomCreated', (roomId) => {
         const url = `${window.location.origin}?room=${roomId}`;
         shareLink.textContent = url;
@@ -25,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // O servidor enviou um novo estado de jogo. Esta é a função mais importante!
     socket.on('gameUpdate', (gameState) => {
         currentGameState = gameState;
         if (gameState.phase !== 'waiting' && lobbyScreen.classList.contains('active')) {
@@ -33,13 +37,23 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUI(gameState);
     });
 
+    // O servidor quer mostrar um modal (para rolar dados, etc.)
     socket.on('showModal', ({ title, text, btnText, action }) => {
-        if (action.playerKey === myPlayerKey) showInteractiveModal(title, text, btnText, action);
-        else showInfoModal(title, `Aguardando ${currentGameState.fighters[action.playerKey].nome} agir...`);
+        const actingPlayer = currentGameState.fighters[action.playerKey]?.nome || '...';
+        // Mostra o modal interativo para o jogador correto
+        if (action.playerKey === myPlayerKey) {
+            showInteractiveModal(title, text, btnText, action);
+        } 
+        // Mostra um modal informativo para o outro jogador
+        else {
+            showInfoModal(title, `Aguardando ${actingPlayer} agir...`);
+        }
     });
-
+    
+    // O servidor mandou uma animação de dado
     socket.on('diceRoll', ({ playerKey, rollValue, diceType }) => showDiceRollAnimation(playerKey, rollValue, diceType));
     
+    // O oponente desconectou
     socket.on('opponentDisconnected', () => {
         showInfoModal("Oponente Desconectado", "Seu oponente saiu. Recarregue a página para jogar novamente.");
         document.querySelectorAll('button').forEach(btn => btn.disabled = true);
@@ -65,10 +79,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const controlsWrapper = document.getElementById('action-buttons-wrapper');
         controlsWrapper.classList.remove('p1-controls', 'p2-controls');
         if (state.whoseTurn) controlsWrapper.classList.add(state.whoseTurn === 'player1' ? 'p1-controls' : 'p2-controls');
+        
         const isMyTurn = state.phase === 'turn' && state.whoseTurn === myPlayerKey;
+        const myFighterState = state.fighters[myPlayerKey];
+
         document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
             const move = state.moves[btn.dataset.move];
-            btn.disabled = !isMyTurn || !move || move.cost > state.fighters[myPlayerKey].pa;
+            btn.disabled = !isMyTurn || !move || !myFighterState || move.cost > myFighterState.pa;
         });
         document.getElementById('end-turn-btn').disabled = !isMyTurn;
         document.getElementById('forfeit-btn').disabled = state.phase === 'gameover';
@@ -80,6 +97,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function showInteractiveModal(title, text, btnText, action) {
         modalTitle.innerText = title; modalText.innerHTML = text; modalButton.innerText = btnText;
         modalButton.style.display = 'inline-block'; modalButton.disabled = false;
+        
+        const twoPlayersReady = currentGameState && currentGameState.phase !== 'waiting';
+        // O botão só fica ativo se a luta já começou de verdade
+        modalButton.disabled = !twoPlayersReady;
+        if(!twoPlayersReady && text.includes("iniciativa")){
+            modalText.innerHTML = "Aguardando oponente entrar para rolar...";
+        }
+
         modalButton.onclick = () => { modalButton.disabled = true; socket.emit('playerAction', action); };
         modal.classList.remove('hidden');
     }

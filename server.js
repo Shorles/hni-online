@@ -1,4 +1,4 @@
-// VERSÃO DE TESTE - server.js
+// VERSÃO FINAL REESCRITA - server.js
 
 const express = require('express');
 const http = require('http');
@@ -23,7 +23,7 @@ const rollAttackD6 = () => { const r = rollD(100); if (r <= 5) return 6; if (r <
 function createNewGameState() {
     return {
         fighters: {
-            player1: { nome: "TesteEnvio", agi: 3, res: 2, originalRes: 2, hpMax: 10, hp: 10, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 },
+            player1: { nome: "Nathan", agi: 3, res: 2, originalRes: 2, hpMax: 10, hp: 10, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 },
             player2: { nome: "Ivan", agi: 2, res: 3, originalRes: 3, hpMax: 15, hp: 15, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 }
         },
         moves: MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
@@ -54,8 +54,11 @@ function endTurn(state) {
     const lastPlayerKey = state.whoseTurn;
     state.whoseTurn = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
     const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
-    if (lastPlayerWentFirst) state.phase = 'turn';
-    else processEndRound(state);
+    if (lastPlayerWentFirst) {
+        state.phase = 'turn';
+    } else {
+        processEndRound(state);
+    }
 }
 
 function processEndRound(state) {
@@ -91,35 +94,16 @@ function handleKnockdown(state, downedPlayerKey) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0 };
 }
 
-function sendNextActionModal(room) {
-    if (!room) return;
-    const state = room.state;
-    const getPlayerSocketId = (playerKey) => room.players.find(p => p.playerKey === playerKey)?.id;
-    let targetSocketId = null;
-    let modalData = null;
-
-    switch (state.phase) {
-        case 'initiative_p1': modalData = { playerKey: 'player1', title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", actionType: 'roll_initiative' }; break;
-        case 'initiative_p2': modalData = { playerKey: 'player2', title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", actionType: 'roll_initiative' }; break;
-        case 'defense_p1': modalData = { playerKey: 'player1', title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", actionType: 'roll_defense' }; break;
-        case 'defense_p2': modalData = { playerKey: 'player2', title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", actionType: 'roll_defense' }; break;
-        case 'knockdown':
-            const info = state.knockdownInfo;
-            if (info) modalData = { playerKey: info.downedPlayer, title: `Você caiu!`, text: `Tentativas restantes: ${4 - info.attempts}`, btnText: `Tentar Levantar`, actionType: 'request_get_up' };
-            break;
-    }
-    if (modalData) {
-        targetSocketId = getPlayerSocketId(modalData.playerKey);
-        if (targetSocketId) io.to(targetSocketId).emit('showModal', { ...modalData, action: { type: modalData.actionType, playerKey: modalData.playerKey } });
-    }
-}
 
 io.on('connection', (socket) => {
     socket.on('joinGame', (roomId) => {
         let room;
         if (roomId && games[roomId] && games[roomId].players.length === 1) {
-            socket.join(roomId); room = games[roomId]; room.players.push({ id: socket.id, playerKey: 'player2' }); socket.currentRoomId = roomId;
-            io.to(room.players[0].id).emit('assignPlayer', 'player1'); io.to(room.players[1].id).emit('assignPlayer', 'player2');
+            socket.join(roomId); room = games[roomId];
+            room.players.push({ id: socket.id, playerKey: 'player2' });
+            socket.currentRoomId = roomId;
+            io.to(room.players[0].id).emit('assignPlayer', 'player1');
+            io.to(room.players[1].id).emit('assignPlayer', 'player2');
             logMessage(room.state, `${room.state.fighters.player2.nome} entrou. Preparem-se!`, 'log-info');
             room.state.phase = 'initiative_p1';
         } else {
@@ -127,13 +111,14 @@ io.on('connection', (socket) => {
             games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: createNewGameState() };
             room = games[newRoomId]; socket.emit('assignPlayer', 'player1'); socket.emit('roomCreated', newRoomId);
         }
-        io.to(socket.currentRoomId).emit('gameUpdate', room.state);
-        sendNextActionModal(room);
+        io.to(room.id).emit('gameUpdate', room.state);
+        io.to(room.players[0].id).emit('showModal', { title: `Iniciativa`, text: "Aguarde o oponente entrar para rolar sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } });
     });
 
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId; if (!roomId || !games[roomId]) return;
         const room = games[roomId], state = room.state, playerKey = action.playerKey; if (!playerKey) return;
+        
         switch (action.type) {
             case 'roll_initiative':
                 if (state.phase !== `initiative_${playerKey}`) return;
@@ -171,22 +156,36 @@ io.on('connection', (socket) => {
             case 'end_turn': if (state.whoseTurn === playerKey && state.phase === 'turn') endTurn(state); break;
             case 'request_get_up':
                 const info = state.knockdownInfo; if (!info || info.downedPlayer !== playerKey || state.phase !== 'knockdown') return;
-                info.attempts++;
-                const getUpRoll = rollD(6); io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
+                info.attempts++; const getUpRoll = rollD(6); io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
                 const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar: ${totalRoll}`, 'log-info');
                 if (totalRoll >= 7) {
                     logMessage(state, `Ele se levantou!`, 'log-info'); state.fighters[playerKey].res--;
-                    state.fighters[playerKey].hp = state.fighters[playerKey].res * 5 || 1;
-                    state.phase = 'turn'; state.knockdownInfo = null;
+                    state.fighters[playerKey].hp = state.fighters[playerKey].res * 5 || 1; state.phase = 'turn'; state.knockdownInfo = null;
                 } else if (info.attempts >= 4) {
                     logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit'); state.phase = 'gameover';
                     state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
                 }
                 break;
         }
+
         io.to(roomId).emit('gameUpdate', room.state);
-        sendNextActionModal(room);
+        
+        const p1 = room.players.find(p => p.playerKey === 'player1');
+        const p2 = room.players.find(p => p.playerKey === 'player2');
+        let nextAction = null;
+
+        if (state.phase === 'initiative_p2') nextAction = { target: p2, modal: { title: `Iniciativa`, text: "É a sua vez de rolar.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } } };
+        else if (state.phase === 'defense_p1') nextAction = { target: p1, modal: { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } } };
+        else if (state.phase === 'defense_p2') nextAction = { target: p2, modal: { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } } };
+        else if (state.phase === 'knockdown') {
+            const info = state.knockdownInfo; if (info) {
+                const downedPlayer = room.players.find(p => p.playerKey === info.downedPlayer);
+                nextAction = { target: downedPlayer, modal: { title: `Você caiu!`, text: `Tentativas restantes: ${4 - info.attempts}`, btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: info.downedPlayer } } };
+            }
+        }
+        
+        if (nextAction && nextAction.target) io.to(nextAction.target.id).emit('showModal', nextAction.modal);
     });
 
     socket.on('disconnect', () => {
