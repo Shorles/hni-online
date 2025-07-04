@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- ESTADO DO LADO DO CLIENTE ---
+    // ---  ESTADO DO LADO DO CLIENTE ---
     let myPlayerKey = null; // Será 'player1' ou 'player2'
     let currentGameState = null;
 
