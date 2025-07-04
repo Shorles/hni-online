@@ -191,29 +191,34 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2');
         
-        // >>> LÓGICA DE CONTROLES CORRIGIDA <<<
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
-        
-        // Define a cor dos botões
-        controlsWrapper.classList.remove('p1-colors', 'p2-colors');
-        if (myPlayerKey === 'player1') controlsWrapper.classList.add('p1-colors');
-        else if (myPlayerKey === 'player2') controlsWrapper.classList.add('p2-colors');
-        else if (isSpectator && state.whoseTurn) controlsWrapper.classList.add(`${state.whoseTurn}-colors`);
-
-        // Define a visibilidade dos botões
-        const showButtons = (state.phase === 'turn' && (myPlayerKey === state.whoseTurn || isSpectator));
-        moveButtonsContainer.style.display = showButtons ? 'flex' : 'none';
-        
-        // Habilita/desabilita os botões
         const isMyTurn = state.whoseTurn === myPlayerKey;
-        const activeFighterPA = state.fighters[state.whoseTurn]?.pa || 0;
+
+        // Lógica de cores dos botões
+        controlsWrapper.classList.remove('p1-colors', 'p2-colors');
+        if (isSpectator) {
+            if (state.whoseTurn) controlsWrapper.classList.add(`${state.whoseTurn}-colors`);
+        } else if (myPlayerKey) {
+            controlsWrapper.classList.add(`${myPlayerKey}-colors`);
+        }
         
-        document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
-            const moveCost = state.moves[btn.dataset.move]?.cost;
-            btn.disabled = isSpectator || !isMyTurn || isGameOver || moveCost > activeFighterPA;
-        });
-        document.getElementById('end-turn-btn').disabled = isSpectator || !isMyTurn || isGameOver;
+        // Lógica de visibilidade e estado dos botões
+        const showButtonsForPlayer = !isSpectator && !isGameOver && state.phase === 'turn';
+        const showButtonsForSpectator = isSpectator && state.phase === 'turn';
+        
+        if (showButtonsForPlayer || showButtonsForSpectator) {
+            moveButtonsContainer.style.display = 'flex';
+            const activeFighterPA = state.fighters[state.whoseTurn]?.pa || 0;
+            document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
+                const moveCost = state.moves[btn.dataset.move]?.cost;
+                btn.disabled = isSpectator || !isMyTurn || moveCost > activeFighterPA;
+            });
+            document.getElementById('end-turn-btn').disabled = isSpectator || !isMyTurn;
+        } else {
+            moveButtonsContainer.style.display = 'none';
+        }
+
         document.getElementById('forfeit-btn').disabled = isGameOver || isSpectator;
 
         const logBox = document.getElementById('fight-log');
