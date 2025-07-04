@@ -59,6 +59,7 @@ body {
     justify-content: flex-end; 
     padding: 0; 
     box-sizing: border-box; 
+    /* A CORREÇÃO: Usamos uma barra no início para garantir que o caminho é absoluto */
     background-image: url('/images/ringue.png'); 
     background-size: cover; 
     background-position: center; 

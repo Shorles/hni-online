@@ -181,3 +181,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const roomIdFromUrl = urlParams.get('room');
     socket.emit('joinGame', roomIdFromUrl);
 });
+
+// Funções de áudio que não precisam estar dentro do evento principal
+const DICE_SOUNDS = ['dice1.mp3', 'dice2.mp3', 'dice3.mp3'];
+function playSound(soundFile) {
+    const sfxVolume = 0.5; // Pode ser ajustado
+    if (sfxVolume <= 0) return;
+    const audio = new Audio(`sons/${soundFile}`);
+    audio.volume = sfxVolume;
+    audio.play().catch(e => console.error("Erro ao tocar som:", e));
+};
