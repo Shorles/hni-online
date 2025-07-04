@@ -34,9 +34,13 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
 
     const attacker = state.fighters[attackerKey], defender = state.fighters[defenderKey], move = state.moves[moveName];
+    
+    // >>> ALTERAÇÃO: Adiciona log específico para o golpe usado.
+    logMessage(state, `${attacker.nome} usa <span class="log-move-name">${moveName}</span>!`);
+
     const roll = rollAttackD6(); let hit = false, crit = false;
     const attackValue = roll + attacker.agi - move.penalty;
-    logMessage(state, `${attacker.nome}: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
+    logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
     
     if (roll === 1) { 
         logMessage(state, "Erro Crítico!", 'log-miss'); 
@@ -217,7 +221,7 @@ io.on('connection', (socket) => {
         games[newRoomId] = { 
             id: newRoomId, 
             players: [{ id: socket.id, playerKey: 'player1' }], 
-            spectators: [], // >>> Adiciona array de espectadores
+            spectators: [],
             state: newState 
         };
         
@@ -249,7 +253,6 @@ io.on('connection', (socket) => {
         io.to(p1socketId).emit('promptP2Stats', player2Data);
     });
 
-    // >>> NOVO EVENTO PARA ESPECTADORES
     socket.on('spectateGame', (roomId) => {
         const room = games[roomId];
         if (!room) {
@@ -386,10 +389,8 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId]) return;
 
         const room = games[roomId];
-        // Remove jogador ou espectador da sala
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex > -1) {
-            // Se um jogador desconecta, o jogo deveria ser encerrado para todos
             io.to(roomId).emit('opponentDisconnected');
             delete games[roomId];
         } else {

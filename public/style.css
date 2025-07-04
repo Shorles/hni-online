@@ -149,7 +149,6 @@ body {
 }
 #fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
 
-/* >>> BOTÃO DE COPIAR LINK NO JOGO <<< */
 .copy-link-button {
     position: absolute;
     top: 20px;
@@ -191,7 +190,6 @@ body {
     transition: transform 0.2s ease;
 }
 
-/* POSICIONAMENTO E ESPELHAMENTO DOS LUTADORES */
 #player1-fight-img { 
     left: 380px; 
     transform: scaleX(-1); 
@@ -201,7 +199,6 @@ body {
     transform: scaleX(-1); 
 } 
 
-/* CLASSES DE ANIMAÇÃO */
 .is-attacking-player1 { animation: player1-attack-lunge 0.4s ease-in-out; }
 .is-attacking-player2 { animation: player2-attack-lunge 0.4s ease-in-out; }
 .is-hit { animation: hit-flash 0.5s ease-in-out; }
@@ -214,7 +211,18 @@ body {
     width: 100%;
 }
 
-.fighter-info { flex-basis: 30%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+.fighter-info { 
+    flex-basis: 28%; /* >>> Reduzido <<< */
+    padding: 10px; 
+    background-color: rgba(0, 0, 0, 0.7); 
+    border: 2px solid #555; 
+    border-radius: 10px; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    gap: 8px; 
+    transition: border-color 0.3s ease, box-shadow 0.3s ease; 
+}
 .fighter-info.active-turn { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
 .fighter-info p { margin: 0; font-size: 0.9em; }
 .stats-bar { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
@@ -227,13 +235,29 @@ body {
 .defense-display { position: relative; display: flex; justify-content: center; align-items: center; }
 .defense-display img { width: 40px; height: 40px; }
 .defense-text { position: absolute; font-size: 1.2em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
-#fight-log-container { flex-basis: 35%; height: 160px; background-color: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
+
+#fight-log-container { 
+    flex-basis: 40%; /* >>> Aumentado <<< */
+    height: 180px; /* >>> Aumentado <<< */
+    background-color: rgba(0,0,0,0.6); 
+    border: 2px solid #555; 
+    border-radius: 10px; 
+    padding: 10px; 
+    display: flex; 
+    flex-direction: column; 
+}
 #round-info { text-align: center; margin-top: 0; border-bottom: 1px solid #fff; padding-bottom: 10px; }
 #fight-log { overflow-y: auto; flex-grow: 1; }
 #fight-log p { margin: 5px; padding-bottom: 5px; border-bottom: 1px dashed #444; font-size: 0.9em; }
-.log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
+.log-hit { color: #ffc107; } 
+.log-miss { color: #6c757d; } 
+.log-crit { color: #dc3545; font-weight: bold; } 
+.log-info { color: #17a2b8; } 
+.log-turn { color: #fff; font-weight: bold; }
 .highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; vertical-align: middle; }
 .turn-highlight { font-weight: bold; color: #dc3545; }
+.log-move-name { font-weight: bold; font-size: 1.1em; color: #dc3545; } /* >>> Novo estilo para nome do golpe <<< */
+
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
 #move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .action-btn, #end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
@@ -245,25 +269,34 @@ body {
 #action-buttons-wrapper.p2-controls .action-btn { background-color: #c82333; }
 #action-buttons-wrapper.p2-controls .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
 
-/* ESTILOS PARA BOTÕES DE ROLAGEM */
+/* BOTÕES DE ROLAGEM */
 .roll-dice-button {
     position: absolute;
     bottom: 450px; 
     padding: 10px 15px;
     font-size: 1em;
     font-weight: bold;
-    color: #000;
-    background-color: #ffeb3b;
     border: 2px solid #fff;
     border-radius: 8px;
     cursor: pointer;
-    box-shadow: 0 0 10px #ffeb3b;
     z-index: 100;
-    transition: transform 0.2s ease;
+    transition: all 0.2s ease;
 }
-.roll-dice-button:hover {
+.roll-dice-button:not(.inactive):hover {
     transform: scale(1.05);
 }
+.roll-dice-button:not(.inactive) {
+    color: #000;
+    background-color: #ffeb3b;
+    box-shadow: 0 0 10px #ffeb3b;
+}
+.roll-dice-button.inactive {
+    color: #aaa;
+    background-color: #666;
+    border-color: #888;
+    cursor: default;
+}
+
 #player1-roll-btn { left: 200px; }
 #player2-roll-btn { right: 200px; }
 
@@ -280,10 +313,3 @@ body {
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
 #player1-dice-result { left: 400px; bottom: 530px; }
 #player2-dice-result { right: 400px; bottom: 530px; }
-
-/* PLACAR DE DECISÃO */
-#scorecard { width: 100%; margin-top: 15px; border-collapse: collapse; text-align: left; }
-#scorecard th, #scorecard td { padding: 8px; border-bottom: 1px solid #555; }
-#scorecard th { background-color: #444; }
-#scorecard td:not(:first-child) { text-align: center; }
-#scorecard .score-lost { color: #dc3545; font-weight: bold; }

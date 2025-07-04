@@ -124,18 +124,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const isSpectator = urlParams.get('spectate') === 'true';
 
     if (isSpectator && roomIdFromUrl) {
-        // Lógica para Espectador
         selectionScreen.classList.remove('active');
         lobbyScreen.classList.add('active');
         lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
         socket.emit('spectateGame', roomIdFromUrl);
     } else if (roomIdFromUrl) {
-        // Lógica para Jogador 2
         selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
         confirmBtn.innerText = 'Entrar na Luta';
         renderCharacterSelection('p2');
     } else {
-        // Lógica para Jogador 1
         selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
         confirmBtn.innerText = 'Criar Jogo';
         renderCharacterSelection('p1');
@@ -199,11 +196,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     copySpectatorLinkInGameBtn.onclick = () => {
-        const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
-        copyToClipboard(specUrl, copySpectatorLinkInGameBtn);
+        if (currentRoomId) {
+            const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
+            copyToClipboard(specUrl, copySpectatorLinkInGameBtn);
+        }
     };
 
     socket.on('gameUpdate', (gameState) => {
+        // >>> Captura o ID da sala a partir do estado para uso do espectador
+        if (!currentRoomId) {
+            const roomInGames = Object.values(games).find(g => g.state === gameState);
+            if (roomInGames) currentRoomId = roomInGames.id;
+        }
+        
         currentGameState = gameState;
         
         if(gameState.fighters.player1) document.getElementById('player1-fight-img').src = gameState.fighters.player1.img;
@@ -224,19 +229,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
         const btn = document.getElementById(`${targetPlayerKey}-roll-btn`);
+        const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
+        const isSpectator = myPlayerKey === 'spectator';
+        
         btn.innerText = text;
+        btn.classList.remove('hidden', 'inactive');
 
-        if (myPlayerKey === targetPlayerKey) {
+        if (isMyTurnToRoll) {
             btn.onclick = () => {
                 socket.emit('playerAction', action);
-                btn.classList.add('hidden');
             };
             btn.disabled = false;
+        } else if (isSpectator) {
+             btn.disabled = true;
+             btn.onclick = null;
         } else {
-            btn.onclick = null;
+            // Outro jogador
+            btn.classList.add('inactive');
             btn.disabled = true;
+            btn.onclick = null;
         }
-        btn.classList.remove('hidden');
     });
 
     socket.on('hideRollButtons', () => {
@@ -256,6 +268,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (targetPlayerKey === myPlayerKey) {
             showInteractiveModal(title, text, btnText, action);
+        } else if (myPlayerKey === 'spectator') {
+            const activePlayerName = currentGameState.fighters[targetPlayerKey]?.nome || 'oponente';
+            if (modalType === 'knockdown') {
+                showInfoModal(`${activePlayerName} caiu!`, "Aguarde a contagem...");
+            }
         } else {
             const activePlayerName = currentGameState.fighters[targetPlayerKey]?.nome || 'oponente';
             if (modalType === 'knockdown') {
@@ -292,7 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 stats: { agi, res }
             };
             socket.emit('playerAction', action);
-            
             modal.classList.add('hidden');
         };
     });
@@ -343,38 +359,27 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2');
         
-        // Lógica de habilitar/desabilitar botões
         const isMyTurn = state.whoseTurn === myPlayerKey && state.phase === 'turn';
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
 
+        controlsWrapper.classList.remove('p1-controls', 'p2-controls');
+        if (isSpectator) {
+            if (state.whoseTurn) {
+                controlsWrapper.classList.add(`${state.whoseTurn}-controls`);
+            }
+        } else if (myPlayerKey) {
+            controlsWrapper.classList.add(`${myPlayerKey}-controls`);
+        }
+
         document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
             const move = state.moves[btn.dataset.move];
-            const fighterPA = (myPlayerKey && state.fighters[myPlayerKey]) ? state.fighters[myPlayerKey]?.pa : 0;
-            const playerControlsId = state.whoseTurn === 'player1' ? 'p1-controls' : 'p2-controls';
-
-            if (isSpectator) {
-                controlsWrapper.className = `p1-controls p2-controls`; // Mostra ambas as cores
-                btn.disabled = true; // Sempre desabilitado para espectador
-            } else {
-                btn.disabled = !isMyTurn || !move || move.cost > fighterPA || isGameOver;
-                controlsWrapper.className = myPlayerKey === 'player1' ? 'p1-controls' : 'p2-controls';
-            }
+            const fighterPA = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].pa : 0;
+            btn.disabled = isSpectator || !isMyTurn || !move || move.cost > fighterPA || isGameOver;
         });
 
-        document.getElementById('end-turn-btn').disabled = !isMyTurn || isGameOver;
+        document.getElementById('end-turn-btn').disabled = isSpectator || !isMyTurn || isGameOver;
         document.getElementById('forfeit-btn').disabled = isGameOver || isSpectator;
-        
-        // Espectadores veem os botões de ambos os jogadores
-        if (isSpectator) {
-            document.getElementById('player1-area').classList.add('p1-controls');
-            document.getElementById('player2-area').classList.add('p2-controls');
-            // Mostra os botões do jogador da vez para o espectador
-            document.getElementById('action-buttons-wrapper').classList.remove('p1-controls', 'p2-controls');
-            if (state.whoseTurn) {
-                document.getElementById('action-buttons-wrapper').classList.add(`${state.whoseTurn}-controls`);
-            }
-        }
 
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
