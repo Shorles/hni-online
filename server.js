@@ -1,4 +1,4 @@
-// VERSÃO À PROVA DE BALAS - server.js
+// VERSÃO DE TESTE - server.js
 
 const express = require('express');
 const http = require('http');
@@ -23,7 +23,7 @@ const rollAttackD6 = () => { const r = rollD(100); if (r <= 5) return 6; if (r <
 function createNewGameState() {
     return {
         fighters: {
-            player1: { nome: "Nathan", agi: 3, res: 2, originalRes: 2, hpMax: 10, hp: 10, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 },
+            player1: { nome: "TesteEnvio", agi: 3, res: 2, originalRes: 2, hpMax: 10, hp: 10, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 },
             player2: { nome: "Ivan", agi: 2, res: 3, originalRes: 3, hpMax: 15, hp: 15, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 }
         },
         moves: MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,

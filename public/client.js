@@ -1,4 +1,4 @@
-// VERSÃO À PROVA DE BALAS - client.js
+// VERSÃO DE TESTE - client.js
 
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('assignPlayer', (playerKey) => {
         myPlayerKey = playerKey;
-        lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1 (Nathan)' : '2 (Ivan)'}</strong>.</p>`;
+        lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${myPlayerKey === 'player1' ? '1 (TesteEnvio)' : '2 (Ivan)'}</strong>.</p>`;
     });
 
     socket.on('roomCreated', (roomId) => {
