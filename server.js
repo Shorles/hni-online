@@ -1,4 +1,4 @@
-// VERSÃO FINAL CORRIGIDA v2 - server.js
+// VERSÃO FINAL E CORRIGIDA - server.js
 
 const express = require('express');
 const http = require('http');
@@ -92,28 +92,30 @@ function handleKnockdown(state, downedPlayerKey) {
 }
 
 function sendNextActionModal(room) {
-    if (!room || room.players.length < 2) return; // Não envia modal se não tiver 2 jogadores
+    if (!room) return;
     const state = room.state;
     const p1 = room.players.find(p => p.playerKey === 'player1');
     const p2 = room.players.find(p => p.playerKey === 'player2');
+    if (!p1 || !p2) return; // Garante que ambos os jogadores estejam presentes
+    
     let targetSocketId = null;
     let modalData = null;
 
     switch (state.phase) {
         case 'initiative_p1':
-            targetSocketId = p1?.id;
-            modalData = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } };
+            targetSocketId = p1.id;
+            modalData = { title: `Iniciativa`, text: "É a sua vez de rolar.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } };
             break;
         case 'initiative_p2':
-            targetSocketId = p2?.id;
+            targetSocketId = p2.id;
             modalData = { title: `Iniciativa`, text: "É a sua vez de rolar.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } };
             break;
         case 'defense_p1':
-            targetSocketId = p1?.id;
+            targetSocketId = p1.id;
             modalData = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } };
             break;
         case 'defense_p2':
-            targetSocketId = p2?.id;
+            targetSocketId = p2.id;
             modalData = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } };
             break;
         case 'knockdown':
@@ -136,22 +138,24 @@ io.on('connection', (socket) => {
             room.players.push({ id: socket.id, playerKey: 'player2' });
             socket.currentRoomId = roomId;
             io.to(room.players[0].id).emit('assignPlayer', 'player1');
-            io.to(room.players[1].id).emit('assignPlayer', 'player2');
+            io.to(socket.id).emit('assignPlayer', 'player2');
             logMessage(room.state, `${room.state.fighters.player2.nome} entrou. Preparem-se!`, 'log-info');
             room.state.phase = 'initiative_p1';
+            io.to(roomId).emit('gameUpdate', room.state);
+            sendNextActionModal(room);
         } else {
             const newRoomId = uuidv4().substring(0, 6); socket.join(newRoomId); socket.currentRoomId = newRoomId;
             games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: createNewGameState() };
             room = games[newRoomId]; socket.emit('assignPlayer', 'player1');
             socket.emit('roomCreated', newRoomId);
+            io.to(newRoomId).emit('gameUpdate', room.state);
         }
-        io.to(room.id).emit('gameUpdate', room.state);
-        sendNextActionModal(room); // Agora só envia o modal de P1 depois que P2 entra
     });
 
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId; if (!roomId || !games[roomId]) return;
         const room = games[roomId], state = room.state, playerKey = action.playerKey; if (!playerKey) return;
+        
         switch (action.type) {
             case 'roll_initiative':
                 if (state.phase !== `initiative_${playerKey}`) return;
