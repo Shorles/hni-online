@@ -1,4 +1,4 @@
-// VERSÃO FINAL REVISADA DO SERVER.JS
+// VERSÃO FINAL E DEFINITIVA DO SERVER.JS
 
 const express = require('express');
 const http = require('http');
