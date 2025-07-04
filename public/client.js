@@ -73,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // O oponente desconectou
     socket.on('opponentDisconnected', () => {
         showInfoModal("Oponente Desconectado", "Seu oponente saiu do jogo. A sala foi encerrada. Recarregue a página para jogar novamente.");
-        // Desabilita todos os botões
         document.querySelectorAll('button').forEach(btn => btn.disabled = true);
     });
 
@@ -108,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.whoseTurn) controlsWrapper.classList.add(state.whoseTurn === 'player1' ? 'p1-controls' : 'p2-controls');
         
         // Habilita/Desabilita botões se for ou não a nossa vez
-        const isMyTurn = state.whoseTurn === myPlayerKey;
+        const isMyTurn = state.phase === 'turn' && state.whoseTurn === myPlayerKey;
         document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
             const move = state.moves[btn.dataset.move];
             btn.disabled = !isMyTurn || !move || move.cost > state.fighters[myPlayerKey].pa;
@@ -129,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
         modalButton.style.display = 'inline-block';
         modalButton.disabled = false;
         modalButton.onclick = () => {
-            // Desabilita o botão para evitar cliques duplos e envia a ação
             modalButton.disabled = true;
             socket.emit('playerAction', action);
         };
@@ -139,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-        modalButton.style.display = 'none'; // Sem botão clicável
+        modalButton.style.display = 'none';
         modal.classList.remove('hidden');
     }
 
@@ -147,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return new Promise(resolve => {
             const diceOverlay = document.getElementById('dice-overlay');
             diceOverlay.classList.remove('hidden');
-            // O som agora é decisão do cliente, não afeta o estado do jogo
             playSound(DICE_SOUNDS[Math.floor(Math.random() * DICE_SOUNDS.length)]);
             const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3P-' : 'D3A-') : (playerKey === 'player1' ? 'diceP' : 'diceA');
             const diceContainer = document.getElementById(`${playerKey}-dice-result`);
@@ -158,9 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 diceContainer.classList.add('hidden');
                 resolve();
             };
-            // Clicar no overlay acelera a animação
             diceOverlay.addEventListener('click', hideAndResolve, { once: true });
-            // Mas ela some sozinha também
             setTimeout(hideAndResolve, 2000); 
         });
     }
@@ -169,7 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. EMISSORES DE EVENTOS (O que o cliente envia para o servidor)
     // ===================================================================
 
-    // Conecta todos os botões de ação para enviar a ação correspondente
     document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
         btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move });
     });
@@ -183,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', scaleGame);
 
     // --- INÍCIO ---
-    // Pega o ID da sala da URL para tentar entrar em um jogo
     const urlParams = new URLSearchParams(window.location.search);
     const roomIdFromUrl = urlParams.get('room');
     socket.emit('joinGame', roomIdFromUrl);

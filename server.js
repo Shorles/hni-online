@@ -1,4 +1,4 @@
-// VERSÃO FINAL E CORRIGIDA DO SERVER.JS
+// VERSÃO FINAL REVISADA DO SERVER.JS
 
 const express = require('express');
 const http = require('http');
@@ -99,12 +99,11 @@ function handleKnockdown(state, downedPlayerKey) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0 };
 }
 
-// NOVA FUNÇÃO para enviar o próximo modal de ação
 function sendNextActionModal(room) {
+    if (!room) return;
     const state = room.state;
     const p1 = room.players.find(p => p.playerKey === 'player1');
     const p2 = room.players.find(p => p.playerKey === 'player2');
-    
     let targetSocketId = null;
     let modalData = null;
 
@@ -134,10 +133,7 @@ function sendNextActionModal(room) {
             }
             break;
     }
-
-    if (targetSocketId && modalData) {
-        io.to(targetSocketId).emit('showModal', modalData);
-    }
+    if (targetSocketId && modalData) io.to(targetSocketId).emit('showModal', modalData);
 }
 
 io.on('connection', (socket) => {
