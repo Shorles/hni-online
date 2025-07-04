@@ -10,8 +10,15 @@
 
 <div id="game-wrapper">
 
-    <!-- NOVA TELA DE LOBBY -->
-    <div id="lobby-screen" class="screen active">
+    <!-- TELA DE SELEÇÃO DE PERSONAGENS -->
+    <div id="selection-screen" class="screen active">
+        <h1 id="selection-title">Selecione seu Lutador</h1>
+        <div id="character-list-container"></div>
+        <button id="confirm-selection-btn">Confirmar</button>
+    </div>
+
+    <!-- TELA DE LOBBY -->
+    <div id="lobby-screen" class="screen">
         <h1>Hajime no Ippo: Batalha Online</h1>
         <div id="lobby-content">
             <p>Aguardando conexão...</p>
@@ -22,16 +29,17 @@
         </div>
     </div>
 
-    <!-- TELA DE LUTA (Começa oculta) -->
+    <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
         <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
         <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
-                <!-- ÁREA JOGADOR 1 -->
+                <!-- ORDEM ORIGINAL RESTAURADA: P1 PRIMEIRO -->
+                <!-- ÁREA JOGADOR 1 (ESQUERDA NO CÓDIGO) -->
                 <div class="fighter-info" id="player1-area">
-                    <h2 id="player1-fight-name">Nathan</h2>
+                    <h2 id="player1-fight-name">Jogador 1</h2>
                     <div class="stats-bar">
                         <span>HP: </span>
                         <div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div>
@@ -41,14 +49,14 @@
                     <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player1-def-text">0</span></div>
                     <p>Acertos: <span id="player1-hits">0</span></p>
                 </div>
-                <!-- LOG DE LUTA -->
+                <!-- LOG DE LUTA (CENTRAL) -->
                 <div id="fight-log-container">
                     <h2 id="round-info">ROUND 1</h2>
                     <div id="fight-log"></div>
                 </div>
-                <!-- ÁREA JOGADOR 2 -->
+                <!-- ÁREA JOGADOR 2 (DIREITA NO CÓDIGO) -->
                 <div class="fighter-info" id="player2-area">
-                    <h2 id="player2-fight-name">Ivan</h2>
+                    <h2 id="player2-fight-name">Jogador 2</h2>
                     <div class="stats-bar">
                         <span>HP: </span>
                         <div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div>
@@ -74,13 +82,13 @@
             </div>
         </div>
 
-        <!-- Overlay e containers para os dados -->
+        <!-- OVERLAYS -->
         <div id="dice-overlay" class="hidden"></div>
         <div id="player1-dice-result" class="dice-result hidden"></div>
         <div id="player2-dice-result" class="dice-result hidden"></div>
     </div>
 
-    <!-- MODAL PARA POPUPS -->
+    <!-- MODAL -->
     <div id="modal" class="hidden">
         <div id="modal-content">
             <h3 id="modal-title">Título</h3>
@@ -89,9 +97,9 @@
         </div>
     </div>
 
-</div> <!-- Fim do #game-wrapper -->
+</div>
 
-<script src="/socket.io/socket.io.js"></script> <!-- Importa a biblioteca do Socket.IO -->
-<script src="client.js"></script> <!-- Nosso novo arquivo de lógica do cliente -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
 </body>
 </html>

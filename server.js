@@ -1,4 +1,4 @@
-//  VERSÃO COMPLETA E MODIFICADA DO SERVER.JS (COM EVENTOS DE SOM DE ERRO)
+// VERSÃO CORRIGIDA E ROBUSTA - BUG DA INICIATIVA RESOLVIDO
 
 const express = require('express');
 const http = require('http');
@@ -22,14 +22,12 @@ const rollAttackD6 = () => { const r = rollD(100); if (r <= 5) return 6; if (r <
 
 function createNewGameState() {
     return {
-        fighters: {
-            player1: { nome: "Nathan", agi: 3, res: 2, originalRes: 2, hpMax: 10, hp: 10, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 },
-            player2: { nome: "Ivan", agi: 2, res: 3, originalRes: 3, hpMax: 15, hp: 15, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 }
-        },
+        fighters: {},
         moves: MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
     };
 }
+
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
 function executeAttack(state, attackerKey, defenderKey, moveName) {
@@ -65,18 +63,11 @@ function executeAttack(state, attackerKey, defenderKey, moveName) {
                 io.to(roomId).emit('playSound', 'critical');
             } else {
                 switch (moveName) {
-                    case 'Jab':
-                        io.to(roomId).emit('playSound', 'jab');
-                        break;
-                    case 'Direto':
-                    case 'Upper':
-                    case 'Liver Blow':
-                        io.to(roomId).emit('playSound', 'strong');
-                        break;
+                    case 'Jab': io.to(roomId).emit('playSound', 'jab'); break;
+                    default: io.to(roomId).emit('playSound', 'strong'); break;
                 }
             }
         }
-
         let damage = crit ? move.damage * 2 : move.damage;
         defender.hp = Math.max(0, defender.hp - damage);
         attacker.hitsLanded++; defender.totalDamageTaken += damage;
@@ -146,13 +137,14 @@ function isActionValid(state, action) {
         case 'turn':
             return (type === 'attack' || type === 'end_turn') && playerKey === state.whoseTurn;
         case 'knockdown':
-            return type === 'request_get_up' && playerKey === state.knockdownInfo.downedPlayer;
+            return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
         default:
             return false;
     }
 }
 
 function dispatchActionModal(room) {
+    if (!room) return;
     const { state, id: roomId } = room;
     let modalPayload = null;
     let targetPlayerKey = null;
@@ -194,32 +186,64 @@ function dispatchActionModal(room) {
 }
 
 io.on('connection', (socket) => {
-    socket.on('joinGame', (roomId) => {
-        if (roomId && games[roomId] && games[roomId].players.length === 1) {
-            socket.join(roomId);
-            const room = games[roomId];
-            room.players.push({ id: socket.id, playerKey: 'player2' });
-            socket.currentRoomId = roomId;
 
-            io.to(room.players[0].id).emit('assignPlayer', 'player1');
-            io.to(room.players[1].id).emit('assignPlayer', 'player2');
+    socket.on('createGame', (player1Data) => {
+        const newRoomId = uuidv4().substring(0, 6);
+        socket.join(newRoomId);
+        socket.currentRoomId = newRoomId;
 
-            logMessage(room.state, `${room.state.fighters.player2.nome} entrou. Preparem-se!`, 'log-info');
-            room.state.phase = 'initiative_p1';
-            
-            io.to(roomId).emit('gameUpdate', room.state);
-            dispatchActionModal(room); 
+        const newState = createNewGameState();
+        const res = Math.max(1, parseInt(player1Data.res, 10));
+        newState.fighters.player1 = {
+            nome: player1Data.nome,
+            img: player1Data.img,
+            agi: parseInt(player1Data.agi, 10),
+            res: res,
+            originalRes: res,
+            hpMax: res * 10,
+            hp: res * 10,
+            pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
+        };
 
-        } else {
-            const newRoomId = uuidv4().substring(0, 6);
-            socket.join(newRoomId);
-            socket.currentRoomId = newRoomId;
-            games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: createNewGameState() };
-            
-            socket.emit('assignPlayer', 'player1');
-            socket.emit('roomCreated', newRoomId);
-            io.to(newRoomId).emit('gameUpdate', games[newRoomId].state);
+        games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: newState };
+        
+        socket.emit('assignPlayer', 'player1');
+        socket.emit('roomCreated', newRoomId);
+        io.to(socket.id).emit('gameUpdate', newState);
+    });
+
+    socket.on('joinGame', ({ roomId, player2Data }) => {
+        const room = games[roomId];
+        if (!room || room.players.length !== 1) {
+            socket.emit('error', { message: 'Sala não encontrada ou já está cheia.' });
+            return;
         }
+
+        socket.join(roomId);
+        room.players.push({ id: socket.id, playerKey: 'player2' });
+        socket.currentRoomId = roomId;
+
+        // ***** A LINHA QUE FALTAVA FOI REINSERIDA AQUI *****
+        socket.emit('assignPlayer', 'player2');
+        
+        const state = room.state;
+        const res = Math.max(1, parseInt(player2Data.res, 10));
+        state.fighters.player2 = {
+            nome: player2Data.nome,
+            img: player2Data.img,
+            agi: parseInt(player2Data.agi, 10),
+            res: res,
+            originalRes: res,
+            hpMax: res * 10,
+            hp: res * 10,
+            pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
+        };
+
+        logMessage(state, `${state.fighters.player2.nome} entrou. Preparem-se!`);
+        state.phase = 'initiative_p1';
+        
+        io.to(roomId).emit('gameUpdate', state);
+        dispatchActionModal(room); 
     });
 
     socket.on('playerAction', (action) => {
@@ -230,7 +254,7 @@ io.on('connection', (socket) => {
         const state = room.state;
 
         if (!isActionValid(state, action)) {
-            console.log(`Ação inválida recebida e rejeitada: `, action, `na fase: ${state.phase}`);
+            console.log(`Ação inválida REJEITADA: `, action, `na fase: ${state.phase}`);
             return;
         }
         
