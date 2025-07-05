@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalButton = document.getElementById('modal-button');
     const p1Controls = document.getElementById('p1-controls');
     const p2Controls = document.getElementById('p2-controls');
+    const getUpSuccessOverlay = document.getElementById('get-up-success-overlay');
+    const getUpSuccessContent = document.getElementById('get-up-success-content');
 
     // --- DADOS E ÁUDIO ---
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
@@ -49,38 +51,18 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCharacterSelection('p1');
         }
         confirmBtn.addEventListener('click', onConfirmSelection);
-        
-        // Eventos de ataque
         document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
-        
-        // Eventos de fim de turno
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-        
-        // Evento de desistência
-        document.getElementById('forfeit-btn').onclick = () => {
-            if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.phase === 'turn' && currentGameState.whoseTurn === myPlayerKey) {
-                showForfeitConfirmation();
-            }
-        };
+        document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.phase === 'turn' && currentGameState.whoseTurn === myPlayerKey) showForfeitConfirmation(); };
     }
 
     function showForfeitConfirmation() {
-        const modalContentHtml = `
-            <p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p>
-            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
-                <button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button>
-                <button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button>
-            </div>`;
+        const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
         showInfoModal("Jogar a Toalha", modalContentHtml);
-        document.getElementById('confirm-forfeit-btn').onclick = () => {
-            socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey });
-            modal.classList.add('hidden');
-        };
-        document.getElementById('cancel-forfeit-btn').onclick = () => {
-            modal.classList.add('hidden');
-        };
+        document.getElementById('confirm-forfeit-btn').onclick = () => { socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey }); modal.classList.add('hidden'); };
+        document.getElementById('cancel-forfeit-btn').onclick = () => modal.classList.add('hidden');
     }
 
     function onConfirmSelection() {
@@ -143,52 +125,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSpectator = myPlayerKey === 'spectator';
         btn.innerText = text;
         btn.classList.remove('hidden', 'inactive');
-        if (isMyTurnToRoll) {
-            btn.onclick = () => socket.emit('playerAction', action);
-            btn.disabled = false;
-        } else {
-            btn.disabled = true;
-            btn.onclick = null;
-            if (!isSpectator) btn.classList.add('inactive');
-        }
+        if (isMyTurnToRoll) { btn.onclick = () => socket.emit('playerAction', action); btn.disabled = false;
+        } else { btn.disabled = true; btn.onclick = null; if (!isSpectator) btn.classList.add('inactive'); }
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
 
     socket.on('showModal', (payload) => {
         const { title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo } = payload;
-        
-        if (modalType === 'gameover') {
-            showInfoModal(title, text);
-            return;
-        }
-
-        // >>> CORREÇÃO 1: Lógica do modal de knockdown <<<
+        if (modalType === 'gameover') { showInfoModal(title, text); return; }
         if (modalType === 'knockdown') {
             const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
             let modalTitleText = `${downedFighterName} caiu!`;
             let modalContentText = `Aguarde a contagem...`;
-            let modalBtn = null;
-            let modalAction = null;
-            
-            if (knockdownInfo.lastRoll) {
-                 modalContentText = `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> (precisa de 7 ou mais)`;
-            }
-
+            if (knockdownInfo.lastRoll) modalContentText = `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
             if (targetPlayerKey === myPlayerKey) {
                 modalTitleText = `Você caiu!`;
                 modalContentText += `<br>Tentativas restantes: ${4 - knockdownInfo.attempts}`;
-                modalBtn = 'Tentar Levantar';
-                modalAction = action;
-            }
-            
-            if (modalBtn) {
-                showInteractiveModal(modalTitleText, modalContentText, modalBtn, modalAction);
+                showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action);
             } else {
                 showInfoModal(modalTitleText, modalContentText);
             }
             return;
         }
+    });
+
+    socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => {
+        modal.classList.add('hidden');
+        getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`;
+        getUpSuccessOverlay.classList.remove('hidden');
+        setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000);
     });
 
     socket.on('promptP2Stats', (p2data) => {
@@ -225,7 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
-        
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
@@ -270,13 +235,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showInfoModal(title, text) { modalTitle.innerText = title; modalText.innerHTML = text; modalButton.style.display = 'none'; modal.classList.remove('hidden'); }
 
-    // >>> CORREÇÃO 2: Lógica do prefixo do dado corrigida e finalizada <<<
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
         let imagePrefix = '';
-        if (diceType === 'd6') { // Iniciativa
+        if (diceType === 'd6') {
             imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
-        } else { // Defesa (d3)
+        } else {
             imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
         }
         
@@ -291,6 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             diceOverlay.addEventListener('click', hideAndResolve, { once: true });
             setTimeout(hideAndResolve, 2000);
+        } else {
+            console.error('Elemento do dado ou overlay não encontrado.');
         }
     }
     

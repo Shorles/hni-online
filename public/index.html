@@ -65,7 +65,6 @@
             </div>
             <!-- BOTÕES DE AÇÃO -->
             <div id="action-buttons-wrapper">
-                <!-- BOTÕES DO JOGADOR 1 (VERMELHOS) -->
                 <div id="p1-controls" class="move-buttons hidden">
                     <button class="action-btn p1-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
@@ -73,7 +72,6 @@
                     <button class="action-btn p1-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
                     <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
-                <!-- BOTÕES DO JOGADOR 2 (AZUIS) -->
                 <div id="p2-controls" class="move-buttons hidden">
                     <button class="action-btn p2-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
@@ -91,7 +89,7 @@
         <button id="player1-roll-btn" class="roll-dice-button hidden"></button>
         <button id="player2-roll-btn" class="roll-dice-button hidden"></button>
 
-        <!-- OVERLAYS -->
+        <!-- >>> OVERLAYS CORRIGIDOS <<< -->
         <div id="dice-overlay" class="hidden"></div>
         <div id="player1-dice-result" class="dice-result hidden"></div>
         <div id="player2-dice-result" class="dice-result hidden"></div>
@@ -104,6 +102,11 @@
             <div id="modal-text">Texto.</div>
             <button id="modal-button">OK</button>
         </div>
+    </div>
+    
+    <!-- >>> TELA DE SUCESSO AO LEVANTAR <<< -->
+    <div id="get-up-success-overlay" class="hidden">
+        <div id="get-up-success-content"></div>
     </div>
 
 </div>
