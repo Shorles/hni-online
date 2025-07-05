@@ -154,7 +154,43 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
-    socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType }) => { if (modalType === 'gameover') { showInfoModal(title, text); return; } if (targetPlayerKey === myPlayerKey) { showInteractiveModal(title, text, btnText, action); } else { const activePlayerName = currentGameState?.fighters[targetPlayerKey]?.nome || 'oponente'; if (modalType === 'knockdown') showInfoModal(`${activePlayerName} caiu!`, "Aguarde a contagem..."); } });
+
+    socket.on('showModal', (payload) => {
+        const { title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo } = payload;
+        
+        if (modalType === 'gameover') {
+            showInfoModal(title, text);
+            return;
+        }
+
+        // >>> CORREÇÃO 1: Lógica do modal de knockdown <<<
+        if (modalType === 'knockdown') {
+            const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
+            let modalTitleText = `${downedFighterName} caiu!`;
+            let modalContentText = `Aguarde a contagem...`;
+            let modalBtn = null;
+            let modalAction = null;
+            
+            if (knockdownInfo.lastRoll) {
+                 modalContentText = `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> (precisa de 7 ou mais)`;
+            }
+
+            if (targetPlayerKey === myPlayerKey) {
+                modalTitleText = `Você caiu!`;
+                modalContentText += `<br>Tentativas restantes: ${4 - knockdownInfo.attempts}`;
+                modalBtn = 'Tentar Levantar';
+                modalAction = action;
+            }
+            
+            if (modalBtn) {
+                showInteractiveModal(modalTitleText, modalContentText, modalBtn, modalAction);
+            } else {
+                showInfoModal(modalTitleText, modalContentText);
+            }
+            return;
+        }
+    });
+
     socket.on('promptP2Stats', (p2data) => {
         const modalContentHtml = `<p>O Jogador 2 escolheu <strong>${p2data.nome}</strong>.</p><img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;"><p>Defina os atributos dele:</p><div style="display: flex; justify-content: center; gap: 20px; color: #fff; padding: 10px 0;"><label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label><label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label></div>`;
         showInteractiveModal("Definir Atributos do Oponente", modalContentHtml, "Confirmar Atributos", null);
@@ -234,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showInfoModal(title, text) { modalTitle.innerText = title; modalText.innerHTML = text; modalButton.style.display = 'none'; modal.classList.remove('hidden'); }
 
-    // >>> CORREÇÃO 2: Lógica do prefixo do dado corrigida <<<
+    // >>> CORREÇÃO 2: Lógica do prefixo do dado corrigida e finalizada <<<
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
         let imagePrefix = '';
@@ -243,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else { // Defesa (d3)
             imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
         }
-
+        
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
         if (diceContainer && diceOverlay) {
             diceOverlay.classList.remove('hidden');
