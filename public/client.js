@@ -110,8 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'char-card';
             card.dataset.name = name;
             card.dataset.img = `images/${name}.png`;
-            // >>> CORREÇÃO 1: Remove AGI/RES para o Jogador 2 <<<
-            const statsHtml = playerType === 'p1' ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : '';
+            const statsHtml = playerType === 'p1' ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
             card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
             card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
             charListContainer.appendChild(card);
@@ -235,12 +234,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showInfoModal(title, text) { modalTitle.innerText = title; modalText.innerHTML = text; modalButton.style.display = 'none'; modal.classList.remove('hidden'); }
 
+    // >>> CORREÇÃO 2: Lógica do prefixo do dado corrigida <<<
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
-        // >>> CORREÇÃO 2: Lógica do prefixo do dado corrigida <<<
-        const imagePrefix = (diceType === 'd6')
-            ? (playerKey === 'player1' ? 'diceA' : 'diceP')
-            : (playerKey === 'player1' ? 'D3A-' : 'D3P-');
+        let imagePrefix = '';
+        if (diceType === 'd6') { // Iniciativa
+            imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
+        } else { // Defesa (d3)
+            imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
+        }
 
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
         if (diceContainer && diceOverlay) {
