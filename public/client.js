@@ -81,8 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
             lobbyScreen.classList.add('active');
-            // >>> CORREÇÃO: Remove a linha que travava o fluxo <<<
-            // A lógica agora é tratada pelos eventos 'assignPlayer' e 'roomCreated'
+            // >>> CORREÇÃO: A lógica para exibir o link foi movida para o evento 'roomCreated' <<<
         }
     }
 
@@ -106,8 +105,28 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('playSound', playRandomSound);
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
-    socket.on('assignPlayer', (playerKey) => { myPlayerKey = playerKey; const msg = playerKey === 'spectator' ? 'Você está <strong>assistindo</strong> a partida.' : `Você é o <strong>Jogador ${playerKey === 'player1' ? '1' : '2'}</strong>.`; lobbyContent.innerHTML = `<p>${msg}</p>`; });
-    socket.on('roomCreated', (roomId) => { currentRoomId = roomId; const p2Url = `${window.location.origin}?room=${roomId}`; const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`; shareLinkP2.textContent = p2Url; shareLinkSpectator.textContent = specUrl; shareContainer.classList.remove('hidden'); shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2); shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator); });
+    
+    socket.on('assignPlayer', (playerKey) => { 
+        myPlayerKey = playerKey; 
+        const msg = playerKey === 'spectator' ? 'Você está <strong>assistindo</strong> a partida.' : `Você é o <strong>Jogador ${playerKey === 'player1' ? '1' : '2'}</strong>.`; 
+        lobbyContent.innerHTML = `<p>${msg}</p>`; 
+    });
+
+    socket.on('roomCreated', (roomId) => {
+        currentRoomId = roomId;
+        const p2Url = `${window.location.origin}?room=${roomId}`;
+        const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
+        shareLinkP2.textContent = p2Url;
+        shareLinkSpectator.textContent = specUrl;
+        
+        // >>> CORREÇÃO: Esconde a mensagem de "Aguardando..." e mostra o container de links <<<
+        lobbyContent.classList.add('hidden');
+        shareContainer.classList.remove('hidden');
+
+        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+    });
+
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
@@ -216,9 +235,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
         let imagePrefix = '';
-        if (diceType === 'd6') { // Iniciativa
+        if (diceType === 'd6') {
             imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
-        } else { // Defesa (d3)
+        } else {
             imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
         }
         
