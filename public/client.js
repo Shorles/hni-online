@@ -62,20 +62,13 @@ document.addEventListener('DOMContentLoaded', () => {
             card.dataset.name = name;
             card.dataset.img = `images/${name}.png`;
             
-            // Player 1 pode editar stats, Player 2 não.
-            const statsHtml = playerType === 'p1'
-                ? `<div class="char-stats">
-                    <label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label>
-                    <label>RES: <input type="number" class="res-input" value="${stats.res}"></label>
-                </div>`
-                : `<div class="char-stats-display">
-                    <span>AGI: ?</span> | <span>RES: ?</span>
-                   </div>`;
-
             card.innerHTML = `
                 <img src="images/${name}.png" alt="${name}">
                 <div class="char-name">${name}</div>
-                ${statsHtml}
+                <div class="char-stats">
+                    <label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label>
+                    <label>RES: <input type="number" class="res-input" value="${stats.res}"></label>
+                </div>
             `;
             card.addEventListener('click', () => {
                 document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
@@ -92,27 +85,26 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Por favor, selecione um lutador!');
             return;
         }
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room');
-        
-        let playerData = {
+
+        const playerData = {
             nome: selectedCard.dataset.name,
             img: selectedCard.dataset.img,
+            agi: selectedCard.querySelector('.agi-input').value,
+            res: selectedCard.querySelector('.res-input').value
         };
 
         confirmBtn.disabled = true;
         selectionScreen.classList.remove('active');
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
+
         if (roomId) { // Jogador 2 entrando
             socket.emit('joinGame', { roomId, player2Data: playerData });
-            lobbyScreen.classList.add('active');
-            lobbyContent.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
+            // O servidor responderá com 'gameUpdate' para iniciar a luta para ambos.
         } else { // Jogador 1 criando
-            playerData.agi = selectedCard.querySelector('.agi-input').value;
-            playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
-            lobbyScreen.classList.add('active');
+            lobbyScreen.classList.add('active'); // Mostra a tela de lobby para P1.
         }
     });
 
@@ -161,15 +153,16 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameUpdate', (gameState) => {
         currentGameState = gameState;
         
+        // Atualiza as imagens dos lutadores na tela de luta
         if(gameState.fighters.player1) document.getElementById('player1-fight-img').src = gameState.fighters.player1.img;
         if(gameState.fighters.player2) document.getElementById('player2-fight-img').src = gameState.fighters.player2.img;
-        else if (gameState.pendingP2Choice) document.getElementById('player2-fight-img').src = gameState.pendingP2Choice.img;
         
         updateUI(gameState);
         
-        if (gameState.phase !== 'waiting' && gameState.phase !== 'p2_stat_assignment' && !fightScreen.classList.contains('active')) {
-            lobbyScreen.classList.add('hidden');
-            selectionScreen.classList.add('hidden');
+        // Se a fase não é mais de espera, troca para a tela de luta
+        if (gameState.phase !== 'waiting' && !fightScreen.classList.contains('active')) {
+            lobbyScreen.classList.remove('active');
+            selectionScreen.classList.remove('active');
             fightScreen.classList.add('active');
         }
     });
@@ -183,37 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const activePlayerName = currentGameState.fighters[targetPlayerKey]?.nome || 'oponente';
             showInfoModal(title, `Aguardando ${activePlayerName} agir...`);
         }
-    });
-
-    socket.on('promptP2Stats', (p2data) => {
-        const modalContentHtml = `
-            <p>O Jogador 2 escolheu <strong>${p2data.nome}</strong>.</p>
-            <img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;">
-            <p>Defina os atributos dele:</p>
-            <div style="display: flex; justify-content: center; gap: 20px; color: #fff; padding: 10px 0;">
-                <label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label>
-                <label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label>
-            </div>
-        `;
-    
-        showInteractiveModal("Definir Atributos do Oponente", modalContentHtml, "Confirmar Atributos", null);
-        
-        modalButton.onclick = () => {
-            const agi = document.getElementById('p2-stat-agi').value;
-            const res = document.getElementById('p2-stat-res').value;
-    
-            if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) {
-                alert("Por favor, insira valores numéricos válidos (mínimo 1) para AGI e RES.");
-                return;
-            }
-            
-            const action = {
-                type: 'set_p2_stats',
-                playerKey: myPlayerKey,
-                stats: { agi, res }
-            };
-            socket.emit('playerAction', action);
-        };
     });
 
     socket.on('hideModal', () => {
@@ -232,12 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         for (const key of ['player1', 'player2']) {
             const fighter = state.fighters[key];
-            if (!fighter) {
-                if (key === 'player2' && state.pendingP2Choice) {
-                    document.getElementById(`${key}-fight-name`).innerText = state.pendingP2Choice.nome;
-                }
-                continue;
-            };
+            if (!fighter) continue; // Pula se o lutador ainda não foi definido
             document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
             document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
             document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
@@ -269,18 +226,16 @@ document.addEventListener('DOMContentLoaded', () => {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
         modalButton.innerText = btnText;
-        modalButton.style.display = btnText ? 'inline-block' : 'none';
+        modalButton.style.display = 'inline-block';
         modalButton.disabled = false;
         const newButton = modalButton.cloneNode(true);
         modalButton.parentNode.replaceChild(newButton, modalButton);
         modalButton = document.getElementById('modal-button');
-        if (action) {
-            modalButton.onclick = () => {
-                modalButton.disabled = true;
-                modalButton.innerText = "Aguarde...";
-                socket.emit('playerAction', action);
-            };
-        }
+        modalButton.onclick = () => {
+            modalButton.disabled = true;
+            modalButton.innerText = "Aguarde...";
+            socket.emit('playerAction', action);
+        };
         modal.classList.remove('hidden');
     }
 
@@ -291,20 +246,36 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
+    // >>> CORREÇÃO DA LÓGICA DOS DADOS <<<
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
-        diceOverlay.classList.remove('hidden');
-        const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') : (playerKey === 'player1' ? 'diceA' : 'diceP');
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-        if (diceContainer) {
-            diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
-            diceContainer.classList.remove('hidden');
+
+        if (!diceOverlay || !diceContainer) {
+            console.error('Elementos para animação do dado não encontrados.');
+            return;
         }
+        
+        let imagePrefix = '';
+        if (diceType === 'd6') { // Iniciativa
+            // P1 usa diceA, P2 usa diceP
+            imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
+        } else { // Defesa (d3)
+            // P1 usa D3A-, P2 usa D3P-
+            imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
+        }
+        
+        diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
+
+        diceOverlay.classList.remove('hidden');
+        diceContainer.classList.remove('hidden');
+
         const hideAndResolve = () => {
             if (diceOverlay) diceOverlay.classList.add('hidden');
             if (diceContainer) diceContainer.classList.add('hidden');
         };
-        if (diceOverlay) diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+        
+        diceOverlay.addEventListener('click', hideAndResolve, { once: true });
         setTimeout(hideAndResolve, 2000); 
     }
 
