@@ -81,8 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
             lobbyScreen.classList.add('active');
-            // >>> CORREÇÃO 2: Mensagem para o P1 após criar o jogo <<<
-            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
+            // >>> CORREÇÃO: Remove a linha que travava o fluxo <<<
+            // A lógica agora é tratada pelos eventos 'assignPlayer' e 'roomCreated'
         }
     }
 
@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => { if (modalType === 'gameover') { showInfoModal(title, text); return; } if (modalType === 'knockdown') { const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente'; let modalTitleText = `${downedFighterName} caiu!`; let modalContentText = `Aguarde a contagem...`; if (knockdownInfo.lastRoll) modalContentText = `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; if (targetPlayerKey === myPlayerKey) { modalTitleText = `Você caiu!`; modalContentText += `<br>Tentativas restantes: ${4 - knockdownInfo.attempts}`; showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action); } else { showInfoModal(modalTitleText, modalContentText); } return; } });
-    socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; getUpSuccessOverlay.classList.remove('hidden'); setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
+    socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
     socket.on('promptP2Stats', (p2data) => {
         const modalContentHtml = `<p>O Jogador 2 escolheu <strong>${p2data.nome}</strong>.</p><img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;"><p>Defina os atributos dele:</p><div style="display: flex; justify-content: center; gap: 20px; color: #fff; padding: 10px 0;"><label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label><label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label></div>`;
         showInteractiveModal("Definir Atributos do Oponente", modalContentHtml, "Confirmar Atributos", null);
@@ -169,6 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
+        
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
@@ -232,8 +233,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             diceOverlay.addEventListener('click', hideAndResolve, { once: true });
             setTimeout(hideAndResolve, 2000);
-        } else {
-            console.error('Elemento do dado ou overlay não encontrado.');
         }
     }
     
