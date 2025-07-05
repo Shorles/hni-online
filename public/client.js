@@ -246,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
-    // >>> CORREÇÃO FINAL E PRECISA DA LÓGICA DOS DADOS <<<
+    // >>> LÓGICA CORRIGIDA E SIMPLIFICADA <<<
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
@@ -269,9 +269,10 @@ document.addEventListener('DOMContentLoaded', () => {
         diceContainer.classList.remove('hidden');
 
         const hideAndResolve = () => {
-            diceOverlay.classList.add('hidden');
-            diceContainer.classList.add('hidden');
+            if (diceOverlay) diceOverlay.classList.add('hidden');
+            if (diceContainer) diceContainer.classList.add('hidden');
         };
+        
         diceOverlay.addEventListener('click', hideAndResolve, { once: true });
         setTimeout(hideAndResolve, 2000); 
     }
