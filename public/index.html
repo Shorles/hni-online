@@ -17,11 +17,18 @@
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
 
-    <!-- TELA DE LOBBY (ESTRUTURA SIMPLIFICADA) -->
+    <!-- TELA DE LOBBY (ESTRUTURA RESTAURADA) -->
     <div id="lobby-screen" class="screen">
         <h1>Hajime no Ippo: Batalha Online</h1>
-        <div id="lobby-box">
-            <!-- O conteúdo aqui será inserido dinamicamente pelo client.js -->
+        <div id="lobby-content">
+            <p>Aguardando conexão...</p>
+        </div>
+        <div id="share-container" class="hidden">
+            <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
+            <div id="share-link-p2" class="share-link" title="Clique para copiar">Carregando...</div>
+            <br>
+            <p>Ou envie este link para espectadores:</p>
+            <div id="share-link-spectator" class="share-link" title="Clique para copiar">Carregando...</div>
         </div>
     </div>
 
