@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Evento de desistência
         document.getElementById('forfeit-btn').onclick = () => {
-            if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.whoseTurn === myPlayerKey) {
+            if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.phase === 'turn' && currentGameState.whoseTurn === myPlayerKey) {
                 showForfeitConfirmation();
             }
         };
@@ -110,7 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'char-card';
             card.dataset.name = name;
             card.dataset.img = `images/${name}.png`;
-            const statsHtml = playerType === 'p1' ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : `<div class="char-stats-display"><span>AGI: ?</span> | <span>RES: ?</span></div>`;
+            // >>> CORREÇÃO 1: Remove AGI/RES para o Jogador 2 <<<
+            const statsHtml = playerType === 'p1' ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : '';
             card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
             card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
             charListContainer.appendChild(card);
@@ -190,34 +191,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
         
-        // Lógica de exibição e estado dos botões
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
-        // Jogador 1
+        p1Controls.classList.add('hidden');
+        p2Controls.classList.add('hidden');
+
         if (myPlayerKey === 'player1') {
             p1Controls.classList.remove('hidden');
-            p2Controls.classList.add('hidden');
             const p1_pa = state.fighters.player1?.pa || 0;
             document.querySelectorAll('#p1-controls button').forEach(btn => btn.disabled = !p1_is_turn || isGameOver);
-            document.querySelectorAll('#p1-controls .action-btn').forEach(btn => {
-                if(state.moves[btn.dataset.move]?.cost > p1_pa) btn.disabled = true;
-            });
-        } 
-        // Jogador 2
-        else if (myPlayerKey === 'player2') {
-            p1Controls.classList.add('hidden');
+            document.querySelectorAll('#p1-controls .action-btn').forEach(btn => { if(state.moves[btn.dataset.move]?.cost > p1_pa) btn.disabled = true; });
+        } else if (myPlayerKey === 'player2') {
             p2Controls.classList.remove('hidden');
             const p2_pa = state.fighters.player2?.pa || 0;
             document.querySelectorAll('#p2-controls button').forEach(btn => btn.disabled = !p2_is_turn || isGameOver);
-            document.querySelectorAll('#p2-controls .action-btn').forEach(btn => {
-                if(state.moves[btn.dataset.move]?.cost > p2_pa) btn.disabled = true;
-            });
-        } 
-        // Espectador
-        else if (isSpectator) {
-            p1Controls.classList.toggle('hidden', !p1_is_turn);
-            p2Controls.classList.toggle('hidden', !p2_is_turn);
+            document.querySelectorAll('#p2-controls .action-btn').forEach(btn => { if(state.moves[btn.dataset.move]?.cost > p2_pa) btn.disabled = true; });
+        } else if (isSpectator) {
+            if (p1_is_turn) p1Controls.classList.remove('hidden');
+            if (p2_is_turn) p2Controls.classList.remove('hidden');
             document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => btn.disabled = true);
         }
 
@@ -245,16 +237,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
-        diceOverlay.classList.remove('hidden');
-        const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') : (playerKey === 'player1' ? 'diceA' : 'diceP');
+        // >>> CORREÇÃO 2: Lógica do prefixo do dado corrigida <<<
+        const imagePrefix = (diceType === 'd6')
+            ? (playerKey === 'player1' ? 'diceA' : 'diceP')
+            : (playerKey === 'player1' ? 'D3A-' : 'D3P-');
+
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-        if (diceContainer) {
+        if (diceContainer && diceOverlay) {
+            diceOverlay.classList.remove('hidden');
             diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
             diceContainer.classList.remove('hidden');
+            const hideAndResolve = () => {
+                diceOverlay.classList.add('hidden');
+                diceContainer.classList.add('hidden');
+            };
+            diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+            setTimeout(hideAndResolve, 2000);
         }
-        const hideAndResolve = () => { if (diceOverlay) diceOverlay.classList.add('hidden'); if (diceContainer) diceContainer.classList.add('hidden'); };
-        if (diceOverlay) diceOverlay.addEventListener('click', hideAndResolve, { once: true });
-        setTimeout(hideAndResolve, 2000); 
     }
     
     initialize();
