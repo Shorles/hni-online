@@ -22,18 +22,15 @@ body {
 .screen.active { display: flex; flex-direction: column; justify-content: center; align-items: center; }
 .hidden { display: none !important; }
 
-/* --- TELA DE SELEÇÃO DE PERSONAGENS (CORRIGIDO) --- */
+/* --- TELA DE SELEÇÃO DE PERSONAGENS --- */
 #selection-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
-    padding: 40px 0; /* Aumenta o padding para dar espaço */
-    box-sizing: border-box;
 }
 #selection-title {
     font-size: 3em;
     color: #ffeb3b;
     text-shadow: 2px 2px 5px #000;
-    flex-shrink: 0; 
 }
 #character-list-container {
     display: flex;
@@ -41,9 +38,8 @@ body {
     gap: 20px;
     justify-content: center;
     padding: 20px;
-    max-height: 500px; /* Define uma altura máxima fixa */
+    max-height: 500px;
     overflow-y: auto;
-    width: 90%;
 }
 .char-card {
     background-color: #333;
@@ -80,6 +76,15 @@ body {
     display: block;
     margin-top: 5px;
 }
+.char-card .char-stats-display {
+    margin-top: 10px;
+    font-size: 1em;
+    color: #ccc;
+    height: 56px; /* Para manter o mesmo tamanho do card do P1 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 .char-card .char-stats input {
     width: 50px;
     text-align: center;
@@ -97,7 +102,6 @@ body {
     color: white;
     border: none;
     border-radius: 8px;
-    flex-shrink: 0; 
 }
 #confirm-selection-btn:disabled {
     background-color: #6c757d;
@@ -105,33 +109,71 @@ body {
 }
 
 /* --- TELA DE LOBBY --- */
-#lobby-screen { background-color: #1a1a1a; gap: 20px; }
-#lobby-screen h1 { font-size: 3em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; }
-#lobby-content { background-color: #333; padding: 30px; border-radius: 10px; font-size: 1.5em; }
-#share-container { text-align: center; background-color: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 8px; }
-.share-link { background-color: #fff; color: #000; padding: 10px 20px; font-family: monospace; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 10px; border: 2px dashed #ffeb3b; display: inline-block; }
+#lobby-screen {
+    background-color: #1a1a1a;
+    gap: 20px;
+}
+#lobby-screen h1 {
+    font-size: 3em;
+    color: #ffeb3b;
+    text-shadow: 2px 2px 5px #000;
+}
+#lobby-content {
+    background-color: #333;
+    padding: 30px;
+    border-radius: 10px;
+    font-size: 1.5em;
+}
+#share-container {
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 20px;
+    border-radius: 8px;
+}
+#share-link {
+    background-color: #fff;
+    color: #000;
+    padding: 10px 20px;
+    font-family: monospace;
+    font-size: 1.2em;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+    border: 2px dashed #ffeb3b;
+}
 
 /* --- TELA DE LUTA --- */
-#fight-screen { justify-content: flex-end; padding: 0; box-sizing: border-box; position: relative; overflow: hidden; }
+#fight-screen { 
+    justify-content: flex-end; 
+    padding: 0; 
+    box-sizing: border-box; 
+    position: relative; 
+    overflow: hidden; 
+}
 #fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
-.copy-link-button { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 1.5em; background-color: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid #fff; border-radius: 50%; cursor: pointer; z-index: 100; }
-.copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
+@keyframes player-attack-lunge { 50% { transform: translateX(40px); } }
+@keyframes opponent-attack-lunge { 50% { transform: translateX(-40px); } }
+.fighter-img { position: absolute; width: 150px; height: 150px; object-fit: contain; bottom: 370px; z-index: 10; transition: opacity 0.2s ease-in-out, transform 0.2s ease; }
 
-/* ANIMAÇÕES */
-@keyframes player1-attack-lunge { 50% { transform: translateX(50px) scaleX(-1); } }
-@keyframes player2-attack-lunge { 50% { transform: translateX(-50px) scaleX(-1); } }
-@keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
+/* Inversão Visual dos Lutadores */
+#player1-fight-img { right: 380px; }
+#player2-fight-img { left: 380px; }
+#player1-fight-img.is-attacking-player1 { animation: opponent-attack-lunge 0.4s ease-in-out; }
+#player2-fight-img.is-attacking-player2 { animation: player-attack-lunge 0.4s ease-in-out; }
 
-.fighter-img { position: absolute; width: 200px; height: 200px; object-fit: contain; bottom: 350px; z-index: 10; transition: transform 0.2s ease; }
-#player1-fight-img { left: 380px; transform: scaleX(-1); } 
-#player2-fight-img { right: 380px; transform: scaleX(-1); } 
-.is-attacking-player1 { animation: player1-attack-lunge 0.4s ease-in-out; }
-.is-attacking-player2 { animation: player2-attack-lunge 0.4s ease-in-out; }
-.is-hit { animation: hit-flash 0.5s ease-in-out; }
+@keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(2.5); } 50% { filter: brightness(1); } }
+.is-hit { animation: hit-flash 1s ease-in-out; }
 
-/* PAINÉIS DE UI */
-.fight-ui-container { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
-.fighter-info { flex-basis: 28%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+/* Inversão Visual dos Painéis de UI */
+.fight-ui-container { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: flex-start; 
+    width: 100%;
+    flex-direction: row-reverse; 
+}
+
+.fighter-info { flex-basis: 30%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
 .fighter-info.active-turn { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
 .fighter-info p { margin: 0; font-size: 0.9em; }
 .stats-bar { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
@@ -144,44 +186,41 @@ body {
 .defense-display { position: relative; display: flex; justify-content: center; align-items: center; }
 .defense-display img { width: 40px; height: 40px; }
 .defense-text { position: absolute; font-size: 1.2em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
-#fight-log-container { flex-basis: 40%; height: 220px; background-color: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
+#fight-log-container { flex-basis: 35%; height: 160px; background-color: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
 #round-info { text-align: center; margin-top: 0; border-bottom: 1px solid #fff; padding-bottom: 10px; }
 #fight-log { overflow-y: auto; flex-grow: 1; }
 #fight-log p { margin: 5px; padding-bottom: 5px; border-bottom: 1px dashed #444; font-size: 0.9em; }
 .log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
-.highlight-result, .highlight-total { font-weight: bold; font-size: 1.25em; color: #dc3545; }
-
-/* BOTÕES DE AÇÃO */
+.highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; vertical-align: middle; }
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
 .move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-.action-btn, .end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
-.end-turn-btn { background-color: #ffc107; color: #000; }
-#forfeit-btn { background-color: #6f42c1; }
-#forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
-.action-btn:disabled, .end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
-.p1-btn { background-color: #c82333; }
-.p1-btn:hover:not(:disabled) { background-color: #a71d2a; }
-.p2-btn { background-color: #007bff; }
-.p2-btn:hover:not(:disabled) { background-color: #0056b3; }
+.action-btn, #end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
+#end-turn-btn { background-color: #ffc107; color: #000; }
+#forfeit-btn { background-color: #6c757d; }
+.action-btn:disabled, #end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
 
-/* BOTÕES DE ROLAGEM */
-.roll-dice-button { position: absolute; bottom: 450px; padding: 10px 15px; font-size: 1em; font-weight: bold; border: 2px solid #fff; border-radius: 8px; cursor: pointer; z-index: 100; transition: all 0.2s ease; }
-.roll-dice-button:not(.inactive):hover { transform: scale(1.05); }
-.roll-dice-button:not(.inactive) { color: #000; background-color: #ffeb3b; box-shadow: 0 0 10px #ffeb3b; }
-.roll-dice-button.inactive { color: #aaa; background-color: #666; border-color: #888; cursor: default; }
-#player1-roll-btn { left: 200px; }
-#player2-roll-btn { right: 200px; }
+/* CORES DOS BOTÕES */
+#action-buttons-wrapper.p1-controls .action-btn { background-color: #007bff; }
+#action-buttons-wrapper.p1-controls .action-btn:hover:not(:disabled) { background-color: #0056b3; }
+#action-buttons-wrapper.p2-controls .action-btn { background-color: #c82333; }
+#action-buttons-wrapper.p2-controls .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
 
-/* MODAL E OVERLAYS */
+/* --- MODAL --- */
 #modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
 #modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 600px; }
 #modal-title { margin-top: 0; }
 #modal-text { margin: 15px 0; text-align: left; }
 #modal-button { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; }
+
+/* --- DADOS --- */
 #dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 50; cursor: pointer; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
 #player1-dice-result { left: 400px; bottom: 530px; }
 #player2-dice-result { right: 400px; bottom: 530px; }
-#get-up-success-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; z-index: 4000; pointer-events: none; }
-#get-up-success-content { background: rgba(0, 0, 0, 0.85); color: #28a745; padding: 25px 40px; border-radius: 15px; border: 3px solid #28a745; text-align: center; font-size: 1.8em; font-weight: bold; text-shadow: 1px 1px 2px #000; }
-#get-up-success-content span { color: #aaa; font-size: 0.7em; display: block; margin-top: 10px; }
+
+/* --- PLACAR DE DECISÃO --- */
+#scorecard { width: 100%; margin-top: 15px; border-collapse: collapse; text-align: left; }
+#scorecard th, #scorecard td { padding: 8px; border-bottom: 1px solid #555; }
+#scorecard th { background-color: #444; }
+#scorecard td:not(:first-child) { text-align: center; }
+#scorecard .score-lost { color: #dc3545; font-weight: bold; }
