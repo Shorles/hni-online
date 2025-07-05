@@ -22,18 +22,18 @@ body {
 .screen.active { display: flex; flex-direction: column; justify-content: center; align-items: center; }
 .hidden { display: none !important; }
 
-/* --- TELA DE SELEÇÃO DE PERSONAGENS --- */
+/* --- TELA DE SELEÇÃO DE PERSONAGENS (CORRIGIDO) --- */
 #selection-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
-    padding: 20px 0;
+    padding: 40px 0; /* Aumenta o padding para dar espaço */
     box-sizing: border-box;
 }
 #selection-title {
     font-size: 3em;
     color: #ffeb3b;
     text-shadow: 2px 2px 5px #000;
-    flex-shrink: 0;
+    flex-shrink: 0; 
 }
 #character-list-container {
     display: flex;
@@ -41,10 +41,9 @@ body {
     gap: 20px;
     justify-content: center;
     padding: 20px;
-    max-height: 70%;
+    max-height: 500px; /* Define uma altura máxima fixa */
     overflow-y: auto;
     width: 90%;
-    flex-shrink: 1;
 }
 .char-card {
     background-color: #333;
@@ -56,15 +55,54 @@ body {
     transition: all 0.2s ease-in-out;
     width: 150px;
 }
-.char-card:hover { border-color: #aaa; }
-.char-card.selected { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; transform: scale(1.05); }
-.char-card img { width: 100px; height: 100px; object-fit: contain; background-color: #222; border-radius: 50%; margin-bottom: 10px; }
-.char-card .char-name { font-size: 1.2em; font-weight: bold; margin-bottom: 10px; }
-.char-card .char-stats label { display: block; margin-top: 5px; }
-.char-card .char-stats-display { margin-top: 10px; font-size: 1em; color: #ccc; }
-.char-card .char-stats input { width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px; }
-#confirm-selection-btn { padding: 15px 30px; font-size: 1.5em; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 8px; flex-shrink: 0; }
-#confirm-selection-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
+.char-card:hover {
+    border-color: #aaa;
+}
+.char-card.selected {
+    border-color: #ffeb3b;
+    box-shadow: 0 0 15px #ffeb3b;
+    transform: scale(1.05);
+}
+.char-card img {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    background-color: #222;
+    border-radius: 50%;
+    margin-bottom: 10px;
+}
+.char-card .char-name {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+.char-card .char-stats label {
+    display: block;
+    margin-top: 5px;
+}
+.char-card .char-stats input {
+    width: 50px;
+    text-align: center;
+    font-size: 1.1em;
+    background: #555;
+    color: #fff;
+    border: 1px solid #777;
+    border-radius: 4px;
+}
+#confirm-selection-btn {
+    padding: 15px 30px;
+    font-size: 1.5em;
+    cursor: pointer;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    flex-shrink: 0; 
+}
+#confirm-selection-btn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
 
 /* --- TELA DE LOBBY --- */
 #lobby-screen { background-color: #1a1a1a; gap: 20px; }
@@ -79,6 +117,7 @@ body {
 .copy-link-button { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 1.5em; background-color: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid #fff; border-radius: 50%; cursor: pointer; z-index: 100; }
 .copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
 
+/* ANIMAÇÕES */
 @keyframes player1-attack-lunge { 50% { transform: translateX(50px) scaleX(-1); } }
 @keyframes player2-attack-lunge { 50% { transform: translateX(-50px) scaleX(-1); } }
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
@@ -90,6 +129,7 @@ body {
 .is-attacking-player2 { animation: player2-attack-lunge 0.4s ease-in-out; }
 .is-hit { animation: hit-flash 0.5s ease-in-out; }
 
+/* PAINÉIS DE UI */
 .fight-ui-container { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
 .fighter-info { flex-basis: 28%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
 .fighter-info.active-turn { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
@@ -109,11 +149,9 @@ body {
 #fight-log { overflow-y: auto; flex-grow: 1; }
 #fight-log p { margin: 5px; padding-bottom: 5px; border-bottom: 1px dashed #444; font-size: 0.9em; }
 .log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
-.highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; vertical-align: middle; }
-.turn-highlight { font-weight: bold; color: #dc3545; }
-.log-move-name { font-weight: bold; font-size: 1.1em; color: #dc3545; }
-.highlight-total { font-weight: bold; font-size: 1.25em; color: #dc3545; }
+.highlight-result, .highlight-total { font-weight: bold; font-size: 1.25em; color: #dc3545; }
 
+/* BOTÕES DE AÇÃO */
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
 .move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .action-btn, .end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
@@ -126,6 +164,7 @@ body {
 .p2-btn { background-color: #007bff; }
 .p2-btn:hover:not(:disabled) { background-color: #0056b3; }
 
+/* BOTÕES DE ROLAGEM */
 .roll-dice-button { position: absolute; bottom: 450px; padding: 10px 15px; font-size: 1em; font-weight: bold; border: 2px solid #fff; border-radius: 8px; cursor: pointer; z-index: 100; transition: all 0.2s ease; }
 .roll-dice-button:not(.inactive):hover { transform: scale(1.05); }
 .roll-dice-button:not(.inactive) { color: #000; background-color: #ffeb3b; box-shadow: 0 0 10px #ffeb3b; }
@@ -133,12 +172,12 @@ body {
 #player1-roll-btn { left: 200px; }
 #player2-roll-btn { right: 200px; }
 
+/* MODAL E OVERLAYS */
 #modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
 #modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 600px; }
 #modal-title { margin-top: 0; }
 #modal-text { margin: 15px 0; text-align: left; }
 #modal-button { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; }
-
 #dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 50; cursor: pointer; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
 #player1-dice-result { left: 400px; bottom: 530px; }
