@@ -11,10 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const charListContainer = document.getElementById('character-list-container');
     const confirmBtn = document.getElementById('confirm-selection-btn');
     const selectionTitle = document.getElementById('selection-title');
-    const lobbyContent = document.getElementById('lobby-content');
-    const shareContainer = document.getElementById('share-container');
-    const shareLinkP2 = document.getElementById('share-link-p2');
-    const shareLinkSpectator = document.getElementById('share-link-spectator');
+    const lobbyBox = document.getElementById('lobby-box');
     const copySpectatorLinkInGameBtn = document.getElementById('copy-spectator-link-ingame');
     let modal = document.getElementById('modal');
     let modalTitle = document.getElementById('modal-title');
@@ -36,20 +33,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const isSpectator = urlParams.get('spectate') === 'true';
 
+        // >>> CORREÇÃO: Esconde todas as telas e mostra a correta <<<
+        selectionScreen.classList.add('hidden');
+        lobbyScreen.classList.add('hidden');
+        fightScreen.classList.add('hidden');
+
         if (isSpectator && currentRoomId) {
-            selectionScreen.classList.add('hidden');
             lobbyScreen.classList.add('active');
-            lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
+            lobbyBox.innerHTML = `<p>Entrando como espectador...</p>`;
             socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
-            selectionScreen.classList.remove('hidden');
-            lobbyScreen.classList.add('hidden');
+            selectionScreen.classList.add('active');
             selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
             confirmBtn.innerText = 'Entrar na Luta';
             renderCharacterSelection('p2');
         } else {
-            selectionScreen.classList.remove('hidden');
-            lobbyScreen.classList.add('hidden');
+            selectionScreen.classList.add('active');
             selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
             confirmBtn.innerText = 'Criar Jogo';
             renderCharacterSelection('p1');
@@ -79,12 +78,12 @@ document.addEventListener('DOMContentLoaded', () => {
         lobbyScreen.classList.add('active');
         if (currentRoomId) {
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
-            lobbyContent.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
+            lobbyBox.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
         } else {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
-            lobbyContent.innerHTML = `<p>Criando sala, aguarde...</p>`;
+            lobbyBox.innerHTML = `<p>Criando sala, aguarde...</p>`;
         }
     }
 
@@ -111,8 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('assignPlayer', (playerKey) => { 
         myPlayerKey = playerKey; 
-        if (playerKey !== 'spectator' && playerKey !== null) {
-            lobbyContent.innerHTML = `<p>Você é o <strong>Jogador ${playerKey === 'player1' ? '1' : '2'}</strong>.</p><p>Aguardando oponente...</p>`;
+        if (playerKey === 'player1') {
+            lobbyBox.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         }
     });
 
@@ -120,12 +119,18 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = roomId;
         const p2Url = `${window.location.origin}?room=${roomId}`;
         const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
-        shareLinkP2.textContent = p2Url;
-        shareLinkSpectator.textContent = specUrl;
-        lobbyContent.classList.add('hidden');
-        shareContainer.classList.remove('hidden');
-        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
-        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+        
+        lobbyBox.innerHTML = `
+            <div class="share-container-internal">
+                <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
+                <div class="share-link" id="share-link-p2-dynamic" title="Clique para copiar">${p2Url}</div>
+                <br>
+                <p>Ou envie este link para espectadores:</p>
+                <div class="share-link" id="share-link-spectator-dynamic" title="Clique para copiar">${specUrl}</div>
+            </div>`;
+        
+        document.getElementById('share-link-p2-dynamic').onclick = () => copyToClipboard(p2Url, document.getElementById('share-link-p2-dynamic'));
+        document.getElementById('share-link-spectator-dynamic').onclick = () => copyToClipboard(specUrl, document.getElementById('share-link-spectator-dynamic'));
     });
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
