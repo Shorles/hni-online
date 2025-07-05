@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
 
     // --- ELEMENTOS DO DOM ---
+    const allScreens = document.querySelectorAll('.screen');
     const selectionScreen = document.getElementById('selection-screen');
     const lobbyScreen = document.getElementById('lobby-screen');
     const fightScreen = document.getElementById('fight-screen');
@@ -34,31 +35,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const isSpectator = urlParams.get('spectate') === 'true';
 
+        // >>> CORREÇÃO DEFINITIVA: Gerencia a visibilidade das telas <<<
+        allScreens.forEach(screen => screen.classList.remove('active'));
+
         if (isSpectator && currentRoomId) {
-            selectionScreen.classList.add('hidden');
             lobbyScreen.classList.add('active');
             lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
             socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
+            selectionScreen.classList.add('active');
             selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
             confirmBtn.innerText = 'Entrar na Luta';
             renderCharacterSelection('p2');
         } else {
+            selectionScreen.classList.add('active');
             selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
             confirmBtn.innerText = 'Criar Jogo';
             renderCharacterSelection('p1');
         }
+        
         confirmBtn.addEventListener('click', onConfirmSelection);
         
         document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-        document.getElementById('forfeit-btn').onclick = () => {
-            if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.whoseTurn === myPlayerKey) {
-                showForfeitConfirmation();
-            }
-        };
+        document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.whoseTurn === myPlayerKey) showForfeitConfirmation(); };
     }
 
     function showForfeitConfirmation() {
@@ -83,16 +85,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         confirmBtn.disabled = true;
-        selectionScreen.classList.add('hidden');
+        selectionScreen.classList.remove('active');
+        lobbyScreen.classList.add('active');
         if (currentRoomId) {
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
-            lobbyScreen.classList.add('active');
             lobbyContent.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
         } else {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
-            lobbyScreen.classList.add('active');
+            lobbyContent.innerHTML = `<p>Criando sala, aguarde...</p>`;
         }
     }
 
@@ -105,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'char-card';
             card.dataset.name = name;
             card.dataset.img = `images/${name}.png`;
-            const statsHtml = playerType === 'p1' ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : `<div class="char-stats-display"><span>AGI: ?</span> | <span>RES: ?</span></div>`;
+            const statsHtml = playerType === 'p1' ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
             card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
             card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
             charListContainer.appendChild(card);
@@ -116,8 +118,28 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('playSound', playRandomSound);
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
-    socket.on('assignPlayer', (playerKey) => { myPlayerKey = playerKey; const msg = playerKey === 'spectator' ? 'Você está <strong>assistindo</strong> a partida.' : `Você é o <strong>Jogador ${playerKey === 'player1' ? '1' : '2'}</strong>.`; lobbyContent.innerHTML = `<p>${msg}</p>`; });
-    socket.on('roomCreated', (roomId) => { currentRoomId = roomId; const p2Url = `${window.location.origin}?room=${roomId}`; const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`; shareLinkP2.textContent = p2Url; shareLinkSpectator.textContent = specUrl; lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden'); shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2); shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator); });
+    
+    socket.on('assignPlayer', (playerKey) => { 
+        myPlayerKey = playerKey;
+        if (playerKey === 'player1') {
+            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
+        }
+    });
+
+    socket.on('roomCreated', (roomId) => {
+        currentRoomId = roomId;
+        const p2Url = `${window.location.origin}?room=${roomId}`;
+        const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
+        const shareLinkP2 = document.getElementById('share-link-p2');
+        const shareLinkSpectator = document.getElementById('share-link-spectator');
+        shareLinkP2.textContent = p2Url;
+        shareLinkSpectator.textContent = specUrl;
+        lobbyContent.classList.add('hidden');
+        shareContainer.classList.remove('hidden');
+        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+    });
+
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
@@ -138,14 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSpectator = myPlayerKey === 'spectator';
         btn.innerText = text;
         btn.classList.remove('hidden', 'inactive');
-        if (isMyTurnToRoll) {
-            btn.onclick = () => socket.emit('playerAction', action);
-            btn.disabled = false;
-        } else {
-            btn.disabled = true;
-            btn.onclick = null;
-            if (!isSpectator) btn.classList.add('inactive');
-        }
+        if (isMyTurnToRoll) { btn.onclick = () => socket.emit('playerAction', action); btn.disabled = false;
+        } else { btn.disabled = true; btn.onclick = null; if (!isSpectator) btn.classList.add('inactive'); }
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
@@ -207,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         document.getElementById('forfeit-btn').disabled = isGameOver || isSpectator || state.whoseTurn !== myPlayerKey;
-
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
@@ -232,10 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const diceOverlay = document.getElementById('dice-overlay');
         let imagePrefix = '';
         
-        // >>> CORREÇÃO FINAL DA LÓGICA DOS DADOS <<<
-        if (diceType === 'd6') { // Iniciativa
+        if (diceType === 'd6') {
             imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
-        } else { // Defesa (d3)
+        } else {
             imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
         }
         
@@ -254,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     initialize();
-    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerWidth - (720 * s)) / 2}px`; };
+    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; };
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
