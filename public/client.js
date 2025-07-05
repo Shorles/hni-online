@@ -33,6 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const isSpectator = urlParams.get('spectate') === 'true';
 
+        lobbyBox.innerHTML = `<p>Aguardando conexão...</p>`; // Mensagem padrão inicial
+
         if (isSpectator && currentRoomId) {
             selectionScreen.classList.add('hidden');
             lobbyScreen.classList.add('active');
@@ -69,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         confirmBtn.disabled = true;
         selectionScreen.classList.add('hidden');
-        lobbyScreen.classList.add('active'); // Mostra a tela de lobby
+        lobbyScreen.classList.add('active');
         if (currentRoomId) {
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
             lobbyBox.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
@@ -103,9 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     
     socket.on('assignPlayer', (playerKey) => { 
-        myPlayerKey = playerKey; 
-        const msg = playerKey === 'spectator' ? 'Você está <strong>assistindo</strong> a partida.' : `Você é o <strong>Jogador ${playerKey === 'player1' ? '1' : '2'}</strong>.`; 
-        lobbyBox.innerHTML = `<p>${msg}</p>`; 
+        myPlayerKey = playerKey;
+        // Não muda a tela aqui, apenas guarda a informação
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -114,16 +115,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
         
         lobbyBox.innerHTML = `
-            <div id="share-container">
+            <div class="share-container-internal">
                 <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
-                <div id="share-link-p2" class="share-link" title="Clique para copiar">${p2Url}</div>
+                <div class="share-link" id="share-link-p2-dynamic" title="Clique para copiar">${p2Url}</div>
                 <br>
                 <p>Ou envie este link para espectadores:</p>
-                <div id="share-link-spectator" class="share-link" title="Clique para copiar">${specUrl}</div>
+                <div class="share-link" id="share-link-spectator-dynamic" title="Clique para copiar">${specUrl}</div>
             </div>`;
         
-        document.getElementById('share-link-p2').onclick = () => copyToClipboard(p2Url, document.getElementById('share-link-p2'));
-        document.getElementById('share-link-spectator').onclick = () => copyToClipboard(specUrl, document.getElementById('share-link-spectator'));
+        document.getElementById('share-link-p2-dynamic').onclick = () => copyToClipboard(p2Url, document.getElementById('share-link-p2-dynamic'));
+        document.getElementById('share-link-spectator-dynamic').onclick = () => copyToClipboard(specUrl, document.getElementById('share-link-spectator-dynamic'));
     });
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
@@ -187,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
+        
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
