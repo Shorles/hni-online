@@ -101,9 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (roomId) { // Jogador 2 entrando
             socket.emit('joinGame', { roomId, player2Data: playerData });
+            // O servidor responderá com 'gameUpdate' para iniciar a luta para ambos.
         } else { // Jogador 1 criando
             socket.emit('createGame', playerData);
-            lobbyScreen.classList.add('active');
+            lobbyScreen.classList.add('active'); // Mostra a tela de lobby para P1.
         }
     });
 
@@ -111,11 +112,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomIdFromUrl = urlParams.get('room');
 
-    if (roomIdFromUrl) {
+    if (roomIdFromUrl) { // É o Jogador 2
         selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
         confirmBtn.innerText = 'Entrar na Luta';
         renderCharacterSelection('p2');
-    } else {
+    } else { // É o Jogador 1
         selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
         confirmBtn.innerText = 'Criar Jogo';
         renderCharacterSelection('p1');
@@ -152,11 +153,13 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameUpdate', (gameState) => {
         currentGameState = gameState;
         
+        // Atualiza as imagens dos lutadores na tela de luta
         if(gameState.fighters.player1) document.getElementById('player1-fight-img').src = gameState.fighters.player1.img;
         if(gameState.fighters.player2) document.getElementById('player2-fight-img').src = gameState.fighters.player2.img;
         
         updateUI(gameState);
         
+        // Se a fase não é mais de espera, troca para a tela de luta
         if (gameState.phase !== 'waiting' && !fightScreen.classList.contains('active')) {
             lobbyScreen.classList.remove('active');
             selectionScreen.classList.remove('active');
@@ -191,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         for (const key of ['player1', 'player2']) {
             const fighter = state.fighters[key];
-            if (!fighter) continue;
+            if (!fighter) continue; // Pula se o lutador ainda não foi definido
             document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
             document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
             document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
@@ -243,17 +246,16 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
+    // >>> CORREÇÃO FINAL E PRECISA DA LÓGICA DOS DADOS <<<
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-        const fighterImg = document.getElementById(`${playerKey}-fight-img`);
 
-        if (!diceOverlay || !diceContainer || !fighterImg) {
+        if (!diceOverlay || !diceContainer) {
             console.error('Elementos para animação do dado não encontrados.');
             return;
         }
-
-        // >>> LÓGICA DE IMAGEM CORRIGIDA <<<
+        
         let imagePrefix = '';
         if (diceType === 'd6') { // Iniciativa
             imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
@@ -263,17 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
 
-        // >>> LÓGICA DE POSICIONAMENTO DINÂMICO <<<
-        const fighterRect = fighterImg.getBoundingClientRect();
-        const wrapperRect = document.getElementById('game-wrapper').getBoundingClientRect();
-        
-        // Calcula a posição relativa ao #game-wrapper
-        const top = fighterRect.top - wrapperRect.top - (diceContainer.offsetHeight / 2) + 20; // um pouco acima
-        const left = fighterRect.left - wrapperRect.left + (fighterRect.width / 2) - (diceContainer.offsetWidth / 2);
-        
-        diceContainer.style.top = `${top}px`;
-        diceContainer.style.left = `${left}px`;
-
         diceOverlay.classList.remove('hidden');
         diceContainer.classList.remove('hidden');
 
@@ -281,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
             diceOverlay.classList.add('hidden');
             diceContainer.classList.add('hidden');
         };
-        if (diceOverlay) diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+        diceOverlay.addEventListener('click', hideAndResolve, { once: true });
         setTimeout(hideAndResolve, 2000); 
     }
 
