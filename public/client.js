@@ -50,15 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         confirmBtn.addEventListener('click', onConfirmSelection);
         
-        // Eventos de ataque
         document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
-        
-        // Eventos de fim de turno
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-        
-        // Evento de desistência
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.whoseTurn === myPlayerKey) {
                 showForfeitConfirmation();
@@ -122,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     socket.on('assignPlayer', (playerKey) => { myPlayerKey = playerKey; const msg = playerKey === 'spectator' ? 'Você está <strong>assistindo</strong> a partida.' : `Você é o <strong>Jogador ${playerKey === 'player1' ? '1' : '2'}</strong>.`; lobbyContent.innerHTML = `<p>${msg}</p>`; });
-    socket.on('roomCreated', (roomId) => { currentRoomId = roomId; const p2Url = `${window.location.origin}?room=${roomId}`; const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`; shareLinkP2.textContent = p2Url; shareLinkSpectator.textContent = specUrl; shareContainer.classList.remove('hidden'); shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2); shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator); });
+    socket.on('roomCreated', (roomId) => { currentRoomId = roomId; const p2Url = `${window.location.origin}?room=${roomId}`; const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`; shareLinkP2.textContent = p2Url; shareLinkSpectator.textContent = specUrl; lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden'); shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2); shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator); });
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
@@ -190,32 +185,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
         
-        // Lógica de exibição e estado dos botões
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
-        // Jogador 1
         if (myPlayerKey === 'player1') {
             p1Controls.classList.remove('hidden');
             p2Controls.classList.add('hidden');
             const p1_pa = state.fighters.player1?.pa || 0;
             document.querySelectorAll('#p1-controls button').forEach(btn => btn.disabled = !p1_is_turn || isGameOver);
-            document.querySelectorAll('#p1-controls .action-btn').forEach(btn => {
-                if(state.moves[btn.dataset.move]?.cost > p1_pa) btn.disabled = true;
-            });
-        } 
-        // Jogador 2
-        else if (myPlayerKey === 'player2') {
+            document.querySelectorAll('#p1-controls .action-btn').forEach(btn => { if(state.moves[btn.dataset.move]?.cost > p1_pa) btn.disabled = true; });
+        } else if (myPlayerKey === 'player2') {
             p1Controls.classList.add('hidden');
             p2Controls.classList.remove('hidden');
             const p2_pa = state.fighters.player2?.pa || 0;
             document.querySelectorAll('#p2-controls button').forEach(btn => btn.disabled = !p2_is_turn || isGameOver);
-            document.querySelectorAll('#p2-controls .action-btn').forEach(btn => {
-                if(state.moves[btn.dataset.move]?.cost > p2_pa) btn.disabled = true;
-            });
-        } 
-        // Espectador
-        else if (isSpectator) {
+            document.querySelectorAll('#p2-controls .action-btn').forEach(btn => { if(state.moves[btn.dataset.move]?.cost > p2_pa) btn.disabled = true; });
+        } else if (isSpectator) {
             p1Controls.classList.toggle('hidden', !p1_is_turn);
             p2Controls.classList.toggle('hidden', !p2_is_turn);
             document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => btn.disabled = true);
@@ -245,20 +230,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
-        diceOverlay.classList.remove('hidden');
-        const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') : (playerKey === 'player1' ? 'diceA' : 'diceP');
+        let imagePrefix = '';
+        
+        // >>> CORREÇÃO FINAL DA LÓGICA DOS DADOS <<<
+        if (diceType === 'd6') { // Iniciativa
+            imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
+        } else { // Defesa (d3)
+            imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
+        }
+        
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-        if (diceContainer) {
+        if (diceContainer && diceOverlay) {
+            diceOverlay.classList.remove('hidden');
             diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
             diceContainer.classList.remove('hidden');
+            const hideAndResolve = () => {
+                diceOverlay.classList.add('hidden');
+                diceContainer.classList.add('hidden');
+            };
+            diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+            setTimeout(hideAndResolve, 2000);
         }
-        const hideAndResolve = () => { if (diceOverlay) diceOverlay.classList.add('hidden'); if (diceContainer) diceContainer.classList.add('hidden'); };
-        if (diceOverlay) diceOverlay.addEventListener('click', hideAndResolve, { once: true });
-        setTimeout(hideAndResolve, 2000); 
     }
     
     initialize();
-    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; };
+    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerWidth - (720 * s)) / 2}px`; };
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
