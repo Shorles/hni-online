@@ -41,7 +41,6 @@
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
-                <!-- ÁREA JOGADOR 1 -->
                 <div class="fighter-info" id="player1-area">
                     <h2 id="player1-fight-name">Jogador 1</h2>
                     <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div><span id="player1-hp-text">10 / 10</span></div>
@@ -49,12 +48,10 @@
                     <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player1-def-text">0</span></div>
                     <p>Acertos: <span id="player1-hits">0</span></p>
                 </div>
-                <!-- LOG DE LUTA -->
                 <div id="fight-log-container">
                     <h2 id="round-info">ROUND 1</h2>
                     <div id="fight-log"></div>
                 </div>
-                <!-- ÁREA JOGADOR 2 -->
                 <div class="fighter-info" id="player2-area">
                     <h2 id="player2-fight-name">Jogador 2</h2>
                     <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div><span id="player2-hp-text">15 / 15</span></div>
@@ -63,9 +60,7 @@
                     <p>Acertos: <span id="player2-hits">0</span></p>
                 </div>
             </div>
-            <!-- BOTÕES DE AÇÃO -->
             <div id="action-buttons-wrapper">
-                <!-- BOTÕES DO JOGADOR 1 (VERMELHOS) -->
                 <div id="p1-controls" class="move-buttons hidden">
                     <button class="action-btn p1-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
@@ -73,7 +68,6 @@
                     <button class="action-btn p1-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
                     <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
-                <!-- BOTÕES DO JOGADOR 2 (AZUIS) -->
                 <div id="p2-controls" class="move-buttons hidden">
                     <button class="action-btn p2-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
@@ -87,23 +81,24 @@
             </div>
         </div>
 
-        <!-- BOTÕES DE ROLAGEM -->
         <button id="player1-roll-btn" class="roll-dice-button hidden"></button>
         <button id="player2-roll-btn" class="roll-dice-button hidden"></button>
 
-        <!-- OVERLAYS -->
         <div id="dice-overlay" class="hidden"></div>
         <div id="player1-dice-result" class="dice-result hidden"></div>
         <div id="player2-dice-result" class="dice-result hidden"></div>
     </div>
 
-    <!-- MODAL -->
     <div id="modal" class="hidden">
         <div id="modal-content">
             <h3 id="modal-title">Título</h3>
             <div id="modal-text">Texto.</div>
             <button id="modal-button">OK</button>
         </div>
+    </div>
+    
+    <div id="get-up-success-overlay" class="hidden">
+        <div id="get-up-success-content"></div>
     </div>
 
 </div>
