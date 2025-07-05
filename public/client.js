@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCharacterSelection('p1');
         }
         confirmBtn.addEventListener('click', onConfirmSelection);
+        
         document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
@@ -80,6 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
             lobbyScreen.classList.add('active');
+            // >>> CORREÇÃO 2: Mensagem para o P1 após criar o jogo <<<
+            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         }
     }
 
@@ -130,33 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
-
-    socket.on('showModal', (payload) => {
-        const { title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo } = payload;
-        if (modalType === 'gameover') { showInfoModal(title, text); return; }
-        if (modalType === 'knockdown') {
-            const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
-            let modalTitleText = `${downedFighterName} caiu!`;
-            let modalContentText = `Aguarde a contagem...`;
-            if (knockdownInfo.lastRoll) modalContentText = `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
-            if (targetPlayerKey === myPlayerKey) {
-                modalTitleText = `Você caiu!`;
-                modalContentText += `<br>Tentativas restantes: ${4 - knockdownInfo.attempts}`;
-                showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action);
-            } else {
-                showInfoModal(modalTitleText, modalContentText);
-            }
-            return;
-        }
-    });
-
-    socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => {
-        modal.classList.add('hidden');
-        getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`;
-        getUpSuccessOverlay.classList.remove('hidden');
-        setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000);
-    });
-
+    socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => { if (modalType === 'gameover') { showInfoModal(title, text); return; } if (modalType === 'knockdown') { const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente'; let modalTitleText = `${downedFighterName} caiu!`; let modalContentText = `Aguarde a contagem...`; if (knockdownInfo.lastRoll) modalContentText = `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; if (targetPlayerKey === myPlayerKey) { modalTitleText = `Você caiu!`; modalContentText += `<br>Tentativas restantes: ${4 - knockdownInfo.attempts}`; showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action); } else { showInfoModal(modalTitleText, modalContentText); } return; } });
+    socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; getUpSuccessOverlay.classList.remove('hidden'); setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
     socket.on('promptP2Stats', (p2data) => {
         const modalContentHtml = `<p>O Jogador 2 escolheu <strong>${p2data.nome}</strong>.</p><img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;"><p>Defina os atributos dele:</p><div style="display: flex; justify-content: center; gap: 20px; color: #fff; padding: 10px 0;"><label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label><label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label></div>`;
         showInteractiveModal("Definir Atributos do Oponente", modalContentHtml, "Confirmar Atributos", null);
@@ -214,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         document.getElementById('forfeit-btn').disabled = isGameOver || isSpectator || state.whoseTurn !== myPlayerKey;
-
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
@@ -238,9 +215,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
         let imagePrefix = '';
-        if (diceType === 'd6') {
+        if (diceType === 'd6') { // Iniciativa
             imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
-        } else {
+        } else { // Defesa (d3)
             imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
         }
         
