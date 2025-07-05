@@ -11,10 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const charListContainer = document.getElementById('character-list-container');
     const confirmBtn = document.getElementById('confirm-selection-btn');
     const selectionTitle = document.getElementById('selection-title');
-    const lobbyContent = document.getElementById('lobby-content');
-    const shareContainer = document.getElementById('share-container');
-    const shareLinkP2 = document.getElementById('share-link-p2');
-    const shareLinkSpectator = document.getElementById('share-link-spectator');
+    const lobbyBox = document.getElementById('lobby-box');
     const copySpectatorLinkInGameBtn = document.getElementById('copy-spectator-link-ingame');
     let modal = document.getElementById('modal');
     let modalTitle = document.getElementById('modal-title');
@@ -39,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isSpectator && currentRoomId) {
             selectionScreen.classList.add('hidden');
             lobbyScreen.classList.add('active');
-            lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
+            lobbyBox.innerHTML = `<p>Entrando como espectador...</p>`;
             socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
             selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
@@ -72,16 +69,15 @@ document.addEventListener('DOMContentLoaded', () => {
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         confirmBtn.disabled = true;
         selectionScreen.classList.add('hidden');
+        lobbyScreen.classList.add('active'); // Mostra a tela de lobby
         if (currentRoomId) {
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
-            lobbyScreen.classList.add('active');
-            lobbyContent.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
+            lobbyBox.innerHTML = `<p>Você escolheu <strong>${playerData.nome}</strong>.</p><p>Aguardando o Jogador 1 definir seus atributos...</p>`;
         } else {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             socket.emit('createGame', playerData);
-            lobbyScreen.classList.add('active');
-            // >>> CORREÇÃO: A lógica para exibir o link foi movida para o evento 'roomCreated' <<<
+            lobbyBox.innerHTML = `<p>Criando sala, aguarde...</p>`;
         }
     }
 
@@ -109,22 +105,25 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('assignPlayer', (playerKey) => { 
         myPlayerKey = playerKey; 
         const msg = playerKey === 'spectator' ? 'Você está <strong>assistindo</strong> a partida.' : `Você é o <strong>Jogador ${playerKey === 'player1' ? '1' : '2'}</strong>.`; 
-        lobbyContent.innerHTML = `<p>${msg}</p>`; 
+        lobbyBox.innerHTML = `<p>${msg}</p>`; 
     });
 
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
         const p2Url = `${window.location.origin}?room=${roomId}`;
         const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
-        shareLinkP2.textContent = p2Url;
-        shareLinkSpectator.textContent = specUrl;
         
-        // >>> CORREÇÃO: Esconde a mensagem de "Aguardando..." e mostra o container de links <<<
-        lobbyContent.classList.add('hidden');
-        shareContainer.classList.remove('hidden');
-
-        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
-        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+        lobbyBox.innerHTML = `
+            <div id="share-container">
+                <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
+                <div id="share-link-p2" class="share-link" title="Clique para copiar">${p2Url}</div>
+                <br>
+                <p>Ou envie este link para espectadores:</p>
+                <div id="share-link-spectator" class="share-link" title="Clique para copiar">${specUrl}</div>
+            </div>`;
+        
+        document.getElementById('share-link-p2').onclick = () => copyToClipboard(p2Url, document.getElementById('share-link-p2'));
+        document.getElementById('share-link-spectator').onclick = () => copyToClipboard(specUrl, document.getElementById('share-link-spectator'));
     });
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
@@ -188,7 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
-        
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
