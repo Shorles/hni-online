@@ -76,6 +76,11 @@ body {
     display: block;
     margin-top: 5px;
 }
+.char-card .char-stats-display {
+    margin-top: 10px;
+    font-size: 1em;
+    color: #ccc;
+}
 .char-card .char-stats input {
     width: 50px;
     text-align: center;
@@ -230,6 +235,7 @@ body {
 .defense-display { position: relative; display: flex; justify-content: center; align-items: center; }
 .defense-display img { width: 40px; height: 40px; }
 .defense-text { position: absolute; font-size: 1.2em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
+
 #fight-log-container { 
     flex-basis: 40%;
     height: 220px;
@@ -257,11 +263,14 @@ body {
 .move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .action-btn, .end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
 .end-turn-btn { background-color: #ffc107; color: #000; }
-#forfeit-btn { background-color: #6f42c1; }
+#forfeit-btn { background-color: #6f42c1; } 
 #forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
+
 .action-btn:disabled, .end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
+
 .p1-btn { background-color: #c82333; }
 .p1-btn:hover:not(:disabled) { background-color: #a71d2a; }
+
 .p2-btn { background-color: #007bff; }
 .p2-btn:hover:not(:disabled) { background-color: #0056b3; }
 
@@ -292,15 +301,19 @@ body {
     border-color: #888;
     cursor: default;
 }
+
 #player1-roll-btn { left: 200px; }
 #player2-roll-btn { right: 200px; }
 
-/* MODAL E OVERLAYS */
+
+/* MODAL */
 #modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
 #modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 600px; }
 #modal-title { margin-top: 0; }
 #modal-text { margin: 15px 0; text-align: left; }
 #modal-button { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; }
+
+/* DADOS */
 #dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 50; cursor: pointer; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
 #player1-dice-result { left: 400px; bottom: 530px; }

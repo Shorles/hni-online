@@ -247,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // >>> CORREÇÃO DEFINITIVA DA LÓGICA DE NOMENCLATURA <<<
+        // >>> A ÚNICA ALTERAÇÃO ESTÁ AQUI <<<
         const imagePrefix = (diceType === 'd3') 
             ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') 
             : (playerKey === 'player1' ? 'diceA' : 'diceP');
