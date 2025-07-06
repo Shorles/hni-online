@@ -62,12 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showForfeitConfirmation() {
-        const modalContentHtml = `
-            <p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p>
-            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
-                <button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button>
-                <button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button>
-            </div>`;
+        const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
         showInfoModal("Jogar a Toalha", modalContentHtml);
         document.getElementById('confirm-forfeit-btn').onclick = () => {
             socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey });
@@ -112,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- OUVINTES DO SOCKET.IO ---
     socket.on('playSound', playRandomSound);
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
@@ -242,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // >>> CORREÇÃO DEFINITIVA <<<
+        // >>> A ÚNICA ALTERAÇÃO ESTÁ AQUI <<<
         const imagePrefix = (diceType === 'd3') 
             ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') 
             : (playerKey === 'player1' ? 'diceA' : 'diceP');
