@@ -50,10 +50,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         confirmBtn.addEventListener('click', onConfirmSelection);
         
+        // Eventos de ataque
         document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
+        
+        // Eventos de fim de turno
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        
+        // Evento de desistência
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.whoseTurn === myPlayerKey) {
                 showForfeitConfirmation();
@@ -62,7 +67,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showForfeitConfirmation() {
-        const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
+        const modalContentHtml = `
+            <p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p>
+            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+                <button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button>
+                <button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button>
+            </div>`;
         showInfoModal("Jogar a Toalha", modalContentHtml);
         document.getElementById('confirm-forfeit-btn').onclick = () => {
             socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey });
@@ -107,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- OUVINTES DO SOCKET.IO ---
     socket.on('playSound', playRandomSound);
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
@@ -236,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // >>> A ÚNICA ALTERAÇÃO ESTÁ AQUI <<<
+        // >>> CORREÇÃO DEFINITIVA DA LÓGICA DE NOMENCLATURA <<<
         const imagePrefix = (diceType === 'd3') 
             ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') 
             : (playerKey === 'player1' ? 'diceA' : 'diceP');
@@ -256,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     initialize();
-    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerWidth - (720 * s)) / 2}px`; };
+    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; };
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
