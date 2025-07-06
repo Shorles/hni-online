@@ -10,33 +10,41 @@
 
 <div id="game-wrapper">
 
-    <!-- NOVA TELA DE LOBBY -->
-    <div id="lobby-screen" class="screen active">
+    <!-- TELA DE SELEÇÃO DE PERSONAGENS -->
+    <div id="selection-screen" class="screen active">
+        <h1 id="selection-title">Selecione seu Lutador</h1>
+        <div id="character-list-container"></div>
+        <button id="confirm-selection-btn">Confirmar</button>
+    </div>
+
+    <!-- TELA DE LOBBY -->
+    <div id="lobby-screen" class="screen">
         <h1>Hajime no Ippo: Batalha Online</h1>
         <div id="lobby-content">
             <p>Aguardando conexão...</p>
         </div>
         <div id="share-container" class="hidden">
             <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
-            <div id="share-link" title="Clique para copiar">Carregando...</div>
+            <div id="share-link-p2" class="share-link" title="Clique para copiar">Carregando...</div>
+            <br>
+            <p>Ou envie este link para espectadores:</p>
+            <div id="share-link-spectator" class="share-link" title="Clique para copiar">Carregando...</div>
         </div>
     </div>
 
-    <!-- TELA DE LUTA (Começa oculta) -->
+    <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
         <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
         <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
+
+        <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
                 <!-- ÁREA JOGADOR 1 -->
                 <div class="fighter-info" id="player1-area">
-                    <h2 id="player1-fight-name">Nathan</h2>
-                    <div class="stats-bar">
-                        <span>HP: </span>
-                        <div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div>
-                        <span id="player1-hp-text">10 / 10</span>
-                    </div>
+                    <h2 id="player1-fight-name">Jogador 1</h2>
+                    <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div><span id="player1-hp-text">10 / 10</span></div>
                     <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player1-pa-dots"></div></div>
                     <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player1-def-text">0</span></div>
                     <p>Acertos: <span id="player1-hits">0</span></p>
@@ -48,12 +56,8 @@
                 </div>
                 <!-- ÁREA JOGADOR 2 -->
                 <div class="fighter-info" id="player2-area">
-                    <h2 id="player2-fight-name">Ivan</h2>
-                    <div class="stats-bar">
-                        <span>HP: </span>
-                        <div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div>
-                        <span id="player2-hp-text">15 / 15</span>
-                    </div>
+                    <h2 id="player2-fight-name">Jogador 2</h2>
+                    <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div><span id="player2-hp-text">15 / 15</span></div>
                     <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player2-pa-dots"></div></div>
                     <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player2-def-text">0</span></div>
                     <p>Acertos: <span id="player2-hits">0</span></p>
@@ -61,12 +65,21 @@
             </div>
             <!-- BOTÕES DE AÇÃO -->
             <div id="action-buttons-wrapper">
-                <div id="move-buttons">
-                    <button class="action-btn" data-move="Jab">Jab (1 PA)</button>
-                    <button class="action-btn" data-move="Direto">Direto (2 PA)</button>
-                    <button class="action-btn" data-move="Upper">Upper (3 PA)</button>
-                    <button class="action-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
-                    <button id="end-turn-btn">ENCERRAR O TURNO</button>
+                <!-- BOTÕES DO JOGADOR 1 (VERMELHOS) -->
+                <div id="p1-controls" class="move-buttons hidden">
+                    <button class="action-btn p1-btn" data-move="Jab">Jab (1 PA)</button>
+                    <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
+                    <button class="action-btn p1-btn" data-move="Upper">Upper (3 PA)</button>
+                    <button class="action-btn p1-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
+                    <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
+                </div>
+                <!-- BOTÕES DO JOGADOR 2 (AZUIS) -->
+                <div id="p2-controls" class="move-buttons hidden">
+                    <button class="action-btn p2-btn" data-move="Jab">Jab (1 PA)</button>
+                    <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
+                    <button class="action-btn p2-btn" data-move="Upper">Upper (3 PA)</button>
+                    <button class="action-btn p2-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
+                    <button id="p2-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
                 <div id="utility-buttons">
                     <button id="forfeit-btn">Jogar a Toalha</button>
@@ -74,13 +87,17 @@
             </div>
         </div>
 
-        <!-- Overlay e containers para os dados -->
+        <!-- BOTÕES DE ROLAGEM -->
+        <button id="player1-roll-btn" class="roll-dice-button hidden"></button>
+        <button id="player2-roll-btn" class="roll-dice-button hidden"></button>
+
+        <!-- OVERLAYS -->
         <div id="dice-overlay" class="hidden"></div>
         <div id="player1-dice-result" class="dice-result hidden"></div>
         <div id="player2-dice-result" class="dice-result hidden"></div>
     </div>
 
-    <!-- MODAL PARA POPUPS -->
+    <!-- MODAL -->
     <div id="modal" class="hidden">
         <div id="modal-content">
             <h3 id="modal-title">Título</h3>
@@ -89,9 +106,9 @@
         </div>
     </div>
 
-</div> <!-- Fim do #game-wrapper -->
+</div>
 
-<script src="/socket.io/socket.io.js"></script> <!-- Importa a biblioteca do Socket.IO -->
-<script src="client.js"></script> <!-- Nosso novo arquivo de lógica do cliente -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
 </body>
 </html>
