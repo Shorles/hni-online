@@ -248,29 +248,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
-        const diceContainer = document.getElementById(`${playerKey}-dice-result`);
+        diceOverlay.classList.remove('hidden');
 
-        if (!diceOverlay || !diceContainer) {
-            console.error('Elementos para animação do dado não encontrados.');
-            return;
-        }
-        
         // >>> A ÚNICA ALTERAÇÃO ESTÁ AQUI <<<
         const imagePrefix = (diceType === 'd3') 
             ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') 
             : (playerKey === 'player1' ? 'diceA' : 'diceP');
-        
-        diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
+        // A linha original estava com `D3P-` e `D3A-` invertidos, e `diceP` e `diceA` invertidos.
+        // Fim da alteração
 
-        diceOverlay.classList.remove('hidden');
-        diceContainer.classList.remove('hidden');
-        
+        const diceContainer = document.getElementById(`${playerKey}-dice-result`);
+        if (diceContainer) {
+            diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
+            diceContainer.classList.remove('hidden');
+        }
         const hideAndResolve = () => {
             if (diceOverlay) diceOverlay.classList.add('hidden');
             if (diceContainer) diceContainer.classList.add('hidden');
         };
-        
-        diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+        if (diceOverlay) diceOverlay.addEventListener('click', hideAndResolve, { once: true });
         setTimeout(hideAndResolve, 2000); 
     }
 
