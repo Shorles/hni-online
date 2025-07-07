@@ -143,45 +143,40 @@ function isActionValid(state, action) {
     }
 }
 
-function dispatchActionModal(room) {
+// >>> FUNÇÃO RENOMEADA E MODIFICADA <<<
+function dispatchAction(room) {
     if (!room) return;
     const { state, id: roomId } = room;
-    let modalPayload = null;
-    let targetPlayerKey = null;
-
+    
+    // >>> Limpa os botões de rolagens anteriores a cada nova ação
+    io.to(roomId).emit('hideRollButtons');
+    
     switch (state.phase) {
         case 'initiative_p1':
-            targetPlayerKey = 'player1';
-            modalPayload = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } };
-            break;
+            io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }});
+            return;
         case 'initiative_p2':
-            targetPlayerKey = 'player2';
-            modalPayload = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } };
-            break;
+            io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }});
+            return;
         case 'defense_p1':
-            targetPlayerKey = 'player1';
-            modalPayload = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } };
-            break;
+            io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }});
+            return;
         case 'defense_p2':
-            targetPlayerKey = 'player2';
-            modalPayload = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } };
-            break;
+            io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }});
+            return;
         case 'knockdown':
             if (state.knockdownInfo) {
-                targetPlayerKey = state.knockdownInfo.downedPlayer;
-                modalPayload = {
+                const targetPlayerKey = state.knockdownInfo.downedPlayer;
+                const modalPayload = {
                     title: `Você caiu!`, text: `Tentativas restantes: ${4 - state.knockdownInfo.attempts}`,
                     btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey }
                 };
+                io.to(roomId).emit('showModal', { ...modalPayload, targetPlayerKey });
             }
-            break;
+            return;
         default:
             io.to(roomId).emit('hideModal');
             return;
-    }
-
-    if (modalPayload && targetPlayerKey) {
-        io.to(roomId).emit('showModal', { ...modalPayload, targetPlayerKey });
     }
 }
 
@@ -213,7 +208,7 @@ io.on('connection', (socket) => {
         logMessage(state, `${state.fighters.player2.nome} entrou. Preparem-se!`);
         state.phase = 'initiative_p1';
         io.to(roomId).emit('gameUpdate', state);
-        dispatchActionModal(room); 
+        dispatchAction(room); 
     });
 
     socket.on('playerAction', (action) => {
@@ -231,11 +226,9 @@ io.on('connection', (socket) => {
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice');
                 const roll = rollD(6);
-                // >>> MUDANÇA AQUI: Envia o valor puro do dado para o cliente <<<
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
-                const agi = state.fighters[playerKey].agi;
-                state.initiativeRolls[playerKey] = roll + agi;
-                logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[playerKey]}</span>`, 'log-info');
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6', showOverlay: false });
+                state.initiativeRolls[playerKey] = roll + state.fighters[playerKey].agi;
+                logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: ${state.initiativeRolls[playerKey]}`, 'log-info');
                 
                 if (playerKey === 'player1') {
                     state.phase = 'initiative_p2';
@@ -246,16 +239,12 @@ io.on('connection', (socket) => {
                     state.phase = 'defense_p1';
                 }
                 break;
-
             case 'roll_defense':
                 io.to(roomId).emit('playSound', 'dice');
                 const defRoll = rollD(3);
-                // >>> MUDANÇA AQUI: Envia o valor puro do dado para o cliente <<<
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
-                const res = state.fighters[playerKey].res;
-                state.fighters[playerKey].def = defRoll + res;
-                logMessage(state, `${state.fighters[playerKey].nome} definiu defesa: D3(${defRoll}) + RES(${res}) = <span class="highlight-total">${state.fighters[playerKey].def}</span>`, 'log-info');
-
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3', showOverlay: false });
+                state.fighters[playerKey].def = defRoll + state.fighters[playerKey].res;
+                logMessage(state, `${state.fighters[playerKey].nome} definiu defesa: ${state.fighters[playerKey].def}`, 'log-info');
                 if (playerKey === 'player1') {
                     state.phase = 'defense_p2';
                 } else {
@@ -268,21 +257,19 @@ io.on('connection', (socket) => {
                 if (state.fighters[playerKey].pa >= move.cost) {
                     state.fighters[playerKey].pa -= move.cost;
                     const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
-                    executeAttack(state, playerKey, defenderKey, action.move, io, roomId);
+                    executeAttack(state, playerKey, defenderKey, action.move);
                     if (state.fighters[defenderKey].hp <= 0) handleKnockdown(state, defenderKey);
                 }
                 break;
-
             case 'end_turn':
                 endTurn(state);
                 break;
-
             case 'request_get_up':
                 const info = state.knockdownInfo;
                 if (!info || info.downedPlayer !== playerKey) return;
                 info.attempts++;
                 const getUpRoll = rollD(6);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6', showOverlay: true });
                 const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar: ${totalRoll}`, 'log-info');
                 if (totalRoll >= 7) {
@@ -299,7 +286,7 @@ io.on('connection', (socket) => {
                 break;
         }
         io.to(roomId).emit('gameUpdate', room.state);
-        dispatchActionModal(room);
+        dispatchAction(room);
     });
 
     socket.on('disconnect', () => { /* ... */ });
