@@ -249,16 +249,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-
         if (!diceOverlay || !diceContainer) { return; }
         
-        // >>> A ÚNICA ALTERAÇÃO ESTÁ AQUI <<<
+        // >>> CORREÇÃO DEFINITIVA DA LÓGICA DE NOMENCLATURA <<<
         const imagePrefix = (diceType === 'd3') 
             ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') 
             : (playerKey === 'player1' ? 'diceA' : 'diceP');
         
         diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
-
+        
         diceOverlay.classList.remove('hidden');
         diceContainer.classList.remove('hidden');
         
