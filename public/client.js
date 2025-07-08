@@ -101,10 +101,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (roomId) { // Jogador 2 entrando
             socket.emit('joinGame', { roomId, player2Data: playerData });
-            // O servidor responderá com 'gameUpdate' para iniciar a luta para ambos.
         } else { // Jogador 1 criando
             socket.emit('createGame', playerData);
-            lobbyScreen.classList.add('active'); // Mostra a tela de lobby para P1.
+            lobbyScreen.classList.add('active');
         }
     });
 
@@ -152,19 +151,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('gameUpdate', (gameState) => {
         currentGameState = gameState;
-        
-        // Atualiza as imagens dos lutadores na tela de luta
-        if(gameState.fighters.player1) document.getElementById('player1-fight-img').src = gameState.fighters.player1.img;
-        if(gameState.fighters.player2) document.getElementById('player2-fight-img').src = gameState.fighters.player2.img;
-        
         updateUI(gameState);
-        
-        // Se a fase não é mais de espera, troca para a tela de luta
         if (gameState.phase !== 'waiting' && !fightScreen.classList.contains('active')) {
-            lobbyScreen.classList.remove('active');
-            selectionScreen.classList.remove('active');
+            lobbyScreen.classList.add('hidden');
+            selectionScreen.classList.add('hidden');
             fightScreen.classList.add('active');
         }
+    });
+
+    socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
+        const btn = document.getElementById(`${targetPlayerKey}-roll-btn`);
+        if(myPlayerKey === targetPlayerKey) {
+            btn.disabled = false;
+            btn.onclick = () => {
+                socket.emit('playerAction', action);
+                btn.classList.add('hidden');
+            };
+        } else {
+            btn.disabled = true;
+        }
+        btn.innerText = text;
+        btn.classList.remove('hidden');
+    });
+
+    socket.on('hideRollButtons', () => {
+        document.getElementById('player1-roll-btn').classList.add('hidden');
+        document.getElementById('player2-roll-btn').classList.add('hidden');
     });
 
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey }) => {
@@ -173,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetPlayerKey === myPlayerKey) {
             showInteractiveModal(title, text, btnText, action);
         } else {
-            const activePlayerName = currentGameState.fighters[targetPlayerKey]?.nome || 'oponente';
+            const activePlayerName = currentGameState.fighters[targetPlayerKey].nome;
             showInfoModal(title, `Aguardando ${activePlayerName} agir...`);
         }
     });
@@ -182,8 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.add('hidden');
     });
 
-    socket.on('diceRoll', ({ playerKey, rollValue, diceType }) => {
-        showDiceRollAnimation(playerKey, rollValue, diceType);
+    socket.on('diceRoll', ({ playerKey, rollValue, diceType, showOverlay }) => {
+        showDiceRollAnimation(playerKey, rollValue, diceType, showOverlay);
     });
 
     socket.on('opponentDisconnected', () => {
@@ -194,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         for (const key of ['player1', 'player2']) {
             const fighter = state.fighters[key];
-            if (!fighter) continue; // Pula se o lutador ainda não foi definido
+            if (!fighter) continue;
             document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
             document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
             document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
@@ -212,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMyTurn = state.whoseTurn === myPlayerKey && state.phase === 'turn';
         document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
             const move = state.moves[btn.dataset.move];
-            const fighterPA = (myPlayerKey && state.fighters[myPlayerKey]) ? state.fighters[myPlayerKey].pa : 0;
+            const fighterPA = myPlayerKey ? state.fighters[myPlayerKey].pa : 0;
             btn.disabled = !isMyTurn || !move || move.cost > fighterPA;
         });
         document.getElementById('end-turn-btn').disabled = !isMyTurn;
@@ -246,27 +258,32 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
-    function showDiceRollAnimation(playerKey, rollValue, diceType) {
+    function showDiceRollAnimation(playerKey, rollValue, diceType, showOverlay) {
         const diceOverlay = document.getElementById('dice-overlay');
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-        if (!diceOverlay || !diceContainer) { return; }
-        
-        // >>> CORREÇÃO DEFINITIVA DA LÓGICA DE NOMENCLATURA <<<
+        if (!diceContainer) return;
+
+        if (showOverlay) {
+            diceOverlay.classList.remove('hidden');
+        } else {
+            diceOverlay.classList.add('hidden');
+        }
+
         const imagePrefix = (diceType === 'd3') 
             ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') 
             : (playerKey === 'player1' ? 'diceA' : 'diceP');
         
         diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
-        
-        diceOverlay.classList.remove('hidden');
         diceContainer.classList.remove('hidden');
-        
+
         const hideAndResolve = () => {
-            if (diceOverlay) diceOverlay.classList.add('hidden');
-            if (diceContainer) diceContainer.classList.add('hidden');
+            if (showOverlay) diceOverlay.classList.add('hidden');
+            diceContainer.classList.add('hidden');
         };
         
-        diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+        if (showOverlay) {
+            diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+        }
         setTimeout(hideAndResolve, 2000); 
     }
 

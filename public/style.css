@@ -145,25 +145,13 @@ body {
 @keyframes player-attack-lunge { 50% { transform: translateX(40px); } }
 @keyframes opponent-attack-lunge { 50% { transform: translateX(-40px); } }
 .fighter-img { position: absolute; width: 150px; height: 150px; object-fit: contain; bottom: 370px; z-index: 10; transition: opacity 0.2s ease-in-out, transform 0.2s ease; }
-
-/* Inversão Visual dos Lutadores */
 #player1-fight-img { right: 380px; }
 #player2-fight-img { left: 380px; }
 #player1-fight-img.is-attacking-player1 { animation: opponent-attack-lunge 0.4s ease-in-out; }
 #player2-fight-img.is-attacking-player2 { animation: player-attack-lunge 0.4s ease-in-out; }
-
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(2.5); } 50% { filter: brightness(1); } }
 .is-hit { animation: hit-flash 1s ease-in-out; }
-
-/* Inversão Visual dos Painéis de UI */
-.fight-ui-container { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: flex-start; 
-    width: 100%;
-    flex-direction: row-reverse; 
-}
-
+.fight-ui-container { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; flex-direction: row-reverse; }
 .fighter-info { flex-basis: 30%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
 .fighter-info.active-turn { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
 .fighter-info p { margin: 0; font-size: 0.9em; }
@@ -183,10 +171,11 @@ body {
 #fight-log p { margin: 5px; padding-bottom: 5px; border-bottom: 1px dashed #444; font-size: 0.9em; }
 .log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
 .highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; vertical-align: middle; }
+.highlight-total { font-weight: bold; font-size: 1.25em; color: #dc3545; }
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
 .move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .action-btn, #end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
-#end-turn-btn { background-color: #ffc107; color: #000; }
+.end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6c757d; }
 .action-btn:disabled, #end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
 
@@ -196,22 +185,44 @@ body {
 #action-buttons-wrapper.p2-controls .action-btn { background-color: #c82333; }
 #action-buttons-wrapper.p2-controls .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
 
-/* --- MODAL --- */
+/* MODAL */
 #modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
 #modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 600px; }
 #modal-title { margin-top: 0; }
 #modal-text { margin: 15px 0; text-align: left; }
 #modal-button { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; }
 
-/* --- DADOS --- */
-#dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 50; cursor: pointer; }
+/* DADOS */
+#dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
 #player1-dice-result { right: 400px; bottom: 530px; }
 #player2-dice-result { left: 400px; bottom: 530px; }
 
-/* --- PLACAR DE DECISÃO --- */
-#scorecard { width: 100%; margin-top: 15px; border-collapse: collapse; text-align: left; }
-#scorecard th, #scorecard td { padding: 8px; border-bottom: 1px solid #555; }
-#scorecard th { background-color: #444; }
-#scorecard td:not(:first-child) { text-align: center; }
-#scorecard .score-lost { color: #dc3545; font-weight: bold; }
+/* >>> NOVOS ESTILOS PARA BOTÕES DE ROLAGEM <<< */
+.roll-dice-button {
+    position: absolute;
+    bottom: 450px;
+    padding: 10px 15px;
+    font-size: 1em;
+    font-weight: bold;
+    color: #000;
+    background-color: #ffeb3b;
+    border: 2px solid #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 10px #ffeb3b;
+    z-index: 100;
+    transition: transform 0.2s ease;
+}
+.roll-dice-button:hover:not(:disabled) {
+    transform: scale(1.05);
+}
+.roll-dice-button:disabled {
+    background-color: #666;
+    color: #aaa;
+    border-color: #888;
+    cursor: default;
+    box-shadow: none;
+}
+#player1-roll-btn { right: 550px; } /* Posição ao lado do lutador P1 */
+#player2-roll-btn { left: 550px; }  /* Posição ao lado do lutador P2 */
