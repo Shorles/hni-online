@@ -38,6 +38,9 @@ function executeAttack(state, attackerKey, defenderKey, moveName) {
     
     const roomId = Object.values(games).find(room => room.state === state)?.id;
 
+    // >>> REINTRODUZIDO EVENTO DE ANIMAÇÃO DE ATAQUE <<<
+    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
+
     if (roll === 1) { 
         logMessage(state, "Erro Crítico!", 'log-miss'); 
         if (roomId) io.to(roomId).emit('playSound', 'miss');
@@ -58,6 +61,9 @@ function executeAttack(state, attackerKey, defenderKey, moveName) {
     }
     
     if (hit) {
+        // >>> REINTRODUZIDO EVENTO DE ANIMAÇÃO DE DANO <<<
+        io.to(roomId).emit('triggerHitAnimation', { defenderKey });
+
         if (roomId) {
             if (crit) {
                 io.to(roomId).emit('playSound', 'critical');
@@ -143,12 +149,11 @@ function isActionValid(state, action) {
     }
 }
 
-// >>> LÓGICA DE AÇÃO MODIFICADA <<<
 function dispatchAction(room) {
     if (!room) return;
     const { state, id: roomId } = room;
     
-    io.to(roomId).emit('hideRollButtons'); // Esconde botões antigos antes de mostrar novos
+    io.to(roomId).emit('hideRollButtons'); 
 
     switch (state.phase) {
         case 'initiative_p1':
@@ -225,7 +230,7 @@ io.on('connection', (socket) => {
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice');
                 const roll = rollD(6);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6', showOverlay: false }); // Não escurece a tela
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 state.initiativeRolls[playerKey] = roll + state.fighters[playerKey].agi;
                 logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: ${state.initiativeRolls[playerKey]}`, 'log-info');
                 
@@ -241,7 +246,7 @@ io.on('connection', (socket) => {
             case 'roll_defense':
                 io.to(roomId).emit('playSound', 'dice');
                 const defRoll = rollD(3);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3', showOverlay: false }); // Não escurece a tela
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 state.fighters[playerKey].def = defRoll + state.fighters[playerKey].res;
                 logMessage(state, `${state.fighters[playerKey].nome} definiu defesa: ${state.fighters[playerKey].def}`, 'log-info');
                 if (playerKey === 'player1') {
@@ -256,7 +261,7 @@ io.on('connection', (socket) => {
                 if (state.fighters[playerKey].pa >= move.cost) {
                     state.fighters[playerKey].pa -= move.cost;
                     const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
-                    executeAttack(state, playerKey, defenderKey, action.move);
+                    executeAttack(state, playerKey, defenderKey, action.move, io, roomId);
                     if (state.fighters[defenderKey].hp <= 0) handleKnockdown(state, defenderKey);
                 }
                 break;
@@ -268,7 +273,7 @@ io.on('connection', (socket) => {
                 if (!info || info.downedPlayer !== playerKey) return;
                 info.attempts++;
                 const getUpRoll = rollD(6);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6', showOverlay: true }); // Escurece a tela aqui
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6', showOverlay: true });
                 const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar: ${totalRoll}`, 'log-info');
                 if (totalRoll >= 7) {
