@@ -263,7 +263,7 @@ body {
 .move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .action-btn, .end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
 .end-turn-btn { background-color: #ffc107; color: #000; }
-#forfeit-btn { background-color: #6f42c1; } 
+#forfeit-btn { background-color: #6f42c1; } /* >>> Cor ROXA <<< */
 #forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
 
 .action-btn:disabled, .end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
