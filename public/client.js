@@ -247,40 +247,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
-        console.log(`[DIAGNÓSTICO] Função showDiceRollAnimation chamada para: ${playerKey}, valor: ${rollValue}, tipo: ${diceType}`);
-        
         const diceOverlay = document.getElementById('dice-overlay');
-        const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-
-        if (!diceOverlay || !diceContainer) {
-            console.error('[DIAGNÓSTICO] Erro: #dice-overlay ou .dice-result não encontrado no DOM.');
-            return;
-        }
+        diceOverlay.classList.remove('hidden');
         
-        console.log('[DIAGNÓSTICO] Elementos do DOM encontrados com sucesso.');
-
+        // >>> A ÚNICA ALTERAÇÃO ESTÁ AQUI <<<
         const imagePrefix = (diceType === 'd3') 
             ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') 
             : (playerKey === 'player1' ? 'diceA' : 'diceP');
         
-        const imageUrl = `url('images/${imagePrefix}${rollValue}.png')`;
-        console.log(`[DIAGNÓSTICO] Tentando carregar a imagem: ${imageUrl}`);
-        
-        diceContainer.style.backgroundImage = imageUrl;
-        diceContainer.innerHTML = `${playerKey}<br>${rollValue}`; // Adiciona texto para debug visual
-
-        diceOverlay.classList.remove('hidden');
-        diceContainer.classList.remove('hidden');
-        console.log('[DIAGNÓSTICO] Elementos tornados visíveis.');
-        
+        const diceContainer = document.getElementById(`${playerKey}-dice-result`);
+        if (diceContainer) {
+            diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
+            diceContainer.classList.remove('hidden');
+        }
         const hideAndResolve = () => {
             if (diceOverlay) diceOverlay.classList.add('hidden');
             if (diceContainer) diceContainer.classList.add('hidden');
-            console.log('[DIAGNÓSTICO] Elementos escondidos após o tempo.');
         };
-        
-        diceOverlay.addEventListener('click', hideAndResolve, { once: true });
-        setTimeout(hideAndResolve, 3000); // Aumentado para 3 segundos para facilitar o diagnóstico
+        if (diceOverlay) diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+        setTimeout(hideAndResolve, 2000); 
     }
 
     document.querySelectorAll('#move-buttons .action-btn').forEach(btn => {
