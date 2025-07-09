@@ -190,9 +190,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSpectator = myPlayerKey === 'spectator';
         const isGameOver = state.phase === 'gameover';
         
+        // Lógica de exibição e estado dos botões
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
+        // Jogador 1
         if (myPlayerKey === 'player1') {
             p1Controls.classList.remove('hidden');
             p2Controls.classList.add('hidden');
@@ -202,6 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(state.moves[btn.dataset.move]?.cost > p1_pa) btn.disabled = true;
             });
         } 
+        // Jogador 2
         else if (myPlayerKey === 'player2') {
             p1Controls.classList.add('hidden');
             p2Controls.classList.remove('hidden');
@@ -211,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(state.moves[btn.dataset.move]?.cost > p2_pa) btn.disabled = true;
             });
         } 
+        // Espectador
         else if (isSpectator) {
             p1Controls.classList.toggle('hidden', !p1_is_turn);
             p2Controls.classList.toggle('hidden', !p2_is_turn);
@@ -241,25 +245,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showDiceRollAnimation(playerKey, rollValue, diceType) {
         const diceOverlay = document.getElementById('dice-overlay');
-        const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-        if (!diceOverlay || !diceContainer) { return; }
-
-        // >>> A ÚNICA ALTERAÇÃO ESTÁ AQUI <<<
-        const imagePrefix = (diceType === 'd3') 
-            ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') 
-            : (playerKey === 'player1' ? 'diceA' : 'diceP');
-
-        diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
-
         diceOverlay.classList.remove('hidden');
-        diceContainer.classList.remove('hidden');
-        
-        const hideAndResolve = () => {
-            if (diceOverlay) diceOverlay.classList.add('hidden');
-            if (diceContainer) diceContainer.classList.add('hidden');
-        };
-        
-        diceOverlay.addEventListener('click', hideAndResolve, { once: true });
+        const imagePrefix = (diceType === 'd3') ? (playerKey === 'player1' ? 'D3A-' : 'D3P-') : (playerKey === 'player1' ? 'diceA' : 'diceP');
+        const diceContainer = document.getElementById(`${playerKey}-dice-result`);
+        if (diceContainer) {
+            diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
+            diceContainer.classList.remove('hidden');
+        }
+        const hideAndResolve = () => { if (diceOverlay) diceOverlay.classList.add('hidden'); if (diceContainer) diceContainer.classList.add('hidden'); };
+        if (diceOverlay) diceOverlay.addEventListener('click', hideAndResolve, { once: true });
         setTimeout(hideAndResolve, 2000); 
     }
     
