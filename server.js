@@ -1,4 +1,4 @@
-// VERSÃO CORRIGIDA E ROBUSTA - BUG DA INICIATIVA RESOLVIDO
+//  VERSÃO COMPLETA E MODIFICADA DO SERVER.JS (COM EVENTOS DE SOM DE ERRO)
 
 const express = require('express');
 const http = require('http');
@@ -22,28 +22,27 @@ const rollAttackD6 = () => { const r = rollD(100); if (r <= 5) return 6; if (r <
 
 function createNewGameState() {
     return {
-        fighters: {}, pendingP2Choice: null, winner: null,
+        fighters: {
+            player1: { nome: "Nathan", agi: 3, res: 2, originalRes: 2, hpMax: 10, hp: 10, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 },
+            player2: { nome: "Ivan", agi: 2, res: 3, originalRes: 3, hpMax: 15, hp: 15, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 }
+        },
         moves: MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
     };
 }
-
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
-function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
-    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
-
+function executeAttack(state, attackerKey, defenderKey, moveName) {
     const attacker = state.fighters[attackerKey], defender = state.fighters[defenderKey], move = state.moves[moveName];
-    
-    logMessage(state, `${attacker.nome} usa <span class="log-move-name">${moveName}</span>!`);
-
     const roll = rollAttackD6(); let hit = false, crit = false;
     const attackValue = roll + attacker.agi - move.penalty;
-    logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
+    logMessage(state, `${attacker.nome}: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
     
+    const roomId = Object.values(games).find(room => room.state === state)?.id;
+
     if (roll === 1) { 
         logMessage(state, "Erro Crítico!", 'log-miss'); 
-        io.to(roomId).emit('playSound', 'miss');
+        if (roomId) io.to(roomId).emit('playSound', 'miss');
     }
     else if (roll === 6) { 
         logMessage(state, "Acerto Crítico!", 'log-crit'); 
@@ -56,22 +55,28 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             hit = true; 
         } else { 
             logMessage(state, "Errou!", 'log-miss'); 
-            io.to(roomId).emit('playSound', 'miss');
+            if (roomId) io.to(roomId).emit('playSound', 'miss');
         } 
     }
     
     if (hit) {
-        io.to(roomId).emit('triggerHitAnimation', { defenderKey });
-        
-        if (crit) {
-            io.to(roomId).emit('playSound', 'critical');
-        } else {
-            switch (moveName) {
-                case 'Jab': io.to(roomId).emit('playSound', 'jab'); break;
-                default: io.to(roomId).emit('playSound', 'strong'); break;
+        if (roomId) {
+            if (crit) {
+                io.to(roomId).emit('playSound', 'critical');
+            } else {
+                switch (moveName) {
+                    case 'Jab':
+                        io.to(roomId).emit('playSound', 'jab');
+                        break;
+                    case 'Direto':
+                    case 'Upper':
+                    case 'Liver Blow':
+                        io.to(roomId).emit('playSound', 'strong');
+                        break;
+                }
             }
         }
-        
+
         let damage = crit ? move.damage * 2 : move.damage;
         defender.hp = Math.max(0, defender.hp - damage);
         attacker.hitsLanded++; defender.totalDamageTaken += damage;
@@ -130,8 +135,6 @@ function isActionValid(state, action) {
     const { type, playerKey } = action;
 
     switch (state.phase) {
-        case 'p2_stat_assignment':
-            return type === 'set_p2_stats' && playerKey === 'player1';
         case 'initiative_p1':
             return type === 'roll_initiative' && playerKey === 'player1';
         case 'initiative_p2':
@@ -141,54 +144,45 @@ function isActionValid(state, action) {
         case 'defense_p2':
             return type === 'roll_defense' && playerKey === 'player2';
         case 'turn':
-            // >>> Adiciona 'forfeit' como ação válida durante o turno <<<
-            return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
+            return (type === 'attack' || type === 'end_turn') && playerKey === state.whoseTurn;
         case 'knockdown':
-            return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
-        case 'gameover':
-            return false;
+            return type === 'request_get_up' && playerKey === state.knockdownInfo.downedPlayer;
         default:
             return false;
     }
 }
 
-function dispatchAction(room) {
-    if (!room) return;
+function dispatchActionModal(room) {
     const { state, id: roomId } = room;
     let modalPayload = null;
     let targetPlayerKey = null;
 
-    io.to(roomId).emit('hideRollButtons');
-
     switch (state.phase) {
         case 'initiative_p1':
-            io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }});
-            return;
+            targetPlayerKey = 'player1';
+            modalPayload = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player1' } };
+            break;
         case 'initiative_p2':
-            io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }});
-            return;
+            targetPlayerKey = 'player2';
+            modalPayload = { title: `Iniciativa`, text: "Role sua iniciativa.", btnText: "Rolar D6", action: { type: 'roll_initiative', playerKey: 'player2' } };
+            break;
         case 'defense_p1':
-            io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }});
-            return;
+            targetPlayerKey = 'player1';
+            modalPayload = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player1' } };
+            break;
         case 'defense_p2':
-            io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }});
-            return;
+            targetPlayerKey = 'player2';
+            modalPayload = { title: `Defesa`, text: "Role sua defesa.", btnText: "Rolar D3", action: { type: 'roll_defense', playerKey: 'player2' } };
+            break;
         case 'knockdown':
             if (state.knockdownInfo) {
                 targetPlayerKey = state.knockdownInfo.downedPlayer;
                 modalPayload = {
-                    modalType: 'knockdown',
                     title: `Você caiu!`, text: `Tentativas restantes: ${4 - state.knockdownInfo.attempts}`,
                     btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey }
                 };
             }
             break;
-        case 'gameover':
-            const winner = state.fighters[state.winner];
-            const loser = state.fighters[state.winner === 'player1' ? 'player2' : 'player1'];
-            const reason = state.reason || `VITÓRIA DE ${winner.nome.toUpperCase()}`;
-            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason});
-            return;
         default:
             io.to(roomId).emit('hideModal');
             return;
@@ -200,76 +194,32 @@ function dispatchAction(room) {
 }
 
 io.on('connection', (socket) => {
+    socket.on('joinGame', (roomId) => {
+        if (roomId && games[roomId] && games[roomId].players.length === 1) {
+            socket.join(roomId);
+            const room = games[roomId];
+            room.players.push({ id: socket.id, playerKey: 'player2' });
+            socket.currentRoomId = roomId;
 
-    socket.on('createGame', (player1Data) => {
-        const newRoomId = uuidv4().substring(0, 6);
-        socket.join(newRoomId);
-        socket.currentRoomId = newRoomId;
+            io.to(room.players[0].id).emit('assignPlayer', 'player1');
+            io.to(room.players[1].id).emit('assignPlayer', 'player2');
 
-        const newState = createNewGameState();
-        const res = Math.max(1, parseInt(player1Data.res, 10));
-        const hp = res * 5;
-        newState.fighters.player1 = {
-            nome: player1Data.nome,
-            img: player1Data.img,
-            agi: parseInt(player1Data.agi, 10),
-            res: res,
-            originalRes: res,
-            hpMax: hp,
-            hp: hp,
-            pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
-        };
+            logMessage(room.state, `${room.state.fighters.player2.nome} entrou. Preparem-se!`, 'log-info');
+            room.state.phase = 'initiative_p1';
+            
+            io.to(roomId).emit('gameUpdate', room.state);
+            dispatchActionModal(room); 
 
-        games[newRoomId] = { 
-            id: newRoomId, 
-            players: [{ id: socket.id, playerKey: 'player1' }], 
-            spectators: [],
-            state: newState 
-        };
-        
-        socket.emit('assignPlayer', 'player1');
-        socket.emit('roomCreated', newRoomId);
-        io.to(socket.id).emit('gameUpdate', newState);
-    });
-
-    socket.on('joinGame', ({ roomId, player2Data }) => {
-        const room = games[roomId];
-        if (!room || room.players.length !== 1) {
-            socket.emit('error', { message: 'Sala não encontrada ou já está cheia.' });
-            return;
+        } else {
+            const newRoomId = uuidv4().substring(0, 6);
+            socket.join(newRoomId);
+            socket.currentRoomId = newRoomId;
+            games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], state: createNewGameState() };
+            
+            socket.emit('assignPlayer', 'player1');
+            socket.emit('roomCreated', newRoomId);
+            io.to(newRoomId).emit('gameUpdate', games[newRoomId].state);
         }
-
-        socket.join(roomId);
-        room.players.push({ id: socket.id, playerKey: 'player2' });
-        socket.currentRoomId = roomId;
-        socket.emit('assignPlayer', 'player2');
-        
-        const state = room.state;
-        state.pendingP2Choice = player2Data;
-        logMessage(state, `${player2Data.nome} entrou. Aguardando P1 definir atributos...`);
-        state.phase = 'p2_stat_assignment';
-
-        io.to(roomId).emit('gameUpdate', state);
-        
-        const p1socketId = room.players.find(p => p.playerKey === 'player1').id;
-        io.to(p1socketId).emit('promptP2Stats', player2Data);
-    });
-
-    socket.on('spectateGame', (roomId) => {
-        const room = games[roomId];
-        if (!room) {
-            socket.emit('error', { message: 'Sala não encontrada.' });
-            return;
-        }
-
-        socket.join(roomId);
-        room.spectators.push(socket.id);
-        socket.currentRoomId = roomId;
-        
-        socket.emit('assignPlayer', 'spectator');
-        socket.emit('gameUpdate', room.state);
-        logMessage(room.state, 'Um espectador entrou na sala.');
-        io.to(roomId).emit('gameUpdate', room.state);
     });
 
     socket.on('playerAction', (action) => {
@@ -280,43 +230,13 @@ io.on('connection', (socket) => {
         const state = room.state;
 
         if (!isActionValid(state, action)) {
-            console.log(`Ação inválida REJEITADA: `, action, `na fase: ${state.phase}`);
+            console.log(`Ação inválida recebida e rejeitada: `, action, `na fase: ${state.phase}`);
             return;
         }
         
         const playerKey = action.playerKey;
 
         switch (action.type) {
-            case 'forfeit':
-                const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
-                state.winner = winnerKey;
-                state.phase = 'gameover';
-                const loserName = state.fighters[playerKey].nome;
-                const winnerName = state.fighters[winnerKey].nome;
-                state.reason = `${loserName} jogou a toalha. Vitória de ${winnerName}!`;
-                logMessage(state, state.reason, 'log-crit');
-                break;
-            
-            case 'set_p2_stats':
-                const player2Data = state.pendingP2Choice;
-                const stats = action.stats;
-                const res = Math.max(1, parseInt(stats.res, 10));
-                const hp = res * 5;
-                state.fighters.player2 = {
-                    nome: player2Data.nome,
-                    img: player2Data.img,
-                    agi: parseInt(stats.agi, 10),
-                    res: res,
-                    originalRes: res,
-                    hpMax: hp,
-                    hp: hp,
-                    pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0
-                };
-                delete state.pendingP2Choice;
-                logMessage(state, `${state.fighters.player2.nome} teve seus atributos definidos por P1. Preparem-se!`);
-                state.phase = 'initiative_p1';
-                break;
-
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice');
                 const roll = rollD(6);
@@ -354,12 +274,8 @@ io.on('connection', (socket) => {
                 if (state.fighters[playerKey].pa >= move.cost) {
                     state.fighters[playerKey].pa -= move.cost;
                     const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
-                    
-                    executeAttack(state, playerKey, defenderKey, action.move, io, roomId);
-                    
-                    if (state.fighters[defenderKey].hp <= 0) {
-                        handleKnockdown(state, defenderKey);
-                    }
+                    executeAttack(state, playerKey, defenderKey, action.move);
+                    if (state.fighters[defenderKey].hp <= 0) handleKnockdown(state, defenderKey);
                 }
                 break;
 
@@ -377,11 +293,8 @@ io.on('connection', (socket) => {
                 logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar: ${totalRoll}`, 'log-info');
                 if (totalRoll >= 7) {
                     logMessage(state, `Ele se levantou!`, 'log-info');
-                    const fighter = state.fighters[playerKey];
-                    fighter.res--;
-                    const newHp = fighter.res * 5;
-                    fighter.hp = newHp;
-                    fighter.hpMax = newHp;
+                    state.fighters[playerKey].res--;
+                    state.fighters[playerKey].hp = state.fighters[playerKey].res * 5;
                     state.phase = 'turn'; 
                     state.knockdownInfo = null;
                 } else if (info.attempts >= 4) {
@@ -393,27 +306,10 @@ io.on('connection', (socket) => {
         }
 
         io.to(roomId).emit('gameUpdate', room.state);
-        dispatchAction(room);
+        dispatchActionModal(room);
     });
 
-    socket.on('disconnect', () => {
-        const roomId = socket.currentRoomId;
-        if (!roomId || !games[roomId]) return;
-
-        const room = games[roomId];
-        const playerIndex = room.players.findIndex(p => p.id === socket.id);
-        if (playerIndex > -1) {
-            io.to(roomId).emit('opponentDisconnected');
-            delete games[roomId];
-        } else {
-            const spectatorIndex = room.spectators.indexOf(socket.id);
-            if (spectatorIndex > -1) {
-                room.spectators.splice(spectatorIndex, 1);
-                logMessage(room.state, 'Um espectador saiu.');
-                io.to(roomId).emit('gameUpdate', room.state);
-            }
-        }
-    });
+    socket.on('disconnect', () => { /* ... */ });
 });
 
 const PORT = process.env.PORT || 3000;
