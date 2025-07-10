@@ -1,4 +1,4 @@
-// VERSÃO CORRIGIDA E ROBUSTA - BUG DA INICIATIVA RESOLVIDO
+// VERSÃO FINAL CONSOLIDADA
 
 const express = require('express');
 const http = require('http');
@@ -75,7 +75,19 @@ function processEndRound(state) {
     }
 }
 
-function endFightByDecision(state) { state.phase = 'decision'; state.winner = (state.fighters.player1.totalDamageTaken < state.fighters.player2.totalDamageTaken) ? 'player1' : 'player2'; state.reason = 'Vitória por Decisão'; state.phase = 'gameover'; }
+function endFightByDecision(state) {
+    const p1Dmg = state.fighters.player1.totalDamageTaken;
+    const p2Dmg = state.fighters.player2.totalDamageTaken;
+    if (p1Dmg < p2Dmg) {
+        state.winner = 'player1';
+    } else if (p2Dmg < p1Dmg) {
+        state.winner = 'player2';
+    } else { // Em caso de empate, o P1 vence (ou outra regra de sua preferência)
+        state.winner = 'player1';
+    }
+    state.reason = 'Vitória por Decisão';
+    state.phase = 'gameover';
+}
 
 function handleKnockdown(state, downedPlayerKey) {
     state.phase = 'knockdown';
@@ -154,14 +166,14 @@ io.on('connection', (socket) => {
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', 'player2');
         const state = room.state;
-        const res = Math.max(1, parseInt(player2Data.res, 10) || 2);
-        const agi = Math.max(1, parseInt(player2Data.agi, 10) || 2);
-        const hp = res * 5;
-        state.fighters.player2 = { nome: player2Data.nome, img: player2Data.img, agi: agi, res: res, originalRes: res, hpMax: hp, hp: hp, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 };
-        logMessage(state, `${state.fighters.player2.nome} entrou. Preparem-se!`);
-        state.phase = 'initiative_p1';
+        // P1 define os atributos do P2, então os dados vêm do P1, não do P2
+        // Removido - será tratado pelo evento 'set_p2_stats'
+        state.pendingP2Choice = player2Data;
+        logMessage(state, `${player2Data.nome} entrou. Aguardando P1 definir atributos...`);
+        state.phase = 'p2_stat_assignment';
         io.to(roomId).emit('gameUpdate', state);
-        dispatchAction(room); 
+        const p1socketId = room.players.find(p => p.playerKey === 'player1').id;
+        io.to(p1socketId).emit('promptP2Stats', player2Data);
     });
 
     socket.on('spectateGame', (roomId) => {
@@ -191,6 +203,16 @@ io.on('connection', (socket) => {
                 state.phase = 'gameover';
                 state.reason = `${state.fighters[playerKey].nome} jogou a toalha. Vitória de ${state.fighters[winnerKey].nome}!`;
                 logMessage(state, state.reason, 'log-crit');
+                break;
+            case 'set_p2_stats':
+                const player2Data = state.pendingP2Choice;
+                const stats = action.stats;
+                const res = Math.max(1, parseInt(stats.res, 10));
+                const hp = res * 5;
+                state.fighters.player2 = { nome: player2Data.nome, img: player2Data.img, agi: parseInt(stats.agi, 10), res: res, originalRes: res, hpMax: hp, hp: hp, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0 };
+                delete state.pendingP2Choice;
+                logMessage(state, `${state.fighters.player2.nome} teve seus atributos definidos por P1. Preparem-se!`);
+                state.phase = 'initiative_p1';
                 break;
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice');
@@ -232,7 +254,7 @@ io.on('connection', (socket) => {
                 
                 info.attempts++;
                 const getUpRoll = rollD(6);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6', showOverlay: true });
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
                 const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 info.lastRoll = totalRoll;
                 logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}`, 'log-info');
