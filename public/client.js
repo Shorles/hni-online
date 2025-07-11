@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let myPlayerKey = null; // host, player1, player2, spectator
+    let myPlayerKey = null; // Pode ser 'host', 'player1', 'player2', 'spectator'
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     let arenaPlayerKey = new URLSearchParams(window.location.search).get('player');
@@ -31,8 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const specialMovesTitle = document.getElementById('special-moves-title');
     const specialMovesList = document.getElementById('special-moves-list');
     const confirmSpecialMovesBtn = document.getElementById('confirm-special-moves-btn');
-    const getUpSuccessOverlay = document.getElementById('get-up-success-overlay');
-    const getUpSuccessContent = document.getElementById('get-up-success-content');
     
     // Botões
     const gameModeBackBtn = document.getElementById('game-mode-back-btn');
@@ -43,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modePvcBtn = document.getElementById('mode-pvc-btn');
     const modePvpBtn = document.getElementById('mode-pvp-btn');
     const startArenaFightBtn = document.getElementById('start-arena-fight-btn');
-    
+
     // --- DADOS E SONS ---
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
@@ -60,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         const isSpectator = urlParams.get('spectate') === 'true';
-        
+
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, gameModeBackBtn, copySpectatorLinkInGameBtn].forEach(btn => btn.classList.add('hidden'));
 
         if (isSpectator) {
@@ -180,20 +178,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-        modalButton.style.display = 'none';
+        document.getElementById('modal-button').style.display = 'none';
         modal.classList.remove('hidden');
     }
 
     function showInteractiveModal(title, text, btnText, action) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-        modalButton.innerText = btnText;
-        modalButton.style.display = btnText ? 'inline-block' : 'none';
-        modalButton.disabled = false;
         const newButton = modalButton.cloneNode(true);
         modalButton.parentNode.replaceChild(newButton, modalButton);
         modalButton = document.getElementById('modal-button');
-        if (action) { modalButton.onclick = () => { modalButton.disabled = true; modalButton.innerText = "Aguarde..."; socket.emit('playerAction', action); }; }
+        modalButton.innerText = btnText;
+        modalButton.style.display = 'inline-block';
+        if (action) { modalButton.onclick = () => { socket.emit('playerAction', action); }; }
         modal.classList.remove('hidden');
     }
 
@@ -234,6 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else if (key === 'player2' && state.pendingP2Choice) {
                 document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img;
+            } else if (key === 'player1' && state.gameMode === 'arena' && state.arenaP1_choice) {
+                 document.getElementById('player1-fight-name').innerText = state.arenaP1_choice.nome;
+                 document.getElementById('player1-fight-img').src = state.arenaP1_choice.img;
+            } else if (key === 'player2' && state.gameMode === 'arena' && state.arenaP2_choice) {
+                 document.getElementById('player2-fight-name').innerText = state.arenaP2_choice.nome;
+                 document.getElementById('player2-fight-img').src = state.arenaP2_choice.img;
             }
         });
 
@@ -323,7 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showInteractiveModal("Configurar Luta da Arena", modalHtml, "Iniciar Luta!", null);
             renderSpecialMoveSelection(document.getElementById('arena-p1-moves-list'), availableSpecialMoves);
             renderSpecialMoveSelection(document.getElementById('arena-p2-moves-list'), availableSpecialMoves);
-
             modalButton.onclick = () => {
                 const p1_config = {agi: document.getElementById('arena-p1-agi').value, res: document.getElementById('arena-p1-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p1-moves-list .selected')).map(c => c.dataset.name)};
                 const p2_config = {agi: document.getElementById('arena-p2-agi').value, res: document.getElementById('arena-p2-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p2-moves-list .selected')).map(c => c.dataset.name)};
@@ -350,23 +352,22 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
-        const modalContentHtml = `<div style="display:flex; gap: 30px;">...</div>`;
+        const modalContentHtml = `...`; // Lógica do modo clássico
         showInteractiveModal("Definir Oponente", modalContentHtml, "Confirmar e Iniciar Luta", null);
-        // ... (lógica interna)
+        // ...
     });
     socket.on('gameUpdate', (state) => {
-        const isPreGame = currentGameState === null || ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_waiting'].includes(currentGameState.phase);
+        const isPreGame = currentGameState === null || ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_waiting'].includes(currentGameState?.phase);
         currentGameState = state;
         updateUI(state);
         const isGameStarting = isPreGame && !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_waiting'].includes(state.phase);
-
-        if (isGameStarting && !fightScreen.classList.contains('active')) {
+        if (isGameStarting) {
             showScreen(fightScreen);
             lobbyBackBtn.classList.add('hidden');
-            if (myPlayerKey === 'player1' || myPlayerKey === 'host') {
+            if (myPlayerKey === 'host') {
                 exitGameBtn.classList.remove('hidden');
             }
-            if(myPlayerKey === 'player1') {
+            if (myPlayerKey === 'player1') {
                 copySpectatorLinkInGameBtn.classList.remove('hidden');
             }
         }
@@ -384,6 +385,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('#lobby-content').classList.add('hidden');
         shareContainer.classList.remove('hidden');
     });
+
+    // ... Outros ouvintes de socket como promptRoll, showModal, etc.
 
     initialize();
 });
