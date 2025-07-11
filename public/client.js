@@ -177,8 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
-        showScreen(selectionScreen); // Garante que a tela de seleção de personagem está escondida
-        selectionScreen.classList.remove('active'); // Força o hide
+        showScreen(selectionScreen);
+        selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
@@ -237,11 +237,23 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = roomId;
         const p2Url = `${window.location.origin}?room=${roomId}`;
         const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
-        document.getElementById('share-link-p2').textContent = p2Url;
-        document.getElementById('share-link-spectator').textContent = specUrl;
+        const shareLinkP2 = document.getElementById('share-link-p2');
+        const shareLinkSpectator = document.getElementById('share-link-spectator');
+        
+        shareLinkP2.textContent = p2Url;
+        shareLinkSpectator.textContent = specUrl;
+
+        // *** INÍCIO DA CORREÇÃO ***
+        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+        // *** FIM DA CORREÇÃO ***
+
         lobbyContent.classList.add('hidden');
         shareContainer.classList.remove('hidden');
     });
+
+    function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
+    copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
     function updateUI(state) {
         if (state.scenario) {
