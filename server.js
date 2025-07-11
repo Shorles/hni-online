@@ -15,9 +15,12 @@ const MOVES = {
     'Upper': { cost: 3, damage: 6, penalty: 2 }, 'Liver Blow': { cost: 2, damage: 4, penalty: 2 }
 };
 const SPECIAL_MOVES = {
-    'Counter': { cost: 3, damage: 7, penalty: 1 }, 'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
-    'Smash': { cost: 2, damage: 8, penalty: 3 }, 'Bala': { cost: 1, damage: 2, penalty: 0 },
-    'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 }, 'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
+    'Counter': { cost: 3, damage: 7, penalty: 1 },
+    'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
+    'Smash': { cost: 2, damage: 8, penalty: 3 },
+    'Bala': { cost: 1, damage: 2, penalty: 0 },
+    'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 },
+    'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
     'White Fang': { cost: 4, damage: 4, penalty: 1 }
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
@@ -25,13 +28,16 @@ const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
 const rollAttackD6 = () => { const r = rollD(100); if (r <= 5) return 6; if (r <= 10) return 1; return rollD(4) + 1; };
 
-function createNewGameState(mode) {
+function createNewGameState() {
     return {
-        gameMode: mode,
-        fighters: {}, pendingP2Choice: null, arenaP1_choice: null, arenaP2_choice: null, winner: null, reason: null,
+        fighters: {}, pendingP2Choice: null, winner: null, reason: null,
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
-        phase: 'waiting', log: [], initiativeRolls: {}, knockdownInfo: null,
-        decisionInfo: null, followUpState: null, scenario: 'Ringue.png'
+        phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
+        decisionInfo: null, followUpState: null, scenario: 'Ringue.png',
+        // --- NOVOS CAMPOS DE ESTADO ---
+        mode: null, // 'classic' ou 'arena'
+        hostId: null,
+        playersReady: { player1: false, player2: false }
     };
 }
 
@@ -46,6 +52,7 @@ function createNewFighterState(data) {
 }
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
+
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
@@ -123,13 +130,11 @@ function processEndRound(state, io, roomId) {
             return;
         }
         state.currentTurn = 1;
-        state.fighters.player1.pa = 3;
-        state.fighters.player2.pa = 3;
+        state.fighters.player1.pa = 3; state.fighters.player2.pa = 3;
         logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-info');
         state.phase = 'initiative_p1';
     } else {
-        state.fighters.player1.pa += 3;
-        state.fighters.player2.pa += 3;
+        state.fighters.player1.pa += 3; state.fighters.player2.pa += 3;
         logMessage(state, `--- Fim da Rodada ${state.currentTurn - 1} ---`, 'log-turn');
         state.whoseTurn = state.didPlayer1GoFirst ? 'player1' : 'player2';
         state.phase = 'turn';
@@ -190,6 +195,7 @@ function isActionValid(state, action) {
         case 'turn': return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
         case 'decision_table_wait': return type === 'reveal_winner' && playerKey === 'player1';
+        case 'arena_configuring': return type === 'configure_and_start_arena' && playerKey === 'host';
         case 'gameover': return false;
         default: return false;
     }
@@ -239,32 +245,25 @@ function dispatchAction(room) {
 }
 
 io.on('connection', (socket) => {
-    socket.on('createGame', ({ gameMode, player1Data, scenario }) => {
+    // --- MODO CLÁSSICO ---
+    socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);
         socket.join(newRoomId);
         socket.currentRoomId = newRoomId;
-        const newState = createNewGameState(gameMode);
+        const newState = createNewGameState();
+        newState.mode = 'classic';
         newState.scenario = scenario;
-        games[newRoomId] = { id: newRoomId, mode: gameMode, players: [], spectators: [], state: newState };
-
-        if (gameMode === 'classic') {
-            socket.emit('assignPlayer', 'player1');
-            newState.fighters.player1 = createNewFighterState(player1Data);
-            newState.phase = 'p1_special_moves_selection';
-            games[newRoomId].players.push({ id: socket.id, playerKey: 'player1' });
-        } else {
-            socket.emit('assignPlayer', 'host');
-            newState.phase = 'arena_waiting';
-            games[newRoomId].hostId = socket.id;
-        }
-        
-        io.to(socket.id).emit('gameCreated', { roomId: newRoomId, gameMode });
+        newState.fighters.player1 = createNewFighterState(player1Data);
+        newState.phase = 'p1_special_moves_selection';
+        games[newRoomId] = { id: newRoomId, hostId: null, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
+        socket.emit('assignPlayer', 'player1');
+        io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
 
     socket.on('joinGame', ({ roomId, player2Data }) => {
         const room = games[roomId];
-        if (!room || room.mode !== 'classic' || room.players.length !== 1) { return; }
+        if (!room || room.players.length !== 1 || room.state.mode !== 'classic') { socket.emit('error', { message: 'Sala não encontrada, cheia, ou não é uma sala de modo clássico.' }); return; }
         socket.join(roomId);
         room.players.push({ id: socket.id, playerKey: 'player2' });
         socket.currentRoomId = roomId;
@@ -277,52 +276,58 @@ io.on('connection', (socket) => {
         dispatchAction(room);
     });
 
-    socket.on('joinAsArenaPlayer', ({ roomId, playerKey }) => {
-        const room = games[roomId];
-        if (!room || room.mode !== 'arena' || room.players.find(p => p.playerKey === playerKey)) { return; }
-        socket.join(roomId);
-        socket.currentRoomId = roomId;
-        socket.playerKey = playerKey;
-        room.players.push({ id: socket.id, playerKey });
-
-        socket.emit('assignPlayer', playerKey);
-        io.to(room.hostId).emit('arenaPlayerJoined', { playerKey });
-        io.to(roomId).emit('gameUpdate', room.state);
-    });
-
-    socket.on('chooseArenaCharacter', ({ character }) => {
-        const roomId = socket.currentRoomId;
-        const playerKey = socket.playerKey;
-        const room = games[roomId];
-        if (!room || !playerKey) return;
-        const state = room.state;
-        
-        if (playerKey === 'player1') state.arenaP1_choice = character;
-        else if(playerKey === 'player2') state.arenaP2_choice = character;
-
-        io.to(room.hostId).emit('arenaCharacterChosen', { playerKey, character });
-        io.to(roomId).emit('gameUpdate', state);
-
-        if(state.arenaP1_choice && state.arenaP2_choice) {
-            io.to(room.hostId).emit('promptArenaConfiguration', {p1: state.arenaP1_choice, p2: state.arenaP2_choice});
-        }
+    // --- MODO ARENA ---
+    socket.on('createArenaGame', ({ scenario }) => {
+        const newRoomId = uuidv4().substring(0, 6);
+        socket.join(newRoomId);
+        socket.currentRoomId = newRoomId;
+        const newState = createNewGameState();
+        newState.scenario = scenario;
+        newState.mode = 'arena';
+        newState.hostId = socket.id;
+        newState.phase = 'arena_lobby';
+        logMessage(newState, "Lobby da Arena criado. Aguardando jogadores...");
+        games[newRoomId] = { id: newRoomId, hostId: socket.id, players: [], spectators: [], state: newState };
+        socket.emit('assignPlayer', 'host');
+        socket.emit('arenaRoomCreated', newRoomId);
+        io.to(socket.id).emit('gameUpdate', newState);
     });
     
-    socket.on('configureArenaFight', ({ p1_config, p2_config }) => {
-        const roomId = socket.currentRoomId;
+    socket.on('joinArenaGame', ({ roomId, playerKey }) => {
         const room = games[roomId];
-        if (!room || socket.id !== room.hostId) return;
-
-        const state = room.state;
-        state.fighters.player1 = createNewFighterState({ ...state.arenaP1_choice, ...p1_config });
-        state.fighters.player2 = createNewFighterState({ ...state.arenaP2_choice, ...p2_config });
+        if (!room || room.state.mode !== 'arena') { socket.emit('error', { message: 'Sala de arena não encontrada.' }); return; }
+        if (room.players.find(p => p.playerKey === playerKey)) { socket.emit('error', { message: `O lugar do ${playerKey} já está ocupado.`}); return; }
         
-        logMessage(state, `Anfitrião configurou a luta. Preparem-se!`);
-        state.phase = 'initiative_p1';
-        io.to(roomId).emit('gameUpdate', state);
-        dispatchAction(room);
+        socket.join(roomId);
+        room.players.push({ id: socket.id, playerKey });
+        socket.currentRoomId = roomId;
+        socket.emit('assignPlayer', playerKey);
+        io.to(roomId).emit('gameUpdate', room.state);
+        io.to(room.hostId).emit('updateArenaLobby', { playerKey, status: 'connected' });
     });
 
+    socket.on('selectArenaCharacter', ({ character }) => {
+        const roomId = socket.currentRoomId;
+        const room = games[roomId];
+        if (!room) return;
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player) return;
+
+        room.state.fighters[player.playerKey] = { nome: character.nome, img: character.img }; // Salva dados básicos
+        room.state.playersReady[player.playerKey] = true;
+        io.to(room.hostId).emit('updateArenaLobby', { playerKey: player.playerKey, status: 'character_selected', character });
+
+        if (room.state.playersReady.player1 && room.state.playersReady.player2) {
+            room.state.phase = 'arena_configuring';
+            io.to(room.hostId).emit('promptArenaConfiguration', {
+                p1: room.state.fighters.player1,
+                p2: room.state.fighters.player2,
+                availableMoves: SPECIAL_MOVES
+            });
+        }
+    });
+
+    // --- GERAL ---
     socket.on('spectateGame', (roomId) => {
         const room = games[roomId];
         if (!room) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
@@ -331,20 +336,30 @@ io.on('connection', (socket) => {
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', 'spectator');
         socket.emit('gameUpdate', room.state);
-        if(room.state.log) logMessage(room.state, 'Um espectador entrou na sala.');
+        logMessage(room.state, 'Um espectador entrou na sala.');
         io.to(roomId).emit('gameUpdate', room.state);
     });
-    
+
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId] || !action || !action.playerKey) return;
+        
         const room = games[roomId];
         const state = room.state;
-        if (!isActionValid(state, action)) { return; }
+        
+        if (!isActionValid(state, action)) { console.log(`Ação inválida REJEITADA: `, action, `na fase: ${state.phase}`); return; }
         
         const playerKey = action.playerKey;
 
         switch (action.type) {
+            case 'configure_and_start_arena':
+                if (playerKey !== 'host' || room.hostId !== socket.id) return;
+                state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
+                state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
+                logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
+                state.phase = 'initiative_p1';
+                break;
+
             case 'set_p1_special_moves':
                 state.fighters.player1.specialMoves = action.moves;
                 logMessage(state, `${state.fighters.player1.nome} definiu seus golpes especiais.`);
@@ -356,7 +371,10 @@ io.on('connection', (socket) => {
                 const p2Data = state.pendingP2Choice;
                 const p2Stats = action.stats;
                 state.fighters.player2 = createNewFighterState({
-                    ...p2Data, agi: p2Stats.agi, res: p2Stats.res, specialMoves: action.moves
+                    ...p2Data,
+                    agi: p2Stats.agi,
+                    res: p2Stats.res,
+                    specialMoves: action.moves
                 });
                 delete state.pendingP2Choice;
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
@@ -370,23 +388,31 @@ io.on('connection', (socket) => {
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
 
                 let cost = move.cost;
-                if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') { cost = 0; }
+                if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
+                    cost = 0;
+                }
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
 
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
+                        
                         const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
                         io.to(roomId).emit('gameUpdate', room.state);
+
                         if (state.fighters[defenderKey].hp <= 0) {
                             handleKnockdown(state, defenderKey, io, roomId);
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
                             return;
                         }
-                        if (hit) { setTimeout(executeFlicker, 700); }
-                        else { io.to(roomId).emit('gameUpdate', room.state); dispatchAction(room); }
+                        if (hit) {
+                            setTimeout(executeFlicker, 700);
+                        } else {
+                            io.to(roomId).emit('gameUpdate', room.state);
+                            dispatchAction(room);
+                        }
                     };
                     executeFlicker();
                     return;
@@ -395,8 +421,13 @@ io.on('connection', (socket) => {
                 executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
 
                 if (moveName === 'White Fang') {
-                    if (state.followUpState) { state.followUpState = null; state.phase = 'turn'; }
-                    else { state.followUpState = { playerKey, moveName }; state.phase = 'white_fang_follow_up'; }
+                    if (state.followUpState) {
+                        state.followUpState = null;
+                        state.phase = 'turn';
+                    } else {
+                        state.followUpState = { playerKey, moveName };
+                        state.phase = 'white_fang_follow_up';
+                    }
                 }
                 
                 if (state.fighters[defenderKey].hp <= 0 && state.phase !== 'knockdown') {
@@ -504,26 +535,39 @@ io.on('connection', (socket) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId]) return;
         const room = games[roomId];
-
-        if (room.hostId === socket.id) {
-            io.to(roomId).emit('hostDisconnected');
+        
+        // Se o Host do modo Arena se desconectar, o jogo acaba para todos
+        if (socket.id === room.hostId) {
+            io.to(roomId).emit('opponentDisconnected', { message: 'O Anfitrião encerrou a partida.' });
             delete games[roomId];
             return;
         }
 
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex > -1) {
-            io.to(roomId).emit('opponentDisconnected');
-            delete games[roomId];
-        } else {
-            const spectatorIndex = room.spectators.indexOf(socket.id);
-            if (spectatorIndex > -1) {
-                room.spectators.splice(spectatorIndex, 1);
-                if (room.state.log) {
-                    logMessage(room.state, 'Um espectador saiu.');
-                    io.to(roomId).emit('gameUpdate', room.state);
-                }
+            const playerKey = room.players[playerIndex].playerKey;
+            
+            // Em modo Arena, se um jogador se desconecta, o jogo termina para todos.
+            if (room.state.mode === 'arena') {
+                io.to(roomId).emit('opponentDisconnected', { message: `O Jogador ${playerKey === 'player1' ? 1 : 2} se desconectou.`});
+                delete games[roomId];
+                return;
             }
+            
+            // Em modo Clássico, o comportamento antigo é mantido
+            if (room.state.mode === 'classic') {
+                io.to(roomId).emit('opponentDisconnected', { message: 'O oponente se desconectou.' });
+                delete games[roomId];
+                return;
+            }
+        } 
+        
+        // Lógica para espectadores permanece a mesma
+        const spectatorIndex = room.spectators.indexOf(socket.id);
+        if (spectatorIndex > -1) {
+            room.spectators.splice(spectatorIndex, 1);
+            logMessage(room.state, 'Um espectador saiu.');
+            io.to(roomId).emit('gameUpdate', room.state);
         }
     });
 });
