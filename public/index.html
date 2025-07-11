@@ -75,6 +75,7 @@
                     <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
                     <button class="action-btn p1-btn" data-move="Upper">Upper (3 PA)</button>
                     <button class="action-btn p1-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
+                    <div id="p1-special-moves" class="special-moves-container"></div>
                     <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
                 <!-- BOTÕES DO JOGADOR 2 (AZUIS) -->
@@ -83,6 +84,7 @@
                     <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
                     <button class="action-btn p2-btn" data-move="Upper">Upper (3 PA)</button>
                     <button class="action-btn p2-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
+                    <div id="p2-special-moves" class="special-moves-container"></div>
                     <button id="p2-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
                 <div id="utility-buttons">
@@ -101,7 +103,7 @@
         <div id="player2-dice-result" class="dice-result hidden"></div>
     </div>
 
-    <!-- MODAL -->
+    <!-- MODAL PADRÃO -->
     <div id="modal" class="hidden">
         <div id="modal-content">
             <h3 id="modal-title">Título</h3>
@@ -110,6 +112,15 @@
         </div>
     </div>
     
+    <!-- MODAL DE SELEÇÃO DE GOLPES ESPECIAIS (NOVO) -->
+    <div id="special-moves-modal" class="hidden">
+        <div id="special-moves-content">
+            <h3 id="special-moves-title">Selecione seus Golpes Especiais</h3>
+            <div id="special-moves-list"></div>
+            <button id="confirm-special-moves-btn">Confirmar Golpes</button>
+        </div>
+    </div>
+
     <div id="get-up-success-overlay" class="hidden">
         <div id="get-up-success-content"></div>
     </div>

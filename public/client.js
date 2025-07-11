@@ -21,6 +21,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalButton = document.getElementById('modal-button');
     const p1Controls = document.getElementById('p1-controls');
     const p2Controls = document.getElementById('p2-controls');
+    const p1SpecialMovesContainer = document.getElementById('p1-special-moves');
+    const p2SpecialMovesContainer = document.getElementById('p2-special-moves');
+
+    const specialMovesModal = document.getElementById('special-moves-modal');
+    const specialMovesTitle = document.getElementById('special-moves-title');
+    const specialMovesList = document.getElementById('special-moves-list');
+    const confirmSpecialMovesBtn = document.getElementById('confirm-special-moves-btn');
+
     const getUpSuccessOverlay = document.getElementById('get-up-success-overlay');
     const getUpSuccessContent = document.getElementById('get-up-success-content');
 
@@ -53,11 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
-        document.querySelectorAll('#p1-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
-        document.querySelectorAll('#p2-controls .action-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
+        document.querySelectorAll('#p1-controls .action-btn.p1-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
+        document.querySelectorAll('#p2-controls .action-btn.p2-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-        document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState.phase === 'turn' && currentGameState.whoseTurn === myPlayerKey) showForfeitConfirmation(); };
+        document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) showForfeitConfirmation(); };
     }
 
     function showForfeitConfirmation() {
@@ -75,27 +83,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isPlayer1) {
             playerData = {
-                nome: selectedCard.dataset.name,
-                img: selectedCard.dataset.img,
-                agi: selectedCard.querySelector('.agi-input').value,
-                res: selectedCard.querySelector('.res-input').value
+                nome: selectedCard.dataset.name, img: selectedCard.dataset.img,
+                agi: selectedCard.querySelector('.agi-input').value, res: selectedCard.querySelector('.res-input').value
             };
         } else {
-            playerData = {
-                nome: selectedCard.dataset.name,
-                img: selectedCard.dataset.img
-            };
+            playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         }
 
         confirmBtn.disabled = true;
         selectionScreen.classList.add('hidden');
-        lobbyScreen.classList.add('active');
         
         if (currentRoomId) {
-            lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos...</p>`;
+            lobbyScreen.classList.add('active');
+            lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
         } else {
-            lobbyContent.innerHTML = `<p>Criando sala, aguarde...</p>`;
+            // P1 vai para a seleção de golpes, não para o lobby ainda.
             socket.emit('createGame', playerData);
         }
     }
@@ -116,18 +119,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function renderSpecialMoveSelection(container, availableMoves) {
+        container.innerHTML = '';
+        for (const moveName in availableMoves) {
+            const moveData = availableMoves[moveName];
+            const card = document.createElement('div');
+            card.className = 'special-move-card';
+            card.dataset.name = moveName;
+            card.innerHTML = `<h4>${moveName}</h4><p>Custo: ${moveData.cost} PA</p><p>Dano: ${moveData.damage}</p><p>Penalidade: ${moveData.penalty}</p>`;
+            card.addEventListener('click', () => {
+                card.classList.toggle('selected');
+                const selectedCount = container.querySelectorAll('.special-move-card.selected').length;
+                if (selectedCount > 3) {
+                    card.classList.remove('selected');
+                    alert('Você só pode escolher até 3 golpes especiais.');
+                }
+            });
+            container.appendChild(card);
+        }
+    }
+
     // --- OUVINTES DO SOCKET.IO ---
+    socket.on('promptSpecialMoves', ({ availableMoves }) => {
+        specialMovesTitle.innerText = 'Selecione seus 3 Golpes Especiais';
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
+        specialMovesModal.classList.remove('hidden');
+        confirmSpecialMovesBtn.onclick = () => {
+            const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
+            if (selectedMoves.length > 3) { alert('Escolha no máximo 3 golpes.'); return; }
+            socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
+            specialMovesModal.classList.add('hidden');
+            lobbyScreen.classList.add('active');
+            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
+        };
+    });
+
+    socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
+        const modalContentHtml = `<div style="display:flex; gap: 30px;">
+            <div style="flex: 1;">
+                <h4>Definir Atributos de ${p2data.nome}</h4>
+                <img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;">
+                <label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center;"></label>
+                <label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center;"></label>
+            </div>
+            <div style="flex: 2; border-left: 1px solid #555; padding-left: 20px;">
+                <h4>Escolher Golpes Especiais (até 3)</h4>
+                <div id="p2-moves-selection-list"></div>
+            </div>
+        </div>`;
+        showInteractiveModal("Definir Oponente", modalContentHtml, "Confirmar e Iniciar Luta", null);
+        const p2MovesContainer = document.getElementById('p2-moves-selection-list');
+        renderSpecialMoveSelection(p2MovesContainer, availableMoves);
+        modalButton.onclick = () => {
+            const agi = document.getElementById('p2-stat-agi').value;
+            const res = document.getElementById('p2-stat-res').value;
+            const selectedMoves = Array.from(p2MovesContainer.querySelectorAll('.selected')).map(card => card.dataset.name);
+            if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) { alert("Valores inválidos para AGI/RES."); return; }
+            if (selectedMoves.length > 3) { alert('Escolha no máximo 3 golpes para o oponente.'); return; }
+            const action = { type: 'set_p2_stats', playerKey: myPlayerKey, stats: { agi, res }, moves: selectedMoves };
+            socket.emit('playerAction', action);
+            modal.classList.add('hidden');
+        };
+    });
+
     socket.on('playSound', playRandomSound);
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     
-    socket.on('assignPlayer', (playerKey) => { 
-        myPlayerKey = playerKey;
-        if (playerKey === 'player1') {
-            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
-        }
-    });
-
+    socket.on('assignPlayer', (playerKey) => { myPlayerKey = playerKey; });
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
         const p2Url = `${window.location.origin}?room=${roomId}`;
@@ -146,11 +205,13 @@ document.addEventListener('DOMContentLoaded', () => {
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
     socket.on('gameUpdate', (gameState) => {
+        const shouldTransitionToFight = currentGameState === null || (currentGameState.phase === 'p1_special_moves_selection' || currentGameState.phase === 'waiting' || currentGameState.phase === 'p2_stat_assignment');
         currentGameState = gameState;
         updateUI(gameState);
-        if (gameState.phase !== 'waiting' && gameState.phase !== 'p2_stat_assignment' && !fightScreen.classList.contains('active')) {
+        if (shouldTransitionToFight && (gameState.phase !== 'waiting' && gameState.phase !== 'p1_special_moves_selection' && gameState.phase !== 'p2_stat_assignment') && !fightScreen.classList.contains('active')) {
             lobbyScreen.classList.add('hidden');
             selectionScreen.classList.add('hidden');
+            specialMovesModal.classList.add('hidden');
             fightScreen.classList.add('active');
             if (myPlayerKey !== 'spectator') copySpectatorLinkInGameBtn.classList.remove('hidden');
         }
@@ -162,24 +223,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSpectator = myPlayerKey === 'spectator';
         btn.innerText = text;
         btn.classList.remove('hidden', 'inactive');
-        if (isMyTurnToRoll) { btn.onclick = () => socket.emit('playerAction', action); btn.disabled = false;
-        } else { btn.disabled = true; btn.onclick = null; if (!isSpectator) btn.classList.add('inactive'); }
+        if (isMyTurnToRoll) { btn.onclick = () => socket.emit('playerAction', action); btn.disabled = false; } 
+        else { btn.disabled = true; btn.onclick = null; if (!isSpectator) btn.classList.add('inactive'); }
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
-
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => {
         switch(modalType) {
-            case 'gameover':
-            case 'info':
-                showInfoModal(title, text);
-                break;
+            case 'gameover': showInfoModal(title, text); break;
             case 'decision_table':
-                if (myPlayerKey === targetPlayerKey) {
-                    showInteractiveModal(title, text, btnText, action);
-                } else {
-                    showInfoModal(title, text);
-                }
+                if (myPlayerKey === targetPlayerKey) { showInteractiveModal(title, text, btnText, action); } 
+                else { showInfoModal(title, text); }
                 break;
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
@@ -190,24 +244,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     modalTitleText = `Você caiu!`;
                     modalContentText += `<br>Tentativas restantes: ${4 - knockdownInfo.attempts}`;
                     showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action);
-                } else {
-                    showInfoModal(modalTitleText, modalContentText);
-                }
+                } else { showInfoModal(modalTitleText, modalContentText); }
                 break;
         }
     });
     
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
-    socket.on('promptP2Stats', (p2data) => {
-        const modalContentHtml = `<p>O Jogador 2 escolheu <strong>${p2data.nome}</strong>.</p><img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;"><p>Defina os atributos dele:</p><div style="display: flex; justify-content: center; gap: 20px; color: #fff; padding: 10px 0;"><label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label><label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px;"></label></div>`;
-        showInteractiveModal("Definir Atributos do Oponente", modalContentHtml, "Confirmar Atributos", null);
-        modalButton.onclick = () => { const agi = document.getElementById('p2-stat-agi').value; const res = document.getElementById('p2-stat-res').value; if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) { alert("Valores inválidos para AGI/RES."); return; } const action = { type: 'set_p2_stats', playerKey: myPlayerKey, stats: { agi, res } }; socket.emit('playerAction', action); modal.classList.add('hidden'); };
-    });
     socket.on('hideModal', () => modal.classList.add('hidden'));
     socket.on('diceRoll', showDiceRollAnimation);
     socket.on('opponentDisconnected', () => { showInfoModal("Oponente Desconectado", "Fim de jogo. Recarregue a página."); document.querySelectorAll('button').forEach(btn => btn.disabled = true); });
 
     function updateUI(state) {
+        p1SpecialMovesContainer.innerHTML = '';
+        p2SpecialMovesContainer.innerHTML = '';
+
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
             if (fighter) {
@@ -220,50 +270,75 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
                 document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
+
+                if (fighter.specialMoves) {
+                    const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
+                    fighter.specialMoves.forEach(moveName => {
+                        const moveData = state.moves[moveName];
+                        const btn = document.createElement('button');
+                        btn.className = `action-btn special-btn-${key}`;
+                        btn.dataset.move = moveName;
+                        btn.textContent = `${moveName} (${moveData.cost} PA)`;
+                        btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: moveName, playerKey: myPlayerKey });
+                        container.appendChild(btn);
+                    });
+                }
             } else if (key === 'player2' && state.pendingP2Choice) {
                 document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img;
             }
         });
 
         const roundInfoEl = document.getElementById('round-info');
-        if (state.phase === 'gameover') {
-            roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
-        } else if (state.phase === 'decision_table_wait') {
-            roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
-        } else {
-             const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : '...';
-             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
-        }
+        if (state.phase === 'gameover') roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
+        else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
+        else { const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : '...'; roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`; }
         
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2');
         
         const isSpectator = myPlayerKey === 'spectator';
         const actionWrapper = document.getElementById('action-buttons-wrapper');
-        if (isSpectator) {
-            actionWrapper.classList.add('hidden');
-        } else {
-            actionWrapper.classList.remove('hidden');
-        }
+        if (isSpectator) { actionWrapper.classList.add('hidden'); } 
+        else { actionWrapper.classList.remove('hidden'); }
         
-        const isTurnOver = state.phase === 'gameover' || state.phase === 'decision_table_wait';
-        const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
-        const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
+        const isTurnOver = state.phase !== 'turn' && state.phase !== 'white_fang_follow_up';
+        const p1_is_turn = state.whoseTurn === 'player1';
+        const p2_is_turn = state.whoseTurn === 'player2';
+        
+        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
+        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
 
-        p1Controls.classList.add('hidden');
-        p2Controls.classList.add('hidden');
+        const p1_pa = state.fighters.player1?.pa || 0;
+        document.querySelectorAll('#p1-controls button').forEach(btn => {
+            const moveName = btn.dataset.move;
+            const moveCost = moveName ? state.moves[moveName].cost : 0;
+            const isWhiteFangFollowUp = state.phase === 'white_fang_follow_up' && state.followUpState.playerKey === 'player1';
+            let isDisabled = isTurnOver || !p1_is_turn;
+            if (btn.classList.contains('action-btn')) {
+                if (isWhiteFangFollowUp) {
+                    isDisabled = (moveName !== 'White Fang');
+                } else {
+                    isDisabled = isDisabled || moveCost > p1_pa;
+                }
+            }
+            btn.disabled = isDisabled;
+        });
 
-        if (myPlayerKey === 'player1') {
-            p1Controls.classList.remove('hidden');
-            const p1_pa = state.fighters.player1?.pa || 0;
-            document.querySelectorAll('#p1-controls button').forEach(btn => btn.disabled = !p1_is_turn || isTurnOver);
-            document.querySelectorAll('#p1-controls .action-btn').forEach(btn => { if(state.moves[btn.dataset.move]?.cost > p1_pa) btn.disabled = true; });
-        } else if (myPlayerKey === 'player2') {
-            p2Controls.classList.remove('hidden');
-            const p2_pa = state.fighters.player2?.pa || 0;
-            document.querySelectorAll('#p2-controls button').forEach(btn => btn.disabled = !p2_is_turn || isTurnOver);
-            document.querySelectorAll('#p2-controls .action-btn').forEach(btn => { if(state.moves[btn.dataset.move]?.cost > p2_pa) btn.disabled = true; });
-        }
+        const p2_pa = state.fighters.player2?.pa || 0;
+        document.querySelectorAll('#p2-controls button').forEach(btn => {
+            const moveName = btn.dataset.move;
+            const moveCost = moveName ? state.moves[moveName].cost : 0;
+            const isWhiteFangFollowUp = state.phase === 'white_fang_follow_up' && state.followUpState.playerKey === 'player2';
+            let isDisabled = isTurnOver || !p2_is_turn;
+            if (btn.classList.contains('action-btn')) {
+                if (isWhiteFangFollowUp) {
+                    isDisabled = (moveName !== 'White Fang');
+                } else {
+                    isDisabled = isDisabled || moveCost > p2_pa;
+                }
+            }
+            btn.disabled = isDisabled;
+        });
 
         document.getElementById('forfeit-btn').disabled = isTurnOver || isSpectator || state.whoseTurn !== myPlayerKey;
         const logBox = document.getElementById('fight-log');
@@ -284,33 +359,16 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
-    function showInfoModal(title, text) {
-        modalTitle.innerText = title;
-        modalText.innerHTML = text;
-        modalButton.style.display = 'none';
-        modal.classList.remove('hidden');
-    }
-
+    function showInfoModal(title, text) { modalTitle.innerText = title; modalText.innerHTML = text; modalButton.style.display = 'none'; modal.classList.remove('hidden'); }
     function showDiceRollAnimation({ playerKey, rollValue, diceType }) {
         const diceOverlay = document.getElementById('dice-overlay');
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
         if (!diceOverlay || !diceContainer) { return; }
-        
-        let imagePrefix = '';
-        if (diceType === 'd6') {
-            imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
-        } else {
-            imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
-        }
-        
+        let imagePrefix = (diceType === 'd6') ? (playerKey === 'player1' ? 'diceA' : 'diceP') : (playerKey === 'player1' ? 'D3A-' : 'D3P-');
         diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
         diceOverlay.classList.remove('hidden');
         diceContainer.classList.remove('hidden');
-        
-        const hideAndResolve = () => {
-            diceOverlay.classList.add('hidden');
-            diceContainer.classList.add('hidden');
-        };
+        const hideAndResolve = () => { diceOverlay.classList.add('hidden'); diceContainer.classList.add('hidden'); };
         diceOverlay.addEventListener('click', hideAndResolve, { once: true });
         setTimeout(hideAndResolve, 2000); 
     }
