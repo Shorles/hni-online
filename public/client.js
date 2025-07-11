@@ -176,6 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
+
     // --- OUVINTES DO SOCKET.IO ---
     socket.on('assignPlayer', (key) => myPlayerKey = key);
 
@@ -259,8 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-    // ... (O resto da sua lógica de client.js que já estava funcionando)
-    // Colando o resto aqui para garantir...
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
@@ -305,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.add('hidden');
         };
     });
-
+    
     socket.on('gameUpdate', (state) => {
         const isPreGame = currentGameState === null || ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_waiting'].includes(currentGameState.phase);
         currentGameState = state;
@@ -316,16 +316,28 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(fightScreen);
             lobbyBackBtn.classList.add('hidden');
             if (myPlayerKey === 'player1' || myPlayerKey === 'host') {
-                copySpectatorLinkInGameBtn.classList.remove('hidden');
                 exitGameBtn.classList.remove('hidden');
+            }
+            if(myPlayerKey === 'player1') {
+                copySpectatorLinkInGameBtn.classList.remove('hidden');
             }
         }
     });
-    
-    // ... O resto das funções (updateUI, showInfoModal, etc) está completo e não precisa de mudanças.
-    // O código abaixo é apenas para garantir que tudo está presente.
 
-    function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
-    // ...
+    socket.on('roomCreated', (roomId) => {
+        currentRoomId = roomId;
+        const p2Url = `${window.location.origin}?room=${roomId}`;
+        const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
+        const shareLinkP2 = document.getElementById('share-link-p2');
+        const shareLinkSpectator = document.getElementById('share-link-spectator');
+        shareLinkP2.textContent = p2Url;
+        shareLinkSpectator.textContent = specUrl;
+        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+        document.querySelector('#lobby-content').classList.add('hidden');
+        shareContainer.classList.remove('hidden');
+    });
 
-})();
+    // O resto do código
+    initialize();
+});
