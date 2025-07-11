@@ -103,8 +103,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         
-        // *** INÍCIO DA CORREÇÃO: A linha abaixo estava faltando ***
-        document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) showForfeitConfirmation(); };
+        // *** INÍCIO DA CORREÇÃO ***
+        // A linha abaixo estava faltando. Ela atribui a função ao botão "Jogar a Toalha".
+        document.getElementById('forfeit-btn').onclick = () => {
+            // A condição interna verifica se o botão deve funcionar no estado atual do jogo.
+            if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
+                showForfeitConfirmation();
+            }
+        };
         // *** FIM DA CORREÇÃO ***
     }
 
