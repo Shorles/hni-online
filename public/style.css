@@ -49,6 +49,7 @@ body {
     line-height: 50px;
 }
 
+
 /* --- TELA DE SELEÇÃO DE CENÁRIO --- */
 #scenario-screen {
     background-color: rgba(0, 0, 0, 0.9);
@@ -98,7 +99,7 @@ body {
     padding: 15px;
 }
 
-/* --- TELA DE MODO DE JOGO (NOVA) --- */
+/* --- TELA DE MODO DE JOGO --- */
 #game-mode-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 40px;
@@ -191,7 +192,7 @@ body {
 #share-container { text-align: center; background-color: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 8px; }
 .share-link { background-color: #fff; color: #000; padding: 10px 20px; font-family: monospace; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 10px; border: 2px dashed #ffeb3b; display: inline-block; }
 
-/* LOBBY DE ARENA (NOVO) */
+/* LOBBY DE ARENA */
 #arena-lobby-content {
     display: flex;
     gap: 40px;
@@ -330,19 +331,11 @@ body {
 #modal-content, #special-moves-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 800px; position: relative; }
 #modal-title, #special-moves-title { margin-top: 0; font-size: 1.5em; }
 #modal-text { margin: 15px 0; text-align: left; }
+.modal-moves-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-height: 200px; overflow-y: auto; padding: 5px; background: #222; border-radius: 5px; margin-top: 10px; }
 #modal-button, #confirm-special-moves-btn { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
 #confirm-special-moves-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-#special-moves-list, #p2-moves-selection-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    justify-content: center;
-    margin-top: 20px;
-    max-height: 400px; 
-    overflow-y: auto;  
-    padding: 10px;
-}
+#special-moves-list { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 20px; max-height: 400px; overflow-y: auto; padding: 10px;}
 .special-move-card { background-color: #444; border: 2px solid #666; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; width: 150px; text-align: left;}
 .special-move-card:hover { border-color: #999; }
 .special-move-card.selected { border-color: #28a745; box-shadow: 0 0 10px #28a745; transform: scale(1.05); }
