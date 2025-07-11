@@ -69,8 +69,8 @@ function processEndRound(state, io, roomId) {
     if (state.currentTurn > 4) {
         state.currentRound++;
         if (state.currentRound > 4) {
-            calculateDecisionScores(state); // Apenas calcula os scores
-            state.phase = 'decision_table_wait'; // Novo estado: aguardando P1
+            calculateDecisionScores(state);
+            state.phase = 'decision_table_wait';
             logMessage(state, `A luta foi para a decisão.`, 'log-info');
             return;
         }
@@ -118,7 +118,6 @@ function calculateDecisionScores(state) {
         p2Score -= 1;
     }
     
-    // Armazena tudo, mas NÃO determina o vencedor ainda.
     state.decisionInfo = {
         p1: { name: p1.nome, score: 10, knockdownPenalty: p1KnockdownPenalty, hitsPenalty: p1HitsPenalty, damagePenalty: p1DamagePenalty, finalScore: p1Score },
         p2: { name: p2.nome, score: 10, knockdownPenalty: p2KnockdownPenalty, hitsPenalty: p2HitsPenalty, damagePenalty: p2DamagePenalty, finalScore: p2Score }
@@ -171,7 +170,8 @@ function dispatchAction(room) {
         case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
         case 'decision_table_wait':
             const info = state.decisionInfo;
-            const tableHtml = `<table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
+            // *** MUDANÇA 1: Adicionando texto descritivo antes da tabela. ***
+            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
             io.to(roomId).emit('showModal', {
                 modalType: 'decision_table',
                 title: "Pontuação dos Juízes",
@@ -189,8 +189,17 @@ function dispatchAction(room) {
             }
             return;
         case 'gameover':
-            const winnerName = state.winner ? (state.winner === 'draw' ? 'Ninguém' : state.fighters[state.winner].nome) : "Ninguém";
-            const reason = state.reason || (state.winner === 'draw' ? 'A LUTA TERMINOU EM EMPATE!' : `VITÓRIA DE ${winnerName.toUpperCase()}`);
+            let reason = state.reason || '';
+            
+            // *** MUDANÇA 2: Adicionando o nome do vencedor ou EMPATE de forma destacada. ***
+            if (state.winner === 'draw') {
+                reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`;
+            } else if (state.winner) {
+                const winnerName = state.fighters[state.winner].nome;
+                reason += `<br><br><strong style="color: #dc3545; font-size: 1.2em;">VITÓRIA DE ${winnerName.toUpperCase()}</strong>`;
+            } else { // Caso de desconexão, etc., que não tem vencedor definido
+                reason = "Fim de Jogo";
+            }
             io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason });
             return;
         default: io.to(roomId).emit('hideModal'); return;
@@ -253,7 +262,7 @@ io.on('connection', (socket) => {
                 const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
                 state.winner = winnerKey;
                 state.phase = 'gameover';
-                state.reason = `${state.fighters[playerKey].nome} jogou a toalha. Vitória de ${state.fighters[winnerKey].nome}!`;
+                state.reason = `${state.fighters[playerKey].nome} jogou a toalha.`;
                 logMessage(state, state.reason, 'log-crit');
                 break;
             case 'set_p2_stats':
