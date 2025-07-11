@@ -98,14 +98,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        // *** INÍCIO DA CORREÇÃO: Restaurando os cliques dos botões básicos ***
         document.querySelectorAll('#p1-controls .action-btn.p1-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
         document.querySelectorAll('#p2-controls .action-btn.p2-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
-        // *** FIM DA CORREÇÃO ***
-        
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        
+        // *** INÍCIO DA CORREÇÃO: A linha abaixo estava faltando ***
         document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) showForfeitConfirmation(); };
+        // *** FIM DA CORREÇÃO ***
     }
 
     function renderScenarioSelection() {
