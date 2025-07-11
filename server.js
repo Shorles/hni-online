@@ -1,3 +1,5 @@
+--- START OF FILE server.js ---
+
 // VERSÃO FINAL CONSOLIDADA
 
 const express = require('express');
@@ -222,9 +224,22 @@ io.on('connection', (socket) => {
                 state.initiativeRolls[playerKey] = roll + agi;
                 logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[playerKey]}</span>`, 'log-info');
                 if (playerKey === 'player1') { state.phase = 'initiative_p2'; } else {
-                    if (state.initiativeRolls.player1 >= state.initiativeRolls.player2) { state.whoseTurn = 'player1'; state.didPlayer1GoFirst = true; } else { state.whoseTurn = 'player2'; state.didPlayer1GoFirst = false; }
-                    logMessage(state, `${state.fighters[state.whoseTurn].nome} venceu a iniciativa!`, 'log-info');
-                    state.phase = 'defense_p1';
+                    // *** INÍCIO DA ALTERAÇÃO: LÓGICA DE DESEMPATE ***
+                    if (state.initiativeRolls.player1 === state.initiativeRolls.player2) {
+                        logMessage(state, "EMPATE na iniciativa! Rolando novamente...", 'log-info');
+                        state.initiativeRolls = {}; // Limpa as rolagens anteriores
+                        state.phase = 'initiative_p1'; // Volta para o início da rolagem de iniciativa
+                    } else {
+                        // Lógica original para determinar o vencedor
+                        if (state.initiativeRolls.player1 > state.initiativeRolls.player2) {
+                            state.whoseTurn = 'player1'; state.didPlayer1GoFirst = true;
+                        } else {
+                            state.whoseTurn = 'player2'; state.didPlayer1GoFirst = false;
+                        }
+                        logMessage(state, `${state.fighters[state.whoseTurn].nome} venceu a iniciativa!`, 'log-info');
+                        state.phase = 'defense_p1';
+                    }
+                    // *** FIM DA ALTERAÇÃO ***
                 }
                 break;
             case 'roll_defense':
