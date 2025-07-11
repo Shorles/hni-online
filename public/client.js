@@ -226,10 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isGameStarting && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
             lobbyBackBtn.classList.add('hidden');
-            if (myPlayerKey !== 'spectator') {
+            
+            // *** INÍCIO DA CORREÇÃO ***
+            // Mostra os botões de link e saída APENAS para o Jogador 1
+            if (myPlayerKey === 'player1') {
                 copySpectatorLinkInGameBtn.classList.remove('hidden');
                 exitGameBtn.classList.remove('hidden');
             }
+            // *** FIM DA CORREÇÃO ***
         }
     });
 
@@ -243,10 +247,8 @@ document.addEventListener('DOMContentLoaded', () => {
         shareLinkP2.textContent = p2Url;
         shareLinkSpectator.textContent = specUrl;
 
-        // *** INÍCIO DA CORREÇÃO ***
         shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
         shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-        // *** FIM DA CORREÇÃO ***
 
         lobbyContent.classList.add('hidden');
         shareContainer.classList.remove('hidden');

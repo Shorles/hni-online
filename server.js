@@ -33,7 +33,7 @@ function createNewGameState() {
         fighters: {}, pendingP2Choice: null, winner: null, reason: null,
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
-        decisionInfo: null, followUpState: null, scenario: 'Ringue.png' // Cenário padrão
+        decisionInfo: null, followUpState: null, scenario: 'Ringue.png'
     };
 }
 
@@ -99,9 +99,12 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             attacker.hp = Math.max(0, attacker.hp - 3);
             const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
             attacker.totalDamageTaken += actualSelfDamage;
+            // *** INÍCIO DA CORREÇÃO ***
+            // Chama o handleKnockdown imediatamente, sem setTimeout
             if (attacker.hp <= 0) {
-                setTimeout(() => handleKnockdown(state, attackerKey, io, roomId), 500);
+                handleKnockdown(state, attackerKey, io, roomId);
             }
+            // *** FIM DA CORREÇÃO ***
         }
     }
     return hit;
@@ -240,13 +243,12 @@ function dispatchAction(room) {
 }
 
 io.on('connection', (socket) => {
-    // *** INÍCIO DA ALTERAÇÃO: Recebe o cenário na criação do jogo ***
     socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);
         socket.join(newRoomId);
         socket.currentRoomId = newRoomId;
         const newState = createNewGameState();
-        newState.scenario = scenario; // Armazena o cenário
+        newState.scenario = scenario;
         newState.fighters.player1 = createNewFighterState(player1Data);
         newState.phase = 'p1_special_moves_selection';
         games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
@@ -254,7 +256,6 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
-    // *** FIM DA ALTERAÇÃO ***
 
     socket.on('joinGame', ({ roomId, player2Data }) => {
         const room = games[roomId];
