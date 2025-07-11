@@ -10,21 +10,31 @@
 
 <div id="game-wrapper">
 
-    <!-- TELA DE SELEÇÃO DE CENÁRIO (NOVA) -->
+    <!-- TELA DE SELEÇÃO DE CENÁRIO -->
     <div id="scenario-screen" class="screen active">
         <h1 id="scenario-title">Selecione o Cenário</h1>
         <div id="scenario-list-container"></div>
     </div>
 
+    <!-- TELA DE MODO DE JOGO (NOVA) -->
+    <div id="game-mode-screen" class="screen">
+        <button id="game-mode-back-btn" class="back-btn" title="Voltar para Cenários">←</button>
+        <h1 id="game-mode-title">Selecione o Modo de Jogo</h1>
+        <div class="mode-selection-container">
+            <button id="mode-pvc-btn" class="mode-btn">Player vs. NPC</button>
+            <button id="mode-pvp-btn" class="mode-btn">Player vs. Player</button>
+        </div>
+    </div>
+
     <!-- TELA DE SELEÇÃO DE PERSONAGENS -->
     <div id="selection-screen" class="screen">
-        <button id="char-select-back-btn" class="back-btn" title="Voltar para Cenários">←</button>
+        <button id="char-select-back-btn" class="back-btn" title="Voltar">←</button>
         <h1 id="selection-title">Selecione seu Lutador</h1>
         <div id="character-list-container"></div>
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
 
-    <!-- TELA DE LOBBY -->
+    <!-- TELA DE LOBBY CLÁSSICO (P1 vs P2) -->
     <div id="lobby-screen" class="screen">
         <button id="lobby-back-btn" class="back-btn" title="Voltar para Golpes">←</button>
         <h1>Hajime no Ippo: Batalha Online</h1>
@@ -39,6 +49,31 @@
             <div id="share-link-spectator" class="share-link" title="Clique para copiar">Carregando...</div>
         </div>
     </div>
+    
+    <!-- TELA DE LOBBY DE ARENA (NOVA) -->
+    <div id="arena-lobby-screen" class="screen">
+        <h1>Modo Arena - Aguardando Jogadores</h1>
+        <div id="arena-lobby-content">
+            <div class="arena-player-status" id="arena-p1-status">
+                <h2>Jogador 1</h2>
+                <p>Status: <span class="status-waiting">Aguardando Conexão...</span></p>
+                <p class="char-choice hidden">Personagem: <span class="char-name"></span></p>
+            </div>
+            <div class="arena-player-status" id="arena-p2-status">
+                <h2>Jogador 2</h2>
+                <p>Status: <span class="status-waiting">Aguardando Conexão...</span></p>
+                <p class="char-choice hidden">Personagem: <span class="char-name"></span></p>
+            </div>
+        </div>
+        <div id="arena-share-container">
+            <p>Envie os links abaixo para os jogadores:</p>
+            <div><strong>Link Jogador 1:</strong> <span id="arena-link-p1" class="share-link">Gerando...</span></div>
+            <div><strong>Link Jogador 2:</strong> <span id="arena-link-p2" class="share-link">Gerando...</span></div>
+            <div><strong>Link Espectador:</strong> <span id="arena-link-spectator" class="share-link">Gerando...</span></div>
+        </div>
+        <button id="start-arena-fight-btn" disabled>Aguardando ambos os jogadores...</button>
+    </div>
+
 
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
