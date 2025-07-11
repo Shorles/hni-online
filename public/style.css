@@ -119,7 +119,19 @@ body {
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
 .move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .special-moves-container { display: contents; } /* Faz com que os botões especiais se misturem */
-.action-btn, .end-turn-btn, #forfeit-btn { padding: 12px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
+
+/* *** INÍCIO DA ALTERAÇÃO 1: Botões menores *** */
+.action-btn, .end-turn-btn, #forfeit-btn { 
+    padding: 8px 16px; /* Padding reduzido */
+    font-size: 0.9em;  /* Fonte reduzida */
+    cursor: pointer; 
+    border: none; 
+    border-radius: 5px; 
+    color: white; 
+    transition: background-color 0.2s; 
+}
+/* *** FIM DA ALTERAÇÃO 1 *** */
+
 .end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6f42c1; }
 #forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
@@ -128,10 +140,13 @@ body {
 .p1-btn:hover:not(:disabled) { background-color: #a71d2a; }
 .p2-btn { background-color: #007bff; }
 .p2-btn:hover:not(:disabled) { background-color: #0056b3; }
-.special-btn-p1 { background-color: #28a745; } /* Verde para P1 */
-.special-btn-p1:hover:not(:disabled) { background-color: #218838; }
-.special-btn-p2 { background-color: #20c997; } /* Verde mais claro para P2 */
-.special-btn-p2:hover:not(:disabled) { background-color: #1baa80; }
+
+/* *** INÍCIO DA ALTERAÇÃO 2: Cores dos botões especiais *** */
+.special-btn-player1 { background-color: #28a745; } /* Verde para P1 */
+.special-btn-player1:hover:not(:disabled) { background-color: #218838; }
+.special-btn-player2 { background-color: #20c997; } /* Verde mais claro para P2 */
+.special-btn-player2:hover:not(:disabled) { background-color: #1baa80; }
+/* *** FIM DA ALTERAÇÃO 2 *** */
 
 
 /* BOTÕES DE ROLAGEM */
@@ -150,18 +165,16 @@ body {
 #modal-button, #confirm-special-moves-btn { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
 #confirm-special-moves-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-/* *** INÍCIO DA ALTERAÇÃO: ESTILO UNIFICADO PARA LISTAS DE GOLPES EM MODAIS *** */
 #special-moves-list, #p2-moves-selection-list {
     display: flex;
     flex-wrap: wrap;
     gap: 15px;
     justify-content: center;
     margin-top: 20px;
-    max-height: 400px; /* Garante que não fique muito alto */
-    overflow-y: auto;  /* Adiciona scroll se necessário */
+    max-height: 400px; 
+    overflow-y: auto;  
     padding: 10px;
 }
-/* *** FIM DA ALTERAÇÃO *** */
 
 .special-move-card { background-color: #444; border: 2px solid #666; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; width: 150px; text-align: left;}
 .special-move-card:hover { border-color: #999; }

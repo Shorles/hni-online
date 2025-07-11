@@ -1,5 +1,3 @@
-// VERSÃO FINAL CONSOLIDADA
-
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -17,8 +15,8 @@ const MOVES = {
     'Upper': { cost: 3, damage: 6, penalty: 2 }, 'Liver Blow': { cost: 2, damage: 4, penalty: 2 }
 };
 const SPECIAL_MOVES = {
-    'Counter': { cost: 3, damage: 7, penalty: 1 },         // Corrigido
-    'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },     // Corrigido
+    'Counter': { cost: 3, damage: 7, penalty: 1 },
+    'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
     'Smash': { cost: 2, damage: 8, penalty: 3 },
     'Bala': { cost: 1, damage: 2, penalty: 0 },
     'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 },
@@ -95,15 +93,13 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
     } else {
-        // Regra especial do Counter
         if (moveName === 'Counter') {
             logMessage(state, `${attacker.nome} erra o contra-ataque e se desequilibra, sofrendo 3 de dano!`, 'log-crit');
             const hpBeforeSelfHit = attacker.hp;
             attacker.hp = Math.max(0, attacker.hp - 3);
             const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
-            attacker.totalDamageTaken += actualSelfDamage; // Contabiliza dano para decisão
+            attacker.totalDamageTaken += actualSelfDamage;
             if (attacker.hp <= 0) {
-                // Atraso para o fluxo do jogo fazer sentido
                 setTimeout(() => handleKnockdown(state, attackerKey, io, roomId), 500);
             }
         }
@@ -113,7 +109,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
 
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
-    state.followUpState = null; // Limpa o estado de follow-up ao fim do turno
+    state.followUpState = null;
     state.whoseTurn = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
     const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
     if (lastPlayerWentFirst) { state.phase = 'turn'; } else { processEndRound(state, io, roomId); }
@@ -160,7 +156,7 @@ function calculateDecisionScores(state) {
 }
 
 function handleKnockdown(state, downedPlayerKey, io, roomId) {
-    if (state.phase === 'knockdown' || state.phase === 'gameover') return; // Previne double knockdown/KO
+    if (state.phase === 'knockdown' || state.phase === 'gameover') return;
     state.phase = 'knockdown';
     const fighter = state.fighters[downedPlayerKey];
     fighter.knockdowns++;
@@ -328,25 +324,36 @@ io.on('connection', (socket) => {
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
 
+                // *** INÍCIO DA ALTERAÇÃO ***
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
-                        // Verifica se o jogo acabou entre os jabs
-                        if (state.phase === 'gameover' || state.phase === 'knockdown') return;
+                        // Verifica se o jogo acabou ou mudou de fase entre os jabs
+                        if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
                         
                         const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
                         io.to(roomId).emit('gameUpdate', room.state);
 
-                        if (hit && state.fighters[defenderKey].hp > 0) {
+                        // Se o oponente caiu, chama o handleKnockdown e para o loop
+                        if (state.fighters[defenderKey].hp <= 0) {
+                            handleKnockdown(state, defenderKey, io, roomId);
+                            io.to(roomId).emit('gameUpdate', room.state);
+                            dispatchAction(room); // Notifica os clientes sobre a queda
+                            return;
+                        }
+
+                        // Se acertou e oponente não caiu, continua
+                        if (hit) {
                             setTimeout(executeFlicker, 700);
                         } else {
-                            // Se errou ou o oponente caiu, atualiza o estado geral.
+                            // Se errou, apenas atualiza o estado final
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
                         }
                     };
                     executeFlicker();
-                    return; // Retorna para não chamar o dispatchAction globalmente
+                    return; // Retorna para não chamar o dispatchAction globalmente de imediato
                 }
+                // *** FIM DA ALTERAÇÃO ***
                 
                 executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
 
