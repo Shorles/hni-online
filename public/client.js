@@ -526,8 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => {
         let isMyTurnForAction = myPlayerKey === targetPlayerKey;
-        // No modo clássico, P1 tem autoridade em algumas decisões. No modo Arena, o Host tem.
-        if (currentGameState.mode === 'arena') {
+        if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') {
             isMyTurnForAction = myPlayerKey === 'host';
         }
 
@@ -537,17 +536,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
                 else { showInfoModal(title, text); }
                 break;
+            // --- INÍCIO DA CORREÇÃO 2 ---
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
                 let modalTitleText = `${downedFighterName} caiu!`;
-                let modalContentText = `Aguarde a contagem...`;
-                if (knockdownInfo.lastRoll) modalContentText = `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
+                
+                const attempts = knockdownInfo.attempts;
+                const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8....."];
+                const countText = attempts === 0 
+                    ? `O juíz começa a contagem: ${counts[0]}`
+                    : `A contagem continua: ${counts[attempts]}`;
+
+                let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p>`;
+                
+                if (knockdownInfo.lastRoll) {
+                    modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
+                }
+
                 if (targetPlayerKey === myPlayerKey) {
                     modalTitleText = `Você caiu!`;
-                    modalContentText += `<br>Tentativas restantes: ${4 - knockdownInfo.attempts}`;
+                    modalContentText += `<br>Tentativas restantes: ${4 - attempts}`;
                     showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action);
-                } else { showInfoModal(modalTitleText, modalContentText); }
+                } else {
+                     modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p> Aguarde a contagem...`;
+                     if (knockdownInfo.lastRoll) {
+                        modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
+                    }
+                    showInfoModal(modalTitleText, modalContentText);
+                }
                 break;
+            // --- FIM DA CORREÇÃO 2 ---
         }
     });
 

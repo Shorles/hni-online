@@ -191,13 +191,19 @@ body {
 .copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
 
 /* ANIMAÇÕES */
-@keyframes player1-attack-lunge { 50% { transform: translateX(50px) scaleX(-1); } }
-@keyframes player2-attack-lunge { 50% { transform: translateX(-50px) scaleX(-1); } }
+@keyframes player1-attack-lunge { 50% { transform: translateX(50px); } }
+@keyframes player2-attack-lunge { 50% { transform: translateX(-50px); } }
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
 
 .fighter-img { position: absolute; width: 200px; height: 200px; object-fit: contain; bottom: 350px; z-index: 10; transition: transform 0.2s ease; }
-#player1-fight-img { left: 380px; transform: scaleX(-1); } 
+
+/* --- INÍCIO DA CORREÇÃO 1 --- */
+/* P1 na esquerda, virado para a direita (posição padrão do sprite) */
+#player1-fight-img { left: 380px; } 
+/* P2 na direita, espelhado para virar para a esquerda */
 #player2-fight-img { right: 380px; transform: scaleX(-1); } 
+/* --- FIM DA CORREÇÃO 1 --- */
+
 .is-attacking-player1 { animation: player1-attack-lunge 0.4s ease-in-out; }
 .is-attacking-player2 { animation: player2-attack-lunge 0.4s ease-in-out; }
 .is-hit { animation: hit-flash 0.5s ease-in-out; }

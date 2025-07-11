@@ -34,8 +34,7 @@ function createNewGameState() {
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
         decisionInfo: null, followUpState: null, scenario: 'Ringue.png',
-        // --- NOVOS CAMPOS DE ESTADO ---
-        mode: null, // 'classic' ou 'arena'
+        mode: null,
         hostId: null,
         playersReady: { player1: false, player2: false }
     };
@@ -165,18 +164,23 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     const fighter = state.fighters[downedPlayerKey];
     fighter.knockdowns++;
     logMessage(state, `${fighter.nome} foi NOCAUTEADO!`, 'log-crit');
+    
+    // --- INÍCIO DA CORREÇÃO 2 ---
+    const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
+    
     if (fighter.res <= 1) {
         logMessage(state, `${fighter.nome} não consegue se levantar. Fim da luta!`, 'log-crit');
         setTimeout(() => {
             state.phase = 'gameover';
             state.winner = (downedPlayerKey === 'player1') ? 'player2' : 'player1';
-            state.reason = `Vitória por Nocaute!`;
+            state.reason = finalCountReason;
             io.to(roomId).emit('gameUpdate', state);
             dispatchAction({ state, id: roomId });
         }, 1000);
         return;
     }
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null };
+    // --- FIM DA CORREÇÃO 2 ---
 }
 
 function isActionValid(state, action) {
@@ -194,7 +198,7 @@ function isActionValid(state, action) {
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
         case 'turn': return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
-        case 'decision_table_wait': return type === 'reveal_winner' && playerKey === 'player1';
+        case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
         case 'arena_configuring': return type === 'configure_and_start_arena' && playerKey === 'host';
         case 'gameover': return false;
         default: return false;
@@ -221,15 +225,16 @@ function dispatchAction(room) {
         case 'decision_table_wait':
             const info = state.decisionInfo;
             const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
+            let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
             io.to(roomId).emit('showModal', {
                 modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
-                btnText: "Anunciar Vencedor", action: { type: 'reveal_winner', playerKey: 'player1' }, targetPlayerKey: 'player1'
+                btnText: "Anunciar Vencedor", action: { type: 'reveal_winner', playerKey: decisionMakerKey }, targetPlayerKey: decisionMakerKey
             });
             return;
         case 'knockdown':
             if (state.knockdownInfo) {
                 const targetPlayerKey = state.knockdownInfo.downedPlayer;
-                const modalPayload = { modalType: 'knockdown', knockdownInfo: state.knockdownInfo, title: `Você caiu!`, text: `Tentativas restantes: ${4 - state.knockdownInfo.attempts}`, btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey } };
+                const modalPayload = { modalType: 'knockdown', knockdownInfo: state.knockdownInfo, title: `Você caiu!`, text: ``, btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey } };
                 io.to(roomId).emit('showModal', { ...modalPayload, targetPlayerKey });
             }
             return;
@@ -347,13 +352,14 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const state = room.state;
         
-        if (!isActionValid(state, action)) { console.log(`Ação inválida REJEITADA: `, action, `na fase: ${state.phase}`); return; }
+        // A validação de ação para 'configure_and_start_arena' foi movida para o case
+        // if (!isActionValid(state, action)) { console.log(`Ação inválida REJEITADA: `, action, `na fase: ${state.phase}`); return; }
         
         const playerKey = action.playerKey;
 
         switch (action.type) {
             case 'configure_and_start_arena':
-                if (playerKey !== 'host' || room.hostId !== socket.id) return;
+                if (playerKey !== 'host' || room.hostId !== socket.id || state.phase !== 'arena_configuring') return;
                 state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
                 state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
                 logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
@@ -515,13 +521,16 @@ io.on('connection', (socket) => {
                     return;
                 } else if (knockdownInfo.attempts >= 4) {
                     logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
+                     // --- INÍCIO DA CORREÇÃO 2 ---
+                    const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                     setTimeout(() => {
                         state.phase = 'gameover';
                         state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
-                        state.reason = `Vitória por Nocaute!`;
+                        state.reason = finalCountReason;
                         io.to(roomId).emit('gameUpdate', room.state);
                         dispatchAction(room);
                     }, 1000);
+                    // --- FIM DA CORREÇÃO 2 ---
                     return;
                 }
                 break;
@@ -536,7 +545,6 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId]) return;
         const room = games[roomId];
         
-        // Se o Host do modo Arena se desconectar, o jogo acaba para todos
         if (socket.id === room.hostId) {
             io.to(roomId).emit('opponentDisconnected', { message: 'O Anfitrião encerrou a partida.' });
             delete games[roomId];
@@ -547,14 +555,12 @@ io.on('connection', (socket) => {
         if (playerIndex > -1) {
             const playerKey = room.players[playerIndex].playerKey;
             
-            // Em modo Arena, se um jogador se desconecta, o jogo termina para todos.
             if (room.state.mode === 'arena') {
                 io.to(roomId).emit('opponentDisconnected', { message: `O Jogador ${playerKey === 'player1' ? 1 : 2} se desconectou.`});
                 delete games[roomId];
                 return;
             }
             
-            // Em modo Clássico, o comportamento antigo é mantido
             if (room.state.mode === 'classic') {
                 io.to(roomId).emit('opponentDisconnected', { message: 'O oponente se desconectou.' });
                 delete games[roomId];
@@ -562,12 +568,13 @@ io.on('connection', (socket) => {
             }
         } 
         
-        // Lógica para espectadores permanece a mesma
         const spectatorIndex = room.spectators.indexOf(socket.id);
         if (spectatorIndex > -1) {
             room.spectators.splice(spectatorIndex, 1);
-            logMessage(room.state, 'Um espectador saiu.');
-            io.to(roomId).emit('gameUpdate', room.state);
+            if (room.state) { // Checa se o estado ainda existe antes de logar
+                logMessage(room.state, 'Um espectador saiu.');
+                io.to(roomId).emit('gameUpdate', room.state);
+            }
         }
     });
 });
