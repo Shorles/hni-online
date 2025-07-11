@@ -150,7 +150,19 @@ body {
 #modal-button, #confirm-special-moves-btn { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
 #confirm-special-moves-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-#special-moves-list { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 20px; max-height: 400px; overflow-y: auto; padding: 10px;}
+/* *** INÍCIO DA ALTERAÇÃO: ESTILO UNIFICADO PARA LISTAS DE GOLPES EM MODAIS *** */
+#special-moves-list, #p2-moves-selection-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 20px;
+    max-height: 400px; /* Garante que não fique muito alto */
+    overflow-y: auto;  /* Adiciona scroll se necessário */
+    padding: 10px;
+}
+/* *** FIM DA ALTERAÇÃO *** */
+
 .special-move-card { background-color: #444; border: 2px solid #666; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; width: 150px; text-align: left;}
 .special-move-card:hover { border-color: #999; }
 .special-move-card.selected { border-color: #28a745; box-shadow: 0 0 10px #28a745; transform: scale(1.05); }

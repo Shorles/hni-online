@@ -98,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
         } else {
-            // P1 vai para a seleção de golpes, não para o lobby ainda.
             socket.emit('createGame', playerData);
         }
     }
@@ -119,6 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // *** INÍCIO DA ALTERAÇÃO ***
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
         for (const moveName in availableMoves) {
@@ -127,26 +127,24 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'special-move-card';
             card.dataset.name = moveName;
             card.innerHTML = `<h4>${moveName}</h4><p>Custo: ${moveData.cost} PA</p><p>Dano: ${moveData.damage}</p><p>Penalidade: ${moveData.penalty}</p>`;
+            // Removemos a lógica que limitava a seleção
             card.addEventListener('click', () => {
                 card.classList.toggle('selected');
-                const selectedCount = container.querySelectorAll('.special-move-card.selected').length;
-                if (selectedCount > 3) {
-                    card.classList.remove('selected');
-                    alert('Você só pode escolher até 3 golpes especiais.');
-                }
             });
             container.appendChild(card);
         }
     }
+    // *** FIM DA ALTERAÇÃO ***
 
     // --- OUVINTES DO SOCKET.IO ---
+    // *** INÍCIO DA ALTERAÇÃO ***
     socket.on('promptSpecialMoves', ({ availableMoves }) => {
-        specialMovesTitle.innerText = 'Selecione seus 3 Golpes Especiais';
+        specialMovesTitle.innerText = 'Selecione seus Golpes Especiais'; // Texto atualizado
         renderSpecialMoveSelection(specialMovesList, availableMoves);
         specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
-            if (selectedMoves.length > 3) { alert('Escolha no máximo 3 golpes.'); return; }
+            // Removemos a verificação de limite
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
             specialMovesModal.classList.add('hidden');
             lobbyScreen.classList.add('active');
@@ -156,14 +154,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
-            <div style="flex: 1;">
+            <div style="flex: 1; text-align: center;">
                 <h4>Definir Atributos de ${p2data.nome}</h4>
                 <img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;">
                 <label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center;"></label>
                 <label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center;"></label>
             </div>
-            <div style="flex: 2; border-left: 1px solid #555; padding-left: 20px;">
-                <h4>Escolher Golpes Especiais (até 3)</h4>
+            <div style="flex: 2; border-left: 1px solid #555; padding-left: 20px; text-align: center;">
+                <h4>Escolher Golpes Especiais</h4>
                 <div id="p2-moves-selection-list"></div>
             </div>
         </div>`;
@@ -175,12 +173,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = document.getElementById('p2-stat-res').value;
             const selectedMoves = Array.from(p2MovesContainer.querySelectorAll('.selected')).map(card => card.dataset.name);
             if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) { alert("Valores inválidos para AGI/RES."); return; }
-            if (selectedMoves.length > 3) { alert('Escolha no máximo 3 golpes para o oponente.'); return; }
+            // Removemos a verificação de limite
             const action = { type: 'set_p2_stats', playerKey: myPlayerKey, stats: { agi, res }, moves: selectedMoves };
             socket.emit('playerAction', action);
             modal.classList.add('hidden');
         };
     });
+    // *** FIM DA ALTERAÇÃO ***
 
     socket.on('playSound', playRandomSound);
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
