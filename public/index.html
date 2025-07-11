@@ -10,8 +10,15 @@
 
 <div id="game-wrapper">
 
+    <!-- TELA DE SELEÇÃO DE CENÁRIO (NOVA) -->
+    <div id="scenario-screen" class="screen active">
+        <h1 id="scenario-title">Selecione o Cenário</h1>
+        <div id="scenario-list-container"></div>
+    </div>
+
     <!-- TELA DE SELEÇÃO DE PERSONAGENS -->
-    <div id="selection-screen" class="screen active">
+    <div id="selection-screen" class="screen">
+        <button id="char-select-back-btn" class="back-btn" title="Voltar para Cenários">←</button>
         <h1 id="selection-title">Selecione seu Lutador</h1>
         <div id="character-list-container"></div>
         <button id="confirm-selection-btn">Confirmar</button>
@@ -19,6 +26,7 @@
 
     <!-- TELA DE LOBBY -->
     <div id="lobby-screen" class="screen">
+        <button id="lobby-back-btn" class="back-btn" title="Voltar para Golpes">←</button>
         <h1>Hajime no Ippo: Batalha Online</h1>
         <div id="lobby-content">
             <p>Aguardando conexão...</p>
@@ -38,6 +46,7 @@
         <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
 
         <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
+        <button id="exit-game-btn" class="back-btn" title="Voltar ao Menu Principal">⌂</button>
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
@@ -112,9 +121,10 @@
         </div>
     </div>
     
-    <!-- MODAL DE SELEÇÃO DE GOLPES ESPECIAIS (NOVO) -->
+    <!-- MODAL DE SELEÇÃO DE GOLPES ESPECIAIS -->
     <div id="special-moves-modal" class="hidden">
         <div id="special-moves-content">
+             <button id="special-moves-back-btn" class="back-btn" title="Voltar para Personagens">←</button>
             <h3 id="special-moves-title">Selecione seus Golpes Especiais</h3>
             <div id="special-moves-list"></div>
             <button id="confirm-special-moves-btn">Confirmar Golpes</button>

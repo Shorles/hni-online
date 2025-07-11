@@ -33,7 +33,7 @@ function createNewGameState() {
         fighters: {}, pendingP2Choice: null, winner: null, reason: null,
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
-        decisionInfo: null, followUpState: null
+        decisionInfo: null, followUpState: null, scenario: 'Ringue.png' // Cenário padrão
     };
 }
 
@@ -240,11 +240,13 @@ function dispatchAction(room) {
 }
 
 io.on('connection', (socket) => {
-    socket.on('createGame', (player1Data) => {
+    // *** INÍCIO DA ALTERAÇÃO: Recebe o cenário na criação do jogo ***
+    socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);
         socket.join(newRoomId);
         socket.currentRoomId = newRoomId;
         const newState = createNewGameState();
+        newState.scenario = scenario; // Armazena o cenário
         newState.fighters.player1 = createNewFighterState(player1Data);
         newState.phase = 'p1_special_moves_selection';
         games[newRoomId] = { id: newRoomId, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
@@ -252,6 +254,7 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
+    // *** FIM DA ALTERAÇÃO ***
 
     socket.on('joinGame', ({ roomId, player2Data }) => {
         const room = games[roomId];
@@ -324,36 +327,29 @@ io.on('connection', (socket) => {
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
 
-                // *** INÍCIO DA ALTERAÇÃO ***
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
-                        // Verifica se o jogo acabou ou mudou de fase entre os jabs
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
                         
                         const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
                         io.to(roomId).emit('gameUpdate', room.state);
 
-                        // Se o oponente caiu, chama o handleKnockdown e para o loop
                         if (state.fighters[defenderKey].hp <= 0) {
                             handleKnockdown(state, defenderKey, io, roomId);
                             io.to(roomId).emit('gameUpdate', room.state);
-                            dispatchAction(room); // Notifica os clientes sobre a queda
+                            dispatchAction(room);
                             return;
                         }
-
-                        // Se acertou e oponente não caiu, continua
                         if (hit) {
                             setTimeout(executeFlicker, 700);
                         } else {
-                            // Se errou, apenas atualiza o estado final
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
                         }
                     };
                     executeFlicker();
-                    return; // Retorna para não chamar o dispatchAction globalmente de imediato
+                    return;
                 }
-                // *** FIM DA ALTERAÇÃO ***
                 
                 executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
 
