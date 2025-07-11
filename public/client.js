@@ -31,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const specialMovesTitle = document.getElementById('special-moves-title');
     const specialMovesList = document.getElementById('special-moves-list');
     const confirmSpecialMovesBtn = document.getElementById('confirm-special-moves-btn');
+    const getUpSuccessOverlay = document.getElementById('get-up-success-overlay');
+    const getUpSuccessContent = document.getElementById('get-up-success-content');
     
     // Botões
     const gameModeBackBtn = document.getElementById('game-mode-back-btn');
@@ -287,7 +289,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- OUVINTES DO SOCKET.IO ---
     socket.on('assignPlayer', (key) => myPlayerKey = key);
-
     socket.on('gameCreated', ({ roomId, gameMode }) => {
         currentRoomId = roomId;
         if (gameMode === 'arena') {
@@ -306,29 +307,21 @@ document.addEventListener('DOMContentLoaded', () => {
             arenaLinkSpec.onclick = () => copyToClipboard(specLink, arenaLinkSpec);
         }
     });
-
     socket.on('arenaPlayerJoined', ({ playerKey }) => {
         const statusEl = document.querySelector(`#arena-p${playerKey.slice(-1)}-status .status-waiting`);
         if (statusEl) { statusEl.textContent = 'Conectado. Escolhendo personagem...'; statusEl.className = 'status-ready'; }
     });
-
     socket.on('arenaCharacterChosen', ({ playerKey, character }) => {
         const statusBox = document.querySelector(`#arena-p${playerKey.slice(-1)}-status`);
-        if (statusBox) {
-            statusBox.querySelector('.char-choice').classList.remove('hidden');
-            statusBox.querySelector('.char-name').textContent = character.nome;
-        }
+        if (statusBox) { statusBox.querySelector('.char-choice').classList.remove('hidden'); statusBox.querySelector('.char-name').textContent = character.nome; }
     });
-
-    socket.on('promptArenaConfiguration', () => {
+    socket.on('promptArenaConfiguration', ({p1, p2}) => {
         startArenaFightBtn.disabled = false;
         startArenaFightBtn.textContent = 'Configurar e Iniciar Luta';
         startArenaFightBtn.onclick = () => {
-            const p1Choice = document.querySelector('#arena-p1-status .char-name').textContent;
-            const p2Choice = document.querySelector('#arena-p2-status .char-name').textContent;
             const modalHtml = `<div style="display:flex; gap: 20px; text-align: left;">
-                <div style="flex:1;"><h4 style="text-align:center;">Configurar ${p1Choice} (P1)</h4><label>AGI: <input type="number" id="arena-p1-agi" value="2"></label> <label>RES: <input type="number" id="arena-p1-res" value="2"></label><p>Golpes Especiais:</p><div id="arena-p1-moves-list" class="modal-moves-list"></div></div>
-                <div style="flex:1; border-left: 1px solid #555; padding-left: 20px;"><h4 style="text-align:center;">Configurar ${p2Choice} (P2)</h4><label>AGI: <input type="number" id="arena-p2-agi" value="2"></label> <label>RES: <input type="number" id="arena-p2-res" value="2"></label><p>Golpes Especiais:</p><div id="arena-p2-moves-list" class="modal-moves-list"></div></div>
+                <div style="flex:1;"><h4 style="text-align:center;">Configurar ${p1.nome} (P1)</h4><label>AGI: <input type="number" id="arena-p1-agi" value="2"></label> <label>RES: <input type="number" id="arena-p1-res" value="2"></label><p>Golpes Especiais:</p><div id="arena-p1-moves-list" class="modal-moves-list"></div></div>
+                <div style="flex:1; border-left: 1px solid #555; padding-left: 20px;"><h4 style="text-align:center;">Configurar ${p2.nome} (P2)</h4><label>AGI: <input type="number" id="arena-p2-agi" value="2"></label> <label>RES: <input type="number" id="arena-p2-res" value="2"></label><p>Golpes Especiais:</p><div id="arena-p2-moves-list" class="modal-moves-list"></div></div>
             </div>`;
             showInteractiveModal("Configurar Luta da Arena", modalHtml, "Iniciar Luta!", null);
             renderSpecialMoveSelection(document.getElementById('arena-p1-moves-list'), availableSpecialMoves);
@@ -341,7 +334,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         };
     });
-
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
@@ -359,30 +351,24 @@ document.addEventListener('DOMContentLoaded', () => {
             shareContainer.classList.remove('hidden');
         };
     });
-
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
-        const modalContentHtml = `<div style="display:flex; gap: 30px;">...</div>`;
+        const modalContentHtml = `...`; // Lógica do modo clássico
         showInteractiveModal("Definir Oponente", modalContentHtml, "Confirmar e Iniciar Luta", null);
     });
-
     socket.on('gameUpdate', (state) => {
         const isPreGame = currentGameState === null || ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_waiting'].includes(currentGameState?.phase);
         currentGameState = state;
         updateUI(state);
         const isGameStarting = isPreGame && !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_waiting'].includes(state.phase);
-
         if (isGameStarting && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
-            lobbyBackBtn.classList.add('hidden');
-            if (myPlayerKey === 'host' || myPlayerKey === 'player1') {
-                exitGameBtn.classList.remove('hidden');
-            }
+            if(myPlayerKey === 'host') exitGameBtn.classList.remove('hidden');
             if(myPlayerKey === 'player1' && state.gameMode === 'classic') {
+                exitGameBtn.classList.remove('hidden');
                 copySpectatorLinkInGameBtn.classList.remove('hidden');
             }
         }
     });
-
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
         const p2Url = `${window.location.origin}?room=${roomId}`;
@@ -397,7 +383,6 @@ document.addEventListener('DOMContentLoaded', () => {
         shareContainer.classList.remove('hidden');
     });
 
-    // ... Outros ouvintes de socket como promptRoll, showModal, etc.
-
+    // ... (restante do código)
     initialize();
 });
