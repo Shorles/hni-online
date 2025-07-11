@@ -174,6 +174,13 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'info':
                 showInfoModal(title, text);
                 break;
+            case 'decision_pending':
+                if (myPlayerKey === targetPlayerKey) {
+                    showInteractiveModal(title, text, btnText, action);
+                } else {
+                    showInfoModal(title, text + "<br><br><i>Aguardando o Jogador 1 revelar o resultado...</i>");
+                }
+                break;
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
                 let modalTitleText = `${downedFighterName} caiu!`;
@@ -232,8 +239,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2');
         
         const isSpectator = myPlayerKey === 'spectator';
-        const isTurnOver = state.phase === 'gameover' || state.phase === 'decision_pending';
+        const actionWrapper = document.getElementById('action-buttons-wrapper');
+        if (isSpectator) {
+            actionWrapper.classList.add('hidden');
+        } else {
+            actionWrapper.classList.remove('hidden');
+        }
         
+        const isTurnOver = state.phase === 'gameover' || state.phase === 'decision_pending';
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 
@@ -250,10 +263,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const p2_pa = state.fighters.player2?.pa || 0;
             document.querySelectorAll('#p2-controls button').forEach(btn => btn.disabled = !p2_is_turn || isTurnOver);
             document.querySelectorAll('#p2-controls .action-btn').forEach(btn => { if(state.moves[btn.dataset.move]?.cost > p2_pa) btn.disabled = true; });
-        } else if (isSpectator) {
-            if (p1_is_turn) p1Controls.classList.remove('hidden');
-            if (p2_is_turn) p2Controls.classList.remove('hidden');
-            document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => btn.disabled = true);
         }
 
         document.getElementById('forfeit-btn').disabled = isTurnOver || isSpectator || state.whoseTurn !== myPlayerKey;

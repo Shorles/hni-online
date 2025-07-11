@@ -69,13 +69,8 @@ function processEndRound(state, io, roomId) {
     if (state.currentTurn > 4) {
         state.currentRound++;
         if (state.currentRound > 4) {
-            state.phase = 'decision_pending';
-            logMessage(state, `A luta irá para decisão. Os juizes estão analisando...`, 'log-info');
-            setTimeout(() => {
-                calculateDecisionAndEndGame(state);
-                io.to(roomId).emit('gameUpdate', state);
-                dispatchAction({ state, id: roomId });
-            }, 3000);
+            state.phase = 'decision_pending'; // MUDANÇA AQUI: Agora espera a ação do P1
+            logMessage(state, `A luta irá para decisão. Aguardando P1 para revelar o resultado...`, 'log-info');
             return;
         }
         state.currentTurn = 1;
@@ -169,7 +164,7 @@ function isActionValid(state, action) {
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
         case 'turn': return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
-        case 'decision_pending': return false;
+        case 'decision_pending': return type === 'reveal_decision' && playerKey === 'player1'; // MUDANÇA AQUI
         case 'gameover': return false;
         default: return false;
     }
@@ -184,8 +179,15 @@ function dispatchAction(room) {
         case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
         case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
         case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
-        case 'decision_pending':
-            io.to(roomId).emit('showModal', { modalType: 'info', title: "Fim da Luta", text: "A luta irá para decisão. Os juizes estão analisando..." });
+        case 'decision_pending': // MUDANÇA AQUI
+            io.to(roomId).emit('showModal', {
+                modalType: 'decision_pending',
+                title: "Fim da Luta",
+                text: "A luta foi para a decisão dos juízes.",
+                btnText: "Ver Resultado",
+                action: { type: 'reveal_decision', playerKey: 'player1' },
+                targetPlayerKey: 'player1' // Informa o cliente quem deve ver o botão
+            });
             return;
         case 'knockdown':
             if (state.knockdownInfo) {
@@ -317,6 +319,9 @@ io.on('connection', (socket) => {
                 break;
             case 'end_turn':
                 endTurn(state, io, roomId);
+                break;
+            case 'reveal_decision': // MUDANÇA AQUI
+                calculateDecisionAndEndGame(state);
                 break;
             case 'request_get_up':
                 const info = state.knockdownInfo;
