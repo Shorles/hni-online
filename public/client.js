@@ -61,6 +61,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const isSpectator = urlParams.get('spectate') === 'true';
 
+        // Esconde todos os botões de voltar por padrão
+        [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn].forEach(btn => btn.classList.add('hidden'));
+
         if (isSpectator && currentRoomId) {
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
@@ -69,14 +72,19 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(selectionScreen);
             selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
             confirmBtn.innerText = 'Entrar na Luta';
-            charSelectBackBtn.classList.add('hidden'); 
             renderCharacterSelection('p2');
         } else {
+            // Apenas o P1 (criador do jogo) vê os botões de voltar
+            charSelectBackBtn.classList.remove('hidden');
+            specialMovesBackBtn.classList.remove('hidden');
+            lobbyBackBtn.classList.remove('hidden');
+            exitGameBtn.classList.remove('hidden');
+            copySpectatorLinkInGameBtn.classList.remove('hidden');
             showScreen(scenarioScreen);
             renderScenarioSelection();
         }
         
-        // Configuração dos botões
+        // Configuração dos botões de ação
         confirmBtn.addEventListener('click', onConfirmSelection);
         charSelectBackBtn.addEventListener('click', () => showScreen(scenarioScreen));
         specialMovesBackBtn.addEventListener('click', () => {
@@ -103,14 +111,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         
-        // *** INÍCIO DA CORREÇÃO ***
-        // A linha abaixo estava faltando. Ela atribui a função ao botão "Jogar a Toalha".
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
                 showForfeitConfirmation();
             }
         };
-        // *** FIM DA CORREÇÃO ***
     }
 
     function renderScenarioSelection() {
@@ -235,12 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isGameStarting && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
-            lobbyBackBtn.classList.add('hidden');
-            
-            if (myPlayerKey === 'player1') {
-                copySpectatorLinkInGameBtn.classList.remove('hidden');
-                exitGameBtn.classList.remove('hidden');
-            }
         }
     });
 
