@@ -1,7 +1,3 @@
---- START OF FILE server.js ---
-
-// VERSÃO FINAL CONSOLIDADA
-
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -168,8 +164,6 @@ io.on('connection', (socket) => {
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', 'player2');
         const state = room.state;
-        // P1 define os atributos do P2, então os dados vêm do P1, não do P2
-        // Removido - será tratado pelo evento 'set_p2_stats'
         state.pendingP2Choice = player2Data;
         logMessage(state, `${player2Data.nome} entrou. Aguardando P1 definir atributos...`);
         state.phase = 'p2_stat_assignment';
@@ -223,14 +217,14 @@ io.on('connection', (socket) => {
                 const agi = state.fighters[playerKey].agi;
                 state.initiativeRolls[playerKey] = roll + agi;
                 logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[playerKey]}</span>`, 'log-info');
-                if (playerKey === 'player1') { state.phase = 'initiative_p2'; } else {
-                    // *** INÍCIO DA ALTERAÇÃO: LÓGICA DE DESEMPATE ***
+                if (playerKey === 'player1') {
+                    state.phase = 'initiative_p2';
+                } else {
                     if (state.initiativeRolls.player1 === state.initiativeRolls.player2) {
                         logMessage(state, "EMPATE na iniciativa! Rolando novamente...", 'log-info');
                         state.initiativeRolls = {}; // Limpa as rolagens anteriores
                         state.phase = 'initiative_p1'; // Volta para o início da rolagem de iniciativa
                     } else {
-                        // Lógica original para determinar o vencedor
                         if (state.initiativeRolls.player1 > state.initiativeRolls.player2) {
                             state.whoseTurn = 'player1'; state.didPlayer1GoFirst = true;
                         } else {
@@ -239,7 +233,6 @@ io.on('connection', (socket) => {
                         logMessage(state, `${state.fighters[state.whoseTurn].nome} venceu a iniciativa!`, 'log-info');
                         state.phase = 'defense_p1';
                     }
-                    // *** FIM DA ALTERAÇÃO ***
                 }
                 break;
             case 'roll_defense':
