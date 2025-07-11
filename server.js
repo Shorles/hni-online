@@ -1,3 +1,5 @@
+// VERSÃO FINAL CONSOLIDADA
+
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -226,9 +228,11 @@ io.on('connection', (socket) => {
                         state.phase = 'initiative_p1'; // Volta para o início da rolagem de iniciativa
                     } else {
                         if (state.initiativeRolls.player1 > state.initiativeRolls.player2) {
-                            state.whoseTurn = 'player1'; state.didPlayer1GoFirst = true;
+                            state.whoseTurn = 'player1';
+                            state.didPlayer1GoFirst = true;
                         } else {
-                            state.whoseTurn = 'player2'; state.didPlayer1GoFirst = false;
+                            state.whoseTurn = 'player2';
+                            state.didPlayer1GoFirst = false;
                         }
                         logMessage(state, `${state.fighters[state.whoseTurn].nome} venceu a iniciativa!`, 'log-info');
                         state.phase = 'defense_p1';

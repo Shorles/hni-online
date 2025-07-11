@@ -1,5 +1,3 @@
---- START OF FILE client.js ---
-
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
     let currentGameState = null;
@@ -249,9 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showInfoModal(title, text) { modalTitle.innerText = title; modalText.innerHTML = text; modalButton.style.display = 'none'; modal.classList.remove('hidden'); }
 
-    // *** INÍCIO DA ALTERAÇÃO: CORREÇÃO DA FUNÇÃO DE ANIMAÇÃO DO DADO ***
-    // A função agora aceita um único objeto como argumento e o desestrutura.
-    // Isso garante que `playerKey`, `rollValue` e `diceType` recebam os valores corretos.
+    // ÚNICA ALTERAÇÃO NESTE ARQUIVO: CORRIGINDO A ASSINATURA DA FUNÇÃO
+    // A função original recebia `(playerKey, rollValue, diceType)`.
+    // O correto, pois o socket.io envia um único objeto, é receber `({ playerKey, rollValue, diceType })`.
     function showDiceRollAnimation({ playerKey, rollValue, diceType }) {
         const diceOverlay = document.getElementById('dice-overlay');
         const diceContainer = document.getElementById(`${playerKey}-dice-result`);
@@ -259,14 +257,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let imagePrefix = '';
         if (diceType === 'd6') {
-            // A lógica de prefixo já estava correta.
             imagePrefix = (playerKey === 'player1') ? 'diceA' : 'diceP';
         } else {
-            // A lógica para o D3 (futura) também está aqui.
             imagePrefix = (playerKey === 'player1') ? 'D3A-' : 'D3P-';
         }
         
-        // A construção da URL da imagem agora funciona, pois `imagePrefix` e `rollValue` são definidos corretamente.
         diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
         diceOverlay.classList.remove('hidden');
         diceContainer.classList.remove('hidden');
@@ -278,7 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
         diceOverlay.addEventListener('click', hideAndResolve, { once: true });
         setTimeout(hideAndResolve, 2000); 
     }
-    // *** FIM DA ALTERAÇÃO ***
     
     initialize();
     const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; };
