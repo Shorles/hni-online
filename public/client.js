@@ -174,11 +174,11 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'info':
                 showInfoModal(title, text);
                 break;
-            case 'decision_pending':
+            case 'decision_table':
                 if (myPlayerKey === targetPlayerKey) {
                     showInteractiveModal(title, text, btnText, action);
                 } else {
-                    showInfoModal(title, text + "<br><br><i>Aguardando o Jogador 1 revelar o resultado...</i>");
+                    showInfoModal(title, text);
                 }
                 break;
             case 'knockdown':
@@ -228,8 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'gameover') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
-        } else if (state.phase === 'decision_pending') {
-            roundInfoEl.innerHTML = `<span class="turn-highlight">AGUARDANDO DECISÃO...</span>`;
+        } else if (state.phase === 'decision_table_wait') {
+            roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
         } else {
              const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : '...';
              roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
@@ -246,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
             actionWrapper.classList.remove('hidden');
         }
         
-        const isTurnOver = state.phase === 'gameover' || state.phase === 'decision_pending';
+        const isTurnOver = state.phase === 'gameover' || state.phase === 'decision_table_wait';
         const p1_is_turn = state.whoseTurn === 'player1' && state.phase === 'turn';
         const p2_is_turn = state.whoseTurn === 'player2' && state.phase === 'turn';
 

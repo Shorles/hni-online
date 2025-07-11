@@ -69,8 +69,9 @@ function processEndRound(state, io, roomId) {
     if (state.currentTurn > 4) {
         state.currentRound++;
         if (state.currentRound > 4) {
-            state.phase = 'decision_pending'; // MUDANÇA AQUI: Agora espera a ação do P1
-            logMessage(state, `A luta irá para decisão. Aguardando P1 para revelar o resultado...`, 'log-info');
+            calculateDecisionScores(state); // Apenas calcula os scores
+            state.phase = 'decision_table_wait'; // Novo estado: aguardando P1
+            logMessage(state, `A luta foi para a decisão.`, 'log-info');
             return;
         }
         state.currentTurn = 1;
@@ -85,7 +86,7 @@ function processEndRound(state, io, roomId) {
     }
 }
 
-function calculateDecisionAndEndGame(state) {
+function calculateDecisionScores(state) {
     const p1 = state.fighters.player1;
     const p2 = state.fighters.player2;
 
@@ -116,23 +117,12 @@ function calculateDecisionAndEndGame(state) {
         p2DamagePenalty = 1;
         p2Score -= 1;
     }
-
-    if (p1Score > p2Score) {
-        state.winner = 'player1';
-        state.reason = `Vitória por Decisão (${p1Score} a ${p2Score})`;
-    } else if (p2Score > p1Score) {
-        state.winner = 'player2';
-        state.reason = `Vitória por Decisão (${p2Score} a ${p1Score})`;
-    } else {
-        state.winner = 'draw';
-        state.reason = `Empate por Decisão (${p1Score} a ${p2Score})`;
-    }
     
+    // Armazena tudo, mas NÃO determina o vencedor ainda.
     state.decisionInfo = {
         p1: { name: p1.nome, score: 10, knockdownPenalty: p1KnockdownPenalty, hitsPenalty: p1HitsPenalty, damagePenalty: p1DamagePenalty, finalScore: p1Score },
         p2: { name: p2.nome, score: 10, knockdownPenalty: p2KnockdownPenalty, hitsPenalty: p2HitsPenalty, damagePenalty: p2DamagePenalty, finalScore: p2Score }
     };
-    state.phase = 'gameover';
 }
 
 function handleKnockdown(state, downedPlayerKey, io, roomId) {
@@ -164,7 +154,7 @@ function isActionValid(state, action) {
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
         case 'turn': return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
-        case 'decision_pending': return type === 'reveal_decision' && playerKey === 'player1'; // MUDANÇA AQUI
+        case 'decision_table_wait': return type === 'reveal_winner' && playerKey === 'player1';
         case 'gameover': return false;
         default: return false;
     }
@@ -179,14 +169,16 @@ function dispatchAction(room) {
         case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
         case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
         case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
-        case 'decision_pending': // MUDANÇA AQUI
+        case 'decision_table_wait':
+            const info = state.decisionInfo;
+            const tableHtml = `<table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
             io.to(roomId).emit('showModal', {
-                modalType: 'decision_pending',
-                title: "Fim da Luta",
-                text: "A luta foi para a decisão dos juízes.",
-                btnText: "Ver Resultado",
-                action: { type: 'reveal_decision', playerKey: 'player1' },
-                targetPlayerKey: 'player1' // Informa o cliente quem deve ver o botão
+                modalType: 'decision_table',
+                title: "Pontuação dos Juízes",
+                text: tableHtml,
+                btnText: "Anunciar Vencedor",
+                action: { type: 'reveal_winner', playerKey: 'player1' },
+                targetPlayerKey: 'player1'
             });
             return;
         case 'knockdown':
@@ -197,15 +189,9 @@ function dispatchAction(room) {
             }
             return;
         case 'gameover':
-            let modalTextContent;
-            if (state.decisionInfo) {
-                const info = state.decisionInfo;
-                modalTextContent = `<p>${state.reason}</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
-            } else {
-                const winnerName = state.winner ? (state.winner === 'draw' ? 'Ninguém' : state.fighters[state.winner].nome) : "Ninguém";
-                modalTextContent = state.reason || (state.winner === 'draw' ? 'A LUTA TERMINOU EM EMPATE!' : `VITÓRIA DE ${winnerName.toUpperCase()}`);
-            }
-            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: modalTextContent });
+            const winnerName = state.winner ? (state.winner === 'draw' ? 'Ninguém' : state.fighters[state.winner].nome) : "Ninguém";
+            const reason = state.reason || (state.winner === 'draw' ? 'A LUTA TERMINOU EM EMPATE!' : `VITÓRIA DE ${winnerName.toUpperCase()}`);
+            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason });
             return;
         default: io.to(roomId).emit('hideModal'); return;
     }
@@ -320,8 +306,20 @@ io.on('connection', (socket) => {
             case 'end_turn':
                 endTurn(state, io, roomId);
                 break;
-            case 'reveal_decision': // MUDANÇA AQUI
-                calculateDecisionAndEndGame(state);
+            case 'reveal_winner':
+                const p1FinalScore = state.decisionInfo.p1.finalScore;
+                const p2FinalScore = state.decisionInfo.p2.finalScore;
+                if (p1FinalScore > p2FinalScore) {
+                    state.winner = 'player1';
+                    state.reason = `Vitória por Decisão (${p1FinalScore} a ${p2FinalScore})`;
+                } else if (p2FinalScore > p1FinalScore) {
+                    state.winner = 'player2';
+                    state.reason = `Vitória por Decisão (${p2FinalScore} a ${p1FinalScore})`;
+                } else {
+                    state.winner = 'draw';
+                    state.reason = `Empate por Decisão (${p1FinalScore} a ${p2FinalScore})`;
+                }
+                state.phase = 'gameover';
                 break;
             case 'request_get_up':
                 const info = state.knockdownInfo;
