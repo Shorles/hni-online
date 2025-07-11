@@ -106,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // *** INÍCIO DA CORREÇÃO ***
         // A linha abaixo estava faltando. Ela atribui a função ao botão "Jogar a Toalha".
         document.getElementById('forfeit-btn').onclick = () => {
-            // A condição interna verifica se o botão deve funcionar no estado atual do jogo.
             if (myPlayerKey && myPlayerKey !== 'spectator' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
                 showForfeitConfirmation();
             }
@@ -355,6 +354,13 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
     
+    function showForfeitConfirmation() {
+        const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
+        showInfoModal("Jogar a Toalha", modalContentHtml);
+        document.getElementById('confirm-forfeit-btn').onclick = () => { socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey }); modal.classList.add('hidden'); };
+        document.getElementById('cancel-forfeit-btn').onclick = () => modal.classList.add('hidden');
+    }
+
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
