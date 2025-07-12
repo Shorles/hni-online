@@ -49,7 +49,7 @@ body {
     line-height: 50px;
 }
 
-/* --- TELA DE SELEÇÃO DE MODO (NOVA) --- */
+/* --- TELA DE SELEÇÃO DE MODO --- */
 #mode-selection-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 30px;
@@ -69,7 +69,7 @@ body {
 }
 .mode-btn:hover { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
 
-/* --- TELA DE LOBBY DA ARENA (NOVA) --- */
+/* --- TELA DE LOBBY DA ARENA --- */
 #arena-lobby-screen { background-color: #1a1a1a; gap: 20px; text-align: center; padding-top: 50px; box-sizing: border-box; }
 #arena-lobby-screen h1 { font-size: 3em; color: #ffeb3b; }
 .arena-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap;}
@@ -190,33 +190,41 @@ body {
 .copy-link-button { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 1.5em; background-color: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid #fff; border-radius: 50%; cursor: pointer; z-index: 100; }
 .copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
 
-/* ANIMAÇÕES */
-@keyframes player1-attack-lunge { 
-    50% { transform: scaleX(-1) translateX(-50px); } 
+
+/* --- INÍCIO DA CORREÇÃO --- */
+.fighter-img { 
+    position: absolute; 
+    width: 200px; 
+    height: 200px; 
+    object-fit: contain; 
+    bottom: 350px; 
+    z-index: 10; 
+    transition: transform 0.2s ease; 
 }
-@keyframes player2-attack-lunge { 
-    50% { transform: scaleX(-1) translateX(-50px); } 
-}
+
+/* Regras de Animação */
+@keyframes player1-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(-50px); } }
+@keyframes player2-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(-50px); } }
+
+@keyframes player1-attack-lunge-arena { 50% { transform: translateX(50px); } }
+@keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(-50px); } }
+
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
+.is-hit { animation: hit-flash 0.5s ease-in-out; }
 
-.fighter-img { position: absolute; width: 200px; height: 200px; object-fit: contain; bottom: 350px; z-index: 10; transition: transform 0.2s ease; }
+/* Regras para MODO CLÁSSICO */
+.mode-classic #player1-fight-img { left: 380px; transform: scaleX(-1); }
+.mode-classic #player2-fight-img { right: 380px; transform: scaleX(-1); }
+.mode-classic .is-attacking-player1 { animation: player1-attack-lunge-classic 0.4s ease-in-out; }
+.mode-classic .is-attacking-player2 { animation: player2-attack-lunge-classic 0.4s ease-in-out; }
 
-/* --- A CORREÇÃO REAL ESTÁ AQUI --- */
-/* P1 na esquerda, virado para a direita por padrão no sprite, mas espelhado aqui para a animação funcionar */
-#player1-fight-img { 
-    left: 380px; 
-    transform: scaleX(-1); 
-} 
-/* P2 na direita, espelhado para virar para a esquerda */
-#player2-fight-img { 
-    right: 380px; 
-    transform: scaleX(-1); 
-} 
+/* Regras para MODO ARENA */
+.mode-arena #player1-fight-img { left: 380px; /* Não precisa de transform aqui, o sprite já está virado para a direita */ }
+.mode-arena #player2-fight-img { right: 380px; transform: scaleX(-1); }
+.mode-arena .is-attacking-player1 { animation: player1-attack-lunge-arena 0.4s ease-in-out; }
+.mode-arena .is-attacking-player2 { animation: player2-attack-lunge-arena 0.4s ease-in-out; }
 /* --- FIM DA CORREÇÃO --- */
 
-.is-attacking-player1 { animation: player1-attack-lunge 0.4s ease-in-out; }
-.is-attacking-player2 { animation: player2-attack-lunge 0.4s ease-in-out; }
-.is-hit { animation: hit-flash 0.5s ease-in-out; }
 
 /* PAINÉIS DE UI */
 .fight-ui-container { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }

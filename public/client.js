@@ -338,7 +338,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     socket.on('gameUpdate', (gameState) => {
-        const isPreGame = currentGameState === null || ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'].includes(currentGameState.phase);
+        const isPreGame = currentGameState === null || ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'].includes(currentGameState?.phase);
+        
+        // --- INÍCIO DA CORREÇÃO ---
+        // Adiciona a classe de modo ao wrapper do jogo para CSS condicional
+        if (isPreGame && gameState.mode) {
+             gameWrapper.classList.remove('mode-classic', 'mode-arena');
+             gameWrapper.classList.add(`mode-${gameState.mode}`);
+        }
+        // --- FIM DA CORREÇÃO ---
+        
         currentGameState = gameState;
         updateUI(gameState);
         const isGameStarting = isPreGame && !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'].includes(gameState.phase);
@@ -411,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'gameover') roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
         else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
-        else if (state.phase.startsWith('arena')) roundInfoEl.innerHTML = `Aguardando início...`;
+        else if (state.phase.startsWith('arena_')) roundInfoEl.innerHTML = `Aguardando início...`;
         else { const turnName = state.whoseTurn ? state.fighters[state.whoseTurn].nome : '...'; roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`; }
         
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1');
@@ -536,7 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
                 else { showInfoModal(title, text); }
                 break;
-            // --- INÍCIO DA CORREÇÃO 2 ---
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
                 let modalTitleText = `${downedFighterName} caiu!`;
@@ -545,7 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8....."];
                 const countText = attempts === 0 
                     ? `O juíz começa a contagem: ${counts[0]}`
-                    : `A contagem continua: ${counts[attempts]}`;
+                    : `A contagem continua: ${counts[attempts] || counts[counts.length-1]}`;
 
                 let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p>`;
                 
@@ -565,7 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     showInfoModal(modalTitleText, modalContentText);
                 }
                 break;
-            // --- FIM DA CORREÇÃO 2 ---
         }
     });
 
