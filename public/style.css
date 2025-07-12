@@ -191,7 +191,7 @@ body {
 .copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
 
 
-/* --- INÍCIO DA CORREÇÃO --- */
+/* POSICIONAMENTO E ANIMAÇÃO DOS LUTADORES */
 .fighter-img { 
     position: absolute; 
     width: 200px; 
@@ -207,7 +207,10 @@ body {
 @keyframes player2-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(-50px); } }
 
 @keyframes player1-attack-lunge-arena { 50% { transform: translateX(50px); } }
-@keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(-50px); } }
+/* --- INÍCIO DA CORREÇÃO --- */
+@keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(50px); } }
+/* --- FIM DA CORREÇÃO --- */
+
 
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
 .is-hit { animation: hit-flash 0.5s ease-in-out; }
@@ -219,11 +222,10 @@ body {
 .mode-classic .is-attacking-player2 { animation: player2-attack-lunge-classic 0.4s ease-in-out; }
 
 /* Regras para MODO ARENA */
-.mode-arena #player1-fight-img { left: 380px; /* Não precisa de transform aqui, o sprite já está virado para a direita */ }
+.mode-arena #player1-fight-img { left: 380px; }
 .mode-arena #player2-fight-img { right: 380px; transform: scaleX(-1); }
 .mode-arena .is-attacking-player1 { animation: player1-attack-lunge-arena 0.4s ease-in-out; }
 .mode-arena .is-attacking-player2 { animation: player2-attack-lunge-arena 0.4s ease-in-out; }
-/* --- FIM DA CORREÇÃO --- */
 
 
 /* PAINÉIS DE UI */
