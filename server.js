@@ -26,7 +26,16 @@ const SPECIAL_MOVES = {
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
-const rollAttackD6 = () => { const r = rollD(100); if (r <= 5) return 6; if (r <= 10) return 1; return rollD(4) + 1; };
+
+// --- INÍCIO DA CORREÇÃO ---
+// Array de resultados para o dado de ataque. 1-5 aparecem 2x, 6 aparece 1x.
+// Isso torna a chance de 1-5 (18.2% cada) o dobro da chance de 6 (9.1%).
+const ATTACK_DICE_OUTCOMES = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6];
+const rollAttackD6 = () => {
+    const randomIndex = Math.floor(Math.random() * ATTACK_DICE_OUTCOMES.length);
+    return ATTACK_DICE_OUTCOMES[randomIndex];
+};
+// --- FIM DA CORREÇÃO ---
 
 function createNewGameState() {
     return {
@@ -165,7 +174,6 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     fighter.knockdowns++;
     logMessage(state, `${fighter.nome} foi NOCAUTEADO!`, 'log-crit');
     
-    // --- INÍCIO DA CORREÇÃO 2 ---
     const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
     
     if (fighter.res <= 1) {
@@ -180,7 +188,6 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
         return;
     }
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null };
-    // --- FIM DA CORREÇÃO 2 ---
 }
 
 function isActionValid(state, action) {
@@ -521,7 +528,6 @@ io.on('connection', (socket) => {
                     return;
                 } else if (knockdownInfo.attempts >= 4) {
                     logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
-                     // --- INÍCIO DA CORREÇÃO 2 ---
                     const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                     setTimeout(() => {
                         state.phase = 'gameover';
@@ -530,7 +536,6 @@ io.on('connection', (socket) => {
                         io.to(roomId).emit('gameUpdate', room.state);
                         dispatchAction(room);
                     }, 1000);
-                    // --- FIM DA CORREÇÃO 2 ---
                     return;
                 }
                 break;
