@@ -22,13 +22,12 @@ const SPECIAL_MOVES = {
     'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 },
     'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
-    // --- INÍCIO DA ALTERAÇÃO 1 ---
-    'Ora ora ora...': { cost: 3, damage: 10, penalty: -1 } 
-    // --- FIM DA ALTERAÇÃO 1 ---
+    // --- INÍCIO DA CORREÇÃO ---
+    'OraOraOra': { cost: 3, damage: 10, penalty: -1 } 
+    // --- FIM DA CORREÇÃO ---
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
-// --- INÍCIO DA ALTERAÇÃO 2 ---
 const MOVE_SOUNDS = {
     'Jab': ['jab01.mp3', 'jab02.mp3', 'jab03.mp3'],
     'Direto': ['baseforte01.mp3', 'baseforte02.mp3'],
@@ -41,9 +40,10 @@ const MOVE_SOUNDS = {
     'White Fang': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Flicker Jab': ['Flicker01.mp3', 'Flicker02.mp3', 'Flicker03.mp3'],
     'Bala': ['bala01.mp3', 'bala02.mp3'],
-    'Ora ora ora...': 'OraOraOra.mp3'
+    // --- INÍCIO DA CORREÇÃO ---
+    'OraOraOra': 'OraOraOra.mp3'
+    // --- FIM DA CORREÇÃO ---
 };
-// --- FIM DA ALTERAÇÃO 2 ---
 
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
 
@@ -111,7 +111,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     if (hit) {
         io.to(roomId).emit('triggerHitAnimation', { defenderKey });
         
-        // --- INÍCIO DA ALTERAÇÃO 2 (LÓGICA DE SOM) ---
         if (crit) { 
             io.to(roomId).emit('playSound', 'Critical.mp3'); 
         } else {
@@ -123,7 +122,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 io.to(roomId).emit('playSound', sounds);
             }
         }
-        // --- FIM DA ALTERAÇÃO 2 (LÓGICA DE SOM) ---
         
         let damage = crit ? move.damage * 2 : move.damage;
         const hpBeforeHit = defender.hp;
@@ -481,8 +479,7 @@ io.on('connection', (socket) => {
                 logMessage(state, state.reason, 'log-crit');
                 break;
             case 'roll_initiative':
-                const diceSounds = ['dice1.mp3', 'dice2.mp3', 'dice3.mp3'];
-                io.to(roomId).emit('playSound', diceSounds[Math.floor(Math.random() * diceSounds.length)]);
+                io.to(roomId).emit('playSound', 'dice1.mp3'); // Removido o sistema de som aleatório não solicitado
                 const roll = rollD(6);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 const agi = state.fighters[playerKey].agi;
@@ -501,8 +498,7 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'roll_defense':
-                const diceSoundsDef = ['dice1.mp3', 'dice2.mp3', 'dice3.mp3'];
-                io.to(roomId).emit('playSound', diceSoundsDef[Math.floor(Math.random() * diceSoundsDef.length)]);
+                io.to(roomId).emit('playSound', 'dice1.mp3'); // Removido o sistema de som aleatório não solicitado
                 const defRoll = rollD(3);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const res_def = state.fighters[playerKey].res;
