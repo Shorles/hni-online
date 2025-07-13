@@ -21,9 +21,29 @@ const SPECIAL_MOVES = {
     'Bala': { cost: 1, damage: 2, penalty: 0 },
     'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 },
     'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
-    'White Fang': { cost: 4, damage: 4, penalty: 1 }
+    'White Fang': { cost: 4, damage: 4, penalty: 1 },
+    // --- INÍCIO DA ALTERAÇÃO 1 ---
+    'Ora ora ora...': { cost: 3, damage: 10, penalty: -1 } 
+    // --- FIM DA ALTERAÇÃO 1 ---
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
+
+// --- INÍCIO DA ALTERAÇÃO 2 ---
+const MOVE_SOUNDS = {
+    'Jab': ['jab01.mp3', 'jab02.mp3', 'jab03.mp3'],
+    'Direto': ['baseforte01.mp3', 'baseforte02.mp3'],
+    'Liver Blow': ['baseforte01.mp3', 'baseforte02.mp3'],
+    'Upper': ['baseforte01.mp3', 'baseforte02.mp3'],
+    'Counter': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
+    'Smash': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
+    'Gazelle Punch': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
+    'Frog Punch': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
+    'White Fang': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
+    'Flicker Jab': ['Flicker01.mp3', 'Flicker02.mp3', 'Flicker03.mp3'],
+    'Bala': ['bala01.mp3', 'bala02.mp3'],
+    'Ora ora ora...': 'OraOraOra.mp3'
+};
+// --- FIM DA ALTERAÇÃO 2 ---
 
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
 
@@ -73,7 +93,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     
     if (roll === 1) {
         logMessage(state, "Erro Crítico!", 'log-miss');
-        io.to(roomId).emit('playSound', 'miss');
+        io.to(roomId).emit('playSound', 'Esquiva.mp3');
     } else if (roll === 6) {
         logMessage(state, "Acerto Crítico!", 'log-crit');
         hit = true;
@@ -84,13 +104,26 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             hit = true;
         } else {
             logMessage(state, "Errou!", 'log-miss');
-            io.to(roomId).emit('playSound', 'miss');
+            io.to(roomId).emit('playSound', 'Esquiva.mp3');
         }
     }
     
     if (hit) {
         io.to(roomId).emit('triggerHitAnimation', { defenderKey });
-        if (crit) { io.to(roomId).emit('playSound', 'critical'); } else { io.to(roomId).emit('playSound', 'strong'); }
+        
+        // --- INÍCIO DA ALTERAÇÃO 2 (LÓGICA DE SOM) ---
+        if (crit) { 
+            io.to(roomId).emit('playSound', 'Critical.mp3'); 
+        } else {
+            const sounds = MOVE_SOUNDS[moveName];
+            if (Array.isArray(sounds)) {
+                const randomSound = sounds[Math.floor(Math.random() * sounds.length)];
+                io.to(roomId).emit('playSound', randomSound);
+            } else if (sounds) { // Caso seja uma string única
+                io.to(roomId).emit('playSound', sounds);
+            }
+        }
+        // --- FIM DA ALTERAÇÃO 2 (LÓGICA DE SOM) ---
         
         let damage = crit ? move.damage * 2 : move.damage;
         const hpBeforeHit = defender.hp;
@@ -170,7 +203,6 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     fighter.knockdowns++;
     logMessage(state, `${fighter.nome} foi NOCAUTEADO!`, 'log-crit');
     
-    // --- INÍCIO DA CORREÇÃO ---
     if (fighter.res <= 1) {
         logMessage(state, `${fighter.nome} não consegue se levantar. O juíz interrompe a luta!`, 'log-crit');
         const instantKoReason = "O juíz interrompe a luta.<br><br>Vitória por Nocaute!";
@@ -183,7 +215,6 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
         }, 1000);
         return;
     }
-    // --- FIM DA CORREÇÃO ---
 
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null };
 }
@@ -357,9 +388,6 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const state = room.state;
         
-        // A validação de ação para 'configure_and_start_arena' foi movida para o case
-        // if (!isActionValid(state, action)) { console.log(`Ação inválida REJEITADA: `, action, `na fase: ${state.phase}`); return; }
-        
         const playerKey = action.playerKey;
 
         switch (action.type) {
@@ -453,7 +481,8 @@ io.on('connection', (socket) => {
                 logMessage(state, state.reason, 'log-crit');
                 break;
             case 'roll_initiative':
-                io.to(roomId).emit('playSound', 'dice');
+                const diceSounds = ['dice1.mp3', 'dice2.mp3', 'dice3.mp3'];
+                io.to(roomId).emit('playSound', diceSounds[Math.floor(Math.random() * diceSounds.length)]);
                 const roll = rollD(6);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 const agi = state.fighters[playerKey].agi;
@@ -472,7 +501,8 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'roll_defense':
-                io.to(roomId).emit('playSound', 'dice');
+                const diceSoundsDef = ['dice1.mp3', 'dice2.mp3', 'dice3.mp3'];
+                io.to(roomId).emit('playSound', diceSoundsDef[Math.floor(Math.random() * diceSoundsDef.length)]);
                 const defRoll = rollD(3);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const res_def = state.fighters[playerKey].res;
@@ -574,7 +604,7 @@ io.on('connection', (socket) => {
         const spectatorIndex = room.spectators.indexOf(socket.id);
         if (spectatorIndex > -1) {
             room.spectators.splice(spectatorIndex, 1);
-            if (room.state) { // Checa se o estado ainda existe antes de logar
+            if (room.state) {
                 logMessage(room.state, 'Um espectador saiu.');
                 io.to(roomId).emit('gameUpdate', room.state);
             }

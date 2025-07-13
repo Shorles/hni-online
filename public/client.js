@@ -55,8 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
-    const SOUNDS = { jab:[new Audio('sons/jab01.mp3'),new Audio('sons/jab02.mp3'),new Audio('sons/jab03.mp3')], strong:[new Audio('sons/baseforte01.mp3'),new Audio('sons/baseforte02.mp3')], dice:[new Audio('sons/dice1.mp3'),new Audio('sons/dice2.mp3'),new Audio('sons/dice3.mp3')], critical:[new Audio('sons/Critical.mp3')], miss:[new Audio('sons/Esquiva.mp3')] };
-    function playRandomSound(soundType) { if (SOUNDS[soundType]) { const s = SOUNDS[soundType]; const sound = s[Math.floor(Math.random() * s.length)]; sound.currentTime = 0; sound.play().catch(e => console.error("Erro ao tocar som:", e)); } }
+    
+    // O objeto de sons complexo foi removido. A lógica agora é mais simples e direta.
 
     function showScreen(screenToShow) {
         allScreens.forEach(screen => {
@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -340,13 +340,10 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameUpdate', (gameState) => {
         const isPreGame = currentGameState === null || ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'].includes(currentGameState?.phase);
         
-        // --- INÍCIO DA CORREÇÃO ---
-        // Adiciona a classe de modo ao wrapper do jogo para CSS condicional
         if (isPreGame && gameState.mode) {
              gameWrapper.classList.remove('mode-classic', 'mode-arena');
              gameWrapper.classList.add(`mode-${gameState.mode}`);
         }
-        // --- FIM DA CORREÇÃO ---
         
         currentGameState = gameState;
         updateUI(gameState);
@@ -511,7 +508,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Ouvintes restantes
-    socket.on('playSound', playRandomSound);
+    // --- INÍCIO DA ALTERAÇÃO 2 ---
+    socket.on('playSound', (soundFile) => {
+        if (!soundFile) return;
+        const sound = new Audio(`sons/${soundFile}`);
+        sound.currentTime = 0;
+        sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e));
+    });
+    // --- FIM DA ALTERAÇÃO 2 ---
+
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     
