@@ -1,23 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let myPlayerKey = null; // Agora pode ser 'player1', 'player2', 'spectator', ou 'host'
+    let myPlayerKey = null;
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
 
-    // Armazena as seleções do P1 antes de criar o jogo
     let player1SetupData = { scenario: null };
     let availableSpecialMoves = {};
 
-    // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
-    
-    // Novas Telas
     const modeSelectionScreen = document.getElementById('mode-selection-screen');
     const arenaLobbyScreen = document.getElementById('arena-lobby-screen');
     const modeClassicBtn = document.getElementById('mode-classic-btn');
     const modeArenaBtn = document.getElementById('mode-arena-btn');
-
     const scenarioScreen = document.getElementById('scenario-screen');
     const scenarioListContainer = document.getElementById('scenario-list-container');
     const selectionScreen = document.getElementById('selection-screen');
@@ -43,20 +38,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmSpecialMovesBtn = document.getElementById('confirm-special-moves-btn');
     const getUpSuccessOverlay = document.getElementById('get-up-success-overlay');
     const getUpSuccessContent = document.getElementById('get-up-success-content');
-    
-    // Botões de Voltar
     const charSelectBackBtn = document.getElementById('char-select-back-btn');
     const specialMovesBackBtn = document.getElementById('special-moves-back-btn');
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const exitGameBtn = document.getElementById('exit-game-btn');
 
-
-    // --- DADOS ---
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
-    
-    // O objeto de sons complexo foi removido. A lógica agora é mais simples e direta.
 
     function showScreen(screenToShow) {
         allScreens.forEach(screen => {
@@ -67,43 +56,35 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
-        const arenaPlayerKey = urlParams.get('player'); // 'player1' ou 'player2'
+        const arenaPlayerKey = urlParams.get('player');
         const isSpectator = urlParams.get('spectate') === 'true';
 
-        // Esconde todos os botões de voltar/sair
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn].forEach(btn => btn.classList.add('hidden'));
         
         if (arenaPlayerKey && currentRoomId) {
-            // FLUXO: Jogador de Arena (P1 ou P2)
             myPlayerKey = arenaPlayerKey;
             socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen);
             selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? '1' : '2'}: Selecione seu Lutador`;
             confirmBtn.innerText = 'Confirmar Personagem';
-            renderCharacterSelection('p2', false); // Lista pequena de chars, sem inputs de stats
+            renderCharacterSelection('p2', false);
         } else if (isSpectator && currentRoomId) {
-            // FLUXO: Espectador
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
             socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
-            // FLUXO: Jogador 2 do modo CLÁSSICO
             showScreen(selectionScreen);
             selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
             confirmBtn.innerText = 'Entrar na Luta';
             renderCharacterSelection('p2', false);
         } else {
-            // FLUXO: Anfitrião/Novo visitante. Mostra a seleção de modo.
             showScreen(modeSelectionScreen);
         }
         
-        // Configuração dos botões de ação
         confirmBtn.addEventListener('click', onConfirmSelection);
         
-        // Listeners para os novos botões de modo
         modeClassicBtn.onclick = () => {
-            // Inicia o fluxo clássico
-            myPlayerKey = 'player1'; // O anfitrião é o P1
+            myPlayerKey = 'player1';
             showScreen(scenarioScreen);
             renderScenarioSelection('classic');
             charSelectBackBtn.classList.remove('hidden');
@@ -112,14 +93,12 @@ document.addEventListener('DOMContentLoaded', () => {
             copySpectatorLinkInGameBtn.classList.remove('hidden');
         };
         modeArenaBtn.onclick = () => {
-            // Inicia o fluxo de arena
-            myPlayerKey = 'host'; // O anfitrião é o 'host'
-            exitGameBtn.classList.remove('hidden'); // Host sempre pode sair
+            myPlayerKey = 'host';
+            exitGameBtn.classList.remove('hidden');
             showScreen(scenarioScreen);
             renderScenarioSelection('arena');
         };
 
-        // Botões de Voltar
         charSelectBackBtn.addEventListener('click', () => showScreen(scenarioScreen));
         specialMovesBackBtn.addEventListener('click', () => {
             alert('A partida já foi criada no servidor. Para alterar o personagem, a página será recarregada.');
@@ -166,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     confirmBtn.innerText = 'Confirmar Personagem';
                     confirmBtn.disabled = false;
                     renderCharacterSelection('p1', true);
-                } else { // mode === 'arena'
+                } else {
                     socket.emit('createArenaGame', { scenario: fileName });
                     showScreen(arenaLobbyScreen);
                 }
@@ -180,17 +159,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         
-        if (myPlayerKey === 'player1' && !currentRoomId) { // Modo Clássico P1
+        if (myPlayerKey === 'player1' && !currentRoomId) {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             confirmBtn.disabled = true;
             socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
-        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') { // Modo Arena P1 ou P2 (que já tem um roomId)
+        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
              confirmBtn.disabled = true;
              socket.emit('selectArenaCharacter', { character: playerData });
              showScreen(lobbyScreen);
              lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
-        } else { // Modo Clássico P2
+        } else {
             confirmBtn.disabled = true;
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
@@ -216,22 +195,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
+        // --- INÍCIO DA CORREÇÃO ---
         for (const moveName in availableMoves) {
             const moveData = availableMoves[moveName];
+            const displayName = moveData.displayName || moveName;
             const card = document.createElement('div');
             card.className = 'special-move-card';
-            card.dataset.name = moveName;
-            card.innerHTML = `<h4>${moveName}</h4><p>Custo: ${moveData.cost} PA</p><p>Dano: ${moveData.damage}</p><p>Penalidade: ${moveData.penalty}</p>`;
+            card.dataset.name = moveName; // Usa o nome interno para a lógica
+            card.innerHTML = `<h4>${displayName}</h4><p>Custo: ${moveData.cost} PA</p><p>Dano: ${moveData.damage}</p><p>Penalidade: ${moveData.penalty}</p>`;
             card.addEventListener('click', () => card.classList.toggle('selected'));
             container.appendChild(card);
         }
+        // --- FIM DA CORREÇÃO ---
     }
     
-    // --- OUVINTES DO SOCKET.IO ---
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableMoves);
+        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -272,7 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
     
-    // --- OUVINTES DO MODO ARENA ---
     socket.on('arenaRoomCreated', (roomId) => {
         currentRoomId = roomId;
         const baseUrl = window.location.origin;
@@ -386,7 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const fighter = state.fighters[key];
             if (fighter) {
                 document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
-                if (fighter.hpMax) { // Só atualiza se os dados completos existirem
+                if (fighter.hpMax) {
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
                     document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
                     document.getElementById(`${key}-def-text`).innerText = fighter.def;
@@ -399,15 +379,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
+                    // --- INÍCIO DA CORREÇÃO ---
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
+                        const displayName = moveData.displayName || moveName;
                         const btn = document.createElement('button');
                         btn.className = `action-btn special-btn-${key}`;
-                        btn.dataset.move = moveName;
-                        btn.textContent = `${moveName} (${moveData.cost} PA)`;
+                        btn.dataset.move = moveName; // Usa o nome interno para a lógica
+                        btn.textContent = `${displayName} (${moveData.cost} PA)`;
                         btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: moveName, playerKey: myPlayerKey });
                         container.appendChild(btn);
                     });
+                    // --- FIM DA CORREÇÃO ---
                 }
             } else if (key === 'player2' && state.pendingP2Choice) {
                 document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img;
@@ -438,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const p1_pa = state.fighters.player1?.pa || 0;
         document.querySelectorAll('#p1-controls button').forEach(btn => {
             const moveName = btn.dataset.move;
-            const moveCost = moveName ? state.moves[moveName].cost : 0;
+            const moveCost = moveName ? state.moves[moveName]?.cost : 0;
             const isWhiteFangFollowUp = state.phase === 'white_fang_follow_up' && state.followUpState.playerKey === 'player1';
             let isDisabled = isTurnOver || !p1_is_turn;
             if (btn.classList.contains('action-btn')) {
@@ -451,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const p2_pa = state.fighters.player2?.pa || 0;
         document.querySelectorAll('#p2-controls button').forEach(btn => {
             const moveName = btn.dataset.move;
-            const moveCost = moveName ? state.moves[moveName].cost : 0;
+            const moveCost = moveName ? state.moves[moveName]?.cost : 0;
             const isWhiteFangFollowUp = state.phase === 'white_fang_follow_up' && state.followUpState.playerKey === 'player2';
             let isDisabled = isTurnOver || !p2_is_turn;
             if (btn.classList.contains('action-btn')) {
@@ -507,15 +490,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(hideAndResolve, 2000); 
     }
     
-    // Ouvintes restantes
-    // --- INÍCIO DA ALTERAÇÃO 2 ---
     socket.on('playSound', (soundFile) => {
         if (!soundFile) return;
         const sound = new Audio(`sons/${soundFile}`);
         sound.currentTime = 0;
         sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e));
     });
-    // --- FIM DA ALTERAÇÃO 2 ---
 
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });

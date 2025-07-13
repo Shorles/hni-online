@@ -23,7 +23,7 @@ const SPECIAL_MOVES = {
     'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
     // --- INÍCIO DA CORREÇÃO ---
-    'OraOraOra': { cost: 3, damage: 10, penalty: -1 } 
+    'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
     // --- FIM DA CORREÇÃO ---
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
@@ -40,9 +40,7 @@ const MOVE_SOUNDS = {
     'White Fang': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Flicker Jab': ['Flicker01.mp3', 'Flicker02.mp3', 'Flicker03.mp3'],
     'Bala': ['bala01.mp3', 'bala02.mp3'],
-    // --- INÍCIO DA CORREÇÃO ---
     'OraOraOra': 'OraOraOra.mp3'
-    // --- FIM DA CORREÇÃO ---
 };
 
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
@@ -83,7 +81,11 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     const defender = state.fighters[defenderKey];
     const move = state.moves[moveName];
     
-    logMessage(state, `${attacker.nome} usa <span class="log-move-name">${moveName}</span>!`);
+    // --- INÍCIO DA CORREÇÃO ---
+    const displayName = move.displayName || moveName;
+    logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
+    // --- FIM DA CORREÇÃO ---
+
     const roll = rollAttackD6();
     let hit = false;
     let crit = false;
@@ -118,7 +120,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             if (Array.isArray(sounds)) {
                 const randomSound = sounds[Math.floor(Math.random() * sounds.length)];
                 io.to(roomId).emit('playSound', randomSound);
-            } else if (sounds) { // Caso seja uma string única
+            } else if (sounds) {
                 io.to(roomId).emit('playSound', sounds);
             }
         }
@@ -352,7 +354,7 @@ io.on('connection', (socket) => {
         const player = room.players.find(p => p.id === socket.id);
         if (!player) return;
 
-        room.state.fighters[player.playerKey] = { nome: character.nome, img: character.img }; // Salva dados básicos
+        room.state.fighters[player.playerKey] = { nome: character.nome, img: character.img };
         room.state.playersReady[player.playerKey] = true;
         io.to(room.hostId).emit('updateArenaLobby', { playerKey: player.playerKey, status: 'character_selected', character });
 
@@ -479,7 +481,7 @@ io.on('connection', (socket) => {
                 logMessage(state, state.reason, 'log-crit');
                 break;
             case 'roll_initiative':
-                io.to(roomId).emit('playSound', 'dice1.mp3'); // Removido o sistema de som aleatório não solicitado
+                io.to(roomId).emit('playSound', 'dice1.mp3');
                 const roll = rollD(6);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 const agi = state.fighters[playerKey].agi;
@@ -498,7 +500,7 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'roll_defense':
-                io.to(roomId).emit('playSound', 'dice1.mp3'); // Removido o sistema de som aleatório não solicitado
+                io.to(roomId).emit('playSound', 'dice1.mp3');
                 const defRoll = rollD(3);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const res_def = state.fighters[playerKey].res;
