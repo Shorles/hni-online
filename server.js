@@ -27,15 +27,11 @@ const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
 
-// --- INÍCIO DA CORREÇÃO ---
-// Array de resultados para o dado de ataque. 1-5 aparecem 2x, 6 aparece 1x.
-// Isso torna a chance de 1-5 (18.2% cada) o dobro da chance de 6 (9.1%).
 const ATTACK_DICE_OUTCOMES = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6];
 const rollAttackD6 = () => {
     const randomIndex = Math.floor(Math.random() * ATTACK_DICE_OUTCOMES.length);
     return ATTACK_DICE_OUTCOMES[randomIndex];
 };
-// --- FIM DA CORREÇÃO ---
 
 function createNewGameState() {
     return {
@@ -174,19 +170,21 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     fighter.knockdowns++;
     logMessage(state, `${fighter.nome} foi NOCAUTEADO!`, 'log-crit');
     
-    const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
-    
+    // --- INÍCIO DA CORREÇÃO ---
     if (fighter.res <= 1) {
-        logMessage(state, `${fighter.nome} não consegue se levantar. Fim da luta!`, 'log-crit');
+        logMessage(state, `${fighter.nome} não consegue se levantar. O juíz interrompe a luta!`, 'log-crit');
+        const instantKoReason = "O juíz interrompe a luta.<br><br>Vitória por Nocaute!";
         setTimeout(() => {
             state.phase = 'gameover';
             state.winner = (downedPlayerKey === 'player1') ? 'player2' : 'player1';
-            state.reason = finalCountReason;
+            state.reason = instantKoReason;
             io.to(roomId).emit('gameUpdate', state);
             dispatchAction({ state, id: roomId });
         }, 1000);
         return;
     }
+    // --- FIM DA CORREÇÃO ---
+
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null };
 }
 
