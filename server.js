@@ -86,14 +86,13 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     const roll = rollAttackD6();
     let hit = false;
     let crit = false;
-    let soundToPlay = null; // Variável para armazenar o ÚNICO som a ser tocado
+    let soundToPlay = null;
     
     const attackValue = roll + attacker.agi - move.penalty;
     logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
     
     if (roll === 1) {
         logMessage(state, "Erro Crítico!", 'log-miss');
-        // Não define som aqui, pois a lógica de erro abaixo cuidará disso
     } else if (roll === 6) {
         logMessage(state, "Acerto Crítico!", 'log-crit');
         hit = true;
@@ -110,7 +109,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     if (hit) {
         io.to(roomId).emit('triggerHitAnimation', { defenderKey });
         
-        // DECIDE qual som tocar. Se for crítico, o som de crítico tem prioridade.
         if (crit) { 
             soundToPlay = 'Critical.mp3';
         } else {
@@ -131,14 +129,13 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
     } else { // Se o golpe errou
-        if (moveName === 'Counter' && roll !== 1) { // Counter errado mas não crítico
+        if (moveName === 'Counter') {
             logMessage(state, `${attacker.nome} erra o contra-ataque e se desequilibra, sofrendo 3 de dano!`, 'log-crit');
             const hpBeforeSelfHit = attacker.hp;
             attacker.hp = Math.max(0, attacker.hp - 3);
             const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
             attacker.totalDamageTaken += actualSelfDamage;
 
-            // Toca o som do golpe mesmo no erro, para dar feedback do contra-ataque falho
             const specialSounds = MOVE_SOUNDS['Counter'];
             soundToPlay = specialSounds[Math.floor(Math.random() * specialSounds.length)];
 
@@ -146,12 +143,10 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 handleKnockdown(state, attackerKey, io, roomId);
             }
         } else {
-            // Para todos os outros erros (incluindo erro crítico), toca o som de esquiva.
             soundToPlay = 'Esquiva.mp3';
         }
     }
     
-    // Toca o ÚNICO som que foi decidido pela lógica acima.
     if (soundToPlay) {
         io.to(roomId).emit('playSound', soundToPlay);
     }
@@ -159,6 +154,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     return hit;
 }
 // --- FIM DA CORREÇÃO DEFINITIVA ---
+
 
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
@@ -400,12 +396,11 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const state = room.state;
         
-        if (!isActionValid(state, action)) {
-            return; 
-        }
+        const playerKey = action.playerKey;
 
         switch (action.type) {
             case 'configure_and_start_arena':
+                if (playerKey !== 'host' || room.hostId !== socket.id || state.phase !== 'arena_configuring') return;
                 state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
                 state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
                 logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
@@ -434,13 +429,14 @@ io.on('connection', (socket) => {
                 break;
 
             case 'attack':
+                if (!isActionValid(state, action)) return;
                 const moveName = action.move;
                 const move = state.moves[moveName];
-                const attacker = state.fighters[action.playerKey];
-                const defenderKey = (action.playerKey === 'player1') ? 'player2' : 'player1';
+                const attacker = state.fighters[playerKey];
+                const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
 
                 let cost = move.cost;
-                if (state.followUpState && state.followUpState.playerKey === action.playerKey && moveName === 'White Fang') {
+                if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
                     cost = 0;
                 }
                 if (attacker.pa < cost) return;
@@ -450,7 +446,7 @@ io.on('connection', (socket) => {
                     const executeFlicker = () => {
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
                         
-                        const hit = executeAttack(state, action.playerKey, defenderKey, moveName, io, roomId);
+                        const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
                         io.to(roomId).emit('gameUpdate', room.state);
 
                         if (state.fighters[defenderKey].hp <= 0) {
@@ -470,14 +466,14 @@ io.on('connection', (socket) => {
                     return;
                 }
                 
-                executeAttack(state, action.playerKey, defenderKey, moveName, io, roomId);
+                executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
 
                 if (moveName === 'White Fang') {
                     if (state.followUpState) {
                         state.followUpState = null;
                         state.phase = 'turn';
                     } else {
-                        state.followUpState = { playerKey: action.playerKey, moveName };
+                        state.followUpState = { playerKey, moveName };
                         state.phase = 'white_fang_follow_up';
                     }
                 }
@@ -487,20 +483,22 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'forfeit':
-                const winnerKey = action.playerKey === 'player1' ? 'player2' : 'player1';
+                if (!isActionValid(state, action)) return;
+                const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
                 state.winner = winnerKey;
                 state.phase = 'gameover';
-                state.reason = `${state.fighters[action.playerKey].nome} jogou a toalha.`;
+                state.reason = `${state.fighters[playerKey].nome} jogou a toalha.`;
                 logMessage(state, state.reason, 'log-crit');
                 break;
             case 'roll_initiative':
+                if (!isActionValid(state, action)) return;
                 io.to(roomId).emit('playSound', 'dice1.mp3');
                 const roll = rollD(6);
-                io.to(roomId).emit('diceRoll', { playerKey: action.playerKey, rollValue: roll, diceType: 'd6' });
-                const agi = state.fighters[action.playerKey].agi;
-                state.initiativeRolls[action.playerKey] = roll + agi;
-                logMessage(state, `${state.fighters[action.playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[action.playerKey]}</span>`, 'log-info');
-                if (action.playerKey === 'player1') { state.phase = 'initiative_p2'; } else {
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
+                const agi = state.fighters[playerKey].agi;
+                state.initiativeRolls[playerKey] = roll + agi;
+                logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[playerKey]}</span>`, 'log-info');
+                if (playerKey === 'player1') { state.phase = 'initiative_p2'; } else {
                     if (state.initiativeRolls.player1 === state.initiativeRolls.player2) {
                         logMessage(state, "EMPATE na iniciativa! Rolando novamente...", 'log-info');
                         state.initiativeRolls = {};
@@ -513,18 +511,21 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'roll_defense':
+                if (!isActionValid(state, action)) return;
                 io.to(roomId).emit('playSound', 'dice1.mp3');
                 const defRoll = rollD(3);
-                io.to(roomId).emit('diceRoll', { playerKey: action.playerKey, rollValue: defRoll, diceType: 'd3' });
-                const res_def = state.fighters[action.playerKey].res;
-                state.fighters[action.playerKey].def = defRoll + res_def;
-                logMessage(state, `${state.fighters[action.playerKey].nome} definiu defesa: D3(${defRoll}) + RES(${res_def}) = <span class="highlight-total">${state.fighters[action.playerKey].def}</span>`, 'log-info');
-                if (action.playerKey === 'player1') { state.phase = 'defense_p2'; } else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
+                const res_def = state.fighters[playerKey].res;
+                state.fighters[playerKey].def = defRoll + res_def;
+                logMessage(state, `${state.fighters[playerKey].nome} definiu defesa: D3(${defRoll}) + RES(${res_def}) = <span class="highlight-total">${state.fighters[playerKey].def}</span>`, 'log-info');
+                if (playerKey === 'player1') { state.phase = 'defense_p2'; } else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
                 break;
             case 'end_turn':
+                if (!isActionValid(state, action)) return;
                 endTurn(state, io, roomId);
                 break;
             case 'reveal_winner':
+                if (!isActionValid(state, action)) return;
                 const p1FinalScore = state.decisionInfo.p1.finalScore;
                 const p2FinalScore = state.decisionInfo.p2.finalScore;
                 if (p1FinalScore > p2FinalScore) {
@@ -540,18 +541,19 @@ io.on('connection', (socket) => {
                 state.phase = 'gameover';
                 break;
             case 'request_get_up':
+                if (!isActionValid(state, action)) return;
                 const knockdownInfo = state.knockdownInfo;
-                if (!knockdownInfo || knockdownInfo.downedPlayer !== action.playerKey) return;
+                if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
                 
                 knockdownInfo.attempts++;
                 const getUpRoll = rollD(6);
-                io.to(roomId).emit('diceRoll', { playerKey: action.playerKey, rollValue: getUpRoll, diceType: 'd6' });
-                const totalRoll = getUpRoll + state.fighters[action.playerKey].res;
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
+                const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 knockdownInfo.lastRoll = totalRoll;
-                logMessage(state, `${state.fighters[action.playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}`, 'log-info');
+                logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}`, 'log-info');
                 
                 if (totalRoll >= 7) {
-                    const fighter = state.fighters[action.playerKey];
+                    const fighter = state.fighters[playerKey];
                     io.to(roomId).emit('getUpSuccess', { downedPlayerName: fighter.nome, rollValue: totalRoll });
                     setTimeout(() => {
                         logMessage(state, `Ele se levantou!`, 'log-info');
@@ -570,7 +572,7 @@ io.on('connection', (socket) => {
                     const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                     setTimeout(() => {
                         state.phase = 'gameover';
-                        state.winner = (action.playerKey === 'player1') ? 'player2' : 'player1';
+                        state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
                         state.reason = finalCountReason;
                         io.to(roomId).emit('gameUpdate', room.state);
                         dispatchAction(room);

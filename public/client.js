@@ -145,10 +145,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
         // Adicionamos os listeners delegados UMA ÚNICA VEZ.
-        // Eles vão gerenciar TODOS os cliques em botões dentro de seus containers.
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
-        // TODAS as outras formas de adicionar listeners de clique aos botões de ação foram removidas.
         // --- FIM DA CORREÇÃO DEFINITIVA ---
         
         document.getElementById('forfeit-btn').onclick = () => {
@@ -405,7 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-                    // Este loop agora apenas CRIA os botões. Ele não adiciona mais listeners de clique.
+                    // Apenas criamos os botões. NENHUM listener é adicionado aqui.
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
                         if (!moveData) return; 
@@ -414,7 +412,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         btn.className = `action-btn special-btn-${key}`;
                         btn.dataset.move = moveName;
                         btn.textContent = `${displayName} (${moveData.cost} PA)`;
-                        // A linha "btn.onclick = ..." foi removida permanentemente.
                         container.appendChild(btn);
                     });
                     // --- FIM DA CORREÇÃO DEFINITIVA ---
@@ -453,6 +450,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.classList.contains('action-btn')) {
                 if (isWhiteFangFollowUp) { isDisabled = (moveName !== 'White Fang'); } 
                 else { isDisabled = isDisabled || moveCost > p1_pa; }
+            } else if (btn.id === 'p1-end-turn-btn') {
+                isDisabled = isTurnOver || !p1_is_turn;
             }
             btn.disabled = isDisabled;
         });
@@ -467,6 +466,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.classList.contains('action-btn')) {
                 if (isWhiteFangFollowUp) { isDisabled = (moveName !== 'White Fang'); } 
                 else { isDisabled = isDisabled || moveCost > p2_pa; }
+            } else if (btn.id === 'p2-end-turn-btn') {
+                isDisabled = isTurnOver || !p2_is_turn;
             }
             btn.disabled = isDisabled;
         });
@@ -539,8 +540,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
         btn.innerText = text;
         btn.classList.remove('hidden', 'inactive');
-        if (isMyTurnToRoll) { btn.onclick = () => socket.emit('playerAction', action); btn.disabled = false; } 
-        else { btn.disabled = true; btn.onclick = null; if (myPlayerKey !== 'spectator' && myPlayerKey !== 'host') btn.classList.add('inactive'); }
+
+        // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+        // Limpa listeners antigos e adiciona um novo para evitar acúmulo.
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+
+        if (isMyTurnToRoll) {
+            newBtn.onclick = () => {
+                newBtn.disabled = true; // Desabilita imediatamente após o clique
+                socket.emit('playerAction', action);
+            };
+            newBtn.disabled = false;
+        } else {
+            newBtn.disabled = true;
+            newBtn.onclick = null;
+            if (myPlayerKey !== 'spectator' && myPlayerKey !== 'host') newBtn.classList.add('inactive');
+        }
+        // --- FIM DA CORREÇÃO DEFINITIVA ---
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
