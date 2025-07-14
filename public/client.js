@@ -53,18 +53,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- INÍCIO DA CORREÇÃO (DELEGAÇÃO DE EVENTOS) ---
+    // --- INÍCIO DA CORREÇÃO DEFINITIVA (DELEGAÇÃO DE EVENTOS) ---
     function handlePlayerControlClick(event) {
-        // Se não for meu turno ou não for um jogador, ignora o clique.
+        // Se não for um jogador válido, ignora o clique.
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
-        // Encontra o botão que foi realmente clicado, mesmo que o clique seja em um texto dentro do botão
+        // Encontra o elemento de botão mais próximo que foi clicado.
         const target = event.target.closest('button'); 
         
-        // Se o clique não foi em um botão, ou se o botão está desabilitado, não faz nada
+        // Se o clique não foi em um botão, ou se o botão está desabilitado, não faz nada.
         if (!target || target.disabled) return;
 
-        // Garante que o jogador só possa clicar em seus próprios botões
+        // Garante que o jogador só possa clicar em seus próprios controles.
         const isP1Control = p1Controls.contains(target);
         const isP2Control = p2Controls.contains(target);
         if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) {
@@ -74,14 +74,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const move = target.dataset.move;
         
         if (move) {
-            // É um botão de ataque (básico ou especial)
+            // Se o botão tem um 'data-move', é um ataque.
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
         } else if (target.classList.contains('end-turn-btn')) {
-            // É o botão de encerrar o turno
+            // Se tem a classe 'end-turn-btn', é para encerrar o turno.
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
-    // --- FIM DA CORREÇÃO ---
+    // --- FIM DA CORREÇÃO DEFINITIVA ---
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
             myPlayerKey = arenaPlayerKey;
             socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen);
-            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? '1' : '2'}: Selecione seu Lutador`;
+            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : '2'}: Selecione seu Lutador`;
             confirmBtn.innerText = 'Confirmar Personagem';
             renderCharacterSelection('p2', false);
         } else if (isSpectator && currentRoomId) {
@@ -149,13 +149,19 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        // --- INÍCIO DA CORREÇÃO (DELEGAÇÃO DE EVENTOS) ---
-        // Adiciona um único listener de clique para cada container de controle.
-        // Isso é feito apenas UMA VEZ quando a página carrega.
+        // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+        // Adicionamos os listeners delegados aos containers PAI.
+        // Isso é feito apenas UMA VEZ e funciona para todos os botões filhos,
+        // mesmo os que são criados e destruídos dinamicamente.
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
-        // Os listeners individuais nos botões foram removidos pois não são mais necessários.
-        // --- FIM DA CORREÇÃO ---
+        
+        // As linhas abaixo, que adicionavam listeners individuais, foram REMOVIDAS.
+        // document.querySelectorAll('#p1-controls .action-btn.p1-btn').forEach(...)
+        // document.querySelectorAll('#p2-controls .action-btn.p2-btn').forEach(...)
+        // document.getElementById('p1-end-turn-btn').onclick = ...
+        // document.getElementById('p2-end-turn-btn').onclick = ...
+        // --- FIM DA CORREÇÃO DEFINITIVA ---
         
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
@@ -410,19 +416,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
-                    // --- INÍCIO DA CORREÇÃO ---
+                    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+                    // Agora, este loop apenas cria os botões. Ele NÃO adiciona listeners de clique.
+                    // O listener único no container pai (#p1-controls/#p2-controls) cuidará disso.
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
-                        if (!moveData) return;
+                        if (!moveData) return; 
                         const displayName = moveData.displayName || moveName;
                         const btn = document.createElement('button');
-                        // Adicionamos a classe do jogador para os estilos, mas o listener de clique foi removido
                         btn.className = `action-btn special-btn-${key}`;
-                        btn.dataset.move = moveName; // O dataset é usado pelo listener pai
+                        btn.dataset.move = moveName;
                         btn.textContent = `${displayName} (${moveData.cost} PA)`;
                         container.appendChild(btn);
                     });
-                    // --- FIM DA CORREÇÃO ---
+                    // --- FIM DA CORREÇÃO DEFINITIVA ---
                 }
             } else if (key === 'player2' && state.pendingP2Choice) {
                 document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img;
