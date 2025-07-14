@@ -53,20 +53,24 @@ function createNewGameState() {
     return {
         fighters: {}, pendingP2Choice: null, winner: null, reason: null,
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
-        phase: 'waiting', log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
+        phase: 'waiting', previousPhase: null, log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
         decisionInfo: null, followUpState: null, scenario: 'Ringue.png',
         mode: null,
         hostId: null,
+        gmId: null,
         playersReady: { player1: false, player2: false }
     };
 }
 
 function createNewFighterState(data) {
-    const res = Math.max(1, parseInt(data.res, 10));
-    const hp = res * 5;
+    const res = Math.max(1, parseInt(data.res, 10) || 1);
+    const agi = parseInt(data.agi, 10) || 1;
+    const hp = parseInt(data.hp, 10) || (res * 5);
+    const pa = parseInt(data.pa, 10) || 3;
+
     return {
-        nome: data.nome, img: data.img, agi: parseInt(data.agi, 10), res: res, originalRes: res,
-        hpMax: hp, hp: hp, pa: 3, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0,
+        nome: data.nome, img: data.img, agi: agi, res: res, originalRes: res,
+        hpMax: res * 5, hp: hp, pa: pa, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0,
         specialMoves: data.specialMoves || []
     };
 }
@@ -221,11 +225,21 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
         return;
     }
 
-    state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null };
+    state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null, isLastChance: false };
 }
 
 function isActionValid(state, action) {
-    const { type, playerKey } = action;
+    const { type, playerKey, gmSocketId } = action;
+    const isGm = gmSocketId === state.gmId;
+
+    if (type === 'toggle_pause' || type === 'apply_cheats') {
+        return isGm;
+    }
+
+    if (state.phase === 'paused') {
+        return false; // Nenhuma ação de jogo é válida se estiver pausado
+    }
+
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
         return (action.type === 'attack' && action.move === 'White Fang') || type === 'end_turn' || type === 'forfeit';
@@ -239,6 +253,7 @@ function isActionValid(state, action) {
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
         case 'turn': return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
+        case 'gm_decision_knockdown': return (type === 'resolve_knockdown_loss' || type === 'give_last_chance') && isGm;
         case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
         case 'arena_configuring': return type === 'configure_and_start_arena' && playerKey === 'host';
         case 'gameover': return false;
@@ -263,6 +278,16 @@ function dispatchAction(room) {
         case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
         case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
         case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
+        case 'gm_decision_knockdown':
+            if (state.gmId) {
+                io.to(state.gmId).emit('showModal', {
+                    modalType: 'gm_knockdown_decision',
+                    title: 'Intervenção Divina',
+                    text: `${state.fighters[state.knockdownInfo.downedPlayer].nome} falhou na última tentativa. O que fazer?`,
+                    knockdownInfo: state.knockdownInfo
+                });
+            }
+            return;
         case 'decision_table_wait':
             const info = state.decisionInfo;
             const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
@@ -299,10 +324,11 @@ io.on('connection', (socket) => {
         const newState = createNewGameState();
         newState.mode = 'classic';
         newState.scenario = scenario;
+        newState.gmId = socket.id;
         newState.fighters.player1 = createNewFighterState(player1Data);
         newState.phase = 'p1_special_moves_selection';
         games[newRoomId] = { id: newRoomId, hostId: null, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
-        socket.emit('assignPlayer', 'player1');
+        socket.emit('assignPlayer', {playerKey: 'player1', isGm: true});
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
@@ -313,7 +339,7 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         room.players.push({ id: socket.id, playerKey: 'player2' });
         socket.currentRoomId = roomId;
-        socket.emit('assignPlayer', 'player2');
+        socket.emit('assignPlayer', {playerKey: 'player2', isGm: false});
         const state = room.state;
         state.pendingP2Choice = player2Data;
         logMessage(state, `${player2Data.nome} entrou. Aguardando P1 definir atributos e golpes...`);
@@ -331,10 +357,11 @@ io.on('connection', (socket) => {
         newState.scenario = scenario;
         newState.mode = 'arena';
         newState.hostId = socket.id;
+        newState.gmId = socket.id;
         newState.phase = 'arena_lobby';
         logMessage(newState, "Lobby da Arena criado. Aguardando jogadores...");
         games[newRoomId] = { id: newRoomId, hostId: socket.id, players: [], spectators: [], state: newState };
-        socket.emit('assignPlayer', 'host');
+        socket.emit('assignPlayer', {playerKey: 'host', isGm: true});
         socket.emit('arenaRoomCreated', newRoomId);
         io.to(socket.id).emit('gameUpdate', newState);
     });
@@ -347,7 +374,7 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         room.players.push({ id: socket.id, playerKey });
         socket.currentRoomId = roomId;
-        socket.emit('assignPlayer', playerKey);
+        socket.emit('assignPlayer', {playerKey: playerKey, isGm: false});
         io.to(roomId).emit('gameUpdate', room.state);
         io.to(room.hostId).emit('updateArenaLobby', { playerKey, status: 'connected' });
     });
@@ -380,7 +407,7 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         room.spectators.push(socket.id);
         socket.currentRoomId = roomId;
-        socket.emit('assignPlayer', 'spectator');
+        socket.emit('assignPlayer', {playerKey: 'spectator', isGm: false});
         socket.emit('gameUpdate', room.state);
         logMessage(room.state, 'Um espectador entrou na sala.');
         io.to(roomId).emit('gameUpdate', room.state);
@@ -388,11 +415,14 @@ io.on('connection', (socket) => {
 
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
-        if (!roomId || !games[roomId] || !action || !action.playerKey) return;
+        if (!roomId || !games[roomId] || !action || !action.type) return;
         
         const room = games[roomId];
         const state = room.state;
         
+        // Adiciona o socket.id do remetente à ação para validação de GM
+        action.gmSocketId = socket.id;
+
         if (!isActionValid(state, action)) {
             return;
         }
@@ -400,6 +430,52 @@ io.on('connection', (socket) => {
         const playerKey = action.playerKey;
 
         switch (action.type) {
+            case 'toggle_pause':
+                if (state.phase === 'paused') {
+                    state.phase = state.previousPhase || 'turn';
+                    logMessage(state, 'Jogo reativado pelo GM.', 'log-info');
+                } else {
+                    if (state.phase === 'decision_table_wait' || state.phase === 'gameover') return; //Não pode pausar na decisão/fim
+                    state.previousPhase = state.phase;
+                    state.phase = 'paused';
+                    logMessage(state, 'Jogo pausado pelo GM.', 'log-info');
+                }
+                break;
+
+            case 'apply_cheats':
+                const { p1, p2 } = action.cheats;
+                const p1f = state.fighters.player1;
+                const p2f = state.fighters.player2;
+
+                p1f.agi = parseInt(p1.agi, 10);
+                p1f.res = parseInt(p1.res, 10);
+                p1f.hp = parseInt(p1.hp, 10);
+                p1f.pa = parseInt(p1.pa, 10);
+                p1f.hpMax = p1f.res * 5;
+
+                p2f.agi = parseInt(p2.agi, 10);
+                p2f.res = parseInt(p2.res, 10);
+                p2f.hp = parseInt(p2.hp, 10);
+                p2f.pa = parseInt(p2.pa, 10);
+                p2f.hpMax = p2f.res * 5;
+                logMessage(state, 'O GM alterou os atributos dos lutadores!', 'log-crit');
+                break;
+            
+            case 'give_last_chance':
+                state.knockdownInfo.attempts = 3; // Dá mais uma tentativa
+                state.knockdownInfo.isLastChance = true; // Marca como a chance final
+                state.phase = 'knockdown';
+                logMessage(state, `O GM deu uma última chance para ${state.fighters[state.knockdownInfo.downedPlayer].nome}!`, 'log-crit');
+                break;
+            
+            case 'resolve_knockdown_loss':
+                logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
+                const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
+                state.phase = 'gameover';
+                state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
+                state.reason = finalCountReason;
+                break;
+
             case 'configure_and_start_arena':
                 state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
                 state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
@@ -560,7 +636,9 @@ io.on('connection', (socket) => {
                         dispatchAction(room);
                     }, 3000);
                     return;
-                } else if (knockdownInfo.attempts >= 4) {
+                } else if (knockdownInfo.attempts >= 4 && !knockdownInfo.isLastChance) {
+                    state.phase = 'gm_decision_knockdown';
+                } else { // Falhou na última chance ou em tentativas normais
                     logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
                     const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                     setTimeout(() => {

@@ -205,9 +205,7 @@ body {
 /* Regras de Animação */
 @keyframes player1-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(-50px); } }
 
-/* --- INÍCIO DA CORREÇÃO --- */
 @keyframes player2-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(50px); } }
-/* --- FIM DA CORREÇÃO --- */
 
 @keyframes player1-attack-lunge-arena { 50% { transform: translateX(50px); } }
 @keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(50px); } }
