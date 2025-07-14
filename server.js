@@ -73,6 +73,7 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
+// --- INÍCIO DA CORREÇÃO DEFINITIVA ---
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
@@ -85,13 +86,14 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     const roll = rollAttackD6();
     let hit = false;
     let crit = false;
-    let soundToPlay = null;
+    let soundToPlay = null; // Variável para armazenar o ÚNICO som a ser tocado
     
     const attackValue = roll + attacker.agi - move.penalty;
     logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
     
     if (roll === 1) {
         logMessage(state, "Erro Crítico!", 'log-miss');
+        // Não define som aqui, pois a lógica de erro abaixo cuidará disso
     } else if (roll === 6) {
         logMessage(state, "Acerto Crítico!", 'log-crit');
         hit = true;
@@ -108,6 +110,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     if (hit) {
         io.to(roomId).emit('triggerHitAnimation', { defenderKey });
         
+        // DECIDE qual som tocar. Se for crítico, o som de crítico tem prioridade.
         if (crit) { 
             soundToPlay = 'Critical.mp3';
         } else {
@@ -128,13 +131,14 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
     } else { // Se o golpe errou
-        if (moveName === 'Counter') {
+        if (moveName === 'Counter' && roll !== 1) { // Counter errado mas não crítico
             logMessage(state, `${attacker.nome} erra o contra-ataque e se desequilibra, sofrendo 3 de dano!`, 'log-crit');
             const hpBeforeSelfHit = attacker.hp;
             attacker.hp = Math.max(0, attacker.hp - 3);
             const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
             attacker.totalDamageTaken += actualSelfDamage;
 
+            // Toca o som do golpe mesmo no erro, para dar feedback do contra-ataque falho
             const specialSounds = MOVE_SOUNDS['Counter'];
             soundToPlay = specialSounds[Math.floor(Math.random() * specialSounds.length)];
 
@@ -142,16 +146,19 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 handleKnockdown(state, attackerKey, io, roomId);
             }
         } else {
+            // Para todos os outros erros (incluindo erro crítico), toca o som de esquiva.
             soundToPlay = 'Esquiva.mp3';
         }
     }
     
+    // Toca o ÚNICO som que foi decidido pela lógica acima.
     if (soundToPlay) {
         io.to(roomId).emit('playSound', soundToPlay);
     }
     
     return hit;
 }
+// --- FIM DA CORREÇÃO DEFINITIVA ---
 
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
@@ -224,49 +231,27 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null };
 }
 
-// --- INÍCIO DA CORREÇÃO DEFINITIVA (SERVER-SIDE) ---
 function isActionValid(state, action) {
     const { type, playerKey } = action;
-
-    // Lógica específica para o follow-up do White Fang
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
         return (action.type === 'attack' && action.move === 'White Fang') || type === 'end_turn' || type === 'forfeit';
     }
-
-    // Validação geral baseada na fase do jogo
     switch (state.phase) {
-        case 'p1_special_moves_selection':
-            return type === 'set_p1_special_moves' && playerKey === 'player1';
-        case 'p2_stat_assignment':
-            return type === 'set_p2_stats' && playerKey === 'player1';
-        case 'initiative_p1':
-            return type === 'roll_initiative' && playerKey === 'player1';
-        case 'initiative_p2':
-            return type === 'roll_initiative' && playerKey === 'player2';
-        case 'defense_p1':
-            return type === 'roll_defense' && playerKey === 'player1';
-        case 'defense_p2':
-            return type === 'roll_defense' && playerKey === 'player2';
-        case 'turn':
-            // Apenas o jogador do turno pode realizar estas ações
-            return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
-        case 'knockdown':
-            // Apenas o jogador caído pode tentar se levantar
-            return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
-        case 'decision_table_wait':
-            // P1 (modo clássico) ou Host (modo arena) pode revelar o vencedor
-            return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
-        case 'arena_configuring':
-            // Apenas o Host pode iniciar a partida da arena
-            return type === 'configure_and_start_arena' && playerKey === 'host';
-        case 'gameover': // Nenhuma ação é válida quando o jogo acaba
-            return false;
-        default: // Fase desconhecida, nenhuma ação é válida
-            return false;
+        case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
+        case 'p2_stat_assignment': return type === 'set_p2_stats' && playerKey === 'player1';
+        case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
+        case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
+        case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
+        case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
+        case 'turn': return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
+        case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
+        case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
+        case 'arena_configuring': return type === 'configure_and_start_arena' && playerKey === 'host';
+        case 'gameover': return false;
+        default: return false;
     }
 }
-// --- FIM DA CORREÇÃO DEFINITIVA (SERVER-SIDE) ---
 
 function dispatchAction(room) {
     if (!room) return;
@@ -415,13 +400,9 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const state = room.state;
         
-        // --- INÍCIO DA CORREÇÃO DEFINITIVA (SERVER-SIDE) ---
-        // Agora, o servidor SEMPRE verifica se a ação é válida ANTES de processá-la.
-        // Isso impede que cliques rápidos ou ações duplicadas do cliente sejam processados.
         if (!isActionValid(state, action)) {
             return; 
         }
-        // --- FIM DA CORREÇÃO DEFINITIVA (SERVER-SIDE) ---
 
         switch (action.type) {
             case 'configure_and_start_arena':
