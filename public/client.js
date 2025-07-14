@@ -53,6 +53,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- INÍCIO DA CORREÇÃO (DELEGAÇÃO DE EVENTOS) ---
+    function handlePlayerControlClick(event) {
+        // Se não for meu turno ou não for um jogador, ignora o clique.
+        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
+
+        // Encontra o botão que foi realmente clicado, mesmo que o clique seja em um texto dentro do botão
+        const target = event.target.closest('button'); 
+        
+        // Se o clique não foi em um botão, ou se o botão está desabilitado, não faz nada
+        if (!target || target.disabled) return;
+
+        // Garante que o jogador só possa clicar em seus próprios botões
+        const isP1Control = p1Controls.contains(target);
+        const isP2Control = p2Controls.contains(target);
+        if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) {
+            return;
+        }
+
+        const move = target.dataset.move;
+        
+        if (move) {
+            // É um botão de ataque (básico ou especial)
+            socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+        } else if (target.classList.contains('end-turn-btn')) {
+            // É o botão de encerrar o turno
+            socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        }
+    }
+    // --- FIM DA CORREÇÃO ---
+
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
@@ -119,10 +149,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        document.querySelectorAll('#p1-controls .action-btn.p1-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
-        document.querySelectorAll('#p2-controls .action-btn.p2-btn').forEach(btn => btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: btn.dataset.move, playerKey: myPlayerKey }));
-        document.getElementById('p1-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-        document.getElementById('p2-end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        // --- INÍCIO DA CORREÇÃO (DELEGAÇÃO DE EVENTOS) ---
+        // Adiciona um único listener de clique para cada container de controle.
+        // Isso é feito apenas UMA VEZ quando a página carrega.
+        p1Controls.addEventListener('click', handlePlayerControlClick);
+        p2Controls.addEventListener('click', handlePlayerControlClick);
+        // Os listeners individuais nos botões foram removidos pois não são mais necessários.
+        // --- FIM DA CORREÇÃO ---
         
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
@@ -195,18 +228,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
-        // --- INÍCIO DA CORREÇÃO ---
         for (const moveName in availableMoves) {
             const moveData = availableMoves[moveName];
             const displayName = moveData.displayName || moveName;
             const card = document.createElement('div');
             card.className = 'special-move-card';
-            card.dataset.name = moveName; // Usa o nome interno para a lógica
+            card.dataset.name = moveName;
             card.innerHTML = `<h4>${displayName}</h4><p>Custo: ${moveData.cost} PA</p><p>Dano: ${moveData.damage}</p><p>Penalidade: ${moveData.penalty}</p>`;
             card.addEventListener('click', () => card.classList.toggle('selected'));
             container.appendChild(card);
         }
-        // --- FIM DA CORREÇÃO ---
     }
     
     socket.on('promptSpecialMoves', (data) => {
@@ -382,12 +413,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     // --- INÍCIO DA CORREÇÃO ---
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
+                        if (!moveData) return;
                         const displayName = moveData.displayName || moveName;
                         const btn = document.createElement('button');
+                        // Adicionamos a classe do jogador para os estilos, mas o listener de clique foi removido
                         btn.className = `action-btn special-btn-${key}`;
-                        btn.dataset.move = moveName; // Usa o nome interno para a lógica
+                        btn.dataset.move = moveName; // O dataset é usado pelo listener pai
                         btn.textContent = `${displayName} (${moveData.cost} PA)`;
-                        btn.onclick = () => socket.emit('playerAction', { type: 'attack', move: moveName, playerKey: myPlayerKey });
                         container.appendChild(btn);
                     });
                     // --- FIM DA CORREÇÃO ---
@@ -412,12 +444,11 @@ document.addEventListener('DOMContentLoaded', () => {
         else { actionWrapper.classList.remove('hidden'); }
         
         const isTurnOver = state.phase !== 'turn' && state.phase !== 'white_fang_follow_up';
-        const p1_is_turn = state.whoseTurn === 'player1';
-        const p2_is_turn = state.whoseTurn === 'player2';
         
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
 
+        const p1_is_turn = state.whoseTurn === 'player1';
         const p1_pa = state.fighters.player1?.pa || 0;
         document.querySelectorAll('#p1-controls button').forEach(btn => {
             const moveName = btn.dataset.move;
@@ -431,6 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.disabled = isDisabled;
         });
 
+        const p2_is_turn = state.whoseTurn === 'player2';
         const p2_pa = state.fighters.player2?.pa || 0;
         document.querySelectorAll('#p2-controls button').forEach(btn => {
             const moveName = btn.dataset.move;
