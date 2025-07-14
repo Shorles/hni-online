@@ -73,7 +73,7 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
-// --- INÍCIO DA CORREÇÃO ---
+// --- INÍCIO DA CORREÇÃO DEFINITIVA ---
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
@@ -153,7 +153,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     
     return hit;
 }
-// --- FIM DA CORREÇÃO ---
+// --- FIM DA CORREÇÃO DEFINITIVA ---
 
 
 function endTurn(state, io, roomId) {
