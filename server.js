@@ -22,9 +22,7 @@ const SPECIAL_MOVES = {
     'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 },
     'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
-    // --- INÍCIO DA CORREÇÃO ---
     'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
-    // --- FIM DA CORREÇÃO ---
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
@@ -81,21 +79,22 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     const defender = state.fighters[defenderKey];
     const move = state.moves[moveName];
     
-    // --- INÍCIO DA CORREÇÃO ---
     const displayName = move.displayName || moveName;
     logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
-    // --- FIM DA CORREÇÃO ---
-
+    
     const roll = rollAttackD6();
     let hit = false;
     let crit = false;
+    
+    // --- INÍCIO DA CORREÇÃO ---
+    let soundToPlay = null; 
+    // --- FIM DA CORREÇÃO ---
     
     const attackValue = roll + attacker.agi - move.penalty;
     logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
     
     if (roll === 1) {
         logMessage(state, "Erro Crítico!", 'log-miss');
-        io.to(roomId).emit('playSound', 'Esquiva.mp3');
     } else if (roll === 6) {
         logMessage(state, "Acerto Crítico!", 'log-crit');
         hit = true;
@@ -106,7 +105,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             hit = true;
         } else {
             logMessage(state, "Errou!", 'log-miss');
-            io.to(roomId).emit('playSound', 'Esquiva.mp3');
         }
     }
     
@@ -114,14 +112,13 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         io.to(roomId).emit('triggerHitAnimation', { defenderKey });
         
         if (crit) { 
-            io.to(roomId).emit('playSound', 'Critical.mp3'); 
+            soundToPlay = 'Critical.mp3';
         } else {
             const sounds = MOVE_SOUNDS[moveName];
             if (Array.isArray(sounds)) {
-                const randomSound = sounds[Math.floor(Math.random() * sounds.length)];
-                io.to(roomId).emit('playSound', randomSound);
+                soundToPlay = sounds[Math.floor(Math.random() * sounds.length)];
             } else if (sounds) {
-                io.to(roomId).emit('playSound', sounds);
+                soundToPlay = sounds;
             }
         }
         
@@ -134,17 +131,32 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
     } else {
+        // --- INÍCIO DA CORREÇÃO ---
         if (moveName === 'Counter') {
             logMessage(state, `${attacker.nome} erra o contra-ataque e se desequilibra, sofrendo 3 de dano!`, 'log-crit');
             const hpBeforeSelfHit = attacker.hp;
             attacker.hp = Math.max(0, attacker.hp - 3);
             const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
             attacker.totalDamageTaken += actualSelfDamage;
+
+            const specialSounds = MOVE_SOUNDS['Counter']; // Pega os sons de especial
+            soundToPlay = specialSounds[Math.floor(Math.random() * specialSounds.length)];
+
             if (attacker.hp <= 0) {
                 handleKnockdown(state, attackerKey, io, roomId);
             }
+        } else {
+            soundToPlay = 'Esquiva.mp3';
         }
+        // --- FIM DA CORREÇÃO ---
     }
+    
+    // --- INÍCIO DA CORREÇÃO ---
+    if (soundToPlay) {
+        io.to(roomId).emit('playSound', soundToPlay);
+    }
+    // --- FIM DA CORREÇÃO ---
+    
     return hit;
 }
 
