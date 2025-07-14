@@ -73,7 +73,6 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
-// --- INÍCIO DA CORREÇÃO ---
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
@@ -136,7 +135,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
             attacker.totalDamageTaken += actualSelfDamage;
 
-            // Toca o som do golpe mesmo no erro, para dar feedback do contra-ataque falho
             const specialSounds = MOVE_SOUNDS['Counter'];
             soundToPlay = specialSounds[Math.floor(Math.random() * specialSounds.length)];
 
@@ -154,8 +152,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     
     return hit;
 }
-// --- FIM DA CORREÇÃO ---
-
 
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
@@ -399,9 +395,18 @@ io.on('connection', (socket) => {
         
         const playerKey = action.playerKey;
 
+        // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+        if (!isActionValid(state, action)) {
+            // Se a ação não for válida para o estado atual do jogo, ignora.
+            // Isso evita que ações como clicar em um botão de ataque duas vezes rapidamente
+            // sejam processadas se o estado do jogo já mudou.
+            return;
+        }
+        // --- FIM DA CORREÇÃO DEFINITIVA ---
+
         switch (action.type) {
             case 'configure_and_start_arena':
-                if (playerKey !== 'host' || room.hostId !== socket.id || state.phase !== 'arena_configuring') return;
+                // a validação já acontece em isActionValid
                 state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
                 state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
                 logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
@@ -439,11 +444,13 @@ io.on('connection', (socket) => {
                 if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
                     cost = 0;
                 }
+
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
 
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
+                        // Re-valida o estado a cada repetição do Flicker
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
                         
                         const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
@@ -458,15 +465,19 @@ io.on('connection', (socket) => {
                         if (hit) {
                             setTimeout(executeFlicker, 700);
                         } else {
+                            // Se errou, o turno pode prosseguir normalmente
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
                         }
                     };
                     executeFlicker();
-                    return;
+                    return; // Retorna para não executar a lógica de ataque normal abaixo
                 }
                 
+                // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+                // Esta é a única chamada para golpes normais.
                 executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                // --- FIM DA CORREÇÃO DEFINITIVA ---
 
                 if (moveName === 'White Fang') {
                     if (state.followUpState) {
