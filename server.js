@@ -73,7 +73,6 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
-// --- INÍCIO DA CORREÇÃO DEFINITIVA ---
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
@@ -153,8 +152,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     
     return hit;
 }
-// --- FIM DA CORREÇÃO DEFINITIVA ---
-
 
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
@@ -396,11 +393,11 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const state = room.state;
         
-        const playerKey = action.playerKey;
-
         if (!isActionValid(state, action)) {
             return;
         }
+        
+        const playerKey = action.playerKey;
 
         switch (action.type) {
             case 'configure_and_start_arena':
