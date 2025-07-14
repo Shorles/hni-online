@@ -224,27 +224,49 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null };
 }
 
+// --- INÍCIO DA CORREÇÃO DEFINITIVA (SERVER-SIDE) ---
 function isActionValid(state, action) {
     const { type, playerKey } = action;
+
+    // Lógica específica para o follow-up do White Fang
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
         return (action.type === 'attack' && action.move === 'White Fang') || type === 'end_turn' || type === 'forfeit';
     }
+
+    // Validação geral baseada na fase do jogo
     switch (state.phase) {
-        case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
-        case 'p2_stat_assignment': return type === 'set_p2_stats' && playerKey === 'player1';
-        case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
-        case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
-        case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
-        case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
-        case 'turn': return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
-        case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
-        case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
-        case 'arena_configuring': return type === 'configure_and_start_arena' && playerKey === 'host';
-        case 'gameover': return false;
-        default: return false;
+        case 'p1_special_moves_selection':
+            return type === 'set_p1_special_moves' && playerKey === 'player1';
+        case 'p2_stat_assignment':
+            return type === 'set_p2_stats' && playerKey === 'player1';
+        case 'initiative_p1':
+            return type === 'roll_initiative' && playerKey === 'player1';
+        case 'initiative_p2':
+            return type === 'roll_initiative' && playerKey === 'player2';
+        case 'defense_p1':
+            return type === 'roll_defense' && playerKey === 'player1';
+        case 'defense_p2':
+            return type === 'roll_defense' && playerKey === 'player2';
+        case 'turn':
+            // Apenas o jogador do turno pode realizar estas ações
+            return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
+        case 'knockdown':
+            // Apenas o jogador caído pode tentar se levantar
+            return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
+        case 'decision_table_wait':
+            // P1 (modo clássico) ou Host (modo arena) pode revelar o vencedor
+            return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
+        case 'arena_configuring':
+            // Apenas o Host pode iniciar a partida da arena
+            return type === 'configure_and_start_arena' && playerKey === 'host';
+        case 'gameover': // Nenhuma ação é válida quando o jogo acaba
+            return false;
+        default: // Fase desconhecida, nenhuma ação é válida
+            return false;
     }
 }
+// --- FIM DA CORREÇÃO DEFINITIVA (SERVER-SIDE) ---
 
 function dispatchAction(room) {
     if (!room) return;
@@ -393,20 +415,16 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const state = room.state;
         
-        const playerKey = action.playerKey;
-
-        // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+        // --- INÍCIO DA CORREÇÃO DEFINITIVA (SERVER-SIDE) ---
+        // Agora, o servidor SEMPRE verifica se a ação é válida ANTES de processá-la.
+        // Isso impede que cliques rápidos ou ações duplicadas do cliente sejam processados.
         if (!isActionValid(state, action)) {
-            // Se a ação não for válida para o estado atual do jogo, ignora.
-            // Isso evita que ações como clicar em um botão de ataque duas vezes rapidamente
-            // sejam processadas se o estado do jogo já mudou.
-            return;
+            return; 
         }
-        // --- FIM DA CORREÇÃO DEFINITIVA ---
+        // --- FIM DA CORREÇÃO DEFINITIVA (SERVER-SIDE) ---
 
         switch (action.type) {
             case 'configure_and_start_arena':
-                // a validação já acontece em isActionValid
                 state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
                 state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
                 logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
@@ -437,23 +455,21 @@ io.on('connection', (socket) => {
             case 'attack':
                 const moveName = action.move;
                 const move = state.moves[moveName];
-                const attacker = state.fighters[playerKey];
-                const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
+                const attacker = state.fighters[action.playerKey];
+                const defenderKey = (action.playerKey === 'player1') ? 'player2' : 'player1';
 
                 let cost = move.cost;
-                if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
+                if (state.followUpState && state.followUpState.playerKey === action.playerKey && moveName === 'White Fang') {
                     cost = 0;
                 }
-
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
 
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
-                        // Re-valida o estado a cada repetição do Flicker
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
                         
-                        const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                        const hit = executeAttack(state, action.playerKey, defenderKey, moveName, io, roomId);
                         io.to(roomId).emit('gameUpdate', room.state);
 
                         if (state.fighters[defenderKey].hp <= 0) {
@@ -465,26 +481,22 @@ io.on('connection', (socket) => {
                         if (hit) {
                             setTimeout(executeFlicker, 700);
                         } else {
-                            // Se errou, o turno pode prosseguir normalmente
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
                         }
                     };
                     executeFlicker();
-                    return; // Retorna para não executar a lógica de ataque normal abaixo
+                    return;
                 }
                 
-                // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-                // Esta é a única chamada para golpes normais.
-                executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
-                // --- FIM DA CORREÇÃO DEFINITIVA ---
+                executeAttack(state, action.playerKey, defenderKey, moveName, io, roomId);
 
                 if (moveName === 'White Fang') {
                     if (state.followUpState) {
                         state.followUpState = null;
                         state.phase = 'turn';
                     } else {
-                        state.followUpState = { playerKey, moveName };
+                        state.followUpState = { playerKey: action.playerKey, moveName };
                         state.phase = 'white_fang_follow_up';
                     }
                 }
@@ -494,20 +506,20 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'forfeit':
-                const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
+                const winnerKey = action.playerKey === 'player1' ? 'player2' : 'player1';
                 state.winner = winnerKey;
                 state.phase = 'gameover';
-                state.reason = `${state.fighters[playerKey].nome} jogou a toalha.`;
+                state.reason = `${state.fighters[action.playerKey].nome} jogou a toalha.`;
                 logMessage(state, state.reason, 'log-crit');
                 break;
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
                 const roll = rollD(6);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
-                const agi = state.fighters[playerKey].agi;
-                state.initiativeRolls[playerKey] = roll + agi;
-                logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[playerKey]}</span>`, 'log-info');
-                if (playerKey === 'player1') { state.phase = 'initiative_p2'; } else {
+                io.to(roomId).emit('diceRoll', { playerKey: action.playerKey, rollValue: roll, diceType: 'd6' });
+                const agi = state.fighters[action.playerKey].agi;
+                state.initiativeRolls[action.playerKey] = roll + agi;
+                logMessage(state, `${state.fighters[action.playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[action.playerKey]}</span>`, 'log-info');
+                if (action.playerKey === 'player1') { state.phase = 'initiative_p2'; } else {
                     if (state.initiativeRolls.player1 === state.initiativeRolls.player2) {
                         logMessage(state, "EMPATE na iniciativa! Rolando novamente...", 'log-info');
                         state.initiativeRolls = {};
@@ -522,11 +534,11 @@ io.on('connection', (socket) => {
             case 'roll_defense':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
                 const defRoll = rollD(3);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
-                const res_def = state.fighters[playerKey].res;
-                state.fighters[playerKey].def = defRoll + res_def;
-                logMessage(state, `${state.fighters[playerKey].nome} definiu defesa: D3(${defRoll}) + RES(${res_def}) = <span class="highlight-total">${state.fighters[playerKey].def}</span>`, 'log-info');
-                if (playerKey === 'player1') { state.phase = 'defense_p2'; } else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
+                io.to(roomId).emit('diceRoll', { playerKey: action.playerKey, rollValue: defRoll, diceType: 'd3' });
+                const res_def = state.fighters[action.playerKey].res;
+                state.fighters[action.playerKey].def = defRoll + res_def;
+                logMessage(state, `${state.fighters[action.playerKey].nome} definiu defesa: D3(${defRoll}) + RES(${res_def}) = <span class="highlight-total">${state.fighters[action.playerKey].def}</span>`, 'log-info');
+                if (action.playerKey === 'player1') { state.phase = 'defense_p2'; } else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
                 break;
             case 'end_turn':
                 endTurn(state, io, roomId);
@@ -548,17 +560,17 @@ io.on('connection', (socket) => {
                 break;
             case 'request_get_up':
                 const knockdownInfo = state.knockdownInfo;
-                if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
+                if (!knockdownInfo || knockdownInfo.downedPlayer !== action.playerKey) return;
                 
                 knockdownInfo.attempts++;
                 const getUpRoll = rollD(6);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
-                const totalRoll = getUpRoll + state.fighters[playerKey].res;
+                io.to(roomId).emit('diceRoll', { playerKey: action.playerKey, rollValue: getUpRoll, diceType: 'd6' });
+                const totalRoll = getUpRoll + state.fighters[action.playerKey].res;
                 knockdownInfo.lastRoll = totalRoll;
-                logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}`, 'log-info');
+                logMessage(state, `${state.fighters[action.playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}`, 'log-info');
                 
                 if (totalRoll >= 7) {
-                    const fighter = state.fighters[playerKey];
+                    const fighter = state.fighters[action.playerKey];
                     io.to(roomId).emit('getUpSuccess', { downedPlayerName: fighter.nome, rollValue: totalRoll });
                     setTimeout(() => {
                         logMessage(state, `Ele se levantou!`, 'log-info');
@@ -577,7 +589,7 @@ io.on('connection', (socket) => {
                     const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                     setTimeout(() => {
                         state.phase = 'gameover';
-                        state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
+                        state.winner = (action.playerKey === 'player1') ? 'player2' : 'player1';
                         state.reason = finalCountReason;
                         io.to(roomId).emit('gameUpdate', room.state);
                         dispatchAction(room);

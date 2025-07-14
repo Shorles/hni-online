@@ -52,19 +52,14 @@ document.addEventListener('DOMContentLoaded', () => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
         });
     }
-
+    
     // --- INÍCIO DA CORREÇÃO DEFINITIVA (DELEGAÇÃO DE EVENTOS) ---
     function handlePlayerControlClick(event) {
-        // Se não for um jogador válido, ignora o clique.
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
-        // Encontra o elemento de botão mais próximo que foi clicado.
         const target = event.target.closest('button'); 
-        
-        // Se o clique não foi em um botão, ou se o botão está desabilitado, não faz nada.
         if (!target || target.disabled) return;
 
-        // Garante que o jogador só possa clicar em seus próprios controles.
         const isP1Control = p1Controls.contains(target);
         const isP2Control = p2Controls.contains(target);
         if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) {
@@ -74,10 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const move = target.dataset.move;
         
         if (move) {
-            // Se o botão tem um 'data-move', é um ataque.
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
         } else if (target.classList.contains('end-turn-btn')) {
-            // Se tem a classe 'end-turn-btn', é para encerrar o turno.
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
@@ -95,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
             myPlayerKey = arenaPlayerKey;
             socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen);
-            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : '2'}: Selecione seu Lutador`;
+            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? '1' : '2'}: Selecione seu Lutador`;
             confirmBtn.innerText = 'Confirmar Personagem';
             renderCharacterSelection('p2', false);
         } else if (isSpectator && currentRoomId) {
@@ -150,17 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-        // Adicionamos os listeners delegados aos containers PAI.
-        // Isso é feito apenas UMA VEZ e funciona para todos os botões filhos,
-        // mesmo os que são criados e destruídos dinamicamente.
+        // Adiciona os listeners delegados aos containers PAI UMA ÚNICA VEZ.
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
-        
-        // As linhas abaixo, que adicionavam listeners individuais, foram REMOVIDAS.
-        // document.querySelectorAll('#p1-controls .action-btn.p1-btn').forEach(...)
-        // document.querySelectorAll('#p2-controls .action-btn.p2-btn').forEach(...)
-        // document.getElementById('p1-end-turn-btn').onclick = ...
-        // document.getElementById('p2-end-turn-btn').onclick = ...
         // --- FIM DA CORREÇÃO DEFINITIVA ---
         
         document.getElementById('forfeit-btn').onclick = () => {
@@ -417,8 +402,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-                    // Agora, este loop apenas cria os botões. Ele NÃO adiciona listeners de clique.
-                    // O listener único no container pai (#p1-controls/#p2-controls) cuidará disso.
+                    // Este loop agora apenas CRIA os botões. Ele não adiciona mais listeners.
+                    // O listener único no container pai lida com os cliques.
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
                         if (!moveData) return; 
@@ -427,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         btn.className = `action-btn special-btn-${key}`;
                         btn.dataset.move = moveName;
                         btn.textContent = `${displayName} (${moveData.cost} PA)`;
+                        // NENHUMA linha "btn.onclick = ..." aqui.
                         container.appendChild(btn);
                     });
                     // --- FIM DA CORREÇÃO DEFINITIVA ---
