@@ -73,6 +73,7 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
+// --- INÍCIO DA CORREÇÃO ---
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
@@ -85,10 +86,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     const roll = rollAttackD6();
     let hit = false;
     let crit = false;
-    
-    // --- INÍCIO DA CORREÇÃO ---
-    let soundToPlay = null; 
-    // --- FIM DA CORREÇÃO ---
+    let soundToPlay = null;
     
     const attackValue = roll + attacker.agi - move.penalty;
     logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
@@ -130,8 +128,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         attacker.hitsLanded++;
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
-    } else {
-        // --- INÍCIO DA CORREÇÃO ---
+    } else { // Se o golpe errou
         if (moveName === 'Counter') {
             logMessage(state, `${attacker.nome} erra o contra-ataque e se desequilibra, sofrendo 3 de dano!`, 'log-crit');
             const hpBeforeSelfHit = attacker.hp;
@@ -139,7 +136,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
             attacker.totalDamageTaken += actualSelfDamage;
 
-            const specialSounds = MOVE_SOUNDS['Counter']; // Pega os sons de especial
+            const specialSounds = MOVE_SOUNDS['Counter'];
             soundToPlay = specialSounds[Math.floor(Math.random() * specialSounds.length)];
 
             if (attacker.hp <= 0) {
@@ -148,17 +145,16 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         } else {
             soundToPlay = 'Esquiva.mp3';
         }
-        // --- FIM DA CORREÇÃO ---
     }
     
-    // --- INÍCIO DA CORREÇÃO ---
     if (soundToPlay) {
         io.to(roomId).emit('playSound', soundToPlay);
     }
-    // --- FIM DA CORREÇÃO ---
     
     return hit;
 }
+// --- FIM DA CORREÇÃO ---
+
 
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
