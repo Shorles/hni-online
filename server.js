@@ -73,7 +73,7 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
-// --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+// --- INÍCIO DA CORREÇÃO ---
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
@@ -136,6 +136,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
             attacker.totalDamageTaken += actualSelfDamage;
 
+            // Toca o som do golpe mesmo no erro, para dar feedback do contra-ataque falho
             const specialSounds = MOVE_SOUNDS['Counter'];
             soundToPlay = specialSounds[Math.floor(Math.random() * specialSounds.length)];
 
@@ -153,7 +154,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     
     return hit;
 }
-// --- FIM DA CORREÇÃO DEFINITIVA ---
+// --- FIM DA CORREÇÃO ---
 
 
 function endTurn(state, io, roomId) {
