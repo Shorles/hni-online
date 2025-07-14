@@ -398,9 +398,12 @@ io.on('connection', (socket) => {
         
         const playerKey = action.playerKey;
 
+        if (!isActionValid(state, action)) {
+            return;
+        }
+
         switch (action.type) {
             case 'configure_and_start_arena':
-                if (playerKey !== 'host' || room.hostId !== socket.id || state.phase !== 'arena_configuring') return;
                 state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
                 state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
                 logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
@@ -429,7 +432,6 @@ io.on('connection', (socket) => {
                 break;
 
             case 'attack':
-                if (!isActionValid(state, action)) return;
                 const moveName = action.move;
                 const move = state.moves[moveName];
                 const attacker = state.fighters[playerKey];
@@ -483,7 +485,6 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'forfeit':
-                if (!isActionValid(state, action)) return;
                 const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
                 state.winner = winnerKey;
                 state.phase = 'gameover';
@@ -491,7 +492,6 @@ io.on('connection', (socket) => {
                 logMessage(state, state.reason, 'log-crit');
                 break;
             case 'roll_initiative':
-                if (!isActionValid(state, action)) return;
                 io.to(roomId).emit('playSound', 'dice1.mp3');
                 const roll = rollD(6);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
@@ -511,7 +511,6 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'roll_defense':
-                if (!isActionValid(state, action)) return;
                 io.to(roomId).emit('playSound', 'dice1.mp3');
                 const defRoll = rollD(3);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
@@ -521,11 +520,9 @@ io.on('connection', (socket) => {
                 if (playerKey === 'player1') { state.phase = 'defense_p2'; } else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
                 break;
             case 'end_turn':
-                if (!isActionValid(state, action)) return;
                 endTurn(state, io, roomId);
                 break;
             case 'reveal_winner':
-                if (!isActionValid(state, action)) return;
                 const p1FinalScore = state.decisionInfo.p1.finalScore;
                 const p2FinalScore = state.decisionInfo.p2.finalScore;
                 if (p1FinalScore > p2FinalScore) {
@@ -541,7 +538,6 @@ io.on('connection', (socket) => {
                 state.phase = 'gameover';
                 break;
             case 'request_get_up':
-                if (!isActionValid(state, action)) return;
                 const knockdownInfo = state.knockdownInfo;
                 if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
                 

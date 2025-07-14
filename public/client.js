@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- INÍCIO DA CORREÇÃO DEFINITIVA (DELEGAÇÃO DE EVENTOS) ---
+    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
@@ -144,7 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-        // Adicionamos os listeners delegados UMA ÚNICA VEZ.
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
         // --- FIM DA CORREÇÃO DEFINITIVA ---
@@ -403,7 +402,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-                    // Apenas criamos os botões. NENHUM listener é adicionado aqui.
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
                         if (!moveData) return; 
@@ -443,15 +441,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const p1_is_turn = state.whoseTurn === 'player1';
         const p1_pa = state.fighters.player1?.pa || 0;
         document.querySelectorAll('#p1-controls button').forEach(btn => {
-            const moveName = btn.dataset.move;
-            const moveCost = moveName ? state.moves[moveName]?.cost : 0;
-            const isWhiteFangFollowUp = state.phase === 'white_fang_follow_up' && state.followUpState.playerKey === 'player1';
-            let isDisabled = isTurnOver || !p1_is_turn;
-            if (btn.classList.contains('action-btn')) {
-                if (isWhiteFangFollowUp) { isDisabled = (moveName !== 'White Fang'); } 
-                else { isDisabled = isDisabled || moveCost > p1_pa; }
-            } else if (btn.id === 'p1-end-turn-btn') {
-                isDisabled = isTurnOver || !p1_is_turn;
+            let isDisabled = true; // Começa desabilitado por padrão
+            if (p1_is_turn && !isTurnOver) {
+                const moveName = btn.dataset.move;
+                if (moveName) { // É um botão de ataque
+                    const moveCost = state.moves[moveName]?.cost || 0;
+                    const isWhiteFangFollowUp = state.phase === 'white_fang_follow_up' && state.followUpState.playerKey === 'player1';
+                    if (isWhiteFangFollowUp) {
+                        isDisabled = (moveName !== 'White Fang');
+                    } else {
+                        isDisabled = (moveCost > p1_pa);
+                    }
+                } else { // É o botão de encerrar turno
+                    isDisabled = false;
+                }
             }
             btn.disabled = isDisabled;
         });
@@ -459,15 +462,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const p2_is_turn = state.whoseTurn === 'player2';
         const p2_pa = state.fighters.player2?.pa || 0;
         document.querySelectorAll('#p2-controls button').forEach(btn => {
-            const moveName = btn.dataset.move;
-            const moveCost = moveName ? state.moves[moveName]?.cost : 0;
-            const isWhiteFangFollowUp = state.phase === 'white_fang_follow_up' && state.followUpState.playerKey === 'player2';
-            let isDisabled = isTurnOver || !p2_is_turn;
-            if (btn.classList.contains('action-btn')) {
-                if (isWhiteFangFollowUp) { isDisabled = (moveName !== 'White Fang'); } 
-                else { isDisabled = isDisabled || moveCost > p2_pa; }
-            } else if (btn.id === 'p2-end-turn-btn') {
-                isDisabled = isTurnOver || !p2_is_turn;
+            let isDisabled = true; // Começa desabilitado por padrão
+            if (p2_is_turn && !isTurnOver) {
+                const moveName = btn.dataset.move;
+                 if (moveName) { // É um botão de ataque
+                    const moveCost = state.moves[moveName]?.cost || 0;
+                    const isWhiteFangFollowUp = state.phase === 'white_fang_follow_up' && state.followUpState.playerKey === 'player2';
+                    if (isWhiteFangFollowUp) {
+                        isDisabled = (moveName !== 'White Fang');
+                    } else {
+                        isDisabled = (moveCost > p2_pa);
+                    }
+                } else { // É o botão de encerrar turno
+                    isDisabled = false;
+                }
             }
             btn.disabled = isDisabled;
         });
@@ -542,13 +550,13 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.remove('hidden', 'inactive');
 
         // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-        // Limpa listeners antigos e adiciona um novo para evitar acúmulo.
+        // Clona e substitui o botão para limpar TODOS os listeners antigos.
         const newBtn = btn.cloneNode(true);
         btn.parentNode.replaceChild(newBtn, btn);
 
         if (isMyTurnToRoll) {
             newBtn.onclick = () => {
-                newBtn.disabled = true; // Desabilita imediatamente após o clique
+                newBtn.disabled = true; 
                 socket.emit('playerAction', action);
             };
             newBtn.disabled = false;
