@@ -53,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
@@ -75,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
-    // --- FIM DA CORREÇÃO DEFINITIVA ---
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -143,10 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
-        // --- FIM DA CORREÇÃO DEFINITIVA ---
         
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
@@ -431,34 +427,54 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isPlayer) { actionWrapper.classList.add('hidden'); } 
         else { actionWrapper.classList.remove('hidden'); }
         
-        const isTurnOver = state.phase !== 'turn' && state.phase !== 'white_fang_follow_up';
+        const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
         
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
 
+        // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
         const p1_is_turn = state.whoseTurn === 'player1';
         document.querySelectorAll('#p1-controls button').forEach(btn => {
-            btn.disabled = isTurnOver || !p1_is_turn;
-            if(!btn.disabled && btn.dataset.move) {
-                 const move = state.moves[btn.dataset.move];
-                 if(move && state.fighters.player1.pa < move.cost) {
-                    btn.disabled = true;
-                 }
+            let isDisabled = !p1_is_turn || !isActionPhase;
+
+            if (!isDisabled) {
+                const moveName = btn.dataset.move;
+                if (state.phase === 'white_fang_follow_up') {
+                    if (moveName && moveName !== 'White Fang') {
+                        isDisabled = true;
+                    }
+                } else if (moveName) { // Normal 'turn' phase
+                    const move = state.moves[moveName];
+                    if (move && state.fighters.player1.pa < move.cost) {
+                        isDisabled = true;
+                    }
+                }
             }
+            btn.disabled = isDisabled;
         });
 
         const p2_is_turn = state.whoseTurn === 'player2';
         document.querySelectorAll('#p2-controls button').forEach(btn => {
-            btn.disabled = isTurnOver || !p2_is_turn;
-             if(!btn.disabled && btn.dataset.move) {
-                 const move = state.moves[btn.dataset.move];
-                 if(move && state.fighters.player2.pa < move.cost) {
-                    btn.disabled = true;
-                 }
-            }
-        });
+            let isDisabled = !p2_is_turn || !isActionPhase;
 
-        document.getElementById('forfeit-btn').disabled = isTurnOver || !isPlayer || state.whoseTurn !== myPlayerKey;
+            if (!isDisabled) {
+                const moveName = btn.dataset.move;
+                if (state.phase === 'white_fang_follow_up') {
+                    if (moveName && moveName !== 'White Fang') {
+                        isDisabled = true;
+                    }
+                } else if (moveName) { // Normal 'turn' phase
+                    const move = state.moves[moveName];
+                    if (move && state.fighters.player2.pa < move.cost) {
+                        isDisabled = true;
+                    }
+                }
+            }
+            btn.disabled = isDisabled;
+        });
+        // --- FIM DA CORREÇÃO DEFINITIVA ---
+
+        document.getElementById('forfeit-btn').disabled = !isActionPhase || !isPlayer || state.whoseTurn !== myPlayerKey;
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
