@@ -237,7 +237,7 @@ function isActionValid(state, action) {
     }
 
     if (state.phase === 'paused') {
-        return false; // Nenhuma ação de jogo é válida se estiver pausado
+        return false;
     }
 
     if (state.phase === 'white_fang_follow_up') {
@@ -489,6 +489,7 @@ io.on('connection', (socket) => {
                 socket.emit('roomCreated', roomId);
                 break;
             
+            // --- INÍCIO DA CORREÇÃO ---
             case 'set_p2_stats':
                 const p2Data = state.pendingP2Choice;
                 const p2Stats = action.stats;
@@ -500,8 +501,9 @@ io.on('connection', (socket) => {
                 });
                 delete state.pendingP2Choice;
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
-                state.phase = 'initiative_p1'; // Correção aplicada aqui
+                state.phase = 'initiative_p1';
                 break;
+            // --- FIM DA CORREÇÃO ---
 
             case 'attack':
                 const moveName = action.move;
