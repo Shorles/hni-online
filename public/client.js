@@ -52,12 +52,13 @@ document.addEventListener('DOMContentLoaded', () => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
         });
     }
-    
+
     // --- INÍCIO DA CORREÇÃO DEFINITIVA (DELEGAÇÃO DE EVENTOS) ---
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
         const target = event.target.closest('button'); 
+        
         if (!target || target.disabled) return;
 
         const isP1Control = p1Controls.contains(target);
@@ -70,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (move) {
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-        } else if (target.classList.contains('end-turn-btn')) {
+        } else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
@@ -88,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
             myPlayerKey = arenaPlayerKey;
             socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen);
-            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? '1' : '2'}: Selecione seu Lutador`;
+            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : '2'}: Selecione seu Lutador`;
             confirmBtn.innerText = 'Confirmar Personagem';
             renderCharacterSelection('p2', false);
         } else if (isSpectator && currentRoomId) {
@@ -143,9 +144,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-        // Adiciona os listeners delegados aos containers PAI UMA ÚNICA VEZ.
+        // Adicionamos os listeners delegados UMA ÚNICA VEZ.
+        // Eles vão gerenciar TODOS os cliques em botões dentro de seus containers.
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
+        // TODAS as outras formas de adicionar listeners de clique aos botões de ação foram removidas.
         // --- FIM DA CORREÇÃO DEFINITIVA ---
         
         document.getElementById('forfeit-btn').onclick = () => {
@@ -402,8 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-                    // Este loop agora apenas CRIA os botões. Ele não adiciona mais listeners.
-                    // O listener único no container pai lida com os cliques.
+                    // Este loop agora apenas CRIA os botões. Ele não adiciona mais listeners de clique.
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
                         if (!moveData) return; 
@@ -412,7 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         btn.className = `action-btn special-btn-${key}`;
                         btn.dataset.move = moveName;
                         btn.textContent = `${displayName} (${moveData.cost} PA)`;
-                        // NENHUMA linha "btn.onclick = ..." aqui.
+                        // A linha "btn.onclick = ..." foi removida permanentemente.
                         container.appendChild(btn);
                     });
                     // --- FIM DA CORREÇÃO DEFINITIVA ---
