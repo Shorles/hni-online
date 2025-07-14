@@ -420,7 +420,6 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const state = room.state;
         
-        // Adiciona o socket.id do remetente à ação para validação de GM
         action.gmSocketId = socket.id;
 
         if (!isActionValid(state, action)) {
@@ -435,7 +434,7 @@ io.on('connection', (socket) => {
                     state.phase = state.previousPhase || 'turn';
                     logMessage(state, 'Jogo reativado pelo GM.', 'log-info');
                 } else {
-                    if (state.phase === 'decision_table_wait' || state.phase === 'gameover') return; //Não pode pausar na decisão/fim
+                    if (state.phase === 'decision_table_wait' || state.phase === 'gameover') return;
                     state.previousPhase = state.phase;
                     state.phase = 'paused';
                     logMessage(state, 'Jogo pausado pelo GM.', 'log-info');
@@ -462,8 +461,8 @@ io.on('connection', (socket) => {
                 break;
             
             case 'give_last_chance':
-                state.knockdownInfo.attempts = 3; // Dá mais uma tentativa
-                state.knockdownInfo.isLastChance = true; // Marca como a chance final
+                state.knockdownInfo.attempts = 3; 
+                state.knockdownInfo.isLastChance = true; 
                 state.phase = 'knockdown';
                 logMessage(state, `O GM deu uma última chance para ${state.fighters[state.knockdownInfo.downedPlayer].nome}!`, 'log-crit');
                 break;
@@ -501,7 +500,7 @@ io.on('connection', (socket) => {
                 });
                 delete state.pendingP2Choice;
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
-                state.phase = 'initiative_p1';
+                state.phase = 'initiative_p1'; // Correção aplicada aqui
                 break;
 
             case 'attack':
@@ -638,13 +637,13 @@ io.on('connection', (socket) => {
                     return;
                 } else if (knockdownInfo.attempts >= 4 && !knockdownInfo.isLastChance) {
                     state.phase = 'gm_decision_knockdown';
-                } else { // Falhou na última chance ou em tentativas normais
+                } else { 
                     logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
-                    const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
+                    const finalKoReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                     setTimeout(() => {
                         state.phase = 'gameover';
                         state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
-                        state.reason = finalCountReason;
+                        state.reason = finalKoReason;
                         io.to(roomId).emit('gameUpdate', room.state);
                         dispatchAction(room);
                     }, 1000);
