@@ -489,6 +489,7 @@ io.on('connection', (socket) => {
                 socket.emit('roomCreated', roomId);
                 break;
             
+            // --- INÍCIO DA CORREÇÃO ---
             case 'set_p2_stats':
                 const p2Data = state.pendingP2Choice;
                 const p2Stats = action.stats;
@@ -500,10 +501,9 @@ io.on('connection', (socket) => {
                 });
                 delete state.pendingP2Choice;
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
-                // --- INÍCIO DA CORREÇÃO ---
                 state.phase = 'initiative_p1';
-                // --- FIM DA CORREÇÃO ---
                 break;
+            // --- FIM DA CORREÇÃO ---
 
             case 'attack':
                 const moveName = action.move;
