@@ -618,13 +618,16 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
                 const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 knockdownInfo.lastRoll = totalRoll;
-                logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}`, 'log-info');
                 
+                // --- INÍCIO DA CORREÇÃO ---
+
                 if (totalRoll >= 7) {
+                    // SUCESSO AO LEVANTAR
                     const fighter = state.fighters[playerKey];
+                    logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}. Ele se levantou!`, 'log-info');
                     io.to(roomId).emit('getUpSuccess', { downedPlayerName: fighter.nome, rollValue: totalRoll });
+                    
                     setTimeout(() => {
-                        logMessage(state, `Ele se levantou!`, 'log-info');
                         fighter.res--;
                         const newHp = fighter.res * 5;
                         fighter.hp = newHp;
@@ -634,21 +637,35 @@ io.on('connection', (socket) => {
                         io.to(roomId).emit('gameUpdate', room.state);
                         dispatchAction(room);
                     }, 3000);
-                    return;
-                } else if (knockdownInfo.attempts >= 4 && !knockdownInfo.isLastChance) {
-                    state.phase = 'gm_decision_knockdown';
-                } else { 
-                    logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
-                    const finalKoReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
-                    setTimeout(() => {
-                        state.phase = 'gameover';
-                        state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
-                        state.reason = finalKoReason;
-                        io.to(roomId).emit('gameUpdate', room.state);
-                        dispatchAction(room);
-                    }, 1000);
-                    return;
+                    return; // Sai da lógica de knockdown
+
+                } else {
+                    // FALHA AO LEVANTAR
+                    logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}. Falhou!`, 'log-miss');
+                    
+                    const maxAttempts = 4;
+                    if (knockdownInfo.attempts >= maxAttempts) {
+                        if (knockdownInfo.isLastChance) {
+                            // Usou a última chance dada pelo GM e falhou. Fim de jogo.
+                            logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
+                            const finalKoReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
+                            setTimeout(() => {
+                                state.phase = 'gameover';
+                                state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
+                                state.reason = finalKoReason;
+                                io.to(roomId).emit('gameUpdate', room.state);
+                                dispatchAction(room);
+                            }, 1000);
+                            return;
+                        } else {
+                            // Esgotou as 4 tentativas, hora do GM decidir.
+                            state.phase = 'gm_decision_knockdown';
+                        }
+                    }
+                    // Se as tentativas forem < 4, não faz nada. O estado continua 'knockdown'
+                    // e a próxima ação do jogador será tentar de novo.
                 }
+                // --- FIM DA CORREÇÃO ---
                 break;
         }
         
