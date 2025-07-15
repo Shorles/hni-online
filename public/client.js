@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Manipulador de eventos unificado para todos os botões de ação
+    // --- INÍCIO DA CORREÇÃO: Manipulador de eventos unificado e corrigido
     function handlePlayerControlClick(event) {
         const target = event.target.closest('button');
         if (!target || target.disabled || !myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) {
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-
+    // --- FIM DA CORREÇÃO
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -144,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
+        // Um único listener no body para pegar cliques de botões de ação (originais e clonados)
         document.body.addEventListener('click', handlePlayerControlClick);
         
         window.addEventListener('keydown', (e) => {
@@ -510,12 +511,12 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
 
-        // --- Lógica para Controles em Dispositivos Móveis ---
+        // --- INÍCIO DA CORREÇÃO: Lógica para Controles em Dispositivos Móveis
         const mobileContainer = document.getElementById('mobile-controls-container');
         mobileContainer.innerHTML = ''; // Sempre limpa o container.
 
-        // Popula a barra de botões móvel se for o turno de um jogador.
         // A visibilidade da barra é controlada pelo CSS via aspect-ratio.
+        // Aqui, apenas populamos se for o turno do jogador.
         if (isPlayer && isActionPhase && state.whoseTurn === myPlayerKey) {
             // Pega o container de controle do jogador da vez.
             const currentControls = document.getElementById(`${myPlayerKey}-controls`);
@@ -535,6 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mobileContainer.appendChild(clone);
             }
         }
+        // --- FIM DA CORREÇÃO
     }
     
     function showForfeitConfirmation() {
