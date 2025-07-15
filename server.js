@@ -266,6 +266,13 @@ function dispatchAction(room) {
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
     switch (state.phase) {
+        // --- INÍCIO DA CORREÇÃO ---
+        // Adiciona um case para 'paused' para impedir que caia no 'default'.
+        // O modal de cheats é acionado no cliente ao receber o 'gameUpdate',
+        // então nenhuma ação é necessária aqui.
+        case 'paused':
+            return;
+        // --- FIM DA CORREÇÃO ---
         case 'p1_special_moves_selection':
             const p1socketIdMoves = room.players.find(p => p.playerKey === 'player1').id;
             io.to(p1socketIdMoves).emit('promptSpecialMoves', { availableMoves: SPECIAL_MOVES });
@@ -619,8 +626,6 @@ io.on('connection', (socket) => {
                 const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 knockdownInfo.lastRoll = totalRoll;
                 
-                // --- INÍCIO DA CORREÇÃO ---
-
                 if (totalRoll >= 7) {
                     // SUCESSO AO LEVANTAR
                     const fighter = state.fighters[playerKey];
@@ -665,7 +670,6 @@ io.on('connection', (socket) => {
                     // Se as tentativas forem < 4, não faz nada. O estado continua 'knockdown'
                     // e a próxima ação do jogador será tentar de novo.
                 }
-                // --- FIM DA CORREÇÃO ---
                 break;
         }
         
