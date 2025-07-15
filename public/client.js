@@ -517,9 +517,8 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
 
-        // --- INÍCIO DA CORREÇÃO: Lógica para Controles em Dispositivos Móveis
-        const mobileContainer = document.getElementById('mobile-controls-container');
-        mobileContainer.innerHTML = ''; // Sempre limpa o container.
+        // --- INÍCIO DA CORREÇÃO DEFINITIVA: Lógica para Controles em Dispositivos Móveis
+        mobileControlsContainer.innerHTML = ''; 
 
         if (isPlayer && isActionPhase && state.whoseTurn === myPlayerKey) {
             const currentControls = document.getElementById(`${myPlayerKey}-controls`);
@@ -527,17 +526,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const buttonsToClone = currentControls.querySelectorAll('button');
                 buttonsToClone.forEach(btn => {
                     const clone = btn.cloneNode(true);
-                    mobileContainer.appendChild(clone);
+                    mobileControlsContainer.appendChild(clone);
                 });
             }
         
             const forfeitBtn = document.getElementById('forfeit-btn');
             if (forfeitBtn) {
                 const clone = forfeitBtn.cloneNode(true);
-                mobileContainer.appendChild(clone);
+                mobileControlsContainer.appendChild(clone);
             }
         }
-        // --- FIM DA CORREÇÃO
+        // --- FIM DA CORREÇÃO DEFINITIVA
     }
     
     function showForfeitConfirmation() {
