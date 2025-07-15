@@ -500,7 +500,7 @@ io.on('connection', (socket) => {
                 });
                 delete state.pendingP2Choice;
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
-                state.phase = 'initiative_p1';
+                state.phase = 'initiative_p1'; // ESTA É A CORREÇÃO.
                 break;
 
             case 'attack':
