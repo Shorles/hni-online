@@ -1,183 +1,486 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HNI Battle Online</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+body {
+    font-family: Arial, sans-serif;
+    color: #fff;
+    margin: 0;
+    background-color: #000;
+    overflow: hidden;
+    height: 100vh;
+}
 
-<div id="game-wrapper">
+#game-wrapper {
+    width: 1280px;
+    height: 720px;
+    position: absolute;
+    overflow: hidden;
+    background-image: url('images/Ringue.png');
+    background-size: cover;
+    background-position: center;
+    transform-origin: top left;
+}
 
-    <!-- TELA DE SELEÇÃO DE MODO DE JOGO (NOVA) -->
-    <div id="mode-selection-screen" class="screen active">
-        <h1>HNI Battle Online</h1>
-        <h2>Selecione o Modo de Jogo</h2>
-        <div class="mode-buttons-container">
-            <button id="mode-classic-btn" class="mode-btn">Player vs. "NPC" (Clássico)</button>
-            <button id="mode-arena-btn" class="mode-btn">Player vs. Player (Arena)</button>
-        </div>
-    </div>
+.screen { display: none; width: 100%; height: 100%; }
+.screen.active { display: flex; flex-direction: column; justify-content: center; align-items: center; }
+.hidden { display: none !important; }
 
-    <!-- TELA DE LOBBY DA ARENA (NOVA) -->
-    <div id="arena-lobby-screen" class="screen">
-        <h1>Lobby da Arena</h1>
-        <p>Envie os links abaixo para os jogadores e espectadores.</p>
-        <div class="arena-links-container">
-            <div>
-                <h3>Link do Jogador 1:</h3>
-                <div id="arena-link-p1" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-            <div>
-                <h3>Link do Jogador 2:</h3>
-                <div id="arena-link-p2" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-            <div>
-                <h3>Link de Espectador:</h3>
-                <div id="arena-link-spectator" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-        </div>
-        <div class="arena-status-container">
-            <div id="arena-p1-status" class="arena-player-status">
-                <h4>Jogador 1</h4>
-                <p>Aguardando conexão...</p>
-            </div>
-            <div id="arena-p2-status" class="arena-player-status">
-                <h4>Jogador 2</h4>
-                <p>Aguardando conexão...</p>
-            </div>
-        </div>
-        <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
-    </div>
+/* --- BOTÃO VOLTAR --- */
+.back-btn {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 50px;
+    height: 50px;
+    font-size: 2em;
+    font-weight: bold;
+    color: #ffeb3b;
+    background-color: rgba(0,0,0,0.5);
+    border: 2px solid #ffeb3b;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 3100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.back-btn:hover {
+    background-color: rgba(255, 235, 59, 0.3);
+}
+#exit-game-btn { 
+    font-size: 2.5em;
+    line-height: 50px;
+}
 
-    <!-- TELA DE SELEÇÃO DE CENÁRIO -->
-    <div id="scenario-screen" class="screen">
-        <h1 id="scenario-title">Selecione o Cenário</h1>
-        <div id="scenario-list-container"></div>
-    </div>
+/* --- TELA DE SELEÇÃO DE MODO --- */
+#mode-selection-screen {
+    background-color: rgba(0, 0, 0, 0.9);
+    gap: 30px;
+}
+#mode-selection-screen h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; }
+#mode-selection-screen h2 { font-size: 2em; color: #fff; }
+.mode-buttons-container { display: flex; gap: 40px; }
+.mode-btn {
+    padding: 20px 40px;
+    font-size: 1.5em;
+    cursor: pointer;
+    border: 2px solid #ffeb3b;
+    border-radius: 10px;
+    background-color: #333;
+    color: #ffeb3b;
+    transition: all 0.2s ease-in-out;
+}
+.mode-btn:hover { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
 
-    <!-- TELA DE SELEÇÃO DE PERSONAGENS -->
-    <div id="selection-screen" class="screen">
-        <button id="char-select-back-btn" class="back-btn" title="Voltar para Cenários">←</button>
-        <h1 id="selection-title">Selecione seu Lutador</h1>
-        <div id="character-list-container"></div>
-        <button id="confirm-selection-btn">Confirmar</button>
-    </div>
+/* --- TELA DE LOBBY DA ARENA --- */
+#arena-lobby-screen { background-color: #1a1a1a; gap: 20px; text-align: center; padding-top: 50px; box-sizing: border-box; }
+#arena-lobby-screen h1 { font-size: 3em; color: #ffeb3b; }
+.arena-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap;}
+.arena-links-container > div { background-color: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; }
+.arena-status-container { display: flex; gap: 50px; justify-content: center; width: 80%; }
+.arena-player-status {
+    flex: 1;
+    background-color: #333;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid #555;
+}
 
-    <!-- TELA DE LOBBY (MODO CLÁSSICO) -->
-    <div id="lobby-screen" class="screen">
-        <button id="lobby-back-btn" class="back-btn" title="Voltar para Golpes">←</button>
-        <h1>Hajime no Ippo: Batalha Online</h1>
-        <div id="lobby-content">
-            <p>Aguardando conexão...</p>
-        </div>
-        <div id="share-container" class="hidden">
-            <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
-            <div id="share-link-p2" class="share-link" title="Clique para copiar">Carregando...</div>
-            <br>
-            <p>Ou envie este link para espectadores:</p>
-            <div id="share-link-spectator" class="share-link" title="Clique para copiar">Carregando...</div>
-        </div>
-    </div>
 
-    <!-- TELA DE LUTA -->
-    <div id="fight-screen" class="screen">
-        <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
-        <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
+/* --- TELA DE SELEÇÃO DE CENÁRIO --- */
+#scenario-screen {
+    background-color: rgba(0, 0, 0, 0.9);
+    gap: 20px;
+    padding: 20px 0;
+    box-sizing: border-box;
+}
+#scenario-title {
+    font-size: 3em;
+    color: #ffeb3b;
+    text-shadow: 2px 2px 5px #000;
+}
+#scenario-list-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    justify-content: center;
+    padding: 20px;
+}
+.scenario-card {
+    background-color: #333;
+    border: 4px solid #555;
+    border-radius: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    width: 300px;
+    overflow: hidden;
+}
+.scenario-card:hover {
+    border-color: #aaa;
+    transform: scale(1.03);
+}
+.scenario-card.selected {
+    border-color: #ffeb3b;
+    box-shadow: 0 0 20px #ffeb3b;
+}
+.scenario-card img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    display: block;
+}
+.scenario-card .scenario-name {
+    font-size: 1.5em;
+    font-weight: bold;
+    padding: 15px;
+}
 
-        <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
 
-        <div id="fight-ui-wrapper">
-            <div class="fight-ui-container">
-                <!-- ÁREA JOGADOR 1 -->
-                <div class="fighter-info" id="player1-area">
-                    <h2 id="player1-fight-name">Jogador 1</h2>
-                    <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div><span id="player1-hp-text">10 / 10</span></div>
-                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player1-pa-dots"></div></div>
-                    <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player1-def-text">0</span></div>
-                    <p>Acertos: <span id="player1-hits">0</span></p>
-                    <p>Quedas: <span id="player1-knockdowns">0</span></p>
-                    <p>Dano Recebido: <span id="player1-damage-taken">0</span></p>
-                </div>
-                <!-- LOG DE LUTA -->
-                <div id="fight-log-container">
-                    <h2 id="round-info">ROUND 1</h2>
-                    <div id="fight-log"></div>
-                </div>
-                <!-- ÁREA JOGADOR 2 -->
-                <div class="fighter-info" id="player2-area">
-                    <h2 id="player2-fight-name">Jogador 2</h2>
-                    <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div><span id="player2-hp-text">15 / 15</span></div>
-                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player2-pa-dots"></div></div>
-                    <div class="defense-display"><img src="images/def.png" alt="Defesa"><span class="defense-text" id="player2-def-text">0</span></div>
-                    <p>Acertos: <span id="player2-hits">0</span></p>
-                    <p>Quedas: <span id="player2-knockdowns">0</span></p>
-                    <p>Dano Recebido: <span id="player2-damage-taken">0</span></p>
-                </div>
-            </div>
-            <!-- BOTÕES DE AÇÃO -->
-            <div id="action-buttons-wrapper">
-                <!-- BOTÕES DO JOGADOR 1 (VERMELHOS) -->
-                <div id="p1-controls" class="move-buttons hidden">
-                    <button class="action-btn p1-btn" data-move="Jab">Jab (1 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Upper">Upper (3 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
-                    <div id="p1-special-moves" class="special-moves-container"></div>
-                    <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
-                </div>
-                <!-- BOTÕES DO JOGADOR 2 (AZUIS) -->
-                <div id="p2-controls" class="move-buttons hidden">
-                    <button class="action-btn p2-btn" data-move="Jab">Jab (1 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Upper">Upper (3 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Liver Blow">Liver Blow (2 PA)</button>
-                    <div id="p2-special-moves" class="special-moves-container"></div>
-                    <button id="p2-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
-                </div>
-                <div id="utility-buttons">
-                    <button id="forfeit-btn">Jogar a Toalha</button>
-                </div>
-            </div>
-        </div>
+/* --- TELA DE SELEÇÃO DE PERSONAGENS --- */
+#selection-screen {
+    background-color: rgba(0, 0, 0, 0.9);
+    gap: 20px;
+    padding: 20px 0;
+    box-sizing: border-box;
+}
+#selection-title {
+    font-size: 3em;
+    color: #ffeb3b;
+    text-shadow: 2px 2px 5px #000;
+    flex-shrink: 0;
+}
+#character-list-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    padding: 20px;
+    max-height: 500px;
+    overflow-y: auto;
+    width: 90%;
+}
+.char-card {
+    background-color: #333;
+    border: 3px solid #555;
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    width: 150px;
+}
+.char-card:hover { border-color: #aaa; }
+.char-card.selected { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; transform: scale(1.05); }
+.char-card img { width: 100px; height: 100px; object-fit: contain; background-color: #222; border-radius: 50%; margin-bottom: 10px; }
+.char-card .char-name { font-size: 1.2em; font-weight: bold; margin-bottom: 10px; }
+.char-card .char-stats label { display: block; margin-top: 5px; }
+.char-card .char-stats-display { margin-top: 10px; font-size: 1em; color: #ccc; height: 56px; display: flex; align-items: center; justify-content: center; }
+.char-card .char-stats input { width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px; }
+#confirm-selection-btn { padding: 15px 30px; font-size: 1.5em; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 8px; flex-shrink: 0; }
+#confirm-selection-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-        <!-- BOTÕES DE ROLAGEM -->
-        <button id="player1-roll-btn" class="roll-dice-button hidden"></button>
-        <button id="player2-roll-btn" class="roll-dice-button hidden"></button>
+/* --- TELA DE LOBBY --- */
+#lobby-screen { background-color: #1a1a1a; gap: 20px; }
+#lobby-screen h1 { font-size: 3em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; }
+#lobby-content { background-color: #333; padding: 30px; border-radius: 10px; font-size: 1.5em; text-align: center; }
+#share-container { text-align: center; background-color: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 8px; }
+.share-link { background-color: #fff; color: #000; padding: 10px 20px; font-family: monospace; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 10px; border: 2px dashed #ffeb3b; display: inline-block; }
 
-        <!-- OVERLAYS -->
-        <div id="dice-overlay" class="hidden"></div>
-        <div id="player1-dice-result" class="dice-result hidden"></div>
-        <div id="player2-dice-result" class="dice-result hidden"></div>
-    </div>
+/* --- TELA DE LUTA --- */
+#fight-screen { justify-content: flex-end; padding: 0; box-sizing: border-box; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+#fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
+.copy-link-button { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 1.5em; background-color: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid #fff; border-radius: 50%; cursor: pointer; z-index: 100; }
+.copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
 
-    <!-- MODAL PADRÃO -->
-    <div id="modal" class="hidden">
-        <div id="modal-content">
-            <h3 id="modal-title">Título</h3>
-            <div id="modal-text">Texto.</div>
-            <button id="modal-button">OK</button>
-        </div>
-    </div>
+
+/* POSICIONAMENTO E ANIMAÇÃO DOS LUTADORES */
+#mobile-fighters-container { display: none; } /* Escondido por padrão no desktop */
+
+.fighter-img { 
+    position: absolute; 
+    width: 200px; 
+    height: 200px; 
+    object-fit: contain; 
+    bottom: 350px; 
+    z-index: 10; 
+    transition: transform 0.2s ease; 
+}
+
+/* Regras de Animação */
+@keyframes player1-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(-50px); } }
+
+@keyframes player2-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(50px); } }
+
+@keyframes player1-attack-lunge-arena { 50% { transform: translateX(50px); } }
+@keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(50px); } }
+
+@keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
+.is-hit { animation: hit-flash 0.5s ease-in-out; }
+
+/* Regras para MODO CLÁSSICO */
+.mode-classic #player1-fight-img { left: 380px; transform: scaleX(-1); }
+.mode-classic #player2-fight-img { right: 380px; transform: scaleX(-1); }
+.mode-classic .is-attacking-player1 { animation: player1-attack-lunge-classic 0.4s ease-in-out; }
+.mode-classic .is-attacking-player2 { animation: player2-attack-lunge-classic 0.4s ease-in-out; }
+
+/* Regras para MODO ARENA */
+.mode-arena #player1-fight-img { left: 380px; }
+.mode-arena #player2-fight-img { right: 380px; transform: scaleX(-1); }
+.mode-arena .is-attacking-player1 { animation: player1-attack-lunge-arena 0.4s ease-in-out; }
+.mode-arena .is-attacking-player2 { animation: player2-attack-lunge-arena 0.4s ease-in-out; }
+
+
+/* PAINÉIS DE UI */
+.fight-ui-container { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
+.fighter-info { flex-basis: 28%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+.fighter-info.active-turn { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
+.fighter-info p { margin: 0; font-size: 0.9em; }
+.stats-bar { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
+.hp-bar-container { width: 100%; height: 20px; background-color: #555; border: 1px solid #000; border-radius: 5px; }
+.hp-bar { height: 100%; background-color: #28a745; border-radius: 5px; transition: width 0.5s ease-in-out; }
+.stats-bar > span:last-of-type { white-space: nowrap; }
+.pa-display { display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center; }
+.pa-dots-container { display: flex; flex-wrap: wrap; gap: 5px; flex-grow: 1; max-width: 150px; }
+.pa-dot { width: 15px; height: 15px; background-color: #007bff; border-radius: 50%; box-shadow: 0 0 5px #007bff; }
+.defense-display { position: relative; display: flex; justify-content: center; align-items: center; }
+.defense-display img { width: 40px; height: 40px; }
+.defense-text { position: absolute; font-size: 1.2em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
+#fight-log-container { flex-basis: 40%; height: 220px; background-color: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
+#round-info { text-align: center; margin-top: 0; border-bottom: 1px solid #fff; padding-bottom: 10px; }
+#fight-log { overflow-y: auto; flex-grow: 1; }
+#fight-log p { margin: 5px; padding-bottom: 5px; border-bottom: 1px dashed #444; font-size: 0.9em; }
+.log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
+.highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; vertical-align: middle; }
+.turn-highlight { font-weight: bold; color: #dc3545; }
+.log-move-name { font-weight: bold; font-size: 1.1em; color: #dc3545; }
+.highlight-total { font-weight: bold; font-size: 1.25em; color: #dc3545; }
+
+/* BOTÕES DE AÇÃO */
+#action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+.move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.special-moves-container { display: contents; } 
+.action-btn, .end-turn-btn, #forfeit-btn { 
+    padding: 8px 16px; 
+    font-size: 0.9em;  
+    cursor: pointer; 
+    border: none; 
+    border-radius: 5px; 
+    color: white; 
+    transition: background-color 0.2s; 
+}
+.end-turn-btn { background-color: #ffc107; color: #000; }
+#forfeit-btn { background-color: #6f42c1; }
+#forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
+.action-btn:disabled, .end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
+.p1-btn { background-color: #c82333; }
+.p1-btn:hover:not(:disabled) { background-color: #a71d2a; }
+.p2-btn { background-color: #007bff; }
+.p2-btn:hover:not(:disabled) { background-color: #0056b3; }
+.special-btn-player1 { background-color: #28a745; } 
+.special-btn-player1:hover:not(:disabled) { background-color: #218838; }
+.special-btn-player2 { background-color: #20c997; } 
+.special-btn-player2:hover:not(:disabled) { background-color: #1baa80; }
+
+/* BOTÕES DE ROLAGEM */
+.roll-dice-button { position: absolute; bottom: 450px; padding: 10px 15px; font-size: 1em; font-weight: bold; border: 2px solid #fff; border-radius: 8px; cursor: pointer; z-index: 100; transition: all 0.2s ease; }
+.roll-dice-button:not(.inactive):hover { transform: scale(1.05); }
+.roll-dice-button:not(.inactive) { color: #000; background-color: #ffeb3b; box-shadow: 0 0 10px #ffeb3b; }
+.roll-dice-button.inactive { color: #aaa; background-color: #666; border-color: #888; cursor: default; }
+#player1-roll-btn { left: 200px; }
+#player2-roll-btn { right: 200px; }
+
+/* MODAIS E OVERLAYS */
+#modal, #special-moves-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
+#modal-content, #special-moves-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 800px; position: relative; }
+#modal-title, #special-moves-title { margin-top: 0; font-size: 1.5em; }
+#modal-text { margin: 15px 0; text-align: left; }
+#modal-button, #confirm-special-moves-btn { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
+#confirm-special-moves-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
+
+#special-moves-list, #p2-moves-selection-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 20px;
+    max-height: 400px; 
+    overflow-y: auto;  
+    padding: 10px;
+}
+/* Estilo para containers de golpes no modal de configuração da arena */
+#arena-p1-moves, #arena-p2-moves {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.special-move-card { background-color: #444; border: 2px solid #666; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; width: 150px; text-align: left;}
+.special-move-card:hover { border-color: #999; }
+.special-move-card.selected { border-color: #28a745; box-shadow: 0 0 10px #28a745; transform: scale(1.05); }
+.special-move-card h4 { margin: 0 0 5px 0; color: #ffeb3b; }
+.special-move-card p { margin: 2px 0; font-size: 0.9em; }
+
+#dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; }
+.dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
+#player1-dice-result { left: 400px; bottom: 530px; }
+#player2-dice-result { right: 400px; bottom: 530px; }
+#get-up-success-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; z-index: 4000; pointer-events: none; }
+#get-up-success-content { background: rgba(0, 0, 0, 0.85); color: #28a745; padding: 25px 40px; border-radius: 15px; border: 3px solid #28a745; text-align: center; font-size: 1.8em; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+#get-up-success-content span { color: #aaa; font-size: 0.7em; display: block; margin-top: 10px; }
+
+
+/* ==========================================================================
+   INÍCIO DAS REGRAS DE RESPONSIVIDADE PARA CELULARES
+   ========================================================================== */
+
+@media screen and (max-width: 800px) {
     
-    <!-- MODAL DE SELEÇÃO DE GOLPES ESPECIAIS -->
-    <div id="special-moves-modal" class="hidden">
-        <div id="special-moves-content">
-             <button id="special-moves-back-btn" class="back-btn" title="Voltar para Personagens">←</button>
-            <h3 id="special-moves-title">Selecione seus Golpes Especiais</h3>
-            <div id="special-moves-list"></div>
-            <button id="confirm-special-moves-btn">Confirmar Golpes</button>
-        </div>
-    </div>
+    body {
+        /* Permite que o body role se o conteúdo for maior que a tela */
+        overflow: auto;
+    }
 
-    <div id="get-up-success-overlay" class="hidden">
-        <div id="get-up-success-content"></div>
-    </div>
+    #game-wrapper {
+        /* Desativa o escalonamento via JS e faz o wrapper preencher a tela do celular */
+        transform: none !important;
+        width: 100% !important;
+        height: auto !important; /* Altura automática para se ajustar ao conteúdo */
+        min-height: 100%;
+        left: 0 !important;
+        top: 0 !important;
+        position: relative;
+        overflow-y: auto; /* Permite rolar o conteúdo interno */
+        overflow-x: hidden;
+    }
+    
+    #fight-screen {
+        /* Garante que a tela de luta ocupe todo o espaço disponível */
+        height: auto;
+        min-height: 100%;
+        padding-bottom: 20px; /* Espaço no final */
+        justify-content: flex-start; /* Alinha o conteúdo ao topo */
+    }
 
-</div>
+    /* Container dos sprites para modo móvel */
+    #mobile-fighters-container {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        width: 100%;
+        margin-top: 20px;
+        order: -1; /* Move este container para o topo do flexbox */
+    }
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="client.js"></script>
-</body>
-</html>
+    /* Reposiciona os lutadores para o layout móvel */
+    .fighter-img {
+        position: relative; /* Tira do posicionamento absoluto */
+        width: 120px;
+        height: 120px;
+        bottom: auto;
+        left: auto;
+        right: auto;
+        margin: 0;
+        z-index: 1;
+    }
+
+    /* Garante que a transformação de espelho seja desfeita para um layout consistente */
+    .mode-classic #player1-fight-img,
+    .mode-classic #player2-fight-img,
+    .mode-arena #player2-fight-img {
+        transform: scaleX(1);
+    }
+    
+    /* P1 na esquerda, P2 na direita */
+    #player2-fight-img {
+        transform: scaleX(-1);
+    }
+
+
+    /* A UI principal não fica mais fixa no rodapé */
+    #fight-ui-wrapper {
+        position: relative;
+        width: 100%;
+        padding: 0 5px; /* Reduz o padding lateral */
+        gap: 10px;
+        bottom: auto; /* Reseta a posição */
+        margin-top: 20px;
+    }
+
+    /* Empilha os painéis de Info e o Log verticalmente */
+    .fight-ui-container {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Faz os painéis de info ocuparem a largura da tela */
+    .fighter-info {
+        width: 95%;
+        flex-basis: auto; /* Reseta a base do flexbox */
+        padding: 8px;
+    }
+    
+    .fighter-info h2 {
+        font-size: 1.2em;
+    }
+
+    /* Move o log para baixo dos painéis dos jogadores */
+    #fight-log-container {
+        order: 3; /* P1 e P2 info terão ordem 0 por padrão */
+        width: 95%;
+        height: 150px; /* Altura fixa para o log */
+        font-size: 0.9em;
+    }
+
+    /* Ajusta os botões para toque */
+    .action-btn, .end-turn-btn, #forfeit-btn {
+        padding: 12px 10px;
+        font-size: 1em;
+        flex-grow: 1; /* Faz os botões crescerem para preencher o espaço */
+        flex-basis: 30%; /* Tenta colocar 3 botões por linha */
+    }
+
+    #p1-special-moves, #p2-special-moves {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+    }
+    
+    /* Tira os botões de rolagem do posicionamento absoluto */
+    .roll-dice-button {
+        position: relative;
+        bottom: auto;
+        left: auto;
+        right: auto;
+        margin: 20px auto;
+        display: block;
+        width: 80%;
+        padding: 15px;
+        font-size: 1.2em;
+    }
+
+    #player1-roll-btn, #player2-roll-btn {
+        left: auto;
+        right: auto;
+    }
+
+    /* Ajusta os modais para telas menores */
+    #modal-content, #special-moves-content {
+        width: 90vw;
+        min-width: 90vw;
+        box-sizing: border-box;
+    }
+
+    #special-moves-list {
+        max-height: 50vh; /* Limita a altura da lista de golpes */
+    }
+
+    /* Ajustes específicos para as telas de seleção iniciais */
+    #mode-selection-screen h1 { font-size: 2.5em; text-align: center; }
+    #mode-selection-screen h2 { font-size: 1.5em; text-align: center; }
+    .mode-buttons-container { flex-direction: column; gap: 20px; }
+    #selection-title { font-size: 2em; text-align: center; }
+}
