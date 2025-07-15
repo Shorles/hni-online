@@ -54,12 +54,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Manipulador de eventos unificado e corrigido para todos os botões de ação
+    // --- INÍCIO DA CORREÇÃO: Manipulador de eventos unificado e corrigido
     function handlePlayerControlClick(event) {
         const target = event.target.closest('button');
-        if (!target || target.disabled || !myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) {
-            return;
-        }
+        if (!target || target.disabled) return;
+        
+        // Ação de confirmar personagem é tratada separadamente na inicialização
+        if (target.id === 'confirm-selection-btn') return;
+        
+        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
         const move = target.dataset.move;
         const id = target.id;
@@ -74,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-
+    // --- FIM DA CORREÇÃO
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -104,9 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(modeSelectionScreen);
         }
         
-        // --- INÍCIO DA CORREÇÃO: Restaurando o event listener que foi removido por engano.
         confirmBtn.addEventListener('click', onConfirmSelection);
-        // --- FIM DA CORREÇÃO
 
         modeClassicBtn.onclick = () => {
             myPlayerKey = 'player1';
@@ -236,7 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen); // Mantém a tela de seleção por baixo
         selectionScreen.classList.remove('active'); // Mas a torna inativa
         specialMovesModal.classList.remove('hidden'); // MOSTRA o modal
@@ -516,13 +517,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const mobileContainer = document.getElementById('mobile-controls-container');
         mobileContainer.innerHTML = ''; // Sempre limpa o container.
 
-        // Popula a barra de botões móvel se for o turno de um jogador.
-        // A visibilidade da barra é controlada pelo CSS via aspect-ratio.
         if (isPlayer && isActionPhase && state.whoseTurn === myPlayerKey) {
-            // Pega o container de controle do jogador da vez.
             const currentControls = document.getElementById(`${myPlayerKey}-controls`);
             if (currentControls) {
-                // Pega todos os botões de dentro dele.
                 const buttonsToClone = currentControls.querySelectorAll('button');
                 buttonsToClone.forEach(btn => {
                     const clone = btn.cloneNode(true);
@@ -530,7 +527,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         
-            // Adiciona também o botão de desistir.
             const forfeitBtn = document.getElementById('forfeit-btn');
             if (forfeitBtn) {
                 const clone = forfeitBtn.cloneNode(true);
