@@ -104,8 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(modeSelectionScreen);
         }
         
+        // --- INÍCIO DA CORREÇÃO: Restaurando o event listener que foi removido por engano.
         confirmBtn.addEventListener('click', onConfirmSelection);
-        
+        // --- FIM DA CORREÇÃO
+
         modeClassicBtn.onclick = () => {
             myPlayerKey = 'player1';
             showScreen(scenarioScreen);
