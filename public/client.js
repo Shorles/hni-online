@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
         });
     }
-    
+
     // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
     // Manipulador de eventos global que lida com todos os cliques importantes.
     function handleGlobalClick(event) {
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
-        specialMovesModal.classList.remove('hidden'); // Corrigido para mostrar o modal
+        specialMovesModal.classList.remove('hidden'); 
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -516,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
 
-        // --- INÍCIO DA CORREÇÃO: Lógica para Controles em Dispositivos Móveis
+        // --- INÍCIO DA CORREÇÃO DEFINITIVA: Lógica para Controles em Dispositivos Móveis
         const mobileContainer = document.getElementById('mobile-controls-container');
         mobileContainer.innerHTML = ''; // Sempre limpa o container.
 
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mobileContainer.appendChild(clone);
             }
         }
-        // --- FIM DA CORREÇÃO
+        // --- FIM DA CORREÇÃO DEFINITIVA
     }
     
     function showForfeitConfirmation() {
