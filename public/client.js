@@ -349,33 +349,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('gameUpdate', (gameState) => {
         // --- INÍCIO DA CORREÇÃO ---
-        const oldState = currentGameState;
-        const oldPhase = oldState ? oldState.phase : null;
+        const oldPhase = currentGameState ? currentGameState.phase : null;
+        
+        // ATUALIZA O ESTADO GLOBAL PRIMEIRO para que todas as funções subsequentes usem os dados mais recentes.
+        currentGameState = gameState;
+        
         const wasPaused = oldPhase === 'paused';
-        const isNowPaused = gameState.phase === 'paused';
+        const isNowPaused = currentGameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
 
-        // Lógica de pausa ANTES de atualizar o estado global
         if (isNowPaused && !wasPaused) {
-            showCheatsModal(); // A função showCheatsModal agora usará o 'gameState' recebido
+            showCheatsModal();
         } else if (!isNowPaused && wasPaused) {
             modal.classList.add('hidden');
         }
 
-        currentGameState = gameState;
-        updateUI(gameState);
+        updateUI(currentGameState);
 
-        // --- CORREÇÃO DE POSICIONAMENTO ---
-        if (gameState.mode === 'classic') {
+        if (currentGameState.mode === 'classic') {
             gameWrapper.classList.add('mode-classic');
             gameWrapper.classList.remove('mode-arena');
-        } else if (gameState.mode === 'arena') {
+        } else if (currentGameState.mode === 'arena') {
             gameWrapper.classList.add('mode-arena');
             gameWrapper.classList.remove('mode-classic');
         }
         
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
-        const isNowInGame = !PRE_GAME_PHASES.includes(gameState.phase);
+        const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
 
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
