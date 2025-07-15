@@ -57,36 +57,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Manipulador de eventos unificado para todos os botões de ação
     function handlePlayerControlClick(event) {
         const target = event.target.closest('button');
-        if (!target || target.disabled) return;
+        if (!target || target.disabled || !myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) {
+            return;
+        }
 
         const move = target.dataset.move;
         const id = target.id;
-        
-        // Verifica se é um jogador válido antes de enviar a ação
-        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) {
-            return;
-        }
 
-        // Lida com ataques
         if (move) {
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-            return;
-        }
-
-        // Lida com o fim do turno
-        if (id === 'p1-end-turn-btn' || id === 'p2-end-turn-btn') {
+        } else if (id.includes('end-turn-btn')) {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-            return;
-        }
-        
-        // Lida com a desistência
-        if (id === 'forfeit-btn') {
-             if (currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
+        } else if (id === 'forfeit-btn') {
+            if (currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
                 showForfeitConfirmation();
             }
-            return;
         }
     }
+
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -154,9 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        // Um único listener no body para pegar cliques de botões originais e clonados
         document.body.addEventListener('click', handlePlayerControlClick);
-
+        
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
                 if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover')) {
@@ -246,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -479,36 +466,40 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (state.phase !== 'paused') {
-            const p1_is_turn = state.whoseTurn === 'player1';
-            document.querySelectorAll('#p1-controls button').forEach(btn => {
-                let isDisabled = !p1_is_turn || !isActionPhase;
+            if (state.fighters.player1) {
+                const p1_is_turn = state.whoseTurn === 'player1';
+                document.querySelectorAll('#p1-controls button').forEach(btn => {
+                    let isDisabled = !p1_is_turn || !isActionPhase;
 
-                if (!isDisabled) {
-                    const moveName = btn.dataset.move;
-                    if (state.phase === 'white_fang_follow_up') {
-                        if (moveName && moveName !== 'White Fang') { isDisabled = true; }
-                    } else if (moveName) {
-                        const move = state.moves[moveName];
-                        if (move && state.fighters.player1 && state.fighters.player1.pa < move.cost) { isDisabled = true; }
+                    if (!isDisabled) {
+                        const moveName = btn.dataset.move;
+                        if (state.phase === 'white_fang_follow_up') {
+                            if (moveName && moveName !== 'White Fang') { isDisabled = true; }
+                        } else if (moveName) {
+                            const move = state.moves[moveName];
+                            if (move && state.fighters.player1.pa < move.cost) { isDisabled = true; }
+                        }
                     }
-                }
-                btn.disabled = isDisabled;
-            });
+                    btn.disabled = isDisabled;
+                });
+            }
 
-            const p2_is_turn = state.whoseTurn === 'player2';
-            document.querySelectorAll('#p2-controls button').forEach(btn => {
-                let isDisabled = !p2_is_turn || !isActionPhase;
-                if (!isDisabled) {
-                    const moveName = btn.dataset.move;
-                    if (state.phase === 'white_fang_follow_up') {
-                        if (moveName && moveName !== 'White Fang') { isDisabled = true; }
-                    } else if (moveName) {
-                        const move = state.moves[moveName];
-                        if (move && state.fighters.player2 && state.fighters.player2.pa < move.cost) { isDisabled = true; }
+            if(state.fighters.player2){
+                const p2_is_turn = state.whoseTurn === 'player2';
+                document.querySelectorAll('#p2-controls button').forEach(btn => {
+                    let isDisabled = !p2_is_turn || !isActionPhase;
+                    if (!isDisabled) {
+                        const moveName = btn.dataset.move;
+                        if (state.phase === 'white_fang_follow_up') {
+                            if (moveName && moveName !== 'White Fang') { isDisabled = true; }
+                        } else if (moveName) {
+                            const move = state.moves[moveName];
+                            if (move && state.fighters.player2.pa < move.cost) { isDisabled = true; }
+                        }
                     }
-                }
-                btn.disabled = isDisabled;
-            });
+                    btn.disabled = isDisabled;
+                });
+            }
             
             document.getElementById('forfeit-btn').disabled = !isActionPhase || !isPlayer || state.whoseTurn !== myPlayerKey;
         }
@@ -517,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
 
-        // --- INÍCIO: Lógica para Controles em Dispositivos Móveis ---
+        // --- Lógica para Controles em Dispositivos Móveis ---
         const mobileContainer = document.getElementById('mobile-controls-container');
         mobileContainer.innerHTML = ''; // Sempre limpa o container.
 
@@ -542,7 +533,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 mobileContainer.appendChild(clone);
             }
         }
-        // --- FIM: Lógica para Controles em Dispositivos Móveis ---
     }
     
     function showForfeitConfirmation() {
