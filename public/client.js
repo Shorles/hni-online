@@ -53,31 +53,37 @@ document.addEventListener('DOMContentLoaded', () => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
         });
     }
-
-    // --- INÍCIO DA CORREÇÃO: Manipulador de eventos unificado e corrigido
-    function handlePlayerControlClick(event) {
+    
+    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+    // Manipulador de eventos global que lida com todos os cliques importantes.
+    function handleGlobalClick(event) {
         const target = event.target.closest('button');
         if (!target || target.disabled) return;
-        
-        // Ação de confirmar personagem é tratada separadamente na inicialização
-        if (target.id === 'confirm-selection-btn') return;
-        
-        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
-        const move = target.dataset.move;
         const id = target.id;
+        const move = target.dataset.move;
 
-        if (move) {
-            socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-        } else if (id.includes('end-turn-btn')) {
-            socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-        } else if (id === 'forfeit-btn') {
-            if (currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
-                showForfeitConfirmation();
+        // 1. Lida com a confirmação de personagem (resolve o travamento)
+        if (id === 'confirm-selection-btn') {
+            onConfirmSelection();
+            return;
+        }
+
+        // 2. Lida com ações de jogador (funciona para botões originais e clones)
+        if (myPlayerKey && (myPlayerKey === 'player1' || myPlayerKey === 'player2')) {
+            if (move) {
+                socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+            } else if (id.includes('end-turn-btn')) {
+                socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+            } else if (id === 'forfeit-btn') {
+                if (currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
+                    showForfeitConfirmation();
+                }
             }
         }
     }
-    // --- FIM DA CORREÇÃO
+    // --- FIM DA CORREÇÃO DEFINITIVA ---
+
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -107,7 +113,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(modeSelectionScreen);
         }
         
-        confirmBtn.addEventListener('click', onConfirmSelection);
+        // Substituindo todos os listeners antigos por um único, mais robusto
+        document.body.addEventListener('click', handleGlobalClick);
 
         modeClassicBtn.onclick = () => {
             myPlayerKey = 'player1';
@@ -144,8 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
-        
-        document.body.addEventListener('click', handlePlayerControlClick);
         
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
@@ -233,14 +238,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- INÍCIO DA CORREÇÃO: Corrigido para mostrar o modal em vez de esconder.
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableMoves);
-        showScreen(selectionScreen); // Mantém a tela de seleção por baixo
-        selectionScreen.classList.remove('active'); // Mas a torna inativa
-        specialMovesModal.classList.remove('hidden'); // MOSTRA o modal
+        showScreen(selectionScreen);
+        selectionScreen.classList.remove('active');
+        specialMovesModal.classList.remove('hidden'); // Corrigido para mostrar o modal
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -250,7 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
-    // --- FIM DA CORREÇÃO
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
