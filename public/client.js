@@ -348,15 +348,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     socket.on('gameUpdate', (gameState) => {
-        const oldPhase = currentGameState ? currentGameState.phase : null;
+        // --- INÍCIO DA CORREÇÃO ---
+        const oldState = currentGameState;
+        const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused';
+        const isNowPaused = gameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
+
+        // Lógica de pausa ANTES de atualizar o estado global
+        if (isNowPaused && !wasPaused) {
+            showCheatsModal(); // A função showCheatsModal agora usará o 'gameState' recebido
+        } else if (!isNowPaused && wasPaused) {
+            modal.classList.add('hidden');
+        }
 
         currentGameState = gameState;
         updateUI(gameState);
 
         // --- CORREÇÃO DE POSICIONAMENTO ---
-        // Define a classe CSS no wrapper baseado no modo de jogo para posicionar os sprites
         if (gameState.mode === 'classic') {
             gameWrapper.classList.add('mode-classic');
             gameWrapper.classList.remove('mode-arena');
@@ -364,21 +373,14 @@ document.addEventListener('DOMContentLoaded', () => {
             gameWrapper.classList.add('mode-arena');
             gameWrapper.classList.remove('mode-classic');
         }
-        // ---------------------------------
         
-        const isNowPaused = gameState.phase === 'paused';
-        if (isNowPaused && !wasPaused) {
-            showCheatsModal();
-        } else if (!isNowPaused && wasPaused) {
-            modal.classList.add('hidden');
-        }
-
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(gameState.phase);
 
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
         }
+        // --- FIM DA CORREÇÃO ---
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -542,10 +544,20 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
+    // --- FUNÇÃO CORRIGIDA ---
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
+        
         const p1 = currentGameState.fighters.player1;
         const p2 = currentGameState.fighters.player2;
+
+        // Verificação de segurança: não mostra o modal se os lutadores não estiverem prontos.
+        if (!p1 || !p2) {
+            console.warn("Cheats tentado antes de ambos os lutadores estarem prontos.");
+            // Despausa o jogo automaticamente para não travar o fluxo.
+            socket.emit('playerAction', { type: 'toggle_pause' });
+            return;
+        }
 
         const cheatHtml = `
             <div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;">
