@@ -55,23 +55,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handlePlayerControlClick(event) {
-        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
-
-        const target = event.target.closest('button'); 
+        // O listener agora está no body, então precisamos encontrar o botão alvo.
+        const target = event.target.closest('button');
         
+        // Ignora o clique se não for em um botão, se o botão estiver desabilitado, ou se o jogador não for um participante ativo.
         if (!target || target.disabled) return;
-
-        const isP1Control = p1Controls.contains(target);
-        const isP2Control = p2Controls.contains(target);
-        if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) {
-            return;
-        }
+        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
         const move = target.dataset.move;
         
+        // Verifica se é um botão de ataque
         if (move) {
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-        } else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
+        } 
+        // Verifica se é um botão de encerrar turno (usando o ID)
+        else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
@@ -142,8 +140,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        p1Controls.addEventListener('click', handlePlayerControlClick);
-        p2Controls.addEventListener('click', handlePlayerControlClick);
+        // Um único listener de clique no corpo do documento para lidar com todos os botões de ação
+        document.body.addEventListener('click', handlePlayerControlClick);
         
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
@@ -151,11 +149,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // --- Listener para o Menu de Trapaças ---
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
                 if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover')) {
-                    // Não faz nada se o jogo já acabou por rounds.
                     return;
                 }
                 socket.emit('playerAction', { type: 'toggle_pause' });
@@ -348,10 +344,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     socket.on('gameUpdate', (gameState) => {
-        // --- INÍCIO DA CORREÇÃO ---
         const oldPhase = currentGameState ? currentGameState.phase : null;
         
-        // ATUALIZA O ESTADO GLOBAL PRIMEIRO para que todas as funções subsequentes usem os dados mais recentes.
         currentGameState = gameState;
         
         const wasPaused = oldPhase === 'paused';
@@ -380,7 +374,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
         }
-        // --- FIM DA CORREÇÃO ---
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -515,6 +508,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
+
+        // --- INÍCIO: Lógica para Controles em Dispositivos Móveis ---
+        const mobileContainer = document.getElementById('mobile-controls-container');
+        const isPortrait = window.innerHeight > window.innerWidth;
+
+        mobileContainer.innerHTML = ''; // Limpa o container antes de adicionar os botões.
+
+        if (isPortrait && fightScreen.classList.contains('active') && isPlayer && isActionPhase) {
+            // Se a tela estiver na vertical, a tela de luta estiver ativa e for o turno de um jogador, movemos os botões.
+            
+            // Container de controles do jogador atual
+            const currentControls = document.getElementById(`${state.whoseTurn}-controls`);
+            if (currentControls) {
+                const buttons = currentControls.querySelectorAll('.action-btn, .end-turn-btn');
+                buttons.forEach(btn => {
+                    const clone = btn.cloneNode(true); // Clona para não remover o original
+                    mobileContainer.appendChild(clone);
+                });
+            }
+            
+            // Adiciona o botão de desistir também
+            const forfeitBtn = document.getElementById('forfeit-btn');
+            if (forfeitBtn) {
+                const clone = forfeitBtn.cloneNode(true);
+                clone.disabled = forfeitBtn.disabled;
+                mobileContainer.appendChild(clone);
+            }
+        }
+        // --- FIM: Lógica para Controles em Dispositivos Móveis ---
     }
     
     function showForfeitConfirmation() {
@@ -544,17 +566,14 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
-    // --- FUNÇÃO CORRIGIDA ---
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
         
         const p1 = currentGameState.fighters.player1;
         const p2 = currentGameState.fighters.player2;
 
-        // Verificação de segurança: não mostra o modal se os lutadores não estiverem prontos.
         if (!p1 || !p2) {
             console.warn("Cheats tentado antes de ambos os lutadores estarem prontos.");
-            // Despausa o jogo automaticamente para não travar o fluxo.
             socket.emit('playerAction', { type: 'toggle_pause' });
             return;
         }
@@ -726,7 +745,22 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); document.querySelectorAll('button').forEach(btn => btn.disabled = true); });
 
     initialize();
-    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; };
+    
+    const scaleGame = () => {
+        const w = document.getElementById('game-wrapper');
+        const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+        w.style.transform = `scale(${s})`;
+        w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`;
+        w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`;
+    };
+    
     scaleGame();
-    window.addEventListener('resize', scaleGame);
+    
+    window.addEventListener('resize', () => {
+        scaleGame();
+        // Redesenha a UI para mover os botões se necessário
+        if (currentGameState) {
+            updateUI(currentGameState);
+        }
+    });
 });
