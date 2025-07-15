@@ -348,24 +348,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     socket.on('gameUpdate', (gameState) => {
-        const wasPaused = currentGameState && currentGameState.phase === 'paused';
-        const isNowPaused = gameState.phase === 'paused';
+        // --- INÍCIO DA CORREÇÃO ---
+        const oldPhase = currentGameState ? currentGameState.phase : null;
+        const wasPaused = oldPhase === 'paused';
+        const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
 
         currentGameState = gameState;
         updateUI(gameState);
         
+        const isNowPaused = gameState.phase === 'paused';
         if (isNowPaused && !wasPaused) {
             showCheatsModal();
         } else if (!isNowPaused && wasPaused) {
             modal.classList.add('hidden');
         }
 
-        const isPreGame = !currentGameState || ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'].includes(gameState.phase);
-        const isGameStarting = isPreGame && !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'].includes(gameState.phase);
+        const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
+        const isNowInGame = !PRE_GAME_PHASES.includes(gameState.phase);
 
-        if (isGameStarting && !fightScreen.classList.contains('active')) {
+        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
         }
+        // --- FIM DA CORREÇÃO ---
     });
 
     socket.on('roomCreated', (roomId) => {
