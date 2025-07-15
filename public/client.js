@@ -54,19 +54,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Manipulador de eventos unificado para todos os botões de ação
     function handlePlayerControlClick(event) {
         const target = event.target.closest('button');
-        
         if (!target || target.disabled) return;
-        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
         const move = target.dataset.move;
+        const id = target.id;
         
+        // Verifica se é um jogador válido antes de enviar a ação
+        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) {
+            return;
+        }
+
+        // Lida com ataques
         if (move) {
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-        } 
-        else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
+            return;
+        }
+
+        // Lida com o fim do turno
+        if (id === 'p1-end-turn-btn' || id === 'p2-end-turn-btn') {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+            return;
+        }
+        
+        // Lida com a desistência
+        if (id === 'forfeit-btn') {
+             if (currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
+                showForfeitConfirmation();
+            }
+            return;
         }
     }
 
@@ -136,13 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
+        // Um único listener no body para pegar cliques de botões originais e clonados
         document.body.addEventListener('click', handlePlayerControlClick);
-        
-        document.getElementById('forfeit-btn').onclick = () => {
-            if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
-                showForfeitConfirmation();
-            }
-        };
 
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
@@ -476,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (moveName && moveName !== 'White Fang') { isDisabled = true; }
                     } else if (moveName) {
                         const move = state.moves[moveName];
-                        if (move && state.fighters.player1.pa < move.cost) { isDisabled = true; }
+                        if (move && state.fighters.player1 && state.fighters.player1.pa < move.cost) { isDisabled = true; }
                     }
                 }
                 btn.disabled = isDisabled;
@@ -491,7 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (moveName && moveName !== 'White Fang') { isDisabled = true; }
                     } else if (moveName) {
                         const move = state.moves[moveName];
-                        if (move && state.fighters.player2.pa < move.cost) { isDisabled = true; }
+                        if (move && state.fighters.player2 && state.fighters.player2.pa < move.cost) { isDisabled = true; }
                     }
                 }
                 btn.disabled = isDisabled;
@@ -514,20 +527,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // Pega o container de controle do jogador da vez.
             const currentControls = document.getElementById(`${myPlayerKey}-controls`);
             if (currentControls) {
-                // Pega todos os botões de ação e o de encerrar turno.
-                const actionButtons = currentControls.querySelectorAll('.action-btn, .end-turn-btn');
-                actionButtons.forEach(btn => {
+                // Pega todos os botões de dentro dele.
+                const buttonsToClone = currentControls.querySelectorAll('button');
+                buttonsToClone.forEach(btn => {
                     const clone = btn.cloneNode(true);
-                    clone.disabled = btn.disabled; // Garante que o estado seja copiado
                     mobileContainer.appendChild(clone);
                 });
             }
         
-            // Adiciona o botão de desistir.
+            // Adiciona também o botão de desistir.
             const forfeitBtn = document.getElementById('forfeit-btn');
             if (forfeitBtn) {
                 const clone = forfeitBtn.cloneNode(true);
-                clone.disabled = forfeitBtn.disabled; // Garante que o estado seja copiado
                 mobileContainer.appendChild(clone);
             }
         }
