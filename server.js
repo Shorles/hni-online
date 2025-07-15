@@ -131,7 +131,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         attacker.hitsLanded++;
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
-    } else { 
+    } else { // Se o golpe errou
         if (moveName === 'Counter') {
             logMessage(state, `${attacker.nome} erra o contra-ataque e se desequilibra, sofrendo 3 de dano!`, 'log-crit');
             const hpBeforeSelfHit = attacker.hp;
@@ -500,7 +500,7 @@ io.on('connection', (socket) => {
                 });
                 delete state.pendingP2Choice;
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
-                state.phase = 'initiative_p1'; // ESTA É A CORREÇÃO.
+                state.phase = 'initiative_p1';
                 break;
 
             case 'attack':
