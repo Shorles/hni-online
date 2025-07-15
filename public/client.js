@@ -43,6 +43,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const specialMovesBackBtn = document.getElementById('special-moves-back-btn');
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const exitGameBtn = document.getElementById('exit-game-btn');
+    const utilityButtons = document.getElementById('utility-buttons');
+    const mobileControlsContainer = document.getElementById('mobile-controls-container');
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
@@ -54,35 +56,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
-    // Manipulador de eventos global que lida com todos os cliques importantes.
-    function handleGlobalClick(event) {
+    // Manipulador de eventos unificado para todos os botões de ação do jogo.
+    function handlePlayerControlClick(event) {
         const target = event.target.closest('button');
-        if (!target || target.disabled) return;
-
-        const id = target.id;
-        const move = target.dataset.move;
-
-        // 1. Lida com a confirmação de personagem (resolve o travamento)
-        if (id === 'confirm-selection-btn') {
-            onConfirmSelection();
+        if (!target || target.disabled || !myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) {
             return;
         }
 
-        // 2. Lida com ações de jogador (funciona para botões originais e clones)
-        if (myPlayerKey && (myPlayerKey === 'player1' || myPlayerKey === 'player2')) {
-            if (move) {
-                socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-            } else if (id.includes('end-turn-btn')) {
-                socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
-            } else if (id === 'forfeit-btn') {
-                if (currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
-                    showForfeitConfirmation();
-                }
+        const move = target.dataset.move;
+        const id = target.id;
+
+        if (move) {
+            socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+        } else if (id.includes('end-turn-btn')) {
+            socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        } else if (id === 'forfeit-btn') {
+            if (currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
+                showForfeitConfirmation();
             }
         }
     }
-    // --- FIM DA CORREÇÃO DEFINITIVA ---
 
 
     function initialize() {
@@ -113,8 +106,16 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(modeSelectionScreen);
         }
         
-        // Substituindo todos os listeners antigos por um único, mais robusto
-        document.body.addEventListener('click', handleGlobalClick);
+        // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+        // 1. Restaurar o listener do botão de confirmação para corrigir o travamento.
+        confirmBtn.addEventListener('click', onConfirmSelection);
+
+        // 2. Usar event delegation para todos os botões de ação do jogo.
+        p1Controls.addEventListener('click', handlePlayerControlClick);
+        p2Controls.addEventListener('click', handlePlayerControlClick);
+        utilityButtons.addEventListener('click', handlePlayerControlClick);
+        mobileControlsContainer.addEventListener('click', handlePlayerControlClick);
+        // --- FIM DA CORREÇÃO DEFINITIVA ---
 
         modeClassicBtn.onclick = () => {
             myPlayerKey = 'player1';
@@ -516,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
 
-        // --- INÍCIO DA CORREÇÃO DEFINITIVA: Lógica para Controles em Dispositivos Móveis
+        // --- INÍCIO DA CORREÇÃO: Lógica para Controles em Dispositivos Móveis
         const mobileContainer = document.getElementById('mobile-controls-container');
         mobileContainer.innerHTML = ''; // Sempre limpa o container.
 
@@ -536,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 mobileContainer.appendChild(clone);
             }
         }
-        // --- FIM DA CORREÇÃO DEFINITIVA
+        // --- FIM DA CORREÇÃO
     }
     
     function showForfeitConfirmation() {
