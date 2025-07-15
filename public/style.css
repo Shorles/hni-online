@@ -343,12 +343,13 @@ body {
         /* Desativa o escalonamento via JS e faz o wrapper preencher a tela do celular */
         transform: none !important;
         width: 100% !important;
-        height: 100% !important;
+        height: auto !important;
         left: 0 !important;
         top: 0 !important;
         position: relative;
         overflow-y: auto; /* Permite rolar o conteúdo interno */
         overflow-x: hidden;
+        min-height: 100vh;
     }
     
     #fight-screen {
@@ -356,33 +357,27 @@ body {
         height: auto;
         min-height: 100%;
         padding-bottom: 20px; /* Espaço no final */
+        justify-content: flex-start; /* Alinha o conteúdo ao topo */
+        gap: 15px;
     }
-
-    /* Reposiciona os lutadores para o layout móvel */
+    
+    /* --- INÍCIO DA CORREÇÃO --- */
+    /* A imagem dos lutadores não aparece na sua screenshot, mas esta regra é crucial */
+    /* para que eles não fiquem fora da tela em modo retrato. */
     .fighter-img {
-        position: relative; /* Tira do posicionamento absoluto */
-        width: 120px;
-        height: 120px;
-        bottom: auto;
-        left: auto;
-        right: auto;
-        margin: 10px auto; /* Centraliza horizontalmente */
-        z-index: 1;
+        display: none; /* A tela de luta já tem a imagem de fundo, e a UI móvel não tem espaço para as imagens individuais dos lutadores. Esta é a maneira mais simples de limpar a UI. */
     }
-
-    /* Garante que a transformação de espelho seja desfeita para um layout consistente */
-    .mode-classic #player1-fight-img,
-    .mode-classic #player2-fight-img,
-    .mode-arena #player2-fight-img {
-        transform: scaleX(1);
-    }
+    /* --- FIM DA CORREÇÃO --- */
 
     /* A UI principal não fica mais fixa no rodapé */
     #fight-ui-wrapper {
         position: relative;
+        bottom: auto;
+        left: auto;
         width: 100%;
         padding: 0 5px; /* Reduz o padding lateral */
         gap: 10px;
+        box-sizing: border-box;
     }
 
     /* Empilha os painéis de Info e o Log verticalmente */
@@ -397,6 +392,7 @@ body {
         width: 95%;
         flex-basis: auto; /* Reseta a base do flexbox */
         padding: 8px;
+        box-sizing: border-box;
     }
     
     .fighter-info h2 {
@@ -409,6 +405,7 @@ body {
         width: 95%;
         height: 150px; /* Altura fixa para o log */
         font-size: 0.9em;
+        box-sizing: border-box;
     }
 
     /* Ajusta os botões para toque */
@@ -444,6 +441,11 @@ body {
         left: auto;
         right: auto;
     }
+    
+    /* Remove a visibilidade dos botões que não estão em uso, para não poluir a tela */
+    .roll-dice-button.hidden {
+        display: none;
+    }
 
     /* Ajusta os modais para telas menores */
     #modal-content, #special-moves-content {
@@ -454,6 +456,11 @@ body {
 
     #special-moves-list {
         max-height: 50vh; /* Limita a altura da lista de golpes */
+    }
+    
+    #arena-lobby-screen, #selection-screen, #mode-selection-screen {
+        height: 100vh;
+        box-sizing: border-box;
     }
 
     /* Ajustes específicos para as telas de seleção iniciais */
