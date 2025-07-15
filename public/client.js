@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- INÍCIO DA CORREÇÃO: Manipulador de eventos unificado e corrigido
+    // Manipulador de eventos unificado e corrigido para todos os botões de ação
     function handlePlayerControlClick(event) {
         const target = event.target.closest('button');
         if (!target || target.disabled || !myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) {
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // --- FIM DA CORREÇÃO
+
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -144,7 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        // Um único listener no body para pegar cliques de botões de ação (originais e clonados)
         document.body.addEventListener('click', handlePlayerControlClick);
         
         window.addEventListener('keydown', (e) => {
@@ -233,13 +232,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- INÍCIO DA CORREÇÃO: Corrigido para mostrar o modal em vez de esconder.
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableMoves);
-        showScreen(selectionScreen);
-        selectionScreen.classList.remove('active');
-        specialMovesModal.classList.remove('hidden');
+        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        showScreen(selectionScreen); // Mantém a tela de seleção por baixo
+        selectionScreen.classList.remove('active'); // Mas a torna inativa
+        specialMovesModal.classList.remove('hidden'); // MOSTRA o modal
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -249,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
+    // --- FIM DA CORREÇÃO
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
@@ -515,8 +516,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const mobileContainer = document.getElementById('mobile-controls-container');
         mobileContainer.innerHTML = ''; // Sempre limpa o container.
 
+        // Popula a barra de botões móvel se for o turno de um jogador.
         // A visibilidade da barra é controlada pelo CSS via aspect-ratio.
-        // Aqui, apenas populamos se for o turno do jogador.
         if (isPlayer && isActionPhase && state.whoseTurn === myPlayerKey) {
             // Pega o container de controle do jogador da vez.
             const currentControls = document.getElementById(`${myPlayerKey}-controls`);
