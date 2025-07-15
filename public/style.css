@@ -332,45 +332,46 @@ body {
    INÍCIO DAS REGRAS PARA MODO RETRATO (CELULAR VERTICAL)
    ========================================================================== */
 
-/* A media query (orientation: portrait) aplica estes estilos quando a altura da tela é maior que a largura. */
-@media (orientation: portrait) {
-    /* Esconde os botões de ação originais, que ficam muito pequenos na tela escalada. */
+/* Container para os novos botões. Fica escondido por padrão. */
+#mobile-controls-container {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px;
+    padding-bottom: env(safe-area-inset-bottom, 10px);
+    background-color: rgba(15, 15, 15, 0.97);
+    border-top: 1px solid #444;
+    z-index: 5000;
+    box-sizing: border-box;
+}
+
+/* A media query (max-aspect-ratio: 4/3) aplica estes estilos quando a tela for "vertical". */
+/* Isso pega celulares em pé e janelas de navegador estreitas. */
+@media (max-aspect-ratio: 4/3) {
+    /* Esconde os botões de ação originais do jogo, que ficam pequenos demais. */
     #action-buttons-wrapper {
         display: none !important;
     }
 
-    /* Container para os novos botões, fixado no rodapé da tela. */
+    /* Mostra o container dos botões móveis. */
     #mobile-controls-container {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px; /* Espaçamento entre os botões */
-        position: fixed; /* Fixa na tela */
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 10px;
-        padding-bottom: env(safe-area-inset-bottom, 10px); /* Garante espaço em iPhones com notch */
-        background-color: rgba(15, 15, 15, 0.97);
-        border-top: 1px solid #444;
-        z-index: 5000;
-        box-sizing: border-box;
-    }
-
-    /* Esconde a barra de botões se ela estiver vazia. */
-    #mobile-controls-container:empty {
-        display: none;
+        gap: 8px;
     }
 
     /* Estiliza os botões dentro da nova barra para serem grandes e fáceis de tocar. */
     #mobile-controls-container .action-btn,
     #mobile-controls-container .end-turn-btn,
     #mobile-controls-container #forfeit-btn {
-        flex-grow: 1; /* Faz os botões crescerem para preencher o espaço */
-        flex-basis: 45%; /* Tenta colocar 2 botões por linha */
+        flex-grow: 1;
+        flex-basis: 45%;
         padding: 12px 8px;
         font-size: 1em;
         font-weight: bold;
-        min-height: 48px; /* Altura mínima para toque confortável */
+        min-height: 48px;
     }
 
     /* Botões de encerrar turno e desistir ocupam a linha inteira para destaque. */

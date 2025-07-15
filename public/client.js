@@ -55,20 +55,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handlePlayerControlClick(event) {
-        // O listener agora está no body, então precisamos encontrar o botão alvo.
         const target = event.target.closest('button');
         
-        // Ignora o clique se não for em um botão, se o botão estiver desabilitado, ou se o jogador não for um participante ativo.
         if (!target || target.disabled) return;
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
         const move = target.dataset.move;
         
-        // Verifica se é um botão de ataque
         if (move) {
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
         } 
-        // Verifica se é um botão de encerrar turno (usando o ID)
         else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
@@ -140,7 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        // Um único listener de clique no corpo do documento para lidar com todos os botões de ação
         document.body.addEventListener('click', handlePlayerControlClick);
         
         document.getElementById('forfeit-btn').onclick = () => {
@@ -511,28 +506,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- INÍCIO: Lógica para Controles em Dispositivos Móveis ---
         const mobileContainer = document.getElementById('mobile-controls-container');
-        const isPortrait = window.innerHeight > window.innerWidth;
+        mobileContainer.innerHTML = ''; // Sempre limpa o container.
 
-        mobileContainer.innerHTML = ''; // Limpa o container antes de adicionar os botões.
-
-        if (isPortrait && fightScreen.classList.contains('active') && isPlayer && isActionPhase) {
-            // Se a tela estiver na vertical, a tela de luta estiver ativa e for o turno de um jogador, movemos os botões.
-            
-            // Container de controles do jogador atual
-            const currentControls = document.getElementById(`${state.whoseTurn}-controls`);
+        // Popula a barra de botões móvel se for o turno de um jogador.
+        // A visibilidade da barra é controlada pelo CSS via aspect-ratio.
+        if (isPlayer && isActionPhase && state.whoseTurn === myPlayerKey) {
+            // Pega o container de controle do jogador da vez.
+            const currentControls = document.getElementById(`${myPlayerKey}-controls`);
             if (currentControls) {
-                const buttons = currentControls.querySelectorAll('.action-btn, .end-turn-btn');
-                buttons.forEach(btn => {
-                    const clone = btn.cloneNode(true); // Clona para não remover o original
+                // Pega todos os botões de ação e o de encerrar turno.
+                const actionButtons = currentControls.querySelectorAll('.action-btn, .end-turn-btn');
+                actionButtons.forEach(btn => {
+                    const clone = btn.cloneNode(true);
+                    clone.disabled = btn.disabled; // Garante que o estado seja copiado
                     mobileContainer.appendChild(clone);
                 });
             }
-            
-            // Adiciona o botão de desistir também
+        
+            // Adiciona o botão de desistir.
             const forfeitBtn = document.getElementById('forfeit-btn');
             if (forfeitBtn) {
                 const clone = forfeitBtn.cloneNode(true);
-                clone.disabled = forfeitBtn.disabled;
+                clone.disabled = forfeitBtn.disabled; // Garante que o estado seja copiado
                 mobileContainer.appendChild(clone);
             }
         }
@@ -758,7 +753,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     window.addEventListener('resize', () => {
         scaleGame();
-        // Redesenha a UI para mover os botões se necessário
         if (currentGameState) {
             updateUI(currentGameState);
         }
