@@ -44,6 +44,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const exitGameBtn = document.getElementById('exit-game-btn');
 
+    // --- INÍCIO DA MUDANÇA: Variáveis para a ferramenta de coordenadas ---
+    let coordToolButton = null;
+    let isCoordToolActive = false;
+    let coordListenerAttached = false;
+    // --- FIM DA MUDANÇA ---
+
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
@@ -55,9 +61,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (screenToShow.id === 'fight-screen') {
             gameWrapper.style.overflowY = 'auto';
+            if (isGm && coordToolButton) {
+                coordToolButton.style.display = 'block';
+            }
+            if (!coordListenerAttached) {
+                const gameAreaForCoords = document.getElementById('game-area');
+                gameAreaForCoords.addEventListener('click', (e) => {
+                    if (!isCoordToolActive) return;
+                    const x = e.offsetX;
+                    const y = e.offsetY;
+                    alert(`Coordenadas (relativas à área do ringue):\nX: ${x}\nY: ${y}`);
+                });
+                coordListenerAttached = true;
+            }
         } else {
             gameWrapper.style.overflowY = 'hidden';
             gameWrapper.scrollTop = 0;
+            if (coordToolButton) {
+                coordToolButton.style.display = 'none';
+            }
         }
     }
 
@@ -159,6 +181,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 socket.emit('playerAction', { type: 'toggle_pause' });
             }
         });
+
+        // --- INÍCIO DA MUDANÇA: Criação do botão flutuante ---
+        coordToolButton = document.createElement('button');
+        coordToolButton.textContent = 'Coords: OFF';
+        Object.assign(coordToolButton.style, {
+            position: 'fixed',
+            bottom: '10px',
+            right: '10px',
+            zIndex: '9999',
+            padding: '8px 12px',
+            backgroundColor: 'rgba(220, 53, 69, 0.8)', // red
+            color: 'white',
+            border: '1px solid white',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            display: 'none' // Começa escondido
+        });
+        document.body.appendChild(coordToolButton);
+
+        coordToolButton.addEventListener('click', () => {
+            isCoordToolActive = !isCoordToolActive;
+            if (isCoordToolActive) {
+                coordToolButton.textContent = 'Coords: ON';
+                coordToolButton.style.backgroundColor = 'rgba(40, 167, 69, 0.8)'; // green
+            } else {
+                coordToolButton.textContent = 'Coords: OFF';
+                coordToolButton.style.backgroundColor = 'rgba(220, 53, 69, 0.8)'; // red
+            }
+        });
+        // --- FIM DA MUDANÇA ---
     }
 
     function renderScenarioSelection(mode = 'classic') {
@@ -237,16 +289,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
-
-        // A tela de seleção de personagem já está ativa. Apenas mostramos o modal por cima.
-        // As linhas que causavam o bug foram removidas.
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         specialMovesModal.classList.remove('hidden');
-        
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -256,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
-    // --- FIM DA CORREÇÃO DEFINITIVA ---
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
@@ -592,8 +638,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('assignPlayer', (data) => { 
         myPlayerKey = data.playerKey;
         isGm = data.isGm;
-        if (myPlayerKey === 'host') {
-            exitGameBtn.classList.remove('hidden');
+        if (myPlayerKey === 'host' || isGm) { // Mostra o botão para o host ou gm
+            if (coordToolButton) coordToolButton.style.display = 'block';
         }
     });
 
