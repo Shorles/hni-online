@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
-    let isGm = false; // Nova variável para identificar o GM
+    let isGm = false;
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
@@ -48,40 +48,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
-    // --- INÍCIO DA MUDANÇA: Função de controle de tela atualizada ---
     function showScreen(screenToShow) {
         allScreens.forEach(screen => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
         });
 
-        // Controla a capacidade de rolagem para evitar "vazamento" de telas no mobile
         if (screenToShow.id === 'fight-screen') {
-            // Permite a rolagem na tela de luta (necessário para o modo vertical)
             gameWrapper.style.overflowY = 'auto';
         } else {
-            // Impede a rolagem em todas as outras telas
             gameWrapper.style.overflowY = 'hidden';
-            // Reseta a posição da rolagem para o topo
             gameWrapper.scrollTop = 0;
         }
     }
-    // --- FIM DA MUDANÇA ---
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
-
         const target = event.target.closest('button'); 
-        
         if (!target || target.disabled) return;
-
         const isP1Control = p1Controls.contains(target);
         const isP2Control = p2Controls.contains(target);
-        if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) {
-            return;
-        }
-
+        if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) return;
         const move = target.dataset.move;
-        
         if (move) {
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
         } else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
@@ -164,16 +151,53 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // --- Listener para o Menu de Trapaças ---
+        // --- INÍCIO DA MUDANÇA: Ferramenta de Coordenadas ---
+        let isCoordToolActive = false;
+        const coordToolIndicator = document.createElement('div');
+        coordToolIndicator.style.position = 'fixed';
+        coordToolIndicator.style.top = '10px';
+        coordToolIndicator.style.right = '10px';
+        coordToolIndicator.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+        coordToolIndicator.style.color = 'white';
+        coordToolIndicator.style.padding = '5px 10px';
+        coordToolIndicator.style.borderRadius = '5px';
+        coordToolIndicator.style.zIndex = '9999';
+        coordToolIndicator.style.display = 'none'; // Começa escondido
+        coordToolIndicator.textContent = 'Coord. Tool: OFF';
+        document.body.appendChild(coordToolIndicator);
+
         window.addEventListener('keydown', (e) => {
+            // Ferramenta de Cheats do GM
             if (e.key.toLowerCase() === 'c' && isGm) {
                 if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover')) {
-                    // Não faz nada se o jogo já acabou por rounds.
                     return;
                 }
                 socket.emit('playerAction', { type: 'toggle_pause' });
             }
+
+            // Ferramenta de Coordenadas
+            if (e.key.toLowerCase() === 't') {
+                isCoordToolActive = !isCoordToolActive;
+                if (isCoordToolActive) {
+                    coordToolIndicator.textContent = 'Coord. Tool: ON';
+                    coordToolIndicator.style.backgroundColor = 'rgba(0, 255, 0, 0.7)';
+                    coordToolIndicator.style.display = 'block';
+                } else {
+                    coordToolIndicator.textContent = 'Coord. Tool: OFF';
+                    coordToolIndicator.style.display = 'none';
+                }
+            }
         });
+
+        const gameAreaForCoords = document.getElementById('game-area');
+        gameAreaForCoords.addEventListener('click', (e) => {
+            if (!isCoordToolActive) return;
+            // Usamos offsetX e offsetY para pegar as coordenadas relativas à área do jogo
+            const x = e.offsetX;
+            const y = e.offsetY;
+            alert(`Coordenadas (dentro da área do ringue):\nX: ${x}\nY: ${y}`);
+        });
+        // --- FIM DA MUDANÇA ---
     }
 
     function renderScenarioSelection(mode = 'classic') {
@@ -255,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -302,11 +326,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const p1Url = `${baseUrl}?room=${roomId}&player=player1`;
         const p2Url = `${baseUrl}?room=${roomId}&player=player2`;
         const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
-
         document.getElementById('arena-link-p1').textContent = p1Url;
         document.getElementById('arena-link-p2').textContent = p2Url;
         document.getElementById('arena-link-spectator').textContent = specUrl;
-
         document.getElementById('arena-link-p1').onclick = () => copyToClipboard(p1Url, document.getElementById('arena-link-p1'));
         document.getElementById('arena-link-p2').onclick = () => copyToClipboard(p2Url, document.getElementById('arena-link-p2'));
         document.getElementById('arena-link-spectator').onclick = () => copyToClipboard(specUrl, document.getElementById('arena-link-spectator'));
@@ -339,10 +361,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>`;
         showInteractiveModal("Configurar Batalha da Arena", modalContentHtml, "Iniciar Batalha", null);
-        
         renderSpecialMoveSelection(document.getElementById('arena-p1-moves'), availableMoves);
         renderSpecialMoveSelection(document.getElementById('arena-p2-moves'), availableMoves);
-
         modalButton.onclick = () => {
             const p1_config = {
                 agi: document.getElementById('arena-p1-agi').value,
@@ -359,24 +379,18 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-
     socket.on('gameUpdate', (gameState) => {
         const oldPhase = currentGameState ? currentGameState.phase : null;
-        
         currentGameState = gameState;
-        
         const wasPaused = oldPhase === 'paused';
         const isNowPaused = currentGameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
-
         if (isNowPaused && !wasPaused) {
             showCheatsModal();
         } else if (!isNowPaused && wasPaused) {
             modal.classList.add('hidden');
         }
-
         updateUI(currentGameState);
-
         if (currentGameState.mode === 'classic') {
             gameWrapper.classList.add('mode-classic');
             gameWrapper.classList.remove('mode-arena');
@@ -384,10 +398,8 @@ document.addEventListener('DOMContentLoaded', () => {
             gameWrapper.classList.add('mode-arena');
             gameWrapper.classList.remove('mode-classic');
         }
-        
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
         }
@@ -399,13 +411,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
         const shareLinkP2 = document.getElementById('share-link-p2');
         const shareLinkSpectator = document.getElementById('share-link-spectator');
-        
         shareLinkP2.textContent = p2Url;
         shareLinkSpectator.textContent = specUrl;
-
         shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
         shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-
         lobbyContent.classList.add('hidden');
         shareContainer.classList.remove('hidden');
     });
@@ -416,17 +425,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         if (state.scenario) {
             const gameArea = document.getElementById('game-area');
-            // A imagem de fundo é aplicada tanto no wrapper quanto na área de jogo
-            // para funcionar no desktop e no mobile
             gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
             if (gameArea) {
                 gameArea.style.backgroundImage = `url('images/${state.scenario}')`;
             }
         }
-
         p1SpecialMovesContainer.innerHTML = '';
         p2SpecialMovesContainer.innerHTML = '';
-
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
             if (fighter) {
@@ -441,7 +446,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
                 }
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
-
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     fighter.specialMoves.forEach(moveName => {
@@ -459,7 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img;
             }
         });
-
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'paused') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
@@ -473,31 +476,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const turnName = state.whoseTurn ? (state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
         }
-        
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1' && state.phase !== 'paused');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2' && state.phase !== 'paused');
-        
         const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
         const actionWrapper = document.getElementById('action-buttons-wrapper');
         if (!isPlayer) { actionWrapper.classList.add('hidden'); } 
         else { actionWrapper.classList.remove('hidden'); }
-        
         const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
-        
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
-        
         document.querySelectorAll('#p1-controls button, #p2-controls button, #forfeit-btn').forEach(btn => {
             if (state.phase === 'paused' && !isGm) {
                 btn.disabled = true;
             }
         });
-
         if (state.phase !== 'paused') {
             const p1_is_turn = state.whoseTurn === 'player1';
             document.querySelectorAll('#p1-controls button').forEach(btn => {
                 let isDisabled = !p1_is_turn || !isActionPhase;
-
                 if (!isDisabled) {
                     const moveName = btn.dataset.move;
                     if (state.phase === 'white_fang_follow_up') {
@@ -509,7 +505,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 btn.disabled = isDisabled;
             });
-
             const p2_is_turn = state.whoseTurn === 'player2';
             document.querySelectorAll('#p2-controls button').forEach(btn => {
                 let isDisabled = !p2_is_turn || !isActionPhase;
@@ -524,10 +519,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 btn.disabled = isDisabled;
             });
-            
             document.getElementById('forfeit-btn').disabled = !isActionPhase || !isPlayer || state.whoseTurn !== myPlayerKey;
         }
-
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
@@ -562,16 +555,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
-        
         const p1 = currentGameState.fighters.player1;
         const p2 = currentGameState.fighters.player2;
-
         if (!p1 || !p2) {
             console.warn("Cheats tentado antes de ambos os lutadores estarem prontos.");
             socket.emit('playerAction', { type: 'toggle_pause' });
             return;
         }
-
         const cheatHtml = `
             <div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;">
                 <div id="cheat-p1">
@@ -607,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
             socket.emit('playerAction', { type: 'apply_cheats', cheats });
-            socket.emit('playerAction', { type: 'toggle_pause' }); // Continua o jogo
+            socket.emit('playerAction', { type: 'toggle_pause' });
         };
     }
 
@@ -645,14 +635,11 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
         let btn = document.getElementById(`${targetPlayerKey}-roll-btn`);
         const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
-        
         const newBtn = btn.cloneNode(true);
         btn.parentNode.replaceChild(newBtn, btn);
         btn = newBtn;
-
         btn.innerText = text;
         btn.classList.remove('hidden', 'inactive');
-
         if (isMyTurnToRoll) {
             btn.onclick = () => {
                 btn.disabled = true; 
@@ -673,7 +660,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') {
             isMyTurnForAction = myPlayerKey === 'host';
         }
-
         switch(modalType) {
             case 'gm_knockdown_decision':
                 if (isGm) {
@@ -704,20 +690,16 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
                 let modalTitleText = `${downedFighterName} caiu!`;
-                
                 const attempts = knockdownInfo.attempts;
                 const maxAttempts = knockdownInfo.isLastChance ? 5 : 4;
                 const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
                 const countText = attempts === 0 
                     ? `O juíz começa a contagem: ${counts[0]}`
                     : `A contagem continua: ${counts[attempts] || counts[counts.length-1]}`;
-
                 let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p>`;
-                
                 if (knockdownInfo.lastRoll) {
                     modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
                 }
-
                 if (targetPlayerKey === myPlayerKey) {
                     modalTitleText = `Você caiu!`;
                     modalContentText += `<br>Tentativas restantes: ${maxAttempts - attempts}`;
@@ -725,7 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                      modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p> Aguarde a contagem...`;
                      if (knockdownInfo.lastRoll) {
-                        modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
+                        modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisava de 7 ou mais)</span>`;
                     }
                     showInfoModal(modalTitleText, modalContentText);
                 }
