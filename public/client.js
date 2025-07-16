@@ -237,7 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- INÍCIO DA CORREÇÃO DEFINITIVA (RESTAURANDO CÓDIGO FUNCIONAL) ---
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
@@ -254,7 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
-    // --- FIM DA CORREÇÃO DEFINITIVA ---
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
