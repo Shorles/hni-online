@@ -241,11 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         
-        // --- INÍCIO DA CORREÇÃO ---
-        // A lógica foi reestruturada para ser mais clara e evitar o bug.
-
         // CASO 1: P1 (GM) está criando um jogo no modo CLÁSSICO.
-        // Ele tem a chave 'player1', mas ainda não existe um ID de sala (currentRoomId).
         if (myPlayerKey === 'player1' && !currentRoomId) {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
@@ -253,7 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
 
         // CASO 2: Um jogador ('player1' ou 'player2') está selecionando um personagem no modo ARENA.
-        // Neste caso, já existe um ID de sala (currentRoomId).
         } else if ((myPlayerKey === 'player1' || myPlayerKey === 'player2') && currentRoomId) {
              confirmBtn.disabled = true;
              socket.emit('selectArenaCharacter', { character: playerData });
@@ -261,14 +256,12 @@ document.addEventListener('DOMContentLoaded', () => {
              lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
 
         // CASO 3: P2 está entrando em um jogo CLÁSSICO existente.
-        // Ele ainda não tem uma chave de jogador atribuída, mas já existe um ID de sala.
         } else {
             confirmBtn.disabled = true;
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
         }
-        // --- FIM DA CORREÇÃO ---
     }
 
     function renderCharacterSelection(playerType, showStatsInputs = false) {
@@ -301,13 +294,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- INÍCIO DA CORREÇÃO ---
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableMoves);
-        showScreen(selectionScreen);
-        selectionScreen.classList.remove('active');
+        
+        // As linhas problemáticas foram removidas daqui.
+        // Agora, simplesmente mostramos o modal por cima da tela atual.
         specialMovesModal.classList.remove('hidden');
+
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -317,6 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
+    // --- FIM DA CORREÇÃO ---
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
