@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
-    let isGm = false;
+    let isGm = false; // Nova variável para identificar o GM
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
@@ -44,10 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const exitGameBtn = document.getElementById('exit-game-btn');
 
-    let coordToolButton = null;
-    let isCoordToolActive = false;
-    let coordToolSetupDone = false;
-
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
@@ -56,71 +52,23 @@ document.addEventListener('DOMContentLoaded', () => {
         allScreens.forEach(screen => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
         });
-
-        if (screenToShow.id === 'fight-screen') {
-            gameWrapper.style.overflowY = 'auto';
-            if (isGm && coordToolButton) {
-                coordToolButton.style.display = 'block';
-            }
-        } else {
-            gameWrapper.style.overflowY = 'hidden';
-            gameWrapper.scrollTop = 0;
-            if (coordToolButton) {
-                coordToolButton.style.display = 'none';
-            }
-        }
-    }
-
-    function setupCoordTool() {
-        if (coordToolSetupDone) return;
-
-        coordToolButton = document.createElement('button');
-        coordToolButton.textContent = 'Coords: OFF';
-        Object.assign(coordToolButton.style, {
-            position: 'fixed',
-            bottom: '10px',
-            right: '10px',
-            zIndex: '9999',
-            padding: '8px 12px',
-            backgroundColor: 'rgba(220, 53, 69, 0.8)',
-            color: 'white',
-            border: '1px solid white',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            display: 'block' 
-        });
-        document.body.appendChild(coordToolButton);
-
-        coordToolButton.addEventListener('click', () => {
-            isCoordToolActive = !isCoordToolActive;
-            if (isCoordToolActive) {
-                coordToolButton.textContent = 'Coords: ON';
-                coordToolButton.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
-            } else {
-                coordToolButton.textContent = 'Coords: OFF';
-                coordToolButton.style.backgroundColor = 'rgba(220, 53, 69, 0.8)';
-            }
-        });
-
-        const gameAreaForCoords = document.getElementById('game-area');
-        gameAreaForCoords.addEventListener('click', (e) => {
-            if (!isCoordToolActive) return;
-            const x = e.offsetX;
-            const y = e.offsetY;
-            alert(`Coordenadas (relativas à área do ringue):\nX: ${x}\nY: ${y}`);
-        });
-
-        coordToolSetupDone = true;
     }
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
+
         const target = event.target.closest('button'); 
+        
         if (!target || target.disabled) return;
+
         const isP1Control = p1Controls.contains(target);
         const isP2Control = p2Controls.contains(target);
-        if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) return;
+        if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) {
+            return;
+        }
+
         const move = target.dataset.move;
+        
         if (move) {
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
         } else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
@@ -203,9 +151,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        // --- Listener para o Menu de Trapaças ---
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
                 if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover')) {
+                    // Não faz nada se o jogo já acabou por rounds.
                     return;
                 }
                 socket.emit('playerAction', { type: 'toggle_pause' });
@@ -241,21 +191,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         
-        // CASO 1: P1 (GM) está criando um jogo no modo CLÁSSICO.
         if (myPlayerKey === 'player1' && !currentRoomId) {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             confirmBtn.disabled = true;
             socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
-
-        // CASO 2: Um jogador ('player1' ou 'player2') está selecionando um personagem no modo ARENA.
-        } else if ((myPlayerKey === 'player1' || myPlayerKey === 'player2') && currentRoomId) {
+        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
              confirmBtn.disabled = true;
              socket.emit('selectArenaCharacter', { character: playerData });
              showScreen(lobbyScreen);
              lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
-
-        // CASO 3: P2 está entrando em um jogo CLÁSSICO existente.
         } else {
             confirmBtn.disabled = true;
             showScreen(lobbyScreen);
@@ -294,16 +239,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- INÍCIO DA CORREÇÃO ---
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableMoves);
-        
-        // As linhas problemáticas foram removidas daqui.
-        // Agora, simplesmente mostramos o modal por cima da tela atual.
+        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        showScreen(selectionScreen);
+        selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
-
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -313,7 +255,6 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
-    // --- FIM DA CORREÇÃO ---
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
@@ -348,9 +289,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const p1Url = `${baseUrl}?room=${roomId}&player=player1`;
         const p2Url = `${baseUrl}?room=${roomId}&player=player2`;
         const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
+
         document.getElementById('arena-link-p1').textContent = p1Url;
         document.getElementById('arena-link-p2').textContent = p2Url;
         document.getElementById('arena-link-spectator').textContent = specUrl;
+
         document.getElementById('arena-link-p1').onclick = () => copyToClipboard(p1Url, document.getElementById('arena-link-p1'));
         document.getElementById('arena-link-p2').onclick = () => copyToClipboard(p2Url, document.getElementById('arena-link-p2'));
         document.getElementById('arena-link-spectator').onclick = () => copyToClipboard(specUrl, document.getElementById('arena-link-spectator'));
@@ -383,8 +326,10 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>`;
         showInteractiveModal("Configurar Batalha da Arena", modalContentHtml, "Iniciar Batalha", null);
+        
         renderSpecialMoveSelection(document.getElementById('arena-p1-moves'), availableMoves);
         renderSpecialMoveSelection(document.getElementById('arena-p2-moves'), availableMoves);
+
         modalButton.onclick = () => {
             const p1_config = {
                 agi: document.getElementById('arena-p1-agi').value,
@@ -401,18 +346,26 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
+
     socket.on('gameUpdate', (gameState) => {
+        // --- INÍCIO DA CORREÇÃO ---
         const oldPhase = currentGameState ? currentGameState.phase : null;
+        
+        // ATUALIZA O ESTADO GLOBAL PRIMEIRO para que todas as funções subsequentes usem os dados mais recentes.
         currentGameState = gameState;
+        
         const wasPaused = oldPhase === 'paused';
         const isNowPaused = currentGameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
+
         if (isNowPaused && !wasPaused) {
             showCheatsModal();
         } else if (!isNowPaused && wasPaused) {
             modal.classList.add('hidden');
         }
+
         updateUI(currentGameState);
+
         if (currentGameState.mode === 'classic') {
             gameWrapper.classList.add('mode-classic');
             gameWrapper.classList.remove('mode-arena');
@@ -420,14 +373,14 @@ document.addEventListener('DOMContentLoaded', () => {
             gameWrapper.classList.add('mode-arena');
             gameWrapper.classList.remove('mode-classic');
         }
+        
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-        if (wasInPreGame && isNowInGame) {
-            if (isGm && !coordToolSetupDone) setupCoordTool();
-            if (!fightScreen.classList.contains('active')) {
-                showScreen(fightScreen);
-            }
+
+        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
+            showScreen(fightScreen);
         }
+        // --- FIM DA CORREÇÃO ---
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -436,10 +389,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
         const shareLinkP2 = document.getElementById('share-link-p2');
         const shareLinkSpectator = document.getElementById('share-link-spectator');
+        
         shareLinkP2.textContent = p2Url;
         shareLinkSpectator.textContent = specUrl;
+
         shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
         shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+
         lobbyContent.classList.add('hidden');
         shareContainer.classList.remove('hidden');
     });
@@ -449,14 +405,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateUI(state) {
         if (state.scenario) {
-            const gameArea = document.getElementById('game-area');
             gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
-            if (gameArea) {
-                gameArea.style.backgroundImage = `url('images/${state.scenario}')`;
-            }
         }
+
         p1SpecialMovesContainer.innerHTML = '';
         p2SpecialMovesContainer.innerHTML = '';
+
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
             if (fighter) {
@@ -471,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
                 }
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
+
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     fighter.specialMoves.forEach(moveName => {
@@ -488,6 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img;
             }
         });
+
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'paused') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
@@ -501,24 +457,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const turnName = state.whoseTurn ? (state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
         }
+        
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1' && state.phase !== 'paused');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2' && state.phase !== 'paused');
+        
         const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
         const actionWrapper = document.getElementById('action-buttons-wrapper');
         if (!isPlayer) { actionWrapper.classList.add('hidden'); } 
         else { actionWrapper.classList.remove('hidden'); }
+        
         const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
+        
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
+        
         document.querySelectorAll('#p1-controls button, #p2-controls button, #forfeit-btn').forEach(btn => {
             if (state.phase === 'paused' && !isGm) {
                 btn.disabled = true;
             }
         });
+
         if (state.phase !== 'paused') {
             const p1_is_turn = state.whoseTurn === 'player1';
             document.querySelectorAll('#p1-controls button').forEach(btn => {
                 let isDisabled = !p1_is_turn || !isActionPhase;
+
                 if (!isDisabled) {
                     const moveName = btn.dataset.move;
                     if (state.phase === 'white_fang_follow_up') {
@@ -530,6 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 btn.disabled = isDisabled;
             });
+
             const p2_is_turn = state.whoseTurn === 'player2';
             document.querySelectorAll('#p2-controls button').forEach(btn => {
                 let isDisabled = !p2_is_turn || !isActionPhase;
@@ -544,8 +508,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 btn.disabled = isDisabled;
             });
+            
             document.getElementById('forfeit-btn').disabled = !isActionPhase || !isPlayer || state.whoseTurn !== myPlayerKey;
         }
+
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
@@ -578,15 +544,21 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
+    // --- FUNÇÃO CORRIGIDA ---
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
+        
         const p1 = currentGameState.fighters.player1;
         const p2 = currentGameState.fighters.player2;
+
+        // Verificação de segurança: não mostra o modal se os lutadores não estiverem prontos.
         if (!p1 || !p2) {
             console.warn("Cheats tentado antes de ambos os lutadores estarem prontos.");
+            // Despausa o jogo automaticamente para não travar o fluxo.
             socket.emit('playerAction', { type: 'toggle_pause' });
             return;
         }
+
         const cheatHtml = `
             <div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;">
                 <div id="cheat-p1">
@@ -622,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
             socket.emit('playerAction', { type: 'apply_cheats', cheats });
-            socket.emit('playerAction', { type: 'toggle_pause' });
+            socket.emit('playerAction', { type: 'toggle_pause' }); // Continua o jogo
         };
     }
 
@@ -652,16 +624,22 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('assignPlayer', (data) => { 
         myPlayerKey = data.playerKey;
         isGm = data.isGm;
+        if (myPlayerKey === 'host') {
+            exitGameBtn.classList.remove('hidden');
+        }
     });
 
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
         let btn = document.getElementById(`${targetPlayerKey}-roll-btn`);
         const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
+        
         const newBtn = btn.cloneNode(true);
         btn.parentNode.replaceChild(newBtn, btn);
         btn = newBtn;
+
         btn.innerText = text;
         btn.classList.remove('hidden', 'inactive');
+
         if (isMyTurnToRoll) {
             btn.onclick = () => {
                 btn.disabled = true; 
@@ -682,6 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') {
             isMyTurnForAction = myPlayerKey === 'host';
         }
+
         switch(modalType) {
             case 'gm_knockdown_decision':
                 if (isGm) {
@@ -712,16 +691,20 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
                 let modalTitleText = `${downedFighterName} caiu!`;
+                
                 const attempts = knockdownInfo.attempts;
                 const maxAttempts = knockdownInfo.isLastChance ? 5 : 4;
                 const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
                 const countText = attempts === 0 
                     ? `O juíz começa a contagem: ${counts[0]}`
                     : `A contagem continua: ${counts[attempts] || counts[counts.length-1]}`;
+
                 let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p>`;
+                
                 if (knockdownInfo.lastRoll) {
                     modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
                 }
+
                 if (targetPlayerKey === myPlayerKey) {
                     modalTitleText = `Você caiu!`;
                     modalContentText += `<br>Tentativas restantes: ${maxAttempts - attempts}`;
@@ -729,7 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                      modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p> Aguarde a contagem...`;
                      if (knockdownInfo.lastRoll) {
-                        modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisava de 7 ou mais)</span>`;
+                        modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
                     }
                     showInfoModal(modalTitleText, modalContentText);
                 }
