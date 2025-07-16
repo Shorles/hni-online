@@ -44,15 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const exitGameBtn = document.getElementById('exit-game-btn');
 
-    // --- INÍCIO DA MUDANÇA: Variáveis para a ferramenta de coordenadas ---
-    let coordToolButton = null;
-    let isCoordToolActive = false;
-    let coordListenerAttached = false;
-    // --- FIM DA MUDANÇA ---
-
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
+
+    // --- INÍCIO DA CORREÇÃO: Variáveis da Ferramenta de Coordenadas ---
+    let coordToolButton = null;
+    let isCoordToolActive = false;
+    let coordToolSetupDone = false; // Flag para garantir que a ferramenta seja criada apenas uma vez.
+    // --- FIM DA CORREÇÃO ---
 
     function showScreen(screenToShow) {
         allScreens.forEach(screen => {
@@ -64,16 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && coordToolButton) {
                 coordToolButton.style.display = 'block';
             }
-            if (!coordListenerAttached) {
-                const gameAreaForCoords = document.getElementById('game-area');
-                gameAreaForCoords.addEventListener('click', (e) => {
-                    if (!isCoordToolActive) return;
-                    const x = e.offsetX;
-                    const y = e.offsetY;
-                    alert(`Coordenadas (relativas à área do ringue):\nX: ${x}\nY: ${y}`);
-                });
-                coordListenerAttached = true;
-            }
         } else {
             gameWrapper.style.overflowY = 'hidden';
             gameWrapper.scrollTop = 0;
@@ -82,6 +72,50 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // --- INÍCIO DA CORREÇÃO: Função para criar a ferramenta de coordenadas ---
+    function setupCoordTool() {
+        if (coordToolSetupDone) return; // Não faz nada se já foi criada
+
+        coordToolButton = document.createElement('button');
+        coordToolButton.textContent = 'Coords: OFF';
+        Object.assign(coordToolButton.style, {
+            position: 'fixed',
+            bottom: '10px',
+            right: '10px',
+            zIndex: '9999',
+            padding: '8px 12px',
+            backgroundColor: 'rgba(220, 53, 69, 0.8)',
+            color: 'white',
+            border: '1px solid white',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            display: 'none'
+        });
+        document.body.appendChild(coordToolButton);
+
+        coordToolButton.addEventListener('click', () => {
+            isCoordToolActive = !isCoordToolActive;
+            if (isCoordToolActive) {
+                coordToolButton.textContent = 'Coords: ON';
+                coordToolButton.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
+            } else {
+                coordToolButton.textContent = 'Coords: OFF';
+                coordToolButton.style.backgroundColor = 'rgba(220, 53, 69, 0.8)';
+            }
+        });
+
+        const gameAreaForCoords = document.getElementById('game-area');
+        gameAreaForCoords.addEventListener('click', (e) => {
+            if (!isCoordToolActive) return;
+            const x = e.offsetX;
+            const y = e.offsetY;
+            alert(`Coordenadas (relativas à área do ringue):\nX: ${x}\nY: ${y}`);
+        });
+
+        coordToolSetupDone = true;
+    }
+    // --- FIM DA CORREÇÃO ---
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
@@ -181,36 +215,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 socket.emit('playerAction', { type: 'toggle_pause' });
             }
         });
-
-        // --- INÍCIO DA MUDANÇA: Criação do botão flutuante ---
-        coordToolButton = document.createElement('button');
-        coordToolButton.textContent = 'Coords: OFF';
-        Object.assign(coordToolButton.style, {
-            position: 'fixed',
-            bottom: '10px',
-            right: '10px',
-            zIndex: '9999',
-            padding: '8px 12px',
-            backgroundColor: 'rgba(220, 53, 69, 0.8)', // red
-            color: 'white',
-            border: '1px solid white',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            display: 'none' // Começa escondido
-        });
-        document.body.appendChild(coordToolButton);
-
-        coordToolButton.addEventListener('click', () => {
-            isCoordToolActive = !isCoordToolActive;
-            if (isCoordToolActive) {
-                coordToolButton.textContent = 'Coords: ON';
-                coordToolButton.style.backgroundColor = 'rgba(40, 167, 69, 0.8)'; // green
-            } else {
-                coordToolButton.textContent = 'Coords: OFF';
-                coordToolButton.style.backgroundColor = 'rgba(220, 53, 69, 0.8)'; // red
-            }
-        });
-        // --- FIM DA MUDANÇA ---
     }
 
     function renderScenarioSelection(mode = 'classic') {
@@ -411,8 +415,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
-            showScreen(fightScreen);
+        if (wasInPreGame && isNowInGame) {
+            if (isGm) setupCoordTool(); // Cria a ferramenta de coords para o GM
+            if (!fightScreen.classList.contains('active')) {
+                showScreen(fightScreen);
+            }
         }
     });
 
@@ -638,9 +645,6 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('assignPlayer', (data) => { 
         myPlayerKey = data.playerKey;
         isGm = data.isGm;
-        if (myPlayerKey === 'host' || isGm) { // Mostra o botão para o host ou gm
-            if (coordToolButton) coordToolButton.style.display = 'block';
-        }
     });
 
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
