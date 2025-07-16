@@ -372,17 +372,23 @@ body {
 
     /* --- INÍCIO DA CORREÇÃO DE POSICIONAMENTO --- */
     .fighter-img {
-        width: 100px; /* Reduz um pouco o tamanho para caber melhor */
-        height: 100px;
-        bottom: 25px; /* Sobe um pouco para ficar mais centralizado no ringue */
+        width: 120px; /* Tamanho ajustado para telas menores */
+        height: 120px;
+        /*
+         Use a ferramenta de coordenadas para achar os valores ideais.
+         'bottom' controla a altura (distância do fundo).
+         'left' e 'right' controlam a posição horizontal.
+         Use 'left' para P1 e 'right' para P2.
+        */
+        bottom: 20px; /* Exemplo: 20px do fundo da área do ringue */
     }
     #player1-fight-img {
-        left: 20%; /* Move mais para o centro, da esquerda */
-        transform: scaleX(1);
+        left: 10%; /* Exemplo: 10% da borda esquerda */
+        transform: scaleX(1); /* P1 olha para a direita */
     }
     #player2-fight-img {
-        right: 20%; /* Move mais para o centro, da direita */
-        transform: scaleX(-1);
+        right: 10%; /* Exemplo: 10% da borda direita */
+        transform: scaleX(-1); /* P2 olha para a esquerda (espelhado) */
     }
     /* --- FIM DA CORREÇÃO DE POSICIONAMENTO --- */
 

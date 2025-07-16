@@ -241,22 +241,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         
+        // --- INÍCIO DA CORREÇÃO ---
+        // A lógica foi reestruturada para ser mais clara e evitar o bug.
+
+        // CASO 1: P1 (GM) está criando um jogo no modo CLÁSSICO.
+        // Ele tem a chave 'player1', mas ainda não existe um ID de sala (currentRoomId).
         if (myPlayerKey === 'player1' && !currentRoomId) {
             playerData.agi = selectedCard.querySelector('.agi-input').value;
             playerData.res = selectedCard.querySelector('.res-input').value;
             confirmBtn.disabled = true;
             socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
-        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
+
+        // CASO 2: Um jogador ('player1' ou 'player2') está selecionando um personagem no modo ARENA.
+        // Neste caso, já existe um ID de sala (currentRoomId).
+        } else if ((myPlayerKey === 'player1' || myPlayerKey === 'player2') && currentRoomId) {
              confirmBtn.disabled = true;
              socket.emit('selectArenaCharacter', { character: playerData });
              showScreen(lobbyScreen);
              lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
+
+        // CASO 3: P2 está entrando em um jogo CLÁSSICO existente.
+        // Ele ainda não tem uma chave de jogador atribuída, mas já existe um ID de sala.
         } else {
             confirmBtn.disabled = true;
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
         }
+        // --- FIM DA CORREÇÃO ---
     }
 
     function renderCharacterSelection(playerType, showStatsInputs = false) {
