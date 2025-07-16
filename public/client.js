@@ -48,12 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
-    // --- INÍCIO DA CORREÇÃO: Variáveis da Ferramenta de Coordenadas ---
-    let coordToolButton = null;
-    let isCoordToolActive = false;
-    let coordToolSetupDone = false; // Flag para garantir que a ferramenta seja criada apenas uma vez.
-    // --- FIM DA CORREÇÃO ---
-
     function showScreen(screenToShow) {
         allScreens.forEach(screen => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
@@ -61,61 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (screenToShow.id === 'fight-screen') {
             gameWrapper.style.overflowY = 'auto';
-            if (isGm && coordToolButton) {
-                coordToolButton.style.display = 'block';
-            }
         } else {
             gameWrapper.style.overflowY = 'hidden';
             gameWrapper.scrollTop = 0;
-            if (coordToolButton) {
-                coordToolButton.style.display = 'none';
-            }
         }
     }
-
-    // --- INÍCIO DA CORREÇÃO: Função para criar a ferramenta de coordenadas ---
-    function setupCoordTool() {
-        if (coordToolSetupDone) return; // Não faz nada se já foi criada
-
-        coordToolButton = document.createElement('button');
-        coordToolButton.textContent = 'Coords: OFF';
-        Object.assign(coordToolButton.style, {
-            position: 'fixed',
-            bottom: '10px',
-            right: '10px',
-            zIndex: '9999',
-            padding: '8px 12px',
-            backgroundColor: 'rgba(220, 53, 69, 0.8)',
-            color: 'white',
-            border: '1px solid white',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            display: 'none'
-        });
-        document.body.appendChild(coordToolButton);
-
-        coordToolButton.addEventListener('click', () => {
-            isCoordToolActive = !isCoordToolActive;
-            if (isCoordToolActive) {
-                coordToolButton.textContent = 'Coords: ON';
-                coordToolButton.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
-            } else {
-                coordToolButton.textContent = 'Coords: OFF';
-                coordToolButton.style.backgroundColor = 'rgba(220, 53, 69, 0.8)';
-            }
-        });
-
-        const gameAreaForCoords = document.getElementById('game-area');
-        gameAreaForCoords.addEventListener('click', (e) => {
-            if (!isCoordToolActive) return;
-            const x = e.offsetX;
-            const y = e.offsetY;
-            alert(`Coordenadas (relativas à área do ringue):\nX: ${x}\nY: ${y}`);
-        });
-
-        coordToolSetupDone = true;
-    }
-    // --- FIM DA CORREÇÃO ---
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
@@ -293,20 +237,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+    // Restaurando a lógica original do handler, que era funcional.
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableMoves);
-        specialMovesModal.classList.remove('hidden');
+
+        // A sequência abaixo, embora pareça estranha, previne um bug de renderização.
+        showScreen(selectionScreen); // Garante que a tela de seleção é a base.
+        selectionScreen.classList.remove('active'); // Esconde a tela de seleção.
+        specialMovesModal.classList.remove('hidden'); // Mostra o modal sobre o fundo vazio.
+        
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
             specialMovesModal.classList.add('hidden');
-            showScreen(lobbyScreen);
+            showScreen(lobbyScreen); // Mostra a tela do lobby.
             lobbyBackBtn.classList.remove('hidden');
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
+    // --- FIM DA CORREÇÃO DEFINITIVA ---
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
@@ -415,11 +367,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-        if (wasInPreGame && isNowInGame) {
-            if (isGm) setupCoordTool(); // Cria a ferramenta de coords para o GM
-            if (!fightScreen.classList.contains('active')) {
-                showScreen(fightScreen);
-            }
+        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
+            showScreen(fightScreen);
         }
     });
 
