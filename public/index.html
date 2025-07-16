@@ -83,8 +83,12 @@
 
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
-        <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
-        <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
+        <!-- INÍCIO DA MUDANÇA: Novo contêiner para a área do jogo -->
+        <div id="game-area">
+            <img src="images/Nathan.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
+            <img src="images/Ivan Braskovich.png" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
+        </div>
+        <!-- FIM DA MUDANÇA -->
 
         <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
 

@@ -48,11 +48,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
+    // --- INÍCIO DA MUDANÇA: Função de controle de tela atualizada ---
     function showScreen(screenToShow) {
         allScreens.forEach(screen => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
         });
+
+        // Controla a capacidade de rolagem para evitar "vazamento" de telas no mobile
+        if (screenToShow.id === 'fight-screen') {
+            // Permite a rolagem na tela de luta (necessário para o modo vertical)
+            gameWrapper.style.overflowY = 'auto';
+        } else {
+            // Impede a rolagem em todas as outras telas
+            gameWrapper.style.overflowY = 'hidden';
+            // Reseta a posição da rolagem para o topo
+            gameWrapper.scrollTop = 0;
+        }
     }
+    // --- FIM DA MUDANÇA ---
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
@@ -348,10 +361,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     socket.on('gameUpdate', (gameState) => {
-        // --- INÍCIO DA CORREÇÃO ---
         const oldPhase = currentGameState ? currentGameState.phase : null;
         
-        // ATUALIZA O ESTADO GLOBAL PRIMEIRO para que todas as funções subsequentes usem os dados mais recentes.
         currentGameState = gameState;
         
         const wasPaused = oldPhase === 'paused';
@@ -380,7 +391,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
         }
-        // --- FIM DA CORREÇÃO ---
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -405,7 +415,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateUI(state) {
         if (state.scenario) {
+            const gameArea = document.getElementById('game-area');
+            // A imagem de fundo é aplicada tanto no wrapper quanto na área de jogo
+            // para funcionar no desktop e no mobile
             gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
+            if (gameArea) {
+                gameArea.style.backgroundImage = `url('images/${state.scenario}')`;
+            }
         }
 
         p1SpecialMovesContainer.innerHTML = '';
@@ -544,17 +560,14 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
-    // --- FUNÇÃO CORRIGIDA ---
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
         
         const p1 = currentGameState.fighters.player1;
         const p2 = currentGameState.fighters.player2;
 
-        // Verificação de segurança: não mostra o modal se os lutadores não estiverem prontos.
         if (!p1 || !p2) {
             console.warn("Cheats tentado antes de ambos os lutadores estarem prontos.");
-            // Despausa o jogo automaticamente para não travar o fluxo.
             socket.emit('playerAction', { type: 'toggle_pause' });
             return;
         }
