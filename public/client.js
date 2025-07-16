@@ -48,10 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
-    // --- INÍCIO DA CORREÇÃO ---
-    let coordToolListenerAttached = false; // Flag para garantir que o listener seja adicionado apenas uma vez
-    let isCoordToolActive = false;
-
     function showScreen(screenToShow) {
         allScreens.forEach(screen => {
             screen.classList.toggle('active', screen.id === screenToShow.id);
@@ -59,23 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (screenToShow.id === 'fight-screen') {
             gameWrapper.style.overflowY = 'auto';
-            // Prepara a ferramenta de coordenadas APENAS quando a tela de luta é mostrada
-            if (!coordToolListenerAttached) {
-                const gameAreaForCoords = document.getElementById('game-area');
-                gameAreaForCoords.addEventListener('click', (e) => {
-                    if (!isCoordToolActive) return;
-                    const x = e.offsetX;
-                    const y = e.offsetY;
-                    alert(`Coordenadas (relativas à área do ringue):\nX: ${x}\nY: ${y}`);
-                });
-                coordToolListenerAttached = true;
-            }
         } else {
             gameWrapper.style.overflowY = 'hidden';
             gameWrapper.scrollTop = 0;
         }
     }
-    // --- FIM DA CORREÇÃO ---
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
@@ -167,36 +151,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        const coordToolIndicator = document.createElement('div');
-        coordToolIndicator.style.position = 'fixed';
-        coordToolIndicator.style.top = '10px';
-        coordToolIndicator.style.right = '10px';
-        coordToolIndicator.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
-        coordToolIndicator.style.color = 'white';
-        coordToolIndicator.style.padding = '5px 10px';
-        coordToolIndicator.style.borderRadius = '5px';
-        coordToolIndicator.style.zIndex = '9999';
-        coordToolIndicator.style.display = 'none';
-        coordToolIndicator.textContent = 'Coord. Tool: OFF';
-        document.body.appendChild(coordToolIndicator);
-
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
                 if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover')) {
                     return;
                 }
                 socket.emit('playerAction', { type: 'toggle_pause' });
-            }
-            if (e.key.toLowerCase() === 't') {
-                isCoordToolActive = !isCoordToolActive;
-                if (isCoordToolActive) {
-                    coordToolIndicator.textContent = 'Coord. Tool: ON';
-                    coordToolIndicator.style.backgroundColor = 'rgba(0, 255, 0, 0.7)';
-                    coordToolIndicator.style.display = 'block';
-                } else {
-                    coordToolIndicator.textContent = 'Coord. Tool: OFF';
-                    coordToolIndicator.style.display = 'none';
-                }
             }
         });
     }
