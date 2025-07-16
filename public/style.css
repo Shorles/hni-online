@@ -329,73 +329,90 @@ body {
 
 
 /* ==========================================================================
-   INÍCIO DAS REGRAS DE RESPONSIVIDADE PARA CELULARES
+   INÍCIO DAS REGRAS DE RESPONSIVIDADE PARA CELULARES (CORRIGIDO)
    ========================================================================== */
 
 @media screen and (max-width: 800px) {
     
     body {
-        /* Permite que o body role se o conteúdo for maior que a tela */
         overflow: auto;
     }
 
     #game-wrapper {
-        /* Desativa o escalonamento via JS e faz o wrapper preencher a tela do celular */
         transform: none !important;
         width: 100% !important;
-        height: 100% !important;
+        height: auto !important; /* MUDANÇA: Permite que a altura se ajuste ao conteúdo */
+        min-height: 100vh; /* Garante que ocupe pelo menos a tela inteira */
         left: 0 !important;
         top: 0 !important;
         position: relative;
-        overflow-y: auto; /* Permite rolar o conteúdo interno */
+        overflow-y: auto; 
         overflow-x: hidden;
+        display: flex; /* Adicionado para ajudar no alinhamento vertical */
+        flex-direction: column; /* Adicionado */
     }
     
     #fight-screen {
-        /* Garante que a tela de luta ocupe todo o espaço disponível */
         height: auto;
         min-height: 100%;
-        padding-bottom: 20px; /* Espaço no final */
+        padding-bottom: 20px; 
+        flex-grow: 1; /* Faz a tela de luta crescer para preencher o espaço */
+        display: flex; /* Adicionado para organizar o conteúdo interno */
+        flex-direction: column; /* Adicionado */
     }
 
-    /* Reposiciona os lutadores para o layout móvel */
+    /* --- INÍCIO DA CORREÇÃO DOS PERSONAGENS --- */
     .fighter-img {
-        position: relative; /* Tira do posicionamento absoluto */
+        position: absolute; /* MANTIDO para posicionar sobre o cenário */
         width: 120px;
         height: 120px;
+        z-index: 1;
+        /* Novos valores de posicionamento para tela vertical */
+        bottom: 45vh; /* Posição vertical relativa à altura da tela */
+    }
+    
+    #player1-fight-img {
+        left: 10%; /* Posiciona na esquerda */
+        transform: none; /* Garante que ele olhe para a direita */
+    }
+    #player2-fight-img {
+        right: 10%; /* Posiciona na direita */
+        transform: scaleX(-1); /* Garante que ele olhe para a esquerda */
+    }
+
+    /* Remove a animação que não funciona bem no mobile vertical */
+    .mode-classic .is-attacking-player1,
+    .mode-classic .is-attacking-player2,
+    .mode-arena .is-attacking-player1,
+    .mode-arena .is-attacking-player2 {
+        animation: none;
+    }
+    .is-attacking-player1, .is-attacking-player2 {
+        transform: scale(1.1); /* Animação simples de crescimento no ataque */
+    }
+    /* --- FIM DA CORREÇÃO DOS PERSONAGENS --- */
+
+
+    #fight-ui-wrapper {
+        position: relative; /* Tira do rodapé fixo */
         bottom: auto;
         left: auto;
-        right: auto;
-        margin: 10px auto; /* Centraliza horizontalmente */
-        z-index: 1;
-    }
-
-    /* Garante que a transformação de espelho seja desfeita para um layout consistente */
-    .mode-classic #player1-fight-img,
-    .mode-classic #player2-fight-img,
-    .mode-arena #player2-fight-img {
-        transform: scaleX(1);
-    }
-
-    /* A UI principal não fica mais fixa no rodapé */
-    #fight-ui-wrapper {
-        position: relative;
         width: 100%;
-        padding: 0 5px; /* Reduz o padding lateral */
+        padding: 10px 5px; 
         gap: 10px;
+        margin-top: auto; /* Empurra a UI para o final do espaço disponível */
     }
 
-    /* Empilha os painéis de Info e o Log verticalmente */
     .fight-ui-container {
         flex-direction: column;
         align-items: center;
         gap: 10px;
+        width: 100%;
     }
 
-    /* Faz os painéis de info ocuparem a largura da tela */
     .fighter-info {
         width: 95%;
-        flex-basis: auto; /* Reseta a base do flexbox */
+        flex-basis: auto; 
         padding: 8px;
     }
     
@@ -403,31 +420,42 @@ body {
         font-size: 1.2em;
     }
 
-    /* Move o log para baixo dos painéis dos jogadores */
     #fight-log-container {
-        order: 3; /* P1 e P2 info terão ordem 0 por padrão */
+        order: 3;
         width: 95%;
-        height: 150px; /* Altura fixa para o log */
+        height: 150px;
         font-size: 0.9em;
     }
 
-    /* Ajusta os botões para toque */
+    /* --- INÍCIO DA CORREÇÃO DOS BOTÕES --- */
     .action-btn, .end-turn-btn, #forfeit-btn {
         padding: 12px 10px;
         font-size: 1em;
-        flex-grow: 1; /* Faz os botões crescerem para preencher o espaço */
-        flex-basis: 30%; /* Tenta colocar 3 botões por linha */
+        flex-grow: 1; 
+        flex-basis: 40%; /* Ajustado para caber 2 botões por linha confortavelmente */
     }
 
-    #p1-special-moves, #p2-special-moves {
+    /* A REGRA MAIS IMPORTANTE: Faz os botões especiais se comportarem como os normais */
+    .special-moves-container {
+        display: contents;
+    }
+
+    /* REMOVIDO o seletor problemático que estava no CSS original */
+    /* A regra "#p1-special-moves, #p2-special-moves" foi deletada. */
+
+    /* Garante que o container de botões de utilidade se alinhe com os outros */
+    #utility-buttons {
         width: 100%;
         display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
         justify-content: center;
+        margin-top: 10px;
     }
+    #forfeit-btn {
+        flex-basis: 90%; /* Faz o botão de desistir ocupar quase a linha toda */
+        max-width: 400px;
+    }
+    /* --- FIM DA CORREÇÃO DOS BOTÕES --- */
     
-    /* Tira os botões de rolagem do posicionamento absoluto */
     .roll-dice-button {
         position: relative;
         bottom: auto;
@@ -445,7 +473,6 @@ body {
         right: auto;
     }
 
-    /* Ajusta os modais para telas menores */
     #modal-content, #special-moves-content {
         width: 90vw;
         min-width: 90vw;
@@ -453,10 +480,9 @@ body {
     }
 
     #special-moves-list {
-        max-height: 50vh; /* Limita a altura da lista de golpes */
+        max-height: 50vh; 
     }
 
-    /* Ajustes específicos para as telas de seleção iniciais */
     #mode-selection-screen h1 { font-size: 2.5em; text-align: center; }
     #mode-selection-screen h2 { font-size: 1.5em; text-align: center; }
     .mode-buttons-container { flex-direction: column; gap: 20px; }
