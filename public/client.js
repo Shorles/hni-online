@@ -363,10 +363,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-        if (wasInPreGame && isNowInGame) {
-            if (!fightScreen.classList.contains('active')) {
-                showScreen(fightScreen);
-            }
+        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
+            showScreen(fightScreen);
         }
     });
 
