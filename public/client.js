@@ -44,10 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const exitGameBtn = document.getElementById('exit-game-btn');
 
-    let coordToolButton = null;
-    let isCoordToolActive = false;
-    let coordToolSetupDone = false;
-
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
@@ -59,58 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (screenToShow.id === 'fight-screen') {
             gameWrapper.style.overflowY = 'auto';
-            if (isGm && coordToolButton) {
-                coordToolButton.style.display = 'block';
-            }
         } else {
             gameWrapper.style.overflowY = 'hidden';
             gameWrapper.scrollTop = 0;
-            if (coordToolButton) {
-                coordToolButton.style.display = 'none';
-            }
         }
-    }
-
-    function setupCoordTool() {
-        if (coordToolSetupDone) return;
-
-        coordToolButton = document.createElement('button');
-        coordToolButton.textContent = 'Coords: OFF';
-        Object.assign(coordToolButton.style, {
-            position: 'fixed',
-            bottom: '10px',
-            right: '10px',
-            zIndex: '9999',
-            padding: '8px 12px',
-            backgroundColor: 'rgba(220, 53, 69, 0.8)',
-            color: 'white',
-            border: '1px solid white',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            display: 'block' 
-        });
-        document.body.appendChild(coordToolButton);
-
-        coordToolButton.addEventListener('click', () => {
-            isCoordToolActive = !isCoordToolActive;
-            if (isCoordToolActive) {
-                coordToolButton.textContent = 'Coords: ON';
-                coordToolButton.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
-            } else {
-                coordToolButton.textContent = 'Coords: OFF';
-                coordToolButton.style.backgroundColor = 'rgba(220, 53, 69, 0.8)';
-            }
-        });
-
-        const gameAreaForCoords = document.getElementById('game-area');
-        gameAreaForCoords.addEventListener('click', (e) => {
-            if (!isCoordToolActive) return;
-            const x = e.offsetX;
-            const y = e.offsetY;
-            alert(`Coordenadas (relativas à área do ringue):\nX: ${x}\nY: ${y}`);
-        });
-
-        coordToolSetupDone = true;
     }
 
     function handlePlayerControlClick(event) {
@@ -289,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- INÍCIO DA CORREÇÃO DEFINITIVA (RESTAURANDO CÓDIGO FUNCIONAL) ---
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
@@ -305,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
+    // --- FIM DA CORREÇÃO DEFINITIVA ---
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
@@ -414,7 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
         if (wasInPreGame && isNowInGame) {
-            if (isGm) setupCoordTool();
             if (!fightScreen.classList.contains('active')) {
                 showScreen(fightScreen);
             }
