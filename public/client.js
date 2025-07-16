@@ -237,13 +237,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableMoves);
-        showScreen(selectionScreen);
-        selectionScreen.classList.remove('active');
+        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+
+        // A tela de seleção de personagem já está ativa. Apenas mostramos o modal por cima.
+        // As linhas que causavam o bug foram removidas.
         specialMovesModal.classList.remove('hidden');
+        
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -253,6 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
+    // --- FIM DA CORREÇÃO DEFINITIVA ---
 
     socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
         const modalContentHtml = `<div style="display:flex; gap: 30px;">
