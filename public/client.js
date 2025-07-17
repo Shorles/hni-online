@@ -54,19 +54,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
     function handlePlayerControlClick(event) {
+        // Apenas verifica se este cliente é um jogador válido.
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
+        // Pega o botão que foi clicado.
         const target = event.target.closest('button'); 
         
+        // Se não foi um botão ou se o botão está desabilitado, não faz nada.
         if (!target || target.disabled) return;
-
-        const isP1Control = p1Controls.contains(target);
-        const isP2Control = p2Controls.contains(target);
-        if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) {
-            return;
-        }
-
+        
+        // A verificação redundante que causava o bug foi REMOVIDA.
+        // A lógica agora prossegue diretamente para a ação.
+        
         const move = target.dataset.move;
         
         if (move) {
@@ -79,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
+    // --- FIM DA ALTERAÇÃO ---
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -253,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -477,7 +479,6 @@ document.addEventListener('DOMContentLoaded', () => {
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         
-        // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
         if (state.phase !== 'paused' && state.fighters.player1 && state.fighters.player2) {
             const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
             
@@ -541,7 +542,6 @@ document.addEventListener('DOMContentLoaded', () => {
             p2Controls.querySelectorAll('button').forEach(b => b.disabled = true);
             document.getElementById('forfeit-btn').disabled = true;
         }
-        // --- FIM DA ALTERAÇÃO ---
 
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
