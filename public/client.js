@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handlePlayerControlClick(event) {
-        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
+        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
 
         const target = event.target.closest('button');
         if (!target || target.disabled) return;
@@ -75,7 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!moveData) return;
 
         if (move === 'Golpe Ilegal') {
-            showIllegalMoveConfirmation();
+            const myFighter = currentGameState.fighters[myPlayerKey];
+            if (myFighter && myFighter.pa >= moveData.cost) {
+                showIllegalMoveConfirmation();
+            }
             return;
         }
 
@@ -479,7 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         actionWrapper.classList.remove('hidden');
 
-        // Renderiza os botões de golpes especiais
         const myFighter = state.fighters[myPlayerKey];
         if (myFighter && myFighter.specialMoves) {
             const container = (myPlayerKey === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
@@ -499,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         
         const myControls = document.getElementById(`${myPlayerKey}-controls`);
-        if (!myControls) return;
+        if (!myControls || !myFighter) return;
 
         const allMyButtons = myControls.querySelectorAll('button');
         const isMyTurn = state.whoseTurn === myPlayerKey;
@@ -512,32 +514,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let isDisabled = true;
             const moveName = btn.dataset.move;
-            const isEndTurnBtn = btn.classList.contains('end-turn-btn');
-
+            
             if (moveName) {
                 const move = state.moves[moveName];
-                if (move && myFighter) {
+                if (move) {
                     const hasEnoughPA = myFighter.pa >= move.cost;
                     if (move.reaction) {
-                        isDisabled = isMyTurn || state.phase !== 'turn' || !hasEnoughPA || state.reactiveState !== null;
+                        isDisabled = isMyTurn || !hasEnoughPA || state.reactiveState !== null || state.phase !== 'turn';
                     } else {
                         if (state.phase === 'white_fang_follow_up') {
-                            isDisabled = !isMyTurn || (moveName !== 'White Fang');
+                            isDisabled = !isMyTurn || moveName !== 'White Fang';
                         } else {
-                            isDisabled = !isMyTurn || state.phase !== 'turn' || !hasEnoughPA;
+                            isDisabled = !isMyTurn || !hasEnoughPA || state.phase !== 'turn';
                         }
                     }
                 }
-            } else if (isEndTurnBtn) {
+            } else if (btn.classList.contains('end-turn-btn')) {
+                 isDisabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
+            } else if (btn.id === 'forfeit-btn') {
                  isDisabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
             }
+
             btn.disabled = isDisabled;
         });
-
-        const forfeitBtn = document.getElementById('forfeit-btn');
-        if (forfeitBtn) {
-            forfeitBtn.disabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') || !isPlayer;
-        }
     }
 
     function showForfeitConfirmation() {
@@ -706,7 +705,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'gameover': showInfoModal(title, text); break;
             case 'decision_table':
-                // CORREÇÃO: Usa o 'text' (HTML pré-formatado) vindo do servidor em vez de reconstruí-lo.
                 if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
                 else { showInfoModal(title, text); }
                 break;
@@ -765,7 +763,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initialize();
     const scaleGame = () => {
-        if (window.innerWidth <= 800) return; // Não escala em telas pequenas
+        if (window.innerWidth <= 800) return;
         const w = document.getElementById('game-wrapper'); 
         const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); 
         w.style.transform = `scale(${s})`; 
