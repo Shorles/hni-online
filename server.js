@@ -616,19 +616,22 @@ io.on('connection', (socket) => {
                 socket.emit('roomCreated', roomId);
                 break;
             
+            // --- INÍCIO DA CORREÇÃO ---
             case 'set_p2_stats':
-                const p2Data = state.pendingP2Choice;
-                const p2Stats = action.stats;
-                state.fighters.player2 = createNewFighterState({
-                    ...p2Data,
-                    agi: p2Stats.agi,
-                    res: p2Stats.res,
+                // Combina os dados pendentes de P2 (nome, img) com os dados enviados pelo GM (agi, res, moves)
+                const fullP2Data = {
+                    ...state.pendingP2Choice,
+                    ...action.stats,
                     specialMoves: action.moves
-                });
+                };
+                
+                state.fighters.player2 = createNewFighterState(fullP2Data);
+                
                 delete state.pendingP2Choice;
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
                 state.phase = 'initiative_p1';
                 break;
+            // --- FIM DA CORREÇÃO ---
 
             case 'arm_reaction_move':
                 const reactor = state.fighters[playerKey];
