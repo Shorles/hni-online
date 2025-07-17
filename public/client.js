@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
-    let isGm = false; // Nova variável para identificar o GM
+    let isGm = false;
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
@@ -54,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- INÍCIO DA ALTERAÇÃO ---
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
@@ -80,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
-    // --- FIM DA ALTERAÇÃO ---
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -229,7 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INÍCIO DA ALTERAÇÃO ---
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
         for (const moveName in availableMoves) {
@@ -252,7 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(card);
         }
     }
-    // --- FIM DA ALTERAÇÃO ---
     
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
@@ -478,78 +474,64 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isPlayer) { actionWrapper.classList.add('hidden'); } 
         else { actionWrapper.classList.remove('hidden'); }
         
-        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
-        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
-        
-        if (state.phase === 'paused' && !isGm) {
-            document.querySelectorAll('#p1-controls button, #p2-controls button, #forfeit-btn').forEach(btn => btn.disabled = true);
-        }
-
         // --- INÍCIO DA ALTERAÇÃO ---
-        if (state.phase !== 'paused' && state.fighters.player1 && state.fighters.player2) {
+        // Lógica de botões refatorada para maior clareza e correção de bugs
+        p1Controls.classList.add('hidden');
+        p2Controls.classList.add('hidden');
+
+        if (isPlayer && state.phase !== 'paused' && state.fighters.player1 && state.fighters.player2) {
+            const myFighter = state.fighters[myPlayerKey];
+            const myControls = (myPlayerKey === 'player1') ? p1Controls : p2Controls;
+            myControls.classList.remove('hidden');
+
+            const isMyTurn = state.whoseTurn === myPlayerKey;
             const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
-        
-            // Atualiza controles do Jogador 1
-            const p1_is_turn = state.whoseTurn === 'player1';
-            document.querySelectorAll('#p1-controls button').forEach(btn => {
+            const iAmInCounterStance = state.counterStance && state.counterStance.playerKey === myPlayerKey;
+
+            myControls.querySelectorAll('button').forEach(btn => {
                 const moveName = btn.dataset.move;
-                if (!moveName) { // Botão de Encerrar Turno
-                    btn.disabled = !p1_is_turn || state.phase === 'white_fang_follow_up';
+                
+                // Botão de Encerrar Turno
+                if (!moveName) {
+                    btn.disabled = !isMyTurn || !isActionPhase || state.phase === 'white_fang_follow_up';
                     return;
                 }
-        
+
                 const move = state.moves[moveName];
-                const hasEnoughPA = state.fighters.player1.pa >= move.cost;
-        
+                if (!move) return;
+                const hasEnoughPA = myFighter.pa >= move.cost;
+
+                // Botão de Contra-Ataque
                 if (moveName === 'Counter') {
-                    const isInCounterStance = state.counterStance && state.counterStance.playerKey === 'player1';
-                    btn.disabled = p1_is_turn || !hasEnoughPA || isInCounterStance || state.phase !== 'turn';
-                    if (isInCounterStance) {
+                    // Desabilita se: é o meu turno, não tenho PA, ou já estou em postura de contra-ataque.
+                    btn.disabled = isMyTurn || !hasEnoughPA || iAmInCounterStance;
+                    
+                    if (iAmInCounterStance) {
                         btn.textContent = 'Aguardando...';
                     } else {
                         const displayName = move.displayName || moveName;
                         btn.textContent = `${displayName} (${move.cost} PA)`;
                     }
-                } else { // Golpes normais
-                    let isDisabled = !p1_is_turn || !isActionPhase || !hasEnoughPA;
+                } 
+                // Botões de Ataque Normais
+                else {
+                    // Desabilita se: não é meu turno, não estamos em fase de ação, ou não tenho PA.
+                    let isDisabled = !isMyTurn || !isActionPhase || !hasEnoughPA;
                     if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') {
                         isDisabled = true;
                     }
                     btn.disabled = isDisabled;
                 }
             });
-        
-            // Atualiza controles do Jogador 2
-            const p2_is_turn = state.whoseTurn === 'player2';
-            document.querySelectorAll('#p2-controls button').forEach(btn => {
-                const moveName = btn.dataset.move;
-                if (!moveName) { // Botão de Encerrar Turno
-                    btn.disabled = !p2_is_turn || state.phase === 'white_fang_follow_up';
-                    return;
-                }
-        
-                const move = state.moves[moveName];
-                const hasEnoughPA = state.fighters.player2.pa >= move.cost;
-        
-                if (moveName === 'Counter') {
-                    const isInCounterStance = state.counterStance && state.counterStance.playerKey === 'player2';
-                    btn.disabled = p2_is_turn || !hasEnoughPA || isInCounterStance || state.phase !== 'turn';
-                    if (isInCounterStance) {
-                        btn.textContent = 'Aguardando...';
-                    } else {
-                        const displayName = move.displayName || moveName;
-                        btn.textContent = `${displayName} (${move.cost} PA)`;
-                    }
-                } else { // Golpes normais
-                    let isDisabled = !p2_is_turn || !isActionPhase || !hasEnoughPA;
-                    if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') {
-                        isDisabled = true;
-                    }
-                    btn.disabled = isDisabled;
-                }
-            });
-            
-            document.getElementById('forfeit-btn').disabled = !isActionPhase || !isPlayer || state.whoseTurn !== myPlayerKey;
+
+            // Botão de Desistência
+            document.getElementById('forfeit-btn').disabled = !isMyTurn || !isActionPhase;
+        } else if (isPlayer && state.phase === 'paused' && !isGm) {
+            // Se o jogo está pausado para um não-GM, desabilita tudo.
+             const myControls = (myPlayerKey === 'player1') ? p1Controls : p2Controls;
+             myControls.classList.remove('hidden');
+             myControls.querySelectorAll('button').forEach(b => b.disabled = true);
+             document.getElementById('forfeit-btn').disabled = true;
         }
         // --- FIM DA ALTERAÇÃO ---
 
