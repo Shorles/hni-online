@@ -56,13 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
-
-        const target = event.target.closest('button'); 
-        
+        const target = event.target.closest('button');
         if (!target || target.disabled) return;
-
         const move = target.dataset.move;
-        
         if (move) {
             if (move === 'Counter') {
                 socket.emit('playerAction', { type: 'prepare_counter', playerKey: myPlayerKey });
@@ -248,9 +244,10 @@ document.addEventListener('DOMContentLoaded', () => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableMoves);
-        showScreen(selectionScreen);
-        selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
+        showScreen(selectionScreen); // Mantém a tela de seleção visível por baixo
+        selectionScreen.classList.remove('active');
+
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -474,21 +471,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.phase !== 'paused' && state.fighters.player1 && state.fighters.player2) {
             const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
             
-            // Lógica para os botões do Jogador 1
             const p1 = state.fighters.player1;
             const p1_is_turn = state.whoseTurn === 'player1';
             const p1_is_in_counter = state.counterStance && state.counterStance.playerKey === 'player1';
             
             p1Controls.querySelectorAll('button').forEach(btn => {
                 const moveName = btn.dataset.move;
-                if (!moveName) { // Botão de Encerrar Turno
+                if (!moveName) {
                     btn.disabled = !p1_is_turn || !isActionPhase || state.phase === 'white_fang_follow_up';
                     return;
                 }
                 const move = state.moves[moveName];
-                // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
-                if (!move) return; // Se o botão não corresponder a um golpe válido, ignora.
-                // --- FIM DA ALTERAÇÃO ---
+                if (!move) return;
                 const hasEnoughPA = p1.pa >= move.cost;
 
                 if (moveName === 'Counter') {
@@ -502,21 +496,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Lógica para os botões do Jogador 2
             const p2 = state.fighters.player2;
             const p2_is_turn = state.whoseTurn === 'player2';
             const p2_is_in_counter = state.counterStance && state.counterStance.playerKey === 'player2';
 
             p2Controls.querySelectorAll('button').forEach(btn => {
                 const moveName = btn.dataset.move;
-                if (!moveName) { // Botão de Encerrar Turno
+                if (!moveName) {
                     btn.disabled = !p2_is_turn || !isActionPhase || state.phase === 'white_fang_follow_up';
                     return;
                 }
                 const move = state.moves[moveName];
-                // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
-                if (!move) return; // Se o botão não corresponder a um golpe válido, ignora.
-                // --- FIM DA ALTERAÇÃO ---
+                if (!move) return;
                 const hasEnoughPA = p2.pa >= move.cost;
 
                 if (moveName === 'Counter') {
@@ -530,7 +521,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Lógica para o botão de desistir
             const myTurn = state.whoseTurn === myPlayerKey;
             document.getElementById('forfeit-btn').disabled = !myTurn || !isActionPhase;
 
