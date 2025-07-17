@@ -11,11 +11,15 @@ app.use(express.static('public'));
 
 const games = {};
 const MOVES = {
-    'Jab': { cost: 1, damage: 1, penalty: 0 }, 'Direto': { cost: 2, damage: 3, penalty: 1 },
-    'Upper': { cost: 3, damage: 6, penalty: 2 }, 'Liver Blow': { cost: 2, damage: 4, penalty: 2 }
+    'Jab': { cost: 1, damage: 1, penalty: 0 },
+    'Direto': { cost: 2, damage: 3, penalty: 1 },
+    'Upper': { cost: 3, damage: 6, penalty: 2 },
+    'Liver Blow': { cost: 3, damage: 3, penalty: 1, effects: { drainPa: { chance: 0.3, amount: 1 } } },
+    'Clinch': { cost: 3, reaction: true, defBonus: 2 },
+    'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0, illegal: true }
 };
 const SPECIAL_MOVES = {
-    'Counter': { cost: 3, damage: 7, penalty: 1 },
+    'Counter': { cost: 3, reaction: true },
     'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
     'Smash': { cost: 2, damage: 8, penalty: 3 },
     'Bala': { cost: 1, damage: 2, penalty: 0 },
@@ -31,6 +35,7 @@ const MOVE_SOUNDS = {
     'Direto': ['baseforte01.mp3', 'baseforte02.mp3'],
     'Liver Blow': ['baseforte01.mp3', 'baseforte02.mp3'],
     'Upper': ['baseforte01.mp3', 'baseforte02.mp3'],
+    'Golpe Ilegal': ['especialforte01.mp3', 'especialforte02.mp3'],
     'Counter': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Smash': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Gazelle Punch': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
@@ -55,6 +60,7 @@ function createNewGameState() {
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', previousPhase: null, log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
         decisionInfo: null, followUpState: null, scenario: 'Ringue.png',
+        reactiveState: null, // Novo estado para golpes reativos (Counter, Clinch)
         mode: null,
         hostId: null,
         gmId: null,
@@ -71,17 +77,70 @@ function createNewFighterState(data) {
     return {
         nome: data.nome, img: data.img, agi: agi, res: res, originalRes: res,
         hpMax: res * 5, hp: hp, pa: pa, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0,
-        specialMoves: data.specialMoves || []
+        specialMoves: data.specialMoves || [],
+        // Novas propriedades para novas mecânicas
+        illegalMoveUses: 0,
+        illegalMovePenalties: 0,
+        tempDefBuff: 0,
     };
 }
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
-    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
     const defender = state.fighters[defenderKey];
     const move = state.moves[moveName];
+
+    // Lógica de Reação: Counter
+    const reaction = state.reactiveState;
+    if (reaction && reaction.playerKey === defenderKey && reaction.moveName === 'Counter') {
+        state.reactiveState = null; // Consome a reação
+        io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
+        io.to(roomId).emit('triggerAttackAnimation', { attackerKey: defenderKey }); // Ambos animam
+        io.to(roomId).emit('playSound', MOVE_SOUNDS['Counter'][0]);
+
+        logMessage(state, `${defender.nome} tenta um <span class="log-move-name">Contra-Ataque</span> contra o <span class="log-move-name">${moveName}</span> de ${attacker.nome}!`, 'log-crit');
+        
+        const attackerRoll = rollAttackD6();
+        const attackerMove = state.moves[moveName];
+        const attackerValue = attackerRoll + attacker.agi - attackerMove.penalty;
+        logMessage(state, `Rolagem de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${attackerMove.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
+
+        const defenderRoll = rollAttackD6();
+        const defenderValue = defenderRoll + defender.agi - 0; // Counter não tem penalidade
+        logMessage(state, `Rolagem de ${defender.nome}: D6(${defenderRoll}) + ${defender.agi} AGI = <span class="highlight-result">${defenderValue}</span>`, 'log-info');
+
+        const damage = attackerMove.damage * 2;
+
+        if (attackerValue > defenderValue) {
+            logMessage(state, `${attacker.nome} vence a disputa! ${defender.nome} recebe ${damage} de dano!`, 'log-hit');
+            defender.hp = Math.max(0, defender.hp - damage);
+            defender.totalDamageTaken += damage;
+            io.to(roomId).emit('triggerHitAnimation', { defenderKey });
+        } else if (defenderValue > attackerValue) {
+            logMessage(state, `${defender.nome} vence a disputa! ${attacker.nome} recebe ${damage} de dano do seu próprio golpe!`, 'log-hit');
+            attacker.hp = Math.max(0, attacker.hp - damage);
+            attacker.totalDamageTaken += damage;
+            io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
+        } else {
+            logMessage(state, `EMPATE! Ambos se atingem e recebem ${damage} de dano!`, 'log-crit');
+            defender.hp = Math.max(0, defender.hp - damage);
+            defender.totalDamageTaken += damage;
+            attacker.hp = Math.max(0, attacker.hp - damage);
+            attacker.totalDamageTaken += damage;
+            io.to(roomId).emit('triggerHitAnimation', { defenderKey });
+            io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
+        }
+        
+        if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
+        if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
+        
+        return; // Termina a função aqui, pois a lógica do counter substitui o ataque normal
+    }
+    
+    // Lógica de Ataque Padrão
+    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     
     const displayName = move.displayName || moveName;
     logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
@@ -91,8 +150,11 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     let crit = false;
     let soundToPlay = null;
     
+    // Defesa considera bônus temporários (ex: Clinch)
+    const totalDefense = defender.def + defender.tempDefBuff;
+
     const attackValue = roll + attacker.agi - move.penalty;
-    logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
+    logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${totalDefense})`, 'log-info');
     
     if (roll === 1) {
         logMessage(state, "Erro Crítico!", 'log-miss');
@@ -101,7 +163,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         hit = true;
         crit = true;
     } else {
-        if (attackValue >= defender.def) {
+        if (attackValue >= totalDefense) {
             logMessage(state, "Acertou!", 'log-hit');
             hit = true;
         } else {
@@ -131,23 +193,15 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         attacker.hitsLanded++;
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
-    } else { // Se o golpe errou
-        if (moveName === 'Counter') {
-            logMessage(state, `${attacker.nome} erra o contra-ataque e se desequilibra, sofrendo 3 de dano!`, 'log-crit');
-            const hpBeforeSelfHit = attacker.hp;
-            attacker.hp = Math.max(0, attacker.hp - 3);
-            const actualSelfDamage = hpBeforeSelfHit - attacker.hp;
-            attacker.totalDamageTaken += actualSelfDamage;
 
-            const specialSounds = MOVE_SOUNDS['Counter'];
-            soundToPlay = specialSounds[Math.floor(Math.random() * specialSounds.length)];
-
-            if (attacker.hp <= 0) {
-                handleKnockdown(state, attackerKey, io, roomId);
-            }
-        } else {
-            soundToPlay = 'Esquiva.mp3';
+        // Efeitos pós-acerto (ex: Liver Blow)
+        if (move.effects && move.effects.drainPa && Math.random() < move.effects.drainPa.chance) {
+            defender.pa = Math.max(0, defender.pa - move.effects.drainPa.amount);
+            logMessage(state, `O golpe no fígado drena ${move.effects.drainPa.amount} PA de ${defender.nome}!`, 'log-crit');
         }
+
+    } else { // Se o golpe errou
+        soundToPlay = 'Esquiva.mp3';
     }
     
     if (soundToPlay) {
@@ -159,10 +213,29 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
 
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
+
+    // Limpa estados temporários do jogador que acabou de agir
+    if (state.fighters[lastPlayerKey]) {
+        state.fighters[lastPlayerKey].tempDefBuff = 0;
+    }
+    
     state.followUpState = null;
-    state.whoseTurn = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
+    state.reactiveState = null; // Limpa qualquer reação não utilizada
+    
+    // Limpa estado temporário do jogador que vai agir
+    const nextPlayerKey = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
+     if (state.fighters[nextPlayerKey]) {
+        state.fighters[nextPlayerKey].tempDefBuff = 0;
+    }
+
+    state.whoseTurn = nextPlayerKey;
+
     const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
-    if (lastPlayerWentFirst) { state.phase = 'turn'; } else { processEndRound(state, io, roomId); }
+    if (lastPlayerWentFirst) { 
+        state.phase = 'turn'; 
+    } else { 
+        processEndRound(state, io, roomId); 
+    }
 }
 
 function processEndRound(state, io, roomId) {
@@ -191,17 +264,29 @@ function calculateDecisionScores(state) {
     const p1 = state.fighters.player1;
     const p2 = state.fighters.player2;
     let p1Score = 10, p2Score = 10;
-    const p1KnockdownPenalty = p1.knockdowns, p2KnockdownPenalty = p2.knockdowns;
-    p1Score -= p1KnockdownPenalty; p2Score -= p2KnockdownPenalty;
+    
+    const p1KnockdownPenalty = p1.knockdowns;
+    const p2KnockdownPenalty = p2.knockdowns;
+    p1Score -= p1KnockdownPenalty;
+    p2Score -= p2KnockdownPenalty;
+    
     let p1HitsPenalty = 0, p2HitsPenalty = 0;
     if (p1.hitsLanded < p2.hitsLanded) { p1HitsPenalty = 1; p1Score -= 1; }
     else if (p2.hitsLanded < p1.hitsLanded) { p2HitsPenalty = 1; p2Score -= 1; }
+    
     let p1DamagePenalty = 0, p2DamagePenalty = 0;
     if (p1.totalDamageTaken > p2.totalDamageTaken) { p1DamagePenalty = 1; p1Score -= 1; }
     else if (p2.totalDamageTaken > p1.totalDamageTaken) { p2DamagePenalty = 1; p2Score -= 1; }
+    
+    // Nova penalidade por golpes ilegais
+    const p1IllegalPenalty = p1.illegalMovePenalties;
+    const p2IllegalPenalty = p2.illegalMovePenalties;
+    p1Score -= p1IllegalPenalty;
+    p2Score -= p2IllegalPenalty;
+
     state.decisionInfo = {
-        p1: { name: p1.nome, knockdownPenalty: p1KnockdownPenalty, hitsPenalty: p1HitsPenalty, damagePenalty: p1DamagePenalty, finalScore: p1Score },
-        p2: { name: p2.nome, knockdownPenalty: p2KnockdownPenalty, hitsPenalty: p2HitsPenalty, damagePenalty: p2DamagePenalty, finalScore: p2Score }
+        p1: { name: p1.nome, knockdownPenalty: p1KnockdownPenalty, hitsPenalty: p1HitsPenalty, damagePenalty: p1DamagePenalty, illegalPenalty: p1IllegalPenalty, finalScore: p1Score },
+        p2: { name: p2.nome, knockdownPenalty: p2KnockdownPenalty, hitsPenalty: p2HitsPenalty, damagePenalty: p2DamagePenalty, illegalPenalty: p2IllegalPenalty, finalScore: p2Score }
     };
 }
 
@@ -232,7 +317,7 @@ function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
 
-    if (type === 'toggle_pause' || type === 'apply_cheats') {
+    if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'confirm_disqualification') {
         return isGm;
     }
 
@@ -251,9 +336,15 @@ function isActionValid(state, action) {
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
-        case 'turn': return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
+        case 'turn':
+            // Ataque normal ou desistência no próprio turno
+            if ((type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn) return true;
+            // Ação reativa no turno do oponente
+            if (type === 'set_reaction' && playerKey !== state.whoseTurn) return true;
+            return false;
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
         case 'gm_decision_knockdown': return (type === 'resolve_knockdown_loss' || type === 'give_last_chance') && isGm;
+        case 'gm_disqualification_decision': return type === 'confirm_disqualification' && isGm;
         case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
         case 'arena_configuring': return type === 'configure_and_start_arena' && playerKey === 'host';
         case 'gameover': return false;
@@ -266,13 +357,7 @@ function dispatchAction(room) {
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
     switch (state.phase) {
-        // --- INÍCIO DA CORREÇÃO ---
-        // Adiciona um case para 'paused' para impedir que caia no 'default'.
-        // O modal de cheats é acionado no cliente ao receber o 'gameUpdate',
-        // então nenhuma ação é necessária aqui.
-        case 'paused':
-            return;
-        // --- FIM DA CORREÇÃO ---
+        case 'paused': return;
         case 'p1_special_moves_selection':
             const p1socketIdMoves = room.players.find(p => p.playerKey === 'player1').id;
             io.to(p1socketIdMoves).emit('promptSpecialMoves', { availableMoves: SPECIAL_MOVES });
@@ -295,9 +380,21 @@ function dispatchAction(room) {
                 });
             }
             return;
+        case 'gm_disqualification_decision':
+            if (state.gmId) {
+                const disqualifiedPlayerName = state.fighters[state.reason.player].nome;
+                 io.to(state.gmId).emit('showModal', {
+                    modalType: 'gm_disqualification_confirm',
+                    title: "Desqualificação!",
+                    text: `${disqualifiedPlayerName} foi desqualificado por utilizar golpes ilegais.`,
+                    btnText: "Avançar",
+                    action: { type: 'confirm_disqualification' }
+                });
+            }
+            return;
         case 'decision_table_wait':
             const info = state.decisionInfo;
-            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
+            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Pen. por Golpes Ilegais</td><td style="text-align:center; color: #dc3545;">-${info.p1.illegalPenalty}</td><td style="text-align:center; color: #dc3545;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
             let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
             io.to(roomId).emit('showModal', {
                 modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
@@ -312,7 +409,7 @@ function dispatchAction(room) {
             }
             return;
         case 'gameover':
-            let reason = state.reason || '';
+            let reason = state.reason.text || state.reason || '';
             if (state.winner === 'draw') { reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`; } 
             else if (state.winner) { const winnerName = state.fighters[state.winner].nome; reason += `<br><br><strong style="color: #dc3545; font-size: 1.2em;">VITÓRIA DE ${winnerName.toUpperCase()}</strong>`; }
             else { reason = "Fim de Jogo"; }
@@ -479,7 +576,11 @@ io.on('connection', (socket) => {
                 const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                 state.phase = 'gameover';
                 state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
-                state.reason = finalCountReason;
+                state.reason = { text: finalCountReason };
+                break;
+            
+            case 'confirm_disqualification':
+                state.phase = 'gameover';
                 break;
 
             case 'configure_and_start_arena':
@@ -509,6 +610,23 @@ io.on('connection', (socket) => {
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
                 state.phase = 'initiative_p1';
                 break;
+            
+            case 'set_reaction':
+                const reactionMoveName = action.move;
+                const reactionMove = state.moves[reactionMoveName];
+                const reactor = state.fighters[playerKey];
+
+                if (reactor.pa < reactionMove.cost) return;
+                reactor.pa -= reactionMove.cost;
+                
+                if (reactionMoveName === 'Clinch') {
+                    reactor.tempDefBuff = reactionMove.defBonus;
+                    logMessage(state, `${reactor.nome} entra em <span class="log-move-name">Clinch</span>, aumentando sua defesa!`, 'log-info');
+                } else if (reactionMoveName === 'Counter') {
+                    state.reactiveState = { playerKey, moveName: reactionMoveName };
+                    logMessage(state, `${reactor.nome} prepara um <span class="log-move-name">Contra-Ataque</span>!`, 'log-info');
+                }
+                break;
 
             case 'attack':
                 const moveName = action.move;
@@ -521,13 +639,36 @@ io.on('connection', (socket) => {
                     cost = 0;
                 }
                 if (attacker.pa < cost) return;
+                
+                // Lógica do Golpe Ilegal
+                if (move.illegal) {
+                    const dqChance = 0.05 * Math.pow(2, attacker.illegalMoveUses);
+                    attacker.illegalMoveUses++;
+
+                    if (Math.random() < dqChance) {
+                        // Desqualificado
+                        const winner = (playerKey === 'player1') ? 'player2' : 'player1';
+                        state.winner = winner;
+                        state.reason = { player: playerKey };
+                        logMessage(state, `${attacker.nome} FOI DESCLASSIFICADO POR GOLPE ILEGAL!`, 'log-crit');
+                        state.phase = 'gm_disqualification_decision';
+                        break; // Sai do switch
+                    }
+                    if (Math.random() < 0.5) {
+                        // Penalidade de pontos
+                        attacker.illegalMovePenalties++;
+                        logMessage(state, `O Juiz penaliza ${attacker.nome} com a perda de 1 ponto pelo golpe ilegal!`, 'log-miss');
+                        io.to(roomId).emit('showSystemMessage', { message: `O Juiz penalizou ${attacker.nome} com a perda de 1 ponto!`, type: 'penalty'});
+                    }
+                }
+
                 attacker.pa -= cost;
 
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
                         
-                        const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                        executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
                         io.to(roomId).emit('gameUpdate', room.state);
 
                         if (state.fighters[defenderKey].hp <= 0) {
@@ -536,7 +677,7 @@ io.on('connection', (socket) => {
                             dispatchAction(room);
                             return;
                         }
-                        if (hit) {
+                        if (state.log[state.log.length-1].className === 'log-hit') { // Checa se o último golpe acertou
                             setTimeout(executeFlicker, 700);
                         } else {
                             io.to(roomId).emit('gameUpdate', room.state);
@@ -567,8 +708,8 @@ io.on('connection', (socket) => {
                 const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
                 state.winner = winnerKey;
                 state.phase = 'gameover';
-                state.reason = `${state.fighters[playerKey].nome} jogou a toalha.`;
-                logMessage(state, state.reason, 'log-crit');
+                state.reason = { text: `${state.fighters[playerKey].nome} jogou a toalha.` };
+                logMessage(state, state.reason.text, 'log-crit');
                 break;
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
@@ -606,13 +747,13 @@ io.on('connection', (socket) => {
                 const p2FinalScore = state.decisionInfo.p2.finalScore;
                 if (p1FinalScore > p2FinalScore) {
                     state.winner = 'player1';
-                    state.reason = `Vitória por Decisão (${p1FinalScore} a ${p2FinalScore})`;
+                    state.reason = { text: `Vitória por Decisão (${p1FinalScore} a ${p2FinalScore})` };
                 } else if (p2FinalScore > p1FinalScore) {
                     state.winner = 'player2';
-                    state.reason = `Vitória por Decisão (${p2FinalScore} a ${p1FinalScore})`;
+                    state.reason = { text: `Vitória por Decisão (${p2FinalScore} a ${p1FinalScore})` };
                 } else {
                     state.winner = 'draw';
-                    state.reason = `Empate por Decisão (${p1FinalScore} a ${p2FinalScore})`;
+                    state.reason = { text: `Empate por Decisão (${p1FinalScore} a ${p2FinalScore})` };
                 }
                 state.phase = 'gameover';
                 break;
@@ -653,7 +794,7 @@ io.on('connection', (socket) => {
                         if (knockdownInfo.isLastChance) {
                             // Usou a última chance dada pelo GM e falhou. Fim de jogo.
                             logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
-                            const finalKoReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
+                            const finalKoReason = { text: "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!" };
                             setTimeout(() => {
                                 state.phase = 'gameover';
                                 state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
@@ -667,8 +808,6 @@ io.on('connection', (socket) => {
                             state.phase = 'gm_decision_knockdown';
                         }
                     }
-                    // Se as tentativas forem < 4, não faz nada. O estado continua 'knockdown'
-                    // e a próxima ação do jogador será tentar de novo.
                 }
                 break;
         }
