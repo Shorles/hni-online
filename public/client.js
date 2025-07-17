@@ -58,47 +58,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
         const target = event.target.closest('button'); 
+        
         if (!target || target.disabled) return;
+
+        const isP1Control = p1Controls.contains(target);
+        const isP2Control = p2Controls.contains(target);
+        if ((myPlayerKey === 'player1' && !isP1Control) || (myPlayerKey === 'player2' && !isP2Control)) {
+            return;
+        }
 
         const move = target.dataset.move;
         
         if (move) {
-            // Lógica para o Golpe Ilegal
-            if (move === 'Golpe Ilegal') {
-                showIllegalMoveConfirmation();
-                return; // Não envia a ação ainda
-            }
-            // Para outros golpes de ataque
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-        } else if (target.id.endsWith('-end-turn-btn')) {
+        } else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
-    }
-
-    // Novo handler para botões de reação
-    function handleReactionControlClick(event) {
-        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
-        const target = event.target.closest('button');
-        if (!target || target.disabled) return;
-
-        const move = target.dataset.move;
-        if (move) {
-            socket.emit('playerAction', { type: 'arm_reaction_move', move: move, playerKey: myPlayerKey });
-        }
-    }
-
-    function showIllegalMoveConfirmation() {
-        const modalContentHtml = `<p>Golpes ilegais são efetivos mas podem gerar perda de pontos ou desqualificação imediata. Deseja continuar?</p>
-        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
-            <button id="confirm-illegal-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Usar</button>
-            <button id="cancel-illegal-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Cancelar</button>
-        </div>`;
-        showInfoModal("Aviso: Golpe Ilegal", modalContentHtml);
-        document.getElementById('confirm-illegal-btn').onclick = () => {
-            socket.emit('playerAction', { type: 'confirm_illegal_move', playerKey: myPlayerKey });
-            modal.classList.add('hidden');
-        };
-        document.getElementById('cancel-illegal-btn').onclick = () => modal.classList.add('hidden');
     }
 
     function initialize() {
@@ -167,15 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         });
         
-        // Separa os listeners para botões de ataque e de reação
-        p1Controls.addEventListener('click', (e) => {
-            if (e.target.closest('.reaction-btn')) handleReactionControlClick(e);
-            else handlePlayerControlClick(e);
-        });
-        p2Controls.addEventListener('click', (e) => {
-            if (e.target.closest('.reaction-btn')) handleReactionControlClick(e);
-            else handlePlayerControlClick(e);
-        });
+        p1Controls.addEventListener('click', handlePlayerControlClick);
+        p2Controls.addEventListener('click', handlePlayerControlClick);
         
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
@@ -183,9 +151,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        // --- Listener para o Menu de Trapaças ---
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
                 if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover')) {
+                    // Não faz nada se o jogo já acabou por rounds.
                     return;
                 }
                 socket.emit('playerAction', { type: 'toggle_pause' });
@@ -378,8 +348,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     socket.on('gameUpdate', (gameState) => {
+        // --- INÍCIO DA CORREÇÃO ---
         const oldPhase = currentGameState ? currentGameState.phase : null;
         
+        // ATUALIZA O ESTADO GLOBAL PRIMEIRO para que todas as funções subsequentes usem os dados mais recentes.
         currentGameState = gameState;
         
         const wasPaused = oldPhase === 'paused';
@@ -408,6 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
         }
+        // --- FIM DA CORREÇÃO ---
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -443,10 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fighter) {
                 document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
                 if (fighter.hpMax) {
-                    const defenseValue = fighter.def + (fighter.defBonus || 0);
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
                     document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
-                    document.getElementById(`${key}-def-text`).innerText = defenseValue;
+                    document.getElementById(`${key}-def-text`).innerText = fighter.def;
                     document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
                     document.getElementById(`${key}-knockdowns`).innerText = fighter.knockdowns;
                     document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
@@ -454,41 +426,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
 
-                // Renderiza golpes especiais
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
-                        if (!moveData) return;
+                        if (!moveData) return; 
                         const displayName = moveData.displayName || moveName;
                         const btn = document.createElement('button');
+                        btn.className = `action-btn special-btn-${key}`;
                         btn.dataset.move = moveName;
                         btn.textContent = `${displayName} (${moveData.cost} PA)`;
-                        if (moveData.reaction) {
-                            btn.className = `action-btn reaction-btn special-btn-${key}`;
-                        } else {
-                            btn.className = `action-btn special-btn-${key}`;
-                        }
                         container.appendChild(btn);
                     });
-                }
-                 // Adiciona botões de Clinch e Golpe Ilegal dinamicamente
-                const controlsContainer = document.getElementById(`${key}-controls`);
-                if(controlsContainer.querySelector('.clinch-btn') === null) {
-                    const clinchMove = state.moves['Clinch'];
-                    const clinchBtn = document.createElement('button');
-                    clinchBtn.dataset.move = 'Clinch';
-                    clinchBtn.textContent = `Clinch (${clinchMove.cost} PA)`;
-                    clinchBtn.className = `action-btn reaction-btn clinch-btn ${key === 'player1' ? 'p1-btn' : 'p2-btn'}`;
-                    controlsContainer.insertBefore(clinchBtn, controlsContainer.querySelector('.special-moves-container'));
-                }
-                if(controlsContainer.querySelector('.illegal-btn') === null) {
-                    const illegalMove = state.moves['Golpe Ilegal'];
-                    const illegalBtn = document.createElement('button');
-                    illegalBtn.dataset.move = 'Golpe Ilegal';
-                    illegalBtn.textContent = `Golpe Ilegal (${illegalMove.cost} PA)`;
-                    illegalBtn.className = `action-btn illegal-btn ${key === 'player1' ? 'p1-btn' : 'p2-btn'}`;
-                    controlsContainer.insertBefore(illegalBtn, controlsContainer.querySelector('.special-moves-container'));
                 }
             } else if (key === 'player2' && state.pendingP2Choice) {
                 document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img;
@@ -498,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'paused') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
-        } else if (state.phase === 'gameover' || state.phase === 'gameover_pending_gm') {
+        } else if (state.phase === 'gameover') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
         } else if (state.phase === 'decision_table_wait') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
@@ -522,43 +471,45 @@ document.addEventListener('DOMContentLoaded', () => {
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         
-        if (state.phase === 'paused' && !isGm) {
-            document.querySelectorAll('#p1-controls button, #p2-controls button, #forfeit-btn').forEach(btn => btn.disabled = true);
-            return;
-        }
-
-        // Lógica de habilitar/desabilitar botões
-        if (state.phase !== 'paused') {
-            const myControls = document.getElementById(`${myPlayerKey}-controls`);
-            if (myControls) {
-                myControls.querySelectorAll('button').forEach(btn => {
-                    const moveName = btn.dataset.move;
-                    const move = moveName ? state.moves[moveName] : null;
-                    const isMyTurn = state.whoseTurn === myPlayerKey;
-                    const isReactionMove = btn.classList.contains('reaction-btn');
-                    const fighter = state.fighters[myPlayerKey];
-                    let isDisabled = true;
-
-                    if (isReactionMove) {
-                        // Botões de reação são habilitados no turno do oponente
-                        isDisabled = isMyTurn || !isActionPhase || state.reactionState !== null;
-                    } else {
-                        // Botões de ataque são habilitados no seu turno
-                        isDisabled = !isMyTurn || !isActionPhase || state.reactionState !== null;
-                    }
-
-                    // Checa custo de PA e outras condições
-                    if (!isDisabled && move && fighter.pa < move.cost) {
-                        isDisabled = true;
-                    }
-                    if (!isDisabled && state.phase === 'white_fang_follow_up' && moveName !== 'White Fang' && !btn.id.endsWith('end-turn-btn')) {
-                        isDisabled = true;
-                    }
-
-                    btn.disabled = isDisabled;
-                });
+        document.querySelectorAll('#p1-controls button, #p2-controls button, #forfeit-btn').forEach(btn => {
+            if (state.phase === 'paused' && !isGm) {
+                btn.disabled = true;
             }
-             document.getElementById('forfeit-btn').disabled = !isActionPhase || state.whoseTurn !== myPlayerKey;
+        });
+
+        if (state.phase !== 'paused') {
+            const p1_is_turn = state.whoseTurn === 'player1';
+            document.querySelectorAll('#p1-controls button').forEach(btn => {
+                let isDisabled = !p1_is_turn || !isActionPhase;
+
+                if (!isDisabled) {
+                    const moveName = btn.dataset.move;
+                    if (state.phase === 'white_fang_follow_up') {
+                        if (moveName && moveName !== 'White Fang') { isDisabled = true; }
+                    } else if (moveName) {
+                        const move = state.moves[moveName];
+                        if (move && state.fighters.player1.pa < move.cost) { isDisabled = true; }
+                    }
+                }
+                btn.disabled = isDisabled;
+            });
+
+            const p2_is_turn = state.whoseTurn === 'player2';
+            document.querySelectorAll('#p2-controls button').forEach(btn => {
+                let isDisabled = !p2_is_turn || !isActionPhase;
+                if (!isDisabled) {
+                    const moveName = btn.dataset.move;
+                    if (state.phase === 'white_fang_follow_up') {
+                        if (moveName && moveName !== 'White Fang') { isDisabled = true; }
+                    } else if (moveName) {
+                        const move = state.moves[moveName];
+                        if (move && state.fighters.player2.pa < move.cost) { isDisabled = true; }
+                    }
+                }
+                btn.disabled = isDisabled;
+            });
+            
+            document.getElementById('forfeit-btn').disabled = !isActionPhase || !isPlayer || state.whoseTurn !== myPlayerKey;
         }
 
         const logBox = document.getElementById('fight-log');
@@ -593,14 +544,17 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
+    // --- FUNÇÃO CORRIGIDA ---
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
         
         const p1 = currentGameState.fighters.player1;
         const p2 = currentGameState.fighters.player2;
 
+        // Verificação de segurança: não mostra o modal se os lutadores não estiverem prontos.
         if (!p1 || !p2) {
             console.warn("Cheats tentado antes de ambos os lutadores estarem prontos.");
+            // Despausa o jogo automaticamente para não travar o fluxo.
             socket.emit('playerAction', { type: 'toggle_pause' });
             return;
         }
@@ -640,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
             socket.emit('playerAction', { type: 'apply_cheats', cheats });
-            socket.emit('playerAction', { type: 'toggle_pause' });
+            socket.emit('playerAction', { type: 'toggle_pause' }); // Continua o jogo
         };
     }
 
@@ -703,23 +657,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => {
         let isMyTurnForAction = myPlayerKey === targetPlayerKey;
-        if(modalType === 'gm_confirm_disqualification' && isGm) {
-            isMyTurnForAction = true;
-        }
         if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') {
             isMyTurnForAction = myPlayerKey === 'host';
         }
 
         switch(modalType) {
-            case 'info':
-                showInfoModal(title, text);
-                break;
             case 'gm_knockdown_decision':
-            case 'gm_confirm_disqualification':
-                if (isGm && isMyTurnForAction) {
-                    showInteractiveModal(title, text, btnText, action);
-                } else if (modalType === 'gm_knockdown_decision') {
-                     const cheatHtml = `
+                if (isGm) {
+                    const cheatHtml = `
                         <p>${text}</p>
                         <div style="margin-top:20px; display: flex; justify-content: center; gap: 20px;">
                             <button id="gm-continue-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Continuar</button>
@@ -780,16 +725,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('diceRoll', showDiceRollAnimation);
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); document.querySelectorAll('button').forEach(btn => btn.disabled = true); });
 
-    // --- INÍCIO DA CORREÇÃO ---
     initialize();
-    const scaleGame = () => {
-        const w = document.getElementById('game-wrapper');
-        const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-        w.style.transform = `scale(${s})`;
-        w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`;
-        w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`;
-    };
+    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; };
     scaleGame();
     window.addEventListener('resize', scaleGame);
-    // --- FIM DA CORREÇÃO ---
 });
