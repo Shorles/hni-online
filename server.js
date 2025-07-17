@@ -14,7 +14,6 @@ const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 }, 'Direto': { cost: 2, damage: 3, penalty: 1 },
     'Upper': { cost: 3, damage: 6, penalty: 2 }, 'Liver Blow': { cost: 2, damage: 4, penalty: 2 }
 };
-// --- INÍCIO DA ALTERAÇÃO ---
 const SPECIAL_MOVES = {
     'Counter': { displayName: 'Contra-Ataque', cost: 3 },
     'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
@@ -25,7 +24,6 @@ const SPECIAL_MOVES = {
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
     'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
 };
-// --- FIM DA ALTERAÇÃO ---
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
 const MOVE_SOUNDS = {
@@ -33,9 +31,7 @@ const MOVE_SOUNDS = {
     'Direto': ['baseforte01.mp3', 'baseforte02.mp3'],
     'Liver Blow': ['baseforte01.mp3', 'baseforte02.mp3'],
     'Upper': ['baseforte01.mp3', 'baseforte02.mp3'],
-    // --- INÍCIO DA ALTERAÇÃO ---
     'Counter': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
-    // --- FIM DA ALTERAÇÃO ---
     'Smash': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Gazelle Punch': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Frog Punch': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
@@ -63,9 +59,7 @@ function createNewGameState() {
         hostId: null,
         gmId: null,
         playersReady: { player1: false, player2: false },
-        // --- INÍCIO DA ALTERAÇÃO ---
         counterStance: null
-        // --- FIM DA ALTERAÇÃO ---
     };
 }
 
@@ -85,11 +79,10 @@ function createNewFighterState(data) {
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
 // --- INÍCIO DA ALTERAÇÃO ---
-function resolveCounterAttack(state, attackerKey, countererKey, moveName, io, roomId) {
+function resolveCounterAttack(state, attackerKey, countererKey, move, io, roomId) {
     const attacker = state.fighters[attackerKey];
     const counterer = state.fighters[countererKey];
-    const move = state.moves[moveName];
-    const moveDisplayName = move.displayName || moveName;
+    const moveDisplayName = move.displayName || action.move; // Usando action.move como fallback
 
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${moveDisplayName}</span>... mas ${counterer.nome} estava pronto!`, 'log-crit');
@@ -97,8 +90,8 @@ function resolveCounterAttack(state, attackerKey, countererKey, moveName, io, ro
 
     // Rolagem do Atacante
     const attackerRoll = rollAttackD6();
-    const attackerAttackValue = attackerRoll + attacker.agi - move.penalty;
-    logMessage(state, `Rolagem de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackerAttackValue}</span>`, 'log-info');
+    const attackerAttackValue = attackerRoll + attacker.agi - (move.penalty || 0);
+    logMessage(state, `Rolagem de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty || 0} Pen = <span class="highlight-result">${attackerAttackValue}</span>`, 'log-info');
 
     // Rolagem do Defensor (Contra-Ataque)
     const countererRoll = rollAttackD6();
@@ -225,7 +218,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
     } else { // Se o golpe errou
-        // A lógica antiga do counter que erra foi removida pois agora é tratada em resolveCounterAttack
         soundToPlay = 'Esquiva.mp3';
     }
     
@@ -240,7 +232,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
     state.followUpState = null;
-    state.counterStance = null; // --- INÍCIO DA ALTERAÇÃO --- Garante que a postura de contra-ataque seja resetada no fim do turno --- FIM DA ALTERAÇÃO ---
+    state.counterStance = null;
     state.whoseTurn = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
     const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
     if (lastPlayerWentFirst) { state.phase = 'turn'; } else { processEndRound(state, io, roomId); }
@@ -332,14 +324,11 @@ function isActionValid(state, action) {
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
-        // --- INÍCIO DA ALTERAÇÃO ---
         case 'turn': 
             if (type === 'prepare_counter') {
-                // Permite o contra-ataque apenas do jogador que NÃO está no turno.
                 return playerKey !== state.whoseTurn;
             }
             return (type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn;
-        // --- FIM DA ALTERAÇÃO ---
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
         case 'gm_decision_knockdown': return (type === 'resolve_knockdown_loss' || type === 'give_last_chance') && isGm;
         case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
@@ -565,7 +554,6 @@ io.on('connection', (socket) => {
                 state.reason = finalCountReason;
                 break;
             
-            // --- INÍCIO DA ALTERAÇÃO ---
             case 'prepare_counter':
                 const counterPlayer = state.fighters[playerKey];
                 const counterMove = state.moves['Counter'];
@@ -575,7 +563,6 @@ io.on('connection', (socket) => {
                 state.counterStance = { playerKey: playerKey };
                 logMessage(state, `${counterPlayer.nome} assume uma postura de contra-ataque!`, 'log-info');
                 break;
-            // --- FIM DA ALTERAÇÃO ---
 
             case 'configure_and_start_arena':
                 state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
@@ -605,21 +592,23 @@ io.on('connection', (socket) => {
                 state.phase = 'initiative_p1';
                 break;
 
+            // --- INÍCIO DA ALTERAÇÃO ---
             case 'attack':
                 const moveName = action.move;
                 const move = state.moves[moveName];
                 const attacker = state.fighters[playerKey];
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
 
-                // --- INÍCIO DA ALTERAÇÃO ---
-                // Verifica se o defensor está em modo de contra-ataque
+                // Verifica se o defensor está em modo de contra-ataque ANTES de qualquer outra coisa.
                 if (state.counterStance && state.counterStance.playerKey === defenderKey) {
-                    resolveCounterAttack(state, playerKey, defenderKey, moveName, io, roomId);
-                    // A função resolveCounterAttack já cuida de tudo, então podemos sair
+                    // Se estiver, resolve o contra-ataque e interrompe o fluxo.
+                    // O PA do atacante NÃO é gasto.
+                    resolveCounterAttack(state, playerKey, defenderKey, move, io, roomId);
                     break; 
                 }
-                // --- FIM DA ALTERAÇÃO ---
 
+                // Se não houver contra-ataque, prossiga com a lógica de ataque normal.
+                // Agora, verifique e gaste o PA do atacante.
                 let cost = move.cost;
                 if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
                     cost = 0;
@@ -627,6 +616,7 @@ io.on('connection', (socket) => {
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
 
+                // Lógica especial para Flicker Jab
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
@@ -648,11 +638,13 @@ io.on('connection', (socket) => {
                         }
                     };
                     executeFlicker();
-                    return;
+                    return; // Retorna para não executar o ataque normal abaixo
                 }
                 
+                // Executa um ataque normal
                 executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
 
+                // Lógica especial para White Fang
                 if (moveName === 'White Fang') {
                     if (state.followUpState) {
                         state.followUpState = null;
@@ -667,6 +659,7 @@ io.on('connection', (socket) => {
                     handleKnockdown(state, defenderKey, io, roomId);
                 }
                 break;
+            // --- FIM DA ALTERAÇÃO ---
             case 'forfeit':
                 const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
                 state.winner = winnerKey;
@@ -771,8 +764,6 @@ io.on('connection', (socket) => {
                             state.phase = 'gm_decision_knockdown';
                         }
                     }
-                    // Se as tentativas forem < 4, não faz nada. O estado continua 'knockdown'
-                    // e a próxima ação do jogador será tentar de novo.
                 }
                 break;
         }
