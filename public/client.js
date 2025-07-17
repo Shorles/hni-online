@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(selectionScreen);
             selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : '2'}: Selecione seu Lutador`;
             confirmBtn.innerText = 'Confirmar Personagem';
-            renderCharacterSelection('p2', false);
+            renderCharacterSelection('p2');
         } else if (isSpectator && currentRoomId) {
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(selectionScreen);
             selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
             confirmBtn.innerText = 'Entrar na Luta';
-            renderCharacterSelection('p2', false);
+            renderCharacterSelection('p2');
         } else {
             showScreen(modeSelectionScreen);
         }
@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
                     confirmBtn.innerText = 'Confirmar Personagem';
                     confirmBtn.disabled = false;
-                    renderCharacterSelection('p1', true);
+                    renderCharacterSelection('p1');
                 } else {
                     socket.emit('createArenaGame', { scenario: fileName });
                     showScreen(arenaLobbyScreen);
@@ -178,22 +178,43 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
     function onConfirmSelection() {
         const selectedCard = document.querySelector('.char-card.selected');
-        if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
-        let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
-        
+        if (!selectedCard) {
+            alert('Por favor, selecione um lutador!');
+            return;
+        }
+
+        const charName = selectedCard.dataset.name;
+        let playerData = {
+            nome: charName,
+            img: selectedCard.dataset.img
+        };
+
         if (myPlayerKey === 'player1' && !currentRoomId) {
-            playerData.agi = selectedCard.querySelector('.agi-input').value;
-            playerData.res = selectedCard.querySelector('.res-input').value;
+            // Modo Clássico (Criação do Jogo)
+            // Busca os dados diretamente do objeto, em vez de ler do DOM.
+            const charStats = CHARACTERS_P1[charName];
+            if (!charStats) {
+                alert('Erro: Não foi possível encontrar os dados do personagem selecionado.');
+                return;
+            }
+            playerData.agi = charStats.agi;
+            playerData.res = charStats.res;
+
             confirmBtn.disabled = true;
             socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
+
         } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-             confirmBtn.disabled = true;
-             socket.emit('selectArenaCharacter', { character: playerData });
-             showScreen(lobbyScreen);
-             lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
+            // Modo Arena (Jogador entrando)
+            confirmBtn.disabled = true;
+            socket.emit('selectArenaCharacter', { character: playerData });
+            showScreen(lobbyScreen);
+            lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
+
         } else {
+            // Modo Clássico (Jogador 2 entrando)
             confirmBtn.disabled = true;
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
@@ -201,21 +222,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderCharacterSelection(playerType, showStatsInputs = false) {
+    function renderCharacterSelection(playerType) {
         charListContainer.innerHTML = '';
         const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
+
         for (const name in charData) {
             const stats = charData[name];
             const card = document.createElement('div');
             card.className = 'char-card';
             card.dataset.name = name;
             card.dataset.img = `images/${name}.png`;
-            const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
+
+            // Simplificado para sempre mostrar os stats como texto, correspondendo ao vídeo.
+            const statsHtml = `<div class="char-stats-display">AGI: ${stats.agi} | RES: ${stats.res}</div>`;
+
             card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
-            card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
+            card.addEventListener('click', () => {
+                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+            });
             charListContainer.appendChild(card);
         }
     }
+    // --- FIM DA ALTERAÇÃO ---
 
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
@@ -245,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableMoves);
         specialMovesModal.classList.remove('hidden');
-        showScreen(selectionScreen); // Mantém a tela de seleção visível por baixo
+        showScreen(selectionScreen); 
         selectionScreen.classList.remove('active');
 
         confirmSpecialMovesBtn.onclick = () => {
