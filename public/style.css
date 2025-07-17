@@ -255,11 +255,10 @@ body {
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
 .move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .special-moves-container { display: contents; } 
-
 /* --- INÍCIO DA ALTERAÇÃO --- */
 .action-btn, .end-turn-btn, #forfeit-btn { 
-    padding: 6px 12px; 
-    font-size: 0.85em;  
+    padding: 6px 12px; /* Reduzido o padding */
+    font-size: 0.85em;  /* Reduzido o tamanho da fonte */
     cursor: pointer; 
     border: none; 
     border-radius: 5px; 
@@ -267,7 +266,6 @@ body {
     transition: background-color 0.2s; 
 }
 /* --- FIM DA ALTERAÇÃO --- */
-
 .end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6f42c1; }
 #forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
@@ -280,6 +278,12 @@ body {
 .special-btn-player1:hover:not(:disabled) { background-color: #218838; }
 .special-btn-player2 { background-color: #20c997; } 
 .special-btn-player2:hover:not(:disabled) { background-color: #1baa80; }
+/* --- INÍCIO DA ALTERAÇÃO --- */
+/* Novo estilo para o botão de Golpe Ilegal */
+.illegal-btn { background-color: #d90429 !important; border: 1px solid #ffb703; }
+.illegal-btn:hover:not(:disabled) { background-color: #b2001f !important; }
+/* --- FIM DA ALTERAÇÃO --- */
+
 
 /* BOTÕES DE ROLAGEM */
 .roll-dice-button { position: absolute; bottom: 450px; padding: 10px 15px; font-size: 1em; font-weight: bold; border: 2px solid #fff; border-radius: 8px; cursor: pointer; z-index: 100; transition: all 0.2s ease; }
