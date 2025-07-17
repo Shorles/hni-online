@@ -343,16 +343,18 @@ function isActionValid(state, action) {
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
+        // --- INÍCIO DA CORREÇÃO ---
         case 'turn':
-            // Ataque normal ou finalização de turno só no seu turno
+            // Ações de ataque são válidas apenas para o jogador do turno.
             if ((type === 'attack' || type === 'end_turn' || type === 'forfeit' || type === 'confirm_illegal_move') && playerKey === state.whoseTurn) {
                 return true;
             }
-            // Movimentos de reação só no turno do oponente
-            if (type === 'arm_reaction_move' && playerKey !== state.whoseTurn) {
+            // Ações de reação são válidas apenas para o jogador que NÃO é do turno, e apenas se um turno já foi definido.
+            if (type === 'arm_reaction_move' && state.whoseTurn !== null && playerKey !== state.whoseTurn) {
                 return true;
             }
             return false;
+        // --- FIM DA CORREÇÃO ---
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
         case 'gm_decision_knockdown': return (type === 'resolve_knockdown_loss' || type === 'give_last_chance') && isGm;
         case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
@@ -616,32 +618,27 @@ io.on('connection', (socket) => {
                 socket.emit('roomCreated', roomId);
                 break;
             
-            // --- INÍCIO DA CORREÇÃO ---
             case 'set_p2_stats':
                 const p2InitialData = state.pendingP2Choice;
-                // Verificação de segurança para evitar crash
-                if (!p2InitialData) {
-                    console.error("Erro: Tentativa de configurar P2 sem dados pendentes.");
-                    return; // Sai da ação para não derrubar o servidor
+                const p2GMData = action.stats;
+
+                if (!p2InitialData || !p2GMData) {
+                    console.error("Erro Crítico: Dados para P2 ou stats ausentes na ação 'set_p2_stats'.");
+                    return;
                 }
 
-                const p2GMData = action.stats; // {agi, res}
-                const p2Moves = action.moves;
-
-                // Cria o lutador P2 combinando os dados de forma segura
                 state.fighters.player2 = createNewFighterState({
                     nome: p2InitialData.nome,
                     img: p2InitialData.img,
                     agi: p2GMData.agi,
                     res: p2GMData.res,
-                    specialMoves: p2Moves
+                    specialMoves: action.moves || []
                 });
                 
                 delete state.pendingP2Choice;
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
                 state.phase = 'initiative_p1';
                 break;
-            // --- FIM DA CORREÇÃO ---
 
             case 'arm_reaction_move':
                 const reactor = state.fighters[playerKey];
@@ -860,7 +857,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const roomId = socket.currentRoomId;
-        if (!roomId || !games[roomId]) return.
+        if (!roomId || !games[roomId]) return;
         const room = games[roomId];
         
         if (socket.id === room.hostId) {
