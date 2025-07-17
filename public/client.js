@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- INÍCIO DA ALTERAÇÃO ---
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
@@ -70,11 +71,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const move = target.dataset.move;
         
         if (move) {
-            socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+            if (move === 'Counter') {
+                socket.emit('playerAction', { type: 'prepare_counter', playerKey: myPlayerKey });
+            } else {
+                socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+            }
         } else if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
+    // --- FIM DA ALTERAÇÃO ---
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -151,11 +157,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // --- Listener para o Menu de Trapaças ---
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
                 if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover')) {
-                    // Não faz nada se o jogo já acabou por rounds.
                     return;
                 }
                 socket.emit('playerAction', { type: 'toggle_pause' });
@@ -225,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- INÍCIO DA ALTERAÇÃO ---
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
         for (const moveName in availableMoves) {
@@ -233,11 +238,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'special-move-card';
             card.dataset.name = moveName;
-            card.innerHTML = `<h4>${displayName}</h4><p>Custo: ${moveData.cost} PA</p><p>Dano: ${moveData.damage}</p><p>Penalidade: ${moveData.penalty}</p>`;
+
+            let detailsHtml = `<p>Custo: ${moveData.cost} PA</p>`;
+            if (moveData.damage !== undefined) {
+                detailsHtml += `<p>Dano: ${moveData.damage}</p>`;
+            }
+            if (moveData.penalty !== undefined) {
+                detailsHtml += `<p>Penalidade: ${moveData.penalty}</p>`;
+            }
+            
+            card.innerHTML = `<h4>${displayName}</h4>${detailsHtml}`;
             card.addEventListener('click', () => card.classList.toggle('selected'));
             container.appendChild(card);
         }
     }
+    // --- FIM DA ALTERAÇÃO ---
     
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
@@ -348,10 +363,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     socket.on('gameUpdate', (gameState) => {
-        // --- INÍCIO DA CORREÇÃO ---
         const oldPhase = currentGameState ? currentGameState.phase : null;
         
-        // ATUALIZA O ESTADO GLOBAL PRIMEIRO para que todas as funções subsequentes usem os dados mais recentes.
         currentGameState = gameState;
         
         const wasPaused = oldPhase === 'paused';
@@ -380,7 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
         }
-        // --- FIM DA CORREÇÃO ---
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -466,51 +478,80 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isPlayer) { actionWrapper.classList.add('hidden'); } 
         else { actionWrapper.classList.remove('hidden'); }
         
-        const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
-        
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         
-        document.querySelectorAll('#p1-controls button, #p2-controls button, #forfeit-btn').forEach(btn => {
-            if (state.phase === 'paused' && !isGm) {
-                btn.disabled = true;
-            }
-        });
+        if (state.phase === 'paused' && !isGm) {
+            document.querySelectorAll('#p1-controls button, #p2-controls button, #forfeit-btn').forEach(btn => btn.disabled = true);
+        }
 
-        if (state.phase !== 'paused') {
+        // --- INÍCIO DA ALTERAÇÃO ---
+        if (state.phase !== 'paused' && state.fighters.player1 && state.fighters.player2) {
+            const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
+        
+            // Atualiza controles do Jogador 1
             const p1_is_turn = state.whoseTurn === 'player1';
             document.querySelectorAll('#p1-controls button').forEach(btn => {
-                let isDisabled = !p1_is_turn || !isActionPhase;
-
-                if (!isDisabled) {
-                    const moveName = btn.dataset.move;
-                    if (state.phase === 'white_fang_follow_up') {
-                        if (moveName && moveName !== 'White Fang') { isDisabled = true; }
-                    } else if (moveName) {
-                        const move = state.moves[moveName];
-                        if (move && state.fighters.player1.pa < move.cost) { isDisabled = true; }
-                    }
+                const moveName = btn.dataset.move;
+                if (!moveName) { // Botão de Encerrar Turno
+                    btn.disabled = !p1_is_turn || state.phase === 'white_fang_follow_up';
+                    return;
                 }
-                btn.disabled = isDisabled;
+        
+                const move = state.moves[moveName];
+                const hasEnoughPA = state.fighters.player1.pa >= move.cost;
+        
+                if (moveName === 'Counter') {
+                    const isInCounterStance = state.counterStance && state.counterStance.playerKey === 'player1';
+                    btn.disabled = p1_is_turn || !hasEnoughPA || isInCounterStance || state.phase !== 'turn';
+                    if (isInCounterStance) {
+                        btn.textContent = 'Aguardando...';
+                    } else {
+                        const displayName = move.displayName || moveName;
+                        btn.textContent = `${displayName} (${move.cost} PA)`;
+                    }
+                } else { // Golpes normais
+                    let isDisabled = !p1_is_turn || !isActionPhase || !hasEnoughPA;
+                    if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') {
+                        isDisabled = true;
+                    }
+                    btn.disabled = isDisabled;
+                }
             });
-
+        
+            // Atualiza controles do Jogador 2
             const p2_is_turn = state.whoseTurn === 'player2';
             document.querySelectorAll('#p2-controls button').forEach(btn => {
-                let isDisabled = !p2_is_turn || !isActionPhase;
-                if (!isDisabled) {
-                    const moveName = btn.dataset.move;
-                    if (state.phase === 'white_fang_follow_up') {
-                        if (moveName && moveName !== 'White Fang') { isDisabled = true; }
-                    } else if (moveName) {
-                        const move = state.moves[moveName];
-                        if (move && state.fighters.player2.pa < move.cost) { isDisabled = true; }
-                    }
+                const moveName = btn.dataset.move;
+                if (!moveName) { // Botão de Encerrar Turno
+                    btn.disabled = !p2_is_turn || state.phase === 'white_fang_follow_up';
+                    return;
                 }
-                btn.disabled = isDisabled;
+        
+                const move = state.moves[moveName];
+                const hasEnoughPA = state.fighters.player2.pa >= move.cost;
+        
+                if (moveName === 'Counter') {
+                    const isInCounterStance = state.counterStance && state.counterStance.playerKey === 'player2';
+                    btn.disabled = p2_is_turn || !hasEnoughPA || isInCounterStance || state.phase !== 'turn';
+                    if (isInCounterStance) {
+                        btn.textContent = 'Aguardando...';
+                    } else {
+                        const displayName = move.displayName || moveName;
+                        btn.textContent = `${displayName} (${move.cost} PA)`;
+                    }
+                } else { // Golpes normais
+                    let isDisabled = !p2_is_turn || !isActionPhase || !hasEnoughPA;
+                    if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') {
+                        isDisabled = true;
+                    }
+                    btn.disabled = isDisabled;
+                }
             });
             
             document.getElementById('forfeit-btn').disabled = !isActionPhase || !isPlayer || state.whoseTurn !== myPlayerKey;
         }
+        // --- FIM DA ALTERAÇÃO ---
 
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
@@ -544,17 +585,14 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
 
-    // --- FUNÇÃO CORRIGIDA ---
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
         
         const p1 = currentGameState.fighters.player1;
         const p2 = currentGameState.fighters.player2;
 
-        // Verificação de segurança: não mostra o modal se os lutadores não estiverem prontos.
         if (!p1 || !p2) {
             console.warn("Cheats tentado antes de ambos os lutadores estarem prontos.");
-            // Despausa o jogo automaticamente para não travar o fluxo.
             socket.emit('playerAction', { type: 'toggle_pause' });
             return;
         }
@@ -594,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
             socket.emit('playerAction', { type: 'apply_cheats', cheats });
-            socket.emit('playerAction', { type: 'toggle_pause' }); // Continua o jogo
+            socket.emit('playerAction', { type: 'toggle_pause' });
         };
     }
 
