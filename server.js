@@ -78,7 +78,6 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
-// --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
 function resolveCounterAttack(state, attackerKey, countererKey, move, moveName, io, roomId) {
     const attacker = state.fighters[attackerKey];
     const counterer = state.fighters[countererKey];
@@ -88,80 +87,56 @@ function resolveCounterAttack(state, attackerKey, countererKey, move, moveName, 
     logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${moveDisplayName}</span>... mas ${counterer.nome} estava pronto!`, 'log-crit');
     logMessage(state, `Disputa de Contra-Ataque!`, 'log-info');
 
-    // Rolagem do Atacante
     const attackerRoll = rollAttackD6();
     const attackerAttackValue = attackerRoll + attacker.agi - (move.penalty || 0);
     logMessage(state, `Rolagem de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty || 0} Pen = <span class="highlight-result">${attackerAttackValue}</span>`, 'log-info');
 
-    // Rolagem do Defensor (Contra-Ataque)
     const countererRoll = rollAttackD6();
-    const countererAttackValue = countererRoll + counterer.agi; // Sem penalidade no contra-ataque
+    const countererAttackValue = countererRoll + counterer.agi;
     logMessage(state, `Rolagem de ${counterer.nome}: D6(${countererRoll}) + ${counterer.agi} AGI = <span class="highlight-result">${countererAttackValue}</span>`, 'log-info');
 
     const damage = move.damage * 2;
     let soundToPlay = 'Critical.mp3';
 
     if (countererAttackValue > attackerAttackValue) {
-        // Contra-ataque bem sucedido
         logMessage(state, `Contra-ataque PERFEITO! ${attacker.nome} recebe o próprio golpe em dobro!`, 'log-crit');
         io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
-        
         const hpBeforeHit = attacker.hp;
         attacker.hp = Math.max(0, attacker.hp - damage);
-        const actualDamageTaken = hpBeforeHit - attacker.hp;
-        attacker.totalDamageTaken += actualDamageTaken;
-        logMessage(state, `${attacker.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
-
+        attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
+        logMessage(state, `${attacker.nome} sofre ${hpBeforeHit - attacker.hp} de dano!`, 'log-hit');
         if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
-
     } else if (attackerAttackValue > countererAttackValue) {
-        // Contra-ataque falhou
         logMessage(state, `O ataque de ${attacker.nome} superou a tentativa de contra! ${counterer.nome} recebe dano dobrado!`, 'log-crit');
         io.to(roomId).emit('triggerHitAnimation', { defenderKey: countererKey });
-        
         const hpBeforeHit = counterer.hp;
         counterer.hp = Math.max(0, counterer.hp - damage);
-        const actualDamageTaken = hpBeforeHit - counterer.hp;
-        counterer.totalDamageTaken += actualDamageTaken;
-        counterer.hitsLanded--; // Negativa o acerto pois não foi um acerto limpo
+        counterer.totalDamageTaken += hpBeforeHit - counterer.hp;
         attacker.hitsLanded++;
-        logMessage(state, `${counterer.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
-
+        logMessage(state, `${counterer.nome} sofre ${hpBeforeHit - counterer.hp} de dano!`, 'log-hit');
         if (counterer.hp <= 0) handleKnockdown(state, countererKey, io, roomId);
-        
     } else {
-        // Empate
         logMessage(state, `COLISÃO BRUTAL! Ambos são atingidos com o dano dobrado!`, 'log-crit');
         io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
         io.to(roomId).emit('triggerHitAnimation', { defenderKey: countererKey });
 
-        // Dano no atacante
         const hpBeforeHitAttacker = attacker.hp;
         attacker.hp = Math.max(0, attacker.hp - damage);
-        const actualDamageTakenAttacker = hpBeforeHitAttacker - attacker.hp;
-        attacker.totalDamageTaken += actualDamageTakenAttacker;
-        logMessage(state, `${attacker.nome} sofre ${actualDamageTakenAttacker} de dano!`, 'log-hit');
+        attacker.totalDamageTaken += hpBeforeHitAttacker - attacker.hp;
+        logMessage(state, `${attacker.nome} sofre ${hpBeforeHitAttacker - attacker.hp} de dano!`, 'log-hit');
 
-        // Dano no defensor
         const hpBeforeHitCounterer = counterer.hp;
         counterer.hp = Math.max(0, counterer.hp - damage);
-        const actualDamageTakenCounterer = hpBeforeHitCounterer - counterer.hp;
-        counterer.totalDamageTaken += actualDamageTakenCounterer;
-        logMessage(state, `${counterer.nome} sofre ${actualDamageTakenCounterer} de dano!`, 'log-hit');
+        counterer.totalDamageTaken += hpBeforeHitCounterer - counterer.hp;
+        logMessage(state, `${counterer.nome} sofre ${hpBeforeHitCounterer - counterer.hp} de dano!`, 'log-hit');
 
         if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
-        // Evita double KO call
         if (counterer.hp <= 0 && state.phase !== 'knockdown') handleKnockdown(state, countererKey, io, roomId);
     }
     
-    if (soundToPlay) {
-        io.to(roomId).emit('playSound', soundToPlay);
-    }
-
-    state.counterStance = null; 
-    return; 
+    if (soundToPlay) io.to(roomId).emit('playSound', soundToPlay);
+    state.counterStance = null;
 }
-// --- FIM DA ALTERAÇÃO ---
 
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
@@ -217,7 +192,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         attacker.hitsLanded++;
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
-    } else { // Se o golpe errou
+    } else { 
         soundToPlay = 'Esquiva.mp3';
     }
     
@@ -599,9 +574,7 @@ io.on('connection', (socket) => {
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
 
                 if (state.counterStance && state.counterStance.playerKey === defenderKey) {
-                    // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
                     resolveCounterAttack(state, playerKey, defenderKey, move, moveName, io, roomId);
-                    // --- FIM DA ALTERAÇÃO ---
                     break; 
                 }
 
@@ -731,7 +704,7 @@ io.on('connection', (socket) => {
                         io.to(roomId).emit('gameUpdate', room.state);
                         dispatchAction(room);
                     }, 3000);
-                    return; // Sai da lógica de knockdown
+                    return;
 
                 } else {
                     // FALHA AO LEVANTAR
@@ -740,7 +713,6 @@ io.on('connection', (socket) => {
                     const maxAttempts = 4;
                     if (knockdownInfo.attempts >= maxAttempts) {
                         if (knockdownInfo.isLastChance) {
-                            // Usou a última chance dada pelo GM e falhou. Fim de jogo.
                             logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
                             const finalKoReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                             setTimeout(() => {
@@ -752,7 +724,6 @@ io.on('connection', (socket) => {
                             }, 1000);
                             return;
                         } else {
-                            // Esgotou as 4 tentativas, hora do GM decidir.
                             state.phase = 'gm_decision_knockdown';
                         }
                     }
