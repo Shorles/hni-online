@@ -257,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -469,75 +469,80 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
 
-        // --- PARTE 2: ATUALIZAÇÕES DE CONTROLE (ESPECÍFICAS PARA JOGADORES) ---
+        // --- PARTE 2: ATUALIZAÇÕES DE CONTROLE ---
         p1SpecialMovesContainer.innerHTML = '';
         p2SpecialMovesContainer.innerHTML = '';
-
-        const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
-        const actionWrapper = document.getElementById('action-buttons-wrapper');
         
-        if (!isPlayer) {
-            actionWrapper.classList.add('hidden');
-            return; 
-        }
-        actionWrapper.classList.remove('hidden');
+        ['player1', 'player2'].forEach(playerKey => {
+            const fighter = state.fighters[playerKey];
+            const controls = document.getElementById(`${playerKey}-controls`);
+            const specialMovesContainer = document.getElementById(`${playerKey}-special-moves`);
 
-        const myFighter = state.fighters[myPlayerKey];
-        if (myFighter && myFighter.specialMoves) {
-            const container = (myPlayerKey === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
-            myFighter.specialMoves.forEach(moveName => {
-                const moveData = state.moves[moveName];
-                if (!moveData) return; 
-                const displayName = moveData.displayName || moveName;
-                const btn = document.createElement('button');
-                btn.className = `action-btn special-btn-${myPlayerKey}`;
-                btn.dataset.move = moveName;
-                btn.textContent = `${displayName} (${moveData.cost} PA)`;
-                container.appendChild(btn);
-            });
-        }
-        
-        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
-        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
-        
-        const myControls = document.getElementById(`${myPlayerKey}-controls`);
-        if (!myControls || !myFighter) return;
+            if (!controls || !fighter) return;
 
-        const allMyButtons = myControls.querySelectorAll('button');
-        const isMyTurn = state.whoseTurn === myPlayerKey;
-
-        allMyButtons.forEach(btn => {
-            if (state.phase === 'paused' && !isGm) {
-                btn.disabled = true;
-                return;
+            // Renderiza golpes especiais (se houver)
+            if (fighter.specialMoves) {
+                fighter.specialMoves.forEach(moveName => {
+                    const moveData = state.moves[moveName];
+                    if (!moveData) return; 
+                    const displayName = moveData.displayName || moveName;
+                    const btn = document.createElement('button');
+                    btn.className = `action-btn special-btn-${playerKey}`;
+                    btn.dataset.move = moveName;
+                    btn.textContent = `${displayName} (${moveData.cost} PA)`;
+                    specialMovesContainer.appendChild(btn);
+                });
             }
 
-            let isDisabled = true;
-            const moveName = btn.dataset.move;
-            
-            if (moveName) {
-                const move = state.moves[moveName];
-                if (move) {
-                    const hasEnoughPA = myFighter.pa >= move.cost;
-                    if (move.reaction) {
-                        isDisabled = isMyTurn || !hasEnoughPA || state.reactiveState !== null || state.phase !== 'turn';
-                    } else {
-                        if (state.phase === 'white_fang_follow_up') {
-                            isDisabled = !isMyTurn || moveName !== 'White Fang';
-                        } else {
-                            isDisabled = !isMyTurn || !hasEnoughPA || state.phase !== 'turn';
+            // Lógica para habilitar/desabilitar TODOS os botões do painel
+            const allButtonsInPanel = controls.querySelectorAll('button');
+            const isThisPlayersTurn = state.whoseTurn === playerKey;
+
+            allButtonsInPanel.forEach(btn => {
+                let isDisabled = true; // Botões começam desabilitados
+                
+                // Apenas o jogador dono do painel pode ter botões habilitados
+                if (playerKey === myPlayerKey) {
+                    const moveName = btn.dataset.move;
+                    if (moveName) {
+                        const move = state.moves[moveName];
+                        if (move) {
+                            const hasEnoughPA = fighter.pa >= move.cost;
+                            if (move.reaction) {
+                                // Habilita se NÃO for meu turno, tenho PA, e nenhuma reação está ativa
+                                isDisabled = isThisPlayersTurn || !hasEnoughPA || state.reactiveState !== null || state.phase !== 'turn';
+                            } else { // Golpes de ataque
+                                if (state.phase === 'white_fang_follow_up') {
+                                    // Habilita apenas se for meu turno e o golpe for White Fang
+                                    isDisabled = !isThisPlayersTurn || moveName !== 'White Fang';
+                                } else {
+                                    // Habilita se for meu turno e tenho PA
+                                    isDisabled = !isThisPlayersTurn || !hasEnoughPA || state.phase !== 'turn';
+                                }
+                            }
                         }
+                    } else if (btn.classList.contains('end-turn-btn')) {
+                        isDisabled = !isThisPlayersTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
                     }
                 }
-            } else if (btn.classList.contains('end-turn-btn')) {
-                 isDisabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
-            } else if (btn.id === 'forfeit-btn') {
-                 isDisabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
-            }
-
-            btn.disabled = isDisabled;
+                
+                btn.disabled = isDisabled;
+            });
         });
+
+        // Lógica separada para o botão de desistir
+        const forfeitBtn = document.getElementById('forfeit-btn');
+        const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
+        if (forfeitBtn && isPlayer) {
+            forfeitBtn.disabled = state.whoseTurn !== myPlayerKey || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
+        }
+
+        // Garante que os painéis de controle fiquem visíveis apenas para o jogador correto
+        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
+        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
+        document.getElementById('utility-buttons').classList.toggle('hidden', !isPlayer);
     }
+
 
     function showForfeitConfirmation() {
         const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
