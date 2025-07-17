@@ -192,7 +192,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         attacker.hitsLanded++;
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
-    } else { 
+    } else { // Se o golpe errou
         soundToPlay = 'Esquiva.mp3';
     }
     
@@ -202,7 +202,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     
     return hit;
 }
-
 
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
@@ -299,7 +298,7 @@ function isActionValid(state, action) {
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
-        case 'turn': 
+        case 'turn':
             if (type === 'prepare_counter') {
                 return playerKey !== state.whoseTurn;
             }
@@ -313,94 +312,82 @@ function isActionValid(state, action) {
     }
 }
 
-// --- INÍCIO DA ALTERAÇÃO (CORREÇÃO CRÍTICA) ---
 function dispatchAction(room) {
     if (!room) return;
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
-    try {
-        switch (state.phase) {
-            case 'paused':
-                return;
-            case 'p1_special_moves_selection':
-                const p1PlayerMoves = room.players.find(p => p.playerKey === 'player1');
-                if (p1PlayerMoves && p1PlayerMoves.id) {
-                    io.to(p1PlayerMoves.id).emit('promptSpecialMoves', { availableMoves: SPECIAL_MOVES });
-                }
-                return;
-            case 'p2_stat_assignment':
-                const p1PlayerStats = room.players.find(p => p.playerKey === 'player1');
-                 if (p1PlayerStats && p1PlayerStats.id) {
-                    io.to(p1PlayerStats.id).emit('promptP2StatsAndMoves', { p2data: state.pendingP2Choice, availableMoves: SPECIAL_MOVES });
-                }
-                return;
-            case 'initiative_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }}); return;
-            case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
-            case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
-            case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
-            case 'gm_decision_knockdown':
-                if (state.gmId) {
-                    io.to(state.gmId).emit('showModal', {
-                        modalType: 'gm_knockdown_decision',
-                        title: 'Intervenção Divina',
-                        text: `${state.fighters[state.knockdownInfo.downedPlayer].nome} falhou na última tentativa. O que fazer?`,
-                        knockdownInfo: state.knockdownInfo
-                    });
-                }
-                return;
-            case 'decision_table_wait':
-                const info = state.decisionInfo;
-                const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
-                let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
-                io.to(roomId).emit('showModal', {
-                    modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
-                    btnText: "Anunciar Vencedor", action: { type: 'reveal_winner', playerKey: decisionMakerKey }, targetPlayerKey: decisionMakerKey
+    switch (state.phase) {
+        case 'paused':
+            return;
+        case 'p1_special_moves_selection':
+            const p1socketIdMoves = room.players.find(p => p.playerKey === 'player1');
+            if (p1socketIdMoves) { // <-- Guarda de segurança
+                io.to(p1socketIdMoves.id).emit('promptSpecialMoves', { availableMoves: SPECIAL_MOVES });
+            }
+            return;
+        case 'p2_stat_assignment':
+            const p1socketIdStats = room.players.find(p => p.playerKey === 'player1');
+            if (p1socketIdStats) { // <-- Guarda de segurança
+                io.to(p1socketIdStats.id).emit('promptP2StatsAndMoves', { p2data: state.pendingP2Choice, availableMoves: SPECIAL_MOVES });
+            }
+            return;
+        case 'initiative_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }}); return;
+        case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
+        case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
+        case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
+        case 'gm_decision_knockdown':
+            if (state.gmId) {
+                io.to(state.gmId).emit('showModal', {
+                    modalType: 'gm_knockdown_decision',
+                    title: 'Intervenção Divina',
+                    text: `${state.fighters[state.knockdownInfo.downedPlayer].nome} falhou na última tentativa. O que fazer?`,
+                    knockdownInfo: state.knockdownInfo
                 });
-                return;
-            case 'knockdown':
-                if (state.knockdownInfo) {
-                    const targetPlayerKey = state.knockdownInfo.downedPlayer;
-                    const modalPayload = { modalType: 'knockdown', knockdownInfo: state.knockdownInfo, title: `Você caiu!`, text: ``, btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey } };
-                    io.to(roomId).emit('showModal', { ...modalPayload, targetPlayerKey });
-                }
-                return;
-            case 'gameover':
-                let reason = state.reason || '';
-                if (state.winner === 'draw') { reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`; } 
-                else if (state.winner) { const winnerName = state.fighters[state.winner].nome; reason += `<br><br><strong style="color: #dc3545; font-size: 1.2em;">VITÓRIA DE ${winnerName.toUpperCase()}</strong>`; }
-                else { reason = "Fim de Jogo"; }
-                io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason });
-                return;
-            default: io.to(roomId).emit('hideModal'); return;
-        }
-    } catch (error) {
-        console.error(`[FATAL ERROR] in dispatchAction for room ${roomId}:`, error);
+            }
+            return;
+        case 'decision_table_wait':
+            const info = state.decisionInfo;
+            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
+            let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
+            io.to(roomId).emit('showModal', {
+                modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
+                btnText: "Anunciar Vencedor", action: { type: 'reveal_winner', playerKey: decisionMakerKey }, targetPlayerKey: decisionMakerKey
+            });
+            return;
+        case 'knockdown':
+            if (state.knockdownInfo) {
+                const targetPlayerKey = state.knockdownInfo.downedPlayer;
+                const modalPayload = { modalType: 'knockdown', knockdownInfo: state.knockdownInfo, title: `Você caiu!`, text: ``, btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey } };
+                io.to(roomId).emit('showModal', { ...modalPayload, targetPlayerKey });
+            }
+            return;
+        case 'gameover':
+            let reason = state.reason || '';
+            if (state.winner === 'draw') { reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`; } 
+            else if (state.winner) { const winnerName = state.fighters[state.winner].nome; reason += `<br><br><strong style="color: #dc3545; font-size: 1.2em;">VITÓRIA DE ${winnerName.toUpperCase()}</strong>`; }
+            else { reason = "Fim de Jogo"; }
+            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason });
+            return;
+        default: io.to(roomId).emit('hideModal'); return;
     }
 }
-// --- FIM DA ALTERAÇÃO ---
-
 
 io.on('connection', (socket) => {
     // --- MODO CLÁSSICO ---
     socket.on('createGame', ({player1Data, scenario}) => {
-        try {
-            const newRoomId = uuidv4().substring(0, 6);
-            socket.join(newRoomId);
-            socket.currentRoomId = newRoomId;
-            const newState = createNewGameState();
-            newState.mode = 'classic';
-            newState.scenario = scenario;
-            newState.gmId = socket.id;
-            newState.fighters.player1 = createNewFighterState(player1Data);
-            newState.phase = 'p1_special_moves_selection';
-            games[newRoomId] = { id: newRoomId, hostId: null, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
-            socket.emit('assignPlayer', {playerKey: 'player1', isGm: true});
-            io.to(socket.id).emit('gameUpdate', newState);
-            dispatchAction(games[newRoomId]);
-        } catch (error) {
-            console.error(`[FATAL ERROR] in createGame handler:`, error);
-            socket.emit('error', { message: 'Erro crítico no servidor ao criar a sala.' });
-        }
+        const newRoomId = uuidv4().substring(0, 6);
+        socket.join(newRoomId);
+        socket.currentRoomId = newRoomId;
+        const newState = createNewGameState();
+        newState.mode = 'classic';
+        newState.scenario = scenario;
+        newState.gmId = socket.id;
+        newState.fighters.player1 = createNewFighterState(player1Data);
+        newState.phase = 'p1_special_moves_selection';
+        games[newRoomId] = { id: newRoomId, hostId: null, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
+        socket.emit('assignPlayer', {playerKey: 'player1', isGm: true});
+        io.to(socket.id).emit('gameUpdate', newState);
+        dispatchAction(games[newRoomId]);
     });
 
     socket.on('joinGame', ({ roomId, player2Data }) => {
@@ -544,7 +531,7 @@ io.on('connection', (socket) => {
                 state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
                 state.reason = finalCountReason;
                 break;
-            
+
             case 'prepare_counter':
                 const counterPlayer = state.fighters[playerKey];
                 const counterMove = state.moves['Counter'];
@@ -591,7 +578,7 @@ io.on('connection', (socket) => {
 
                 if (state.counterStance && state.counterStance.playerKey === defenderKey) {
                     resolveCounterAttack(state, playerKey, defenderKey, move, moveName, io, roomId);
-                    break; 
+                    break;
                 }
 
                 let cost = move.cost;
@@ -705,7 +692,6 @@ io.on('connection', (socket) => {
                 knockdownInfo.lastRoll = totalRoll;
                 
                 if (totalRoll >= 7) {
-                    // SUCESSO AO LEVANTAR
                     const fighter = state.fighters[playerKey];
                     logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}. Ele se levantou!`, 'log-info');
                     io.to(roomId).emit('getUpSuccess', { downedPlayerName: fighter.nome, rollValue: totalRoll });
@@ -723,7 +709,6 @@ io.on('connection', (socket) => {
                     return;
 
                 } else {
-                    // FALHA AO LEVANTAR
                     logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}. Falhou!`, 'log-miss');
                     
                     const maxAttempts = 4;

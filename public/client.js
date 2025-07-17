@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
-    let isGm = false;
+    let isGm = false; // Nova variável para identificar o GM
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
         const target = event.target.closest('button');
         if (!target || target.disabled) return;
+
         const move = target.dataset.move;
         if (move) {
             if (move === 'Counter') {
@@ -178,26 +179,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
     function onConfirmSelection() {
         const selectedCard = document.querySelector('.char-card.selected');
-        if (!selectedCard) {
-            alert('Por favor, selecione um lutador!');
-            return;
-        }
-
+        if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
+        
         const charName = selectedCard.dataset.name;
-        let playerData = {
-            nome: charName,
-            img: selectedCard.dataset.img
-        };
-
+        let playerData = { nome: charName, img: selectedCard.dataset.img };
+        
         if (myPlayerKey === 'player1' && !currentRoomId) {
-            // Modo Clássico (Criação do Jogo)
-            // Busca os dados diretamente do objeto, em vez de ler do DOM.
             const charStats = CHARACTERS_P1[charName];
-            if (!charStats) {
-                alert('Erro: Não foi possível encontrar os dados do personagem selecionado.');
+            if(!charStats) {
+                alert('Erro: dados do personagem não encontrados.');
                 return;
             }
             playerData.agi = charStats.agi;
@@ -205,16 +197,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             confirmBtn.disabled = true;
             socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
-
         } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-            // Modo Arena (Jogador entrando)
-            confirmBtn.disabled = true;
-            socket.emit('selectArenaCharacter', { character: playerData });
-            showScreen(lobbyScreen);
-            lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
-
+             confirmBtn.disabled = true;
+             socket.emit('selectArenaCharacter', { character: playerData });
+             showScreen(lobbyScreen);
+             lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
         } else {
-            // Modo Clássico (Jogador 2 entrando)
             confirmBtn.disabled = true;
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
@@ -225,26 +213,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderCharacterSelection(playerType) {
         charListContainer.innerHTML = '';
         const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
-
         for (const name in charData) {
             const stats = charData[name];
             const card = document.createElement('div');
             card.className = 'char-card';
             card.dataset.name = name;
             card.dataset.img = `images/${name}.png`;
-
-            // Simplificado para sempre mostrar os stats como texto, correspondendo ao vídeo.
             const statsHtml = `<div class="char-stats-display">AGI: ${stats.agi} | RES: ${stats.res}</div>`;
-
             card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
-            card.addEventListener('click', () => {
-                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
-            });
+            card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
             charListContainer.appendChild(card);
         }
     }
-    // --- FIM DA ALTERAÇÃO ---
 
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
@@ -254,15 +234,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'special-move-card';
             card.dataset.name = moveName;
-
             let detailsHtml = `<p>Custo: ${moveData.cost} PA</p>`;
-            if (moveData.damage !== undefined) {
-                detailsHtml += `<p>Dano: ${moveData.damage}</p>`;
-            }
-            if (moveData.penalty !== undefined) {
-                detailsHtml += `<p>Penalidade: ${moveData.penalty}</p>`;
-            }
-            
+            if (moveData.damage !== undefined) detailsHtml += `<p>Dano: ${moveData.damage}</p>`;
+            if (moveData.penalty !== undefined) detailsHtml += `<p>Penalidade: ${moveData.penalty}</p>`;
             card.innerHTML = `<h4>${displayName}</h4>${detailsHtml}`;
             card.addEventListener('click', () => card.classList.toggle('selected'));
             container.appendChild(card);
@@ -274,9 +248,8 @@ document.addEventListener('DOMContentLoaded', () => {
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableMoves);
         specialMovesModal.classList.remove('hidden');
-        showScreen(selectionScreen); 
+        showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
-
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
