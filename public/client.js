@@ -474,64 +474,72 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isPlayer) { actionWrapper.classList.add('hidden'); } 
         else { actionWrapper.classList.remove('hidden'); }
         
-        // --- INÍCIO DA ALTERAÇÃO ---
-        // Lógica de botões refatorada para maior clareza e correção de bugs
-        p1Controls.classList.add('hidden');
-        p2Controls.classList.add('hidden');
-
-        if (isPlayer && state.phase !== 'paused' && state.fighters.player1 && state.fighters.player2) {
-            const myFighter = state.fighters[myPlayerKey];
-            const myControls = (myPlayerKey === 'player1') ? p1Controls : p2Controls;
-            myControls.classList.remove('hidden');
-
-            const isMyTurn = state.whoseTurn === myPlayerKey;
+        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
+        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
+        
+        // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
+        if (state.phase !== 'paused' && state.fighters.player1 && state.fighters.player2) {
             const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
-            const iAmInCounterStance = state.counterStance && state.counterStance.playerKey === myPlayerKey;
-
-            myControls.querySelectorAll('button').forEach(btn => {
+            
+            // Lógica para os botões do Jogador 1
+            const p1 = state.fighters.player1;
+            const p1_is_turn = state.whoseTurn === 'player1';
+            const p1_is_in_counter = state.counterStance && state.counterStance.playerKey === 'player1';
+            
+            p1Controls.querySelectorAll('button').forEach(btn => {
                 const moveName = btn.dataset.move;
-                
-                // Botão de Encerrar Turno
-                if (!moveName) {
-                    btn.disabled = !isMyTurn || !isActionPhase || state.phase === 'white_fang_follow_up';
+                if (!moveName) { // Botão de Encerrar Turno
+                    btn.disabled = !p1_is_turn || !isActionPhase || state.phase === 'white_fang_follow_up';
                     return;
                 }
-
                 const move = state.moves[moveName];
-                if (!move) return;
-                const hasEnoughPA = myFighter.pa >= move.cost;
+                const hasEnoughPA = p1.pa >= move.cost;
 
-                // Botão de Contra-Ataque
                 if (moveName === 'Counter') {
-                    // Desabilita se: é o meu turno, não tenho PA, ou já estou em postura de contra-ataque.
-                    btn.disabled = isMyTurn || !hasEnoughPA || iAmInCounterStance;
-                    
-                    if (iAmInCounterStance) {
-                        btn.textContent = 'Aguardando...';
-                    } else {
-                        const displayName = move.displayName || moveName;
-                        btn.textContent = `${displayName} (${move.cost} PA)`;
-                    }
-                } 
-                // Botões de Ataque Normais
-                else {
-                    // Desabilita se: não é meu turno, não estamos em fase de ação, ou não tenho PA.
-                    let isDisabled = !isMyTurn || !isActionPhase || !hasEnoughPA;
-                    if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') {
-                        isDisabled = true;
-                    }
+                    btn.disabled = p1_is_turn || !hasEnoughPA || p1_is_in_counter;
+                    if (p1_is_in_counter) { btn.textContent = 'Aguardando...'; } 
+                    else { btn.textContent = `${move.displayName || moveName} (${move.cost} PA)`; }
+                } else {
+                    let isDisabled = !p1_is_turn || !isActionPhase || !hasEnoughPA;
+                    if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') isDisabled = true;
                     btn.disabled = isDisabled;
                 }
             });
 
-            // Botão de Desistência
-            document.getElementById('forfeit-btn').disabled = !isMyTurn || !isActionPhase;
+            // Lógica para os botões do Jogador 2
+            const p2 = state.fighters.player2;
+            const p2_is_turn = state.whoseTurn === 'player2';
+            const p2_is_in_counter = state.counterStance && state.counterStance.playerKey === 'player2';
+
+            p2Controls.querySelectorAll('button').forEach(btn => {
+                const moveName = btn.dataset.move;
+                if (!moveName) { // Botão de Encerrar Turno
+                    btn.disabled = !p2_is_turn || !isActionPhase || state.phase === 'white_fang_follow_up';
+                    return;
+                }
+                const move = state.moves[moveName];
+                const hasEnoughPA = p2.pa >= move.cost;
+
+                if (moveName === 'Counter') {
+                    btn.disabled = p2_is_turn || !hasEnoughPA || p2_is_in_counter;
+                    if (p2_is_in_counter) { btn.textContent = 'Aguardando...'; }
+                    else { btn.textContent = `${move.displayName || moveName} (${move.cost} PA)`; }
+                } else {
+                    let isDisabled = !p2_is_turn || !isActionPhase || !hasEnoughPA;
+                    if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') isDisabled = true;
+                    btn.disabled = isDisabled;
+                }
+            });
+
+            // Lógica para o botão de desistir
+            const myTurn = state.whoseTurn === myPlayerKey;
+            document.getElementById('forfeit-btn').disabled = !myTurn || !isActionPhase;
+
         } else if (isPlayer && state.phase === 'paused' && !isGm) {
-            // Se o jogo está pausado para um não-GM, desabilita tudo.
-             const myControls = (myPlayerKey === 'player1') ? p1Controls : p2Controls;
-             myControls.classList.remove('hidden');
-             myControls.querySelectorAll('button').forEach(b => b.disabled = true);
-             document.getElementById('forfeit-btn').disabled = true;
+            // Desabilita tudo se estiver pausado para um não-GM
+            p1Controls.querySelectorAll('button').forEach(b => b.disabled = true);
+            p2Controls.querySelectorAll('button').forEach(b => b.disabled = true);
+            document.getElementById('forfeit-btn').disabled = true;
         }
         // --- FIM DA ALTERAÇÃO ---
 
