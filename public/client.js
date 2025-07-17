@@ -257,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableMoves);
+        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -432,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const fighter = state.fighters[key];
             if (fighter) {
                 document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
-                if (fighter.hpMax) {
+                if (typeof fighter.hp === 'number') { // Check if fighter data is loaded
                     const totalDef = fighter.def + fighter.tempDefBuff;
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
                     document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
@@ -458,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (state.phase.startsWith('arena_')) {
             roundInfoEl.innerHTML = `Aguardando início...`;
         } else {
-            const turnName = state.whoseTurn ? (state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...') : '...';
+            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
         }
         
@@ -469,78 +469,69 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
 
-        // --- PARTE 2: ATUALIZAÇÕES DE CONTROLE ---
-        p1SpecialMovesContainer.innerHTML = '';
-        p2SpecialMovesContainer.innerHTML = '';
+        // --- PARTE 2: ATUALIZAÇÕES DE CONTROLE (ESPECÍFICAS PARA O JOGADOR ATUAL) ---
+        const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
+        document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer);
+        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
+        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         
-        ['player1', 'player2'].forEach(playerKey => {
-            const fighter = state.fighters[playerKey];
-            const controls = document.getElementById(`${playerKey}-controls`);
-            const specialMovesContainer = document.getElementById(`${playerKey}-special-moves`);
+        if (isPlayer) {
+            const myControls = document.getElementById(`${myPlayerKey}-controls`);
+            const myFighter = state.fighters[myPlayerKey];
+            const specialMovesContainer = document.getElementById(`${myPlayerKey}-special-moves`);
 
-            if (!controls || !fighter) return;
+            if (myControls && myFighter) {
+                specialMovesContainer.innerHTML = '';
+                if (myFighter.specialMoves) {
+                    myFighter.specialMoves.forEach(moveName => {
+                        const moveData = state.moves[moveName];
+                        if (!moveData) return;
+                        const displayName = moveData.displayName || moveName;
+                        const btn = document.createElement('button');
+                        btn.className = `action-btn special-btn-${myPlayerKey}`;
+                        btn.dataset.move = moveName;
+                        btn.textContent = `${displayName} (${moveData.cost} PA)`;
+                        specialMovesContainer.appendChild(btn);
+                    });
+                }
 
-            // Renderiza golpes especiais (se houver)
-            if (fighter.specialMoves) {
-                fighter.specialMoves.forEach(moveName => {
-                    const moveData = state.moves[moveName];
-                    if (!moveData) return; 
-                    const displayName = moveData.displayName || moveName;
-                    const btn = document.createElement('button');
-                    btn.className = `action-btn special-btn-${playerKey}`;
-                    btn.dataset.move = moveName;
-                    btn.textContent = `${displayName} (${moveData.cost} PA)`;
-                    specialMovesContainer.appendChild(btn);
-                });
-            }
+                const allMyButtons = myControls.querySelectorAll('button');
+                const isMyTurn = state.whoseTurn === myPlayerKey;
 
-            // Lógica para habilitar/desabilitar TODOS os botões do painel
-            const allButtonsInPanel = controls.querySelectorAll('button');
-            const isThisPlayersTurn = state.whoseTurn === playerKey;
+                allMyButtons.forEach(btn => {
+                    let isDisabled = true;
+                    if (state.phase === 'paused' && !isGm) {
+                        btn.disabled = true;
+                        return;
+                    }
 
-            allButtonsInPanel.forEach(btn => {
-                let isDisabled = true; // Botões começam desabilitados
-                
-                // Apenas o jogador dono do painel pode ter botões habilitados
-                if (playerKey === myPlayerKey) {
                     const moveName = btn.dataset.move;
                     if (moveName) {
                         const move = state.moves[moveName];
                         if (move) {
-                            const hasEnoughPA = fighter.pa >= move.cost;
+                            const hasEnoughPA = myFighter.pa >= move.cost;
                             if (move.reaction) {
-                                // Habilita se NÃO for meu turno, tenho PA, e nenhuma reação está ativa
-                                isDisabled = isThisPlayersTurn || !hasEnoughPA || state.reactiveState !== null || state.phase !== 'turn';
-                            } else { // Golpes de ataque
+                                isDisabled = isMyTurn || !hasEnoughPA || state.reactiveState !== null || state.phase !== 'turn';
+                            } else {
                                 if (state.phase === 'white_fang_follow_up') {
-                                    // Habilita apenas se for meu turno e o golpe for White Fang
-                                    isDisabled = !isThisPlayersTurn || moveName !== 'White Fang';
+                                    isDisabled = !isMyTurn || moveName !== 'White Fang';
                                 } else {
-                                    // Habilita se for meu turno e tenho PA
-                                    isDisabled = !isThisPlayersTurn || !hasEnoughPA || state.phase !== 'turn';
+                                    isDisabled = !isMyTurn || !hasEnoughPA || state.phase !== 'turn';
                                 }
                             }
                         }
                     } else if (btn.classList.contains('end-turn-btn')) {
-                        isDisabled = !isThisPlayersTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
+                        isDisabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
                     }
-                }
-                
-                btn.disabled = isDisabled;
-            });
-        });
+                    btn.disabled = isDisabled;
+                });
+            }
 
-        // Lógica separada para o botão de desistir
-        const forfeitBtn = document.getElementById('forfeit-btn');
-        const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
-        if (forfeitBtn && isPlayer) {
-            forfeitBtn.disabled = state.whoseTurn !== myPlayerKey || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
+            const forfeitBtn = document.getElementById('forfeit-btn');
+            if(forfeitBtn) {
+                 forfeitBtn.disabled = state.whoseTurn !== myPlayerKey || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
+            }
         }
-
-        // Garante que os painéis de controle fiquem visíveis apenas para o jogador correto
-        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
-        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
-        document.getElementById('utility-buttons').classList.toggle('hidden', !isPlayer);
     }
 
 
