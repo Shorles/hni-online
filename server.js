@@ -78,11 +78,11 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
-// --- INÍCIO DA ALTERAÇÃO ---
-function resolveCounterAttack(state, attackerKey, countererKey, move, io, roomId) {
+// --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
+function resolveCounterAttack(state, attackerKey, countererKey, move, moveName, io, roomId) {
     const attacker = state.fighters[attackerKey];
     const counterer = state.fighters[countererKey];
-    const moveDisplayName = move.displayName || action.move; // Usando action.move como fallback
+    const moveDisplayName = move.displayName || moveName;
 
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${moveDisplayName}</span>... mas ${counterer.nome} estava pronto!`, 'log-crit');
@@ -158,8 +158,8 @@ function resolveCounterAttack(state, attackerKey, countererKey, move, io, roomId
         io.to(roomId).emit('playSound', soundToPlay);
     }
 
-    state.counterStance = null; // Reseta a postura de contra-ataque
-    return; // Finaliza a função de contra-ataque
+    state.counterStance = null; 
+    return; 
 }
 // --- FIM DA ALTERAÇÃO ---
 
@@ -592,23 +592,19 @@ io.on('connection', (socket) => {
                 state.phase = 'initiative_p1';
                 break;
 
-            // --- INÍCIO DA ALTERAÇÃO ---
             case 'attack':
                 const moveName = action.move;
                 const move = state.moves[moveName];
                 const attacker = state.fighters[playerKey];
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
 
-                // Verifica se o defensor está em modo de contra-ataque ANTES de qualquer outra coisa.
                 if (state.counterStance && state.counterStance.playerKey === defenderKey) {
-                    // Se estiver, resolve o contra-ataque e interrompe o fluxo.
-                    // O PA do atacante NÃO é gasto.
-                    resolveCounterAttack(state, playerKey, defenderKey, move, io, roomId);
+                    // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
+                    resolveCounterAttack(state, playerKey, defenderKey, move, moveName, io, roomId);
+                    // --- FIM DA ALTERAÇÃO ---
                     break; 
                 }
 
-                // Se não houver contra-ataque, prossiga com a lógica de ataque normal.
-                // Agora, verifique e gaste o PA do atacante.
                 let cost = move.cost;
                 if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
                     cost = 0;
@@ -616,7 +612,6 @@ io.on('connection', (socket) => {
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
 
-                // Lógica especial para Flicker Jab
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
@@ -638,13 +633,11 @@ io.on('connection', (socket) => {
                         }
                     };
                     executeFlicker();
-                    return; // Retorna para não executar o ataque normal abaixo
+                    return;
                 }
                 
-                // Executa um ataque normal
                 executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
 
-                // Lógica especial para White Fang
                 if (moveName === 'White Fang') {
                     if (state.followUpState) {
                         state.followUpState = null;
@@ -659,7 +652,6 @@ io.on('connection', (socket) => {
                     handleKnockdown(state, defenderKey, io, roomId);
                 }
                 break;
-            // --- FIM DA ALTERAÇÃO ---
             case 'forfeit':
                 const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
                 state.winner = winnerKey;

@@ -54,20 +54,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
     function handlePlayerControlClick(event) {
-        // Apenas verifica se este cliente é um jogador válido.
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
-        // Pega o botão que foi clicado.
         const target = event.target.closest('button'); 
         
-        // Se não foi um botão ou se o botão está desabilitado, não faz nada.
         if (!target || target.disabled) return;
-        
-        // A verificação redundante que causava o bug foi REMOVIDA.
-        // A lógica agora prossegue diretamente para a ação.
-        
+
         const move = target.dataset.move;
         
         if (move) {
@@ -80,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
-    // --- FIM DA ALTERAÇÃO ---
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -494,6 +486,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 const move = state.moves[moveName];
+                // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
+                if (!move) return; // Se o botão não corresponder a um golpe válido, ignora.
+                // --- FIM DA ALTERAÇÃO ---
                 const hasEnoughPA = p1.pa >= move.cost;
 
                 if (moveName === 'Counter') {
@@ -519,6 +514,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 const move = state.moves[moveName];
+                // --- INÍCIO DA ALTERAÇÃO (CORREÇÃO DO BUG) ---
+                if (!move) return; // Se o botão não corresponder a um golpe válido, ignora.
+                // --- FIM DA ALTERAÇÃO ---
                 const hasEnoughPA = p2.pa >= move.cost;
 
                 if (moveName === 'Counter') {
@@ -537,7 +535,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('forfeit-btn').disabled = !myTurn || !isActionPhase;
 
         } else if (isPlayer && state.phase === 'paused' && !isGm) {
-            // Desabilita tudo se estiver pausado para um não-GM
             p1Controls.querySelectorAll('button').forEach(b => b.disabled = true);
             p2Controls.querySelectorAll('button').forEach(b => b.disabled = true);
             document.getElementById('forfeit-btn').disabled = true;
