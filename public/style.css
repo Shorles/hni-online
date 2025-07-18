@@ -204,12 +204,9 @@ body {
 
 /* Regras de Animação */
 @keyframes player1-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(-50px); } }
-
 @keyframes player2-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(50px); } }
-
 @keyframes player1-attack-lunge-arena { 50% { transform: translateX(50px); } }
 @keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(50px); } }
-
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
 .is-hit { animation: hit-flash 0.5s ease-in-out; }
 
@@ -241,16 +238,6 @@ body {
 .defense-display { position: relative; display: flex; justify-content: center; align-items: center; }
 .defense-display img { width: 40px; height: 40px; }
 .defense-text { position: absolute; font-size: 1.2em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
-
-/* Estilo para reação (Counter/Clinch) */
-@keyframes reacting-glow {
-    0%, 100% { box-shadow: 0 0 15px #ffc107; border-color: #ffc107; }
-    50% { box-shadow: 0 0 25px #ffc107, 0 0 10px #fff; border-color: #fff; }
-}
-.fighter-info.is-reacting {
-    animation: reacting-glow 1.5s infinite;
-}
-
 #fight-log-container { flex-basis: 40%; height: 220px; background-color: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
 #round-info { text-align: center; margin-top: 0; border-bottom: 1px solid #fff; padding-bottom: 10px; }
 #fight-log { overflow-y: auto; flex-grow: 1; }
@@ -260,20 +247,28 @@ body {
 .turn-highlight { font-weight: bold; color: #dc3545; }
 .log-move-name { font-weight: bold; font-size: 1.1em; color: #dc3545; }
 .highlight-total { font-weight: bold; font-size: 1.25em; color: #dc3545; }
+/* NOVO: Estilo para o aviso de reação */
+.reaction-highlight { font-size: 0.9em; color: #17a2b8; font-style: italic; }
 
 /* BOTÕES DE AÇÃO */
 #action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-.move-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.move-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; } /* Gap diminuído */
 .special-moves-container { display: contents; } 
+
+/* --- INÍCIO DA ALTERAÇÃO --- */
+/* Tamanho dos botões diminuído */
 .action-btn, .end-turn-btn, #forfeit-btn { 
-    padding: 6px 12px; /* Tamanho reduzido */
-    font-size: 0.85em; /* Fonte reduzida */
+    padding: 6px 12px; 
+    font-size: 0.85em;  
     cursor: pointer; 
     border: none; 
     border-radius: 5px; 
     color: white; 
     transition: background-color 0.2s; 
+    min-width: 110px; /* Largura mínima para consistência */
 }
+/* --- FIM DA ALTERAÇÃO --- */
+
 .end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6f42c1; }
 #forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
@@ -286,8 +281,17 @@ body {
 .special-btn-player1:hover:not(:disabled) { background-color: #218838; }
 .special-btn-player2 { background-color: #20c997; } 
 .special-btn-player2:hover:not(:disabled) { background-color: #1baa80; }
-.illegal-btn { background-color: #a00000; } /* Cor para golpe ilegal */
-.illegal-btn:hover:not(:disabled) { background-color: #c00000; }
+
+/* NOVO: Estilo para o botão de Golpe Ilegal */
+.illegal-btn {
+    background-color: #b30000 !important;
+    border: 1px solid #ff4d4d;
+    box-shadow: 0 0 5px #dc3545;
+}
+.illegal-btn:hover:not(:disabled) {
+    background-color: #800000 !important;
+}
+
 
 /* BOTÕES DE ROLAGEM */
 .roll-dice-button { position: absolute; bottom: 450px; padding: 10px 15px; font-size: 1em; font-weight: bold; border: 2px solid #fff; border-radius: 8px; cursor: pointer; z-index: 100; transition: all 0.2s ease; }
@@ -339,37 +343,6 @@ body {
 #get-up-success-content { background: rgba(0, 0, 0, 0.85); color: #28a745; padding: 25px 40px; border-radius: 15px; border: 3px solid #28a745; text-align: center; font-size: 1.8em; font-weight: bold; text-shadow: 1px 1px 2px #000; }
 #get-up-success-content span { color: #aaa; font-size: 0.7em; display: block; margin-top: 10px; }
 
-/* Mensagens do sistema (Penalidade, etc) */
-#system-message-container {
-    position: absolute;
-    top: 40%;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 5000;
-    pointer-events: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-}
-.system-message {
-    padding: 15px 25px;
-    border-radius: 10px;
-    font-size: 1.5em;
-    font-weight: bold;
-    color: white;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
-    opacity: 1;
-    transition: opacity 1s ease-out;
-}
-.system-message.penalty {
-    background-color: rgba(220, 53, 69, 0.85); /* Vermelho */
-    border: 2px solid #ffc107;
-}
-.system-message.fade-out {
-    opacity: 0;
-}
-
 
 /* ==========================================================================
    INÍCIO DAS REGRAS DE RESPONSIVIDADE PARA CELULARES
@@ -378,67 +351,59 @@ body {
 @media screen and (max-width: 800px) {
     
     body {
-        /* Permite que o body role se o conteúdo for maior que a tela */
         overflow: auto;
     }
 
     #game-wrapper {
-        /* Desativa o escalonamento via JS e faz o wrapper preencher a tela do celular */
         transform: none !important;
         width: 100% !important;
         height: 100% !important;
         left: 0 !important;
         top: 0 !important;
         position: relative;
-        overflow-y: auto; /* Permite rolar o conteúdo interno */
+        overflow-y: auto;
         overflow-x: hidden;
     }
     
     #fight-screen {
-        /* Garante que a tela de luta ocupe todo o espaço disponível */
         height: auto;
         min-height: 100%;
-        padding-bottom: 20px; /* Espaço no final */
+        padding-bottom: 20px;
     }
 
-    /* Reposiciona os lutadores para o layout móvel */
     .fighter-img {
-        position: relative; /* Tira do posicionamento absoluto */
+        position: relative;
         width: 120px;
         height: 120px;
         bottom: auto;
         left: auto;
         right: auto;
-        margin: 10px auto; /* Centraliza horizontalmente */
+        margin: 10px auto;
         z-index: 1;
     }
 
-    /* Garante que a transformação de espelho seja desfeita para um layout consistente */
     .mode-classic #player1-fight-img,
     .mode-classic #player2-fight-img,
     .mode-arena #player2-fight-img {
         transform: scaleX(1);
     }
 
-    /* A UI principal não fica mais fixa no rodapé */
     #fight-ui-wrapper {
         position: relative;
         width: 100%;
-        padding: 0 5px; /* Reduz o padding lateral */
+        padding: 0 5px;
         gap: 10px;
     }
 
-    /* Empilha os painéis de Info e o Log verticalmente */
     .fight-ui-container {
         flex-direction: column;
         align-items: center;
         gap: 10px;
     }
 
-    /* Faz os painéis de info ocuparem a largura da tela */
     .fighter-info {
         width: 95%;
-        flex-basis: auto; /* Reseta a base do flexbox */
+        flex-basis: auto;
         padding: 8px;
     }
     
@@ -446,31 +411,28 @@ body {
         font-size: 1.2em;
     }
 
-    /* Move o log para baixo dos painéis dos jogadores */
     #fight-log-container {
-        order: 3; /* P1 e P2 info terão ordem 0 por padrão */
+        order: 3;
         width: 95%;
-        height: 150px; /* Altura fixa para o log */
+        height: 150px;
         font-size: 0.9em;
     }
 
-    /* Ajusta os botões para toque */
     .action-btn, .end-turn-btn, #forfeit-btn {
-        padding: 12px 10px;
-        font-size: 1em;
-        flex-grow: 1; /* Faz os botões crescerem para preencher o espaço */
-        flex-basis: 30%; /* Tenta colocar 3 botões por linha */
+        padding: 10px 8px; /* Ajustado para melhor toque */
+        font-size: 0.9em;  /* Ajustado para caber mais texto */
+        flex-grow: 1;
+        flex-basis: 30%;
     }
 
     #p1-special-moves, #p2-special-moves {
         width: 100%;
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 8px;
         justify-content: center;
     }
     
-    /* Tira os botões de rolagem do posicionamento absoluto */
     .roll-dice-button {
         position: relative;
         bottom: auto;
@@ -488,7 +450,6 @@ body {
         right: auto;
     }
 
-    /* Ajusta os modais para telas menores */
     #modal-content, #special-moves-content {
         width: 90vw;
         min-width: 90vw;
@@ -496,10 +457,9 @@ body {
     }
 
     #special-moves-list {
-        max-height: 50vh; /* Limita a altura da lista de golpes */
+        max-height: 50vh;
     }
 
-    /* Ajustes específicos para as telas de seleção iniciais */
     #mode-selection-screen h1 { font-size: 2.5em; text-align: center; }
     #mode-selection-screen h2 { font-size: 1.5em; text-align: center; }
     .mode-buttons-container { flex-direction: column; gap: 20px; }

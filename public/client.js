@@ -55,49 +55,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handlePlayerControlClick(event) {
-        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
+        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
 
         const target = event.target.closest('button');
         if (!target || target.disabled) return;
 
-        const isMyControl = (myPlayerKey === 'player1' && p1Controls.contains(target)) || (myPlayerKey === 'player2' && p2Controls.contains(target));
-        if (!isMyControl) return;
-
         const move = target.dataset.move;
-        if (!move) {
-            if (target.id === 'p1-end-turn-btn' || target.id === 'p2-end-turn-btn') {
+        const isReaction = target.dataset.reaction === 'true';
+
+        // --- LÓGICA DE CLIQUE ALTERADA ---
+        const isMyTurn = currentGameState && currentGameState.whoseTurn === myPlayerKey;
+
+        if (isReaction && !isMyTurn) {
+            // Se é um golpe de reação e NÃO é meu turno, permite o clique.
+            socket.emit('playerAction', { type: 'reaction', move: move, playerKey: myPlayerKey });
+        } else if (isMyTurn) {
+            // Se é meu turno, permite cliques em botões normais e de encerrar turno.
+            if (move) {
+                if (move === 'Golpe Ilegal') {
+                    showIllegalMoveConfirmation();
+                } else {
+                    socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+                }
+            } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) {
                 socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
             }
-            return;
         }
-
-        const moveData = currentGameState.moves[move];
-        if (!moveData) return;
-
-        if (move === 'Golpe Ilegal') {
-            const myFighter = currentGameState.fighters[myPlayerKey];
-            if (myFighter && myFighter.pa >= moveData.cost) {
-                showIllegalMoveConfirmation();
-            }
-            return;
-        }
-
-        if (moveData.reaction) {
-            socket.emit('playerAction', { type: 'set_reaction', move: move, playerKey: myPlayerKey });
-        } else {
-            socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-        }
+        // Ignora cliques em botões de ataque normais fora do turno.
     }
     
+    // NOVO: Modal de confirmação para golpe ilegal
+    function showIllegalMoveConfirmation() {
+        const modalContentHtml = `<p>Golpes ilegais são efetivos, mas podem gerar perda de pontos ou desqualificação imediata. Deseja continuar?</p>
+        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+            <button id="confirm-illegal-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, usar golpe</button>
+            <button id="cancel-illegal-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, cancelar</button>
+        </div>`;
+        showInfoModal("Aviso de Golpe Ilegal", modalContentHtml);
+        document.getElementById('confirm-illegal-btn').onclick = () => {
+            socket.emit('playerAction', { type: 'attack', move: 'Golpe Ilegal', playerKey: myPlayerKey });
+            modal.classList.add('hidden');
+        };
+        document.getElementById('cancel-illegal-btn').onclick = () => modal.classList.add('hidden');
+    }
+
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
         const arenaPlayerKey = urlParams.get('player');
         const isSpectator = urlParams.get('spectate') === 'true';
-
-        let systemMessageContainer = document.createElement('div');
-        systemMessageContainer.id = 'system-message-container';
-        document.body.appendChild(systemMessageContainer);
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn].forEach(btn => btn.classList.add('hidden'));
         
@@ -248,7 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'special-move-card';
             card.dataset.name = moveName;
-            card.innerHTML = `<h4>${displayName}</h4><p>Custo: ${moveData.cost} PA</p><p>Dano: ${moveData.damage || 'N/A'}</p><p>Penalidade: ${moveData.penalty || 0}</p>`;
+            // ATUALIZADO: Mostra se é uma reação
+            const reactionText = moveData.reaction ? '<br><span style="color:#17a2b8;">(Reação)</span>' : '';
+            card.innerHTML = `<h4>${displayName}</h4><p>Custo: ${moveData.cost} PA</p>${moveData.damage > 0 ? `<p>Dano: ${moveData.damage}</p>` : ''}${moveData.penalty > 0 ? `<p>Penalidade: ${moveData.penalty}</p>` : ''}${reactionText}`;
             card.addEventListener('click', () => card.classList.toggle('selected'));
             container.appendChild(card);
         }
@@ -257,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableMoves);
+        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -361,9 +369,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
+
     socket.on('gameUpdate', (gameState) => {
         const oldPhase = currentGameState ? currentGameState.phase : null;
-        
         currentGameState = gameState;
         
         const wasPaused = oldPhase === 'paused';
@@ -415,34 +423,44 @@ document.addEventListener('DOMContentLoaded', () => {
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
     function updateUI(state) {
-        // --- PARTE 1: ATUALIZAÇÕES GERAIS DE UI (VISÍVEIS PARA TODOS) ---
         if (state.scenario) {
             gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
         }
 
-        const p1Area = document.getElementById('player1-area');
-        const p2Area = document.getElementById('player2-area');
-        p1Area.classList.remove('is-reacting');
-        p2Area.classList.remove('is-reacting');
-        if (state.reactiveState) {
-            document.getElementById(`${state.reactiveState.playerKey}-area`).classList.add('is-reacting');
-        }
+        p1SpecialMovesContainer.innerHTML = '';
+        p2SpecialMovesContainer.innerHTML = '';
 
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
             if (fighter) {
                 document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
                 if (fighter.hpMax) {
-                    const totalDef = fighter.def + fighter.tempDefBuff;
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
                     document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
-                    document.getElementById(`${key}-def-text`).innerText = totalDef;
+                    document.getElementById(`${key}-def-text`).innerText = fighter.def;
                     document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
                     document.getElementById(`${key}-knockdowns`).innerText = fighter.knockdowns;
                     document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
+                    // NOVO: Exibe deduções de pontos
+                    document.getElementById(`${key}-point-deductions`).innerText = fighter.pointDeductions;
                     document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
                 }
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
+
+                if (fighter.specialMoves) {
+                    const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
+                    fighter.specialMoves.forEach(moveName => {
+                        const moveData = state.moves[moveName];
+                        if (!moveData) return; 
+                        const displayName = moveData.displayName || moveName;
+                        const btn = document.createElement('button');
+                        btn.className = `action-btn special-btn-${key}`;
+                        btn.dataset.move = moveName;
+                        btn.dataset.reaction = moveData.reaction || false;
+                        btn.textContent = `${displayName} (${moveData.cost} PA)`;
+                        container.appendChild(btn);
+                    });
+                }
             } else if (key === 'player2' && state.pendingP2Choice) {
                 document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img;
             }
@@ -453,105 +471,90 @@ document.addEventListener('DOMContentLoaded', () => {
             roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
         } else if (state.phase === 'gameover') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
-        } else if (state.phase === 'decision_table_wait' || state.phase === 'gm_disqualification_decision') {
-            roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
+        } else if (state.phase === 'decision_table_wait') {
+            roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
         } else if (state.phase.startsWith('arena_')) {
             roundInfoEl.innerHTML = `Aguardando início...`;
         } else {
-            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...';
+            const turnName = state.whoseTurn ? (state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
+            if (state.reactionState) {
+                const reactorName = state.fighters[state.reactionState.playerKey].nome;
+                const reactionMoveName = state.moves[state.reactionState.move].displayName || state.reactionState.move;
+                roundInfoEl.innerHTML += `<br><span class="reaction-highlight">${reactorName} está em modo de ${reactionMoveName}!</span>`;
+            }
         }
         
-        p1Area.classList.toggle('active-turn', state.whoseTurn === 'player1' && state.phase !== 'paused');
-        p2Area.classList.toggle('active-turn', state.whoseTurn === 'player2' && state.phase !== 'paused');
+        document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1' && state.phase !== 'paused');
+        document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2' && state.phase !== 'paused');
         
-        const logBox = document.getElementById('fight-log');
-        logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
-        logBox.scrollTop = logBox.scrollHeight;
-
-        // --- PARTE 2: ATUALIZAÇÕES DE CONTROLE (ESPECÍFICAS PARA JOGADORES) ---
         const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
         const actionWrapper = document.getElementById('action-buttons-wrapper');
+        if (!isPlayer) { actionWrapper.classList.add('hidden'); } 
+        else { actionWrapper.classList.remove('hidden'); }
         
-        if (!isPlayer) {
-            actionWrapper.classList.add('hidden');
-            return; 
-        }
-        actionWrapper.classList.remove('hidden');
-
-        // Renderiza golpes especiais e atualiza o estado dos botões
-        const myFighter = state.fighters[myPlayerKey];
-        if (myFighter) { // Apenas executa se os dados do lutador existirem
-            p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
-            p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
-            
-            const myControls = document.getElementById(`${myPlayerKey}-controls`);
-            const specialMovesContainer = document.getElementById(`${myPlayerKey}-special-moves`);
-            specialMovesContainer.innerHTML = '';
-            if (myFighter.specialMoves) {
-                myFighter.specialMoves.forEach(moveName => {
-                    const moveData = state.moves[moveName];
-                    if (!moveData) return;
-                    const btn = document.createElement('button');
-                    btn.className = `action-btn special-btn-${myPlayerKey}`;
-                    btn.dataset.move = moveName;
-                    btn.textContent = `${moveData.displayName || moveName} (${moveData.cost} PA)`;
-                    specialMovesContainer.appendChild(btn);
-                });
-            }
-            
-            const allMyButtons = myControls.querySelectorAll('button');
-            const isMyTurn = state.whoseTurn === myPlayerKey;
-            
-            allMyButtons.forEach(btn => {
-                let isDisabled = true;
-                if (state.phase === 'paused' && !isGm) {
-                    btn.disabled = true;
-                    return;
-                }
+        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
+        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
+        
+        // --- LÓGICA DE HABILITAR/DESABILITAR BOTÕES REFEITA ---
+        const myControls = document.getElementById(`${myPlayerKey}-controls`);
+        if (myControls) {
+            myControls.querySelectorAll('button').forEach(btn => {
+                let isDisabled = true; // Começa desabilitado por padrão
                 const moveName = btn.dataset.move;
-                if (moveName) {
-                    const move = state.moves[moveName];
-                    if (move) {
-                        const hasEnoughPA = myFighter.pa >= move.cost;
-                        if (move.reaction) {
-                            isDisabled = isMyTurn || !hasEnoughPA || state.reactiveState !== null || state.phase !== 'turn';
-                        } else {
-                            if (state.phase === 'white_fang_follow_up') {
-                                isDisabled = !isMyTurn || moveName !== 'White Fang';
-                            } else {
-                                isDisabled = !isMyTurn || !hasEnoughPA || state.phase !== 'turn';
+                const isReaction = btn.dataset.reaction === 'true';
+                const isEndTurn = btn.classList.contains('end-turn-btn');
+
+                const isMyTurn = state.whoseTurn === myPlayerKey;
+                const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
+                const hasUsedReaction = state.reactionState && state.reactionState.playerKey === myPlayerKey;
+
+                if (isActionPhase) {
+                    if (isReaction && !isMyTurn && !hasUsedReaction) {
+                        // Fora do meu turno, habilita reações se eu ainda não usei uma
+                        const move = state.moves[moveName];
+                        if (move && state.fighters[myPlayerKey].pa >= move.cost) {
+                            isDisabled = false;
+                        }
+                    } else if (isMyTurn && !isReaction) {
+                        // No meu turno, habilita ataques normais e o botão de encerrar
+                        if (isEndTurn) {
+                            isDisabled = false;
+                        } else { // É um botão de ataque
+                            const move = state.moves[moveName];
+                            if (move && state.fighters[myPlayerKey].pa >= move.cost) {
+                                // Lógica específica do White Fang
+                                if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') {
+                                    isDisabled = true;
+                                } else {
+                                    isDisabled = false;
+                                }
                             }
                         }
                     }
-                } else if (btn.classList.contains('end-turn-btn')) {
-                    isDisabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
+                }
+                
+                // Forfeit button
+                document.getElementById('forfeit-btn').disabled = !(isMyTurn && isActionPhase);
+
+                // Pausa do GM sobrepõe tudo
+                if (state.phase === 'paused' && !isGm) {
+                    isDisabled = true;
                 }
                 btn.disabled = isDisabled;
             });
         }
-
-        const forfeitBtn = document.getElementById('forfeit-btn');
-        if (forfeitBtn) {
-            forfeitBtn.disabled = !isPlayer || state.whoseTurn !== myPlayerKey || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
-        }
+        
+        const logBox = document.getElementById('fight-log');
+        logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
+        logBox.scrollTop = logBox.scrollHeight;
     }
-
+    
     function showForfeitConfirmation() {
         const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
         showInfoModal("Jogar a Toalha", modalContentHtml);
         document.getElementById('confirm-forfeit-btn').onclick = () => { socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey }); modal.classList.add('hidden'); };
         document.getElementById('cancel-forfeit-btn').onclick = () => modal.classList.add('hidden');
-    }
-
-    function showIllegalMoveConfirmation() {
-        const modalContentHtml = `<p>Golpes ilegais são efetivos mas podem gerar perda de pontos ou desqualificação imediata.</p><p style="text-align:center; font-weight:bold; margin-top: 15px;">Deseja continuar?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-illegal-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Usar o Golpe</button><button id="cancel-illegal-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Cancelar</button></div>`;
-        showInfoModal("Aviso de Golpe Ilegal", modalContentHtml);
-        document.getElementById('confirm-illegal-btn').onclick = () => { 
-            socket.emit('playerAction', { type: 'attack', move: 'Golpe Ilegal', playerKey: myPlayerKey }); 
-            modal.classList.add('hidden'); 
-        };
-        document.getElementById('cancel-illegal-btn').onclick = () => modal.classList.add('hidden');
     }
 
     function showInfoModal(title, text) {
@@ -576,16 +579,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
-        
         const p1 = currentGameState.fighters.player1;
         const p2 = currentGameState.fighters.player2;
-
-        if (!p1 || !p2) {
-            console.warn("Cheats tentado antes de ambos os lutadores estarem prontos.");
-            socket.emit('playerAction', { type: 'toggle_pause' });
-            return;
-        }
-
+        if (!p1 || !p2) { console.warn("Cheats tentado antes dos lutadores estarem prontos."); socket.emit('playerAction', { type: 'toggle_pause' }); return; }
         const cheatHtml = `
             <div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;">
                 <div id="cheat-p1">
@@ -602,8 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label>HP: <input type="number" id="cheat-p2-hp" value="${p2.hp}"></label><br>
                     <label>PA: <input type="number" id="cheat-p2-pa" value="${p2.pa}"></label><br>
                 </div>
-            </div>
-        `;
+            </div>`;
         showInteractiveModal("Menu de Trapaças (GM)", cheatHtml, "Aplicar e Continuar", null);
         modalButton.onclick = () => {
             const cheats = {
@@ -649,14 +644,11 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
         let btn = document.getElementById(`${targetPlayerKey}-roll-btn`);
         const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
-        
         const newBtn = btn.cloneNode(true);
         btn.parentNode.replaceChild(newBtn, btn);
         btn = newBtn;
-
         btn.innerText = text;
         btn.classList.remove('hidden', 'inactive');
-
         if (isMyTurnToRoll) {
             btn.onclick = () => { btn.disabled = true; socket.emit('playerAction', action); };
             btn.disabled = false;
@@ -671,15 +663,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => {
         let isMyTurnForAction = myPlayerKey === targetPlayerKey;
-        if (action?.type === 'reveal_winner' && currentGameState.mode === 'arena') {
-            isMyTurnForAction = myPlayerKey === 'host';
-        }
-        if (action?.type === 'confirm_disqualification') {
-            isMyTurnForAction = isGm;
-        }
+        if (modalType === 'disqualification' && isGm) { isMyTurnForAction = true; } // GM sempre pode agir no modal de DQ
+        if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') { isMyTurnForAction = myPlayerKey === 'host'; }
 
         switch(modalType) {
-            case 'gm_knockdown_decision':
+            case 'gm_knockdown_decision': // ... (código existente)
                 if (isGm) {
                     const cheatHtml = `
                         <p>${text}</p>
@@ -694,12 +682,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('gm-last-chance-btn').onclick = () => { socket.emit('playerAction', { type: 'give_last_chance' }); modal.classList.add('hidden'); };
                 }
                 break;
-            case 'gm_disqualification_confirm':
-                if (isMyTurnForAction) {
-                    showInteractiveModal(title, text, btnText, action);
-                } else {
-                    showInfoModal(title, text);
-                }
+            case 'disqualification': // NOVO: Modal para o GM confirmar a DQ
+                if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
+                else { showInfoModal(title, text); }
                 break;
             case 'gameover': showInfoModal(title, text); break;
             case 'decision_table':
@@ -713,45 +698,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 const attempts = knockdownInfo.attempts;
                 const maxAttempts = knockdownInfo.isLastChance ? 5 : 4;
                 const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
-                const countText = attempts === 0 
-                    ? `O juíz começa a contagem: ${counts[0]}`
-                    : `A contagem continua: ${counts[attempts] || counts[counts.length-1]}`;
-
+                const countText = attempts === 0 ? `O juíz começa a contagem: ${counts[0]}` : `A contagem continua: ${counts[attempts] || counts[counts.length-1]}`;
                 let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p>`;
                 
-                if (knockdownInfo.lastRoll) {
-                    modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
-                }
-
+                if (knockdownInfo.lastRoll) { modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; }
                 if (targetPlayerKey === myPlayerKey) {
                     modalTitleText = `Você caiu!`;
                     modalContentText += `<br>Tentativas restantes: ${maxAttempts - attempts}`;
                     showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action);
                 } else {
                      modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p> Aguarde a contagem...`;
-                     if (knockdownInfo.lastRoll) {
-                        modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`;
-                    }
+                     if (knockdownInfo.lastRoll) { modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; }
                     showInfoModal(modalTitleText, modalContentText);
                 }
                 break;
         }
     });
 
-    socket.on('showSystemMessage', ({ message, type }) => {
-        const container = document.getElementById('system-message-container');
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `system-message ${type}`;
-        msgDiv.textContent = message;
-        container.appendChild(msgDiv);
-        setTimeout(() => {
-            msgDiv.classList.add('fade-out');
-            setTimeout(() => {
-                if (container.contains(msgDiv)) {
-                    container.removeChild(msgDiv);
-                }
-            }, 1000);
-        }, 3000);
+    // NOVO: Listener para um modal de info genérico que pode ser disparado pelo servidor
+    socket.on('showInfoModal', ({ title, text }) => {
+        showInfoModal(title, text);
+        // Adiciona um botão OK para fechar, caso não seja fornecido HTML customizado
+        if (!document.getElementById('modal-text').querySelector('button')) {
+            const okButton = document.createElement('button');
+            okButton.textContent = 'OK';
+            okButton.style.marginTop = '15px';
+            okButton.onclick = () => modal.classList.add('hidden');
+            document.getElementById('modal-text').appendChild(okButton);
+        }
     });
 
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
@@ -760,14 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); document.querySelectorAll('button').forEach(btn => btn.disabled = true); });
 
     initialize();
-    const scaleGame = () => {
-        if (window.innerWidth <= 800) return;
-        const w = document.getElementById('game-wrapper'); 
-        const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); 
-        w.style.transform = `scale(${s})`; 
-        w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; 
-        w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; 
-    };
+    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; };
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });

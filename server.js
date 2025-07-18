@@ -10,16 +10,24 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 const games = {};
+
+// --- INÍCIO DAS ALTERAÇÕES ---
+
+// ATUALIZADO: Definições dos Golpes
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
     'Upper': { cost: 3, damage: 6, penalty: 2 },
-    'Liver Blow': { cost: 3, damage: 3, penalty: 1, effects: { drainPa: { chance: 0.3, amount: 1 } } },
-    'Clinch': { cost: 3, reaction: true, defBonus: 2 },
-    'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0, illegal: true }
+    // Alterado: Liver Blow
+    'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
+    // Novo: Golpes de Reação e Ilegal
+    'Clinch': { cost: 3, damage: 0, penalty: 0, reaction: true },
+    'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 }
 };
+
 const SPECIAL_MOVES = {
-    'Counter': { cost: 3, reaction: true },
+    // Alterado: Counter agora é um golpe de reação sem dano/penalidade próprios.
+    'Counter': { cost: 3, damage: 0, penalty: 0, reaction: true },
     'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
     'Smash': { cost: 2, damage: 8, penalty: 3 },
     'Bala': { cost: 1, damage: 2, penalty: 0 },
@@ -35,7 +43,6 @@ const MOVE_SOUNDS = {
     'Direto': ['baseforte01.mp3', 'baseforte02.mp3'],
     'Liver Blow': ['baseforte01.mp3', 'baseforte02.mp3'],
     'Upper': ['baseforte01.mp3', 'baseforte02.mp3'],
-    'Golpe Ilegal': ['especialforte01.mp3', 'especialforte02.mp3'],
     'Counter': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Smash': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Gazelle Punch': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
@@ -43,8 +50,12 @@ const MOVE_SOUNDS = {
     'White Fang': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
     'Flicker Jab': ['Flicker01.mp3', 'Flicker02.mp3', 'Flicker03.mp3'],
     'Bala': ['bala01.mp3', 'bala02.mp3'],
-    'OraOraOra': 'OraOraOra.mp3'
+    'OraOraOra': 'OraOraOra.mp3',
+    'Golpe Ilegal': ['especialforte01.mp3', 'especialforte02.mp3'], // Som de exemplo
+    'Clinch': ['Esquiva.mp3'] // Som de exemplo
 };
+
+// --- FIM DAS ALTERAÇÕES ---
 
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
 
@@ -60,11 +71,12 @@ function createNewGameState() {
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', previousPhase: null, log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
         decisionInfo: null, followUpState: null, scenario: 'Ringue.png',
-        reactiveState: null, // Novo estado para golpes reativos (Counter, Clinch)
         mode: null,
         hostId: null,
         gmId: null,
-        playersReady: { player1: false, player2: false }
+        playersReady: { player1: false, player2: false },
+        // NOVO: Estado para gerenciar reações como Counter e Clinch
+        reactionState: null 
     };
 }
 
@@ -78,71 +90,75 @@ function createNewFighterState(data) {
         nome: data.nome, img: data.img, agi: agi, res: res, originalRes: res,
         hpMax: res * 5, hp: hp, pa: pa, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0,
         specialMoves: data.specialMoves || [],
-        // Novas propriedades para novas mecânicas
+        // NOVO: Atributos para mecânica de Golpe Ilegal
+        pointDeductions: 0,
         illegalMoveUses: 0,
-        illegalMovePenalties: 0,
-        tempDefBuff: 0,
     };
 }
 
 function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
 
+
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
+    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
     const attacker = state.fighters[attackerKey];
     const defender = state.fighters[defenderKey];
     const move = state.moves[moveName];
+    const displayName = move.displayName || moveName;
 
-    // Lógica de Reação: Counter
-    const reaction = state.reactiveState;
-    if (reaction && reaction.playerKey === defenderKey && reaction.moveName === 'Counter') {
-        state.reactiveState = null; // Consome a reação
-        io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
-        io.to(roomId).emit('triggerAttackAnimation', { attackerKey: defenderKey }); // Ambos animam
-        io.to(roomId).emit('playSound', MOVE_SOUNDS['Counter'][0]);
-
-        logMessage(state, `${defender.nome} tenta um <span class="log-move-name">Contra-Ataque</span> contra o <span class="log-move-name">${moveName}</span> de ${attacker.nome}!`, 'log-crit');
+    // --- INÍCIO DA LÓGICA DO COUNTER ---
+    if (state.reactionState && state.reactionState.playerKey === defenderKey && state.reactionState.move === 'Counter') {
+        logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${displayName}</span>, mas ${defender.nome} tenta um <span class="log-move-name">Contra-Ataque</span>!`, 'log-crit');
         
         const attackerRoll = rollAttackD6();
-        const attackerMove = state.moves[moveName];
-        const attackerValue = attackerRoll + attacker.agi - attackerMove.penalty;
-        logMessage(state, `Rolagem de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${attackerMove.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
+        const attackerValue = attackerRoll + attacker.agi - move.penalty;
+        logMessage(state, `Ataque de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
+        
+        const counterRoll = rollAttackD6();
+        const counterValue = counterRoll + defender.agi; // Counter não tem penalidade
+        logMessage(state, `Contra-Ataque de ${defender.nome}: D6(${counterRoll}) + ${defender.agi} AGI = <span class="highlight-result">${counterValue}</span>`, 'log-info');
 
-        const defenderRoll = rollAttackD6();
-        const defenderValue = defenderRoll + defender.agi - 0; // Counter não tem penalidade
-        logMessage(state, `Rolagem de ${defender.nome}: D6(${defenderRoll}) + ${defender.agi} AGI = <span class="highlight-result">${defenderValue}</span>`, 'log-info');
+        const damageToDeal = move.damage * 2;
+        let soundToPlay = 'Critical.mp3';
 
-        const damage = attackerMove.damage * 2;
-
-        if (attackerValue > defenderValue) {
-            logMessage(state, `${attacker.nome} vence a disputa! ${defender.nome} recebe ${damage} de dano!`, 'log-hit');
-            defender.hp = Math.max(0, defender.hp - damage);
-            defender.totalDamageTaken += damage;
-            io.to(roomId).emit('triggerHitAnimation', { defenderKey });
-        } else if (defenderValue > attackerValue) {
-            logMessage(state, `${defender.nome} vence a disputa! ${attacker.nome} recebe ${damage} de dano do seu próprio golpe!`, 'log-hit');
-            attacker.hp = Math.max(0, attacker.hp - damage);
-            attacker.totalDamageTaken += damage;
+        if (counterValue > attackerValue) {
+            logMessage(state, `Sucesso! ${attacker.nome} recebe ${damageToDeal} de dano do seu próprio golpe!`, 'log-crit');
+            const hpBeforeHit = attacker.hp;
+            attacker.hp = Math.max(0, attacker.hp - damageToDeal);
+            attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
             io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
-        } else {
-            logMessage(state, `EMPATE! Ambos se atingem e recebem ${damage} de dano!`, 'log-crit');
-            defender.hp = Math.max(0, defender.hp - damage);
-            defender.totalDamageTaken += damage;
-            attacker.hp = Math.max(0, attacker.hp - damage);
-            attacker.totalDamageTaken += damage;
+            if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
+        } else if (attackerValue > counterValue) {
+            logMessage(state, `Falhou! ${defender.nome} erra o tempo e recebe ${damageToDeal} de dano!`, 'log-crit');
+            const hpBeforeHit = defender.hp;
+            defender.hp = Math.max(0, defender.hp - damageToDeal);
+            defender.totalDamageTaken += hpBeforeHit - defender.hp;
             io.to(roomId).emit('triggerHitAnimation', { defenderKey });
+            if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
+        } else { // Empate
+            logMessage(state, `Empate! Ambos são atingidos no fogo cruzado e recebem ${damageToDeal} de dano!`, 'log-crit');
+            let hpBeforeHit;
+            // Dano no atacante
+            hpBeforeHit = attacker.hp;
+            attacker.hp = Math.max(0, attacker.hp - damageToDeal);
+            attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
+            // Dano no defensor
+            hpBeforeHit = defender.hp;
+            defender.hp = Math.max(0, defender.hp - damageToDeal);
+            defender.totalDamageTaken += hpBeforeHit - defender.hp;
+
             io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
+            io.to(roomId).emit('triggerHitAnimation', { defenderKey: defenderKey });
+            if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
+            if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
         }
-        
-        if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
-        if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
-        
-        return; // Termina a função aqui, pois a lógica do counter substitui o ataque normal
+
+        if (soundToPlay) io.to(roomId).emit('playSound', soundToPlay);
+        state.reactionState = null; // Limpa o estado de reação
+        return; // Pula o resto da função de ataque
     }
-    
-    // Lógica de Ataque Padrão
-    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
-    
-    const displayName = move.displayName || moveName;
+    // --- FIM DA LÓGICA DO COUNTER ---
+
     logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
     
     const roll = rollAttackD6();
@@ -150,11 +166,8 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     let crit = false;
     let soundToPlay = null;
     
-    // Defesa considera bônus temporários (ex: Clinch)
-    const totalDefense = defender.def + defender.tempDefBuff;
-
     const attackValue = roll + attacker.agi - move.penalty;
-    logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${totalDefense})`, 'log-info');
+    logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
     
     if (roll === 1) {
         logMessage(state, "Erro Crítico!", 'log-miss');
@@ -163,7 +176,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         hit = true;
         crit = true;
     } else {
-        if (attackValue >= totalDefense) {
+        if (attackValue >= defender.def) {
             logMessage(state, "Acertou!", 'log-hit');
             hit = true;
         } else {
@@ -194,48 +207,68 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         defender.totalDamageTaken += actualDamageTaken;
         logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
 
-        // Efeitos pós-acerto (ex: Liver Blow)
-        if (move.effects && move.effects.drainPa && Math.random() < move.effects.drainPa.chance) {
-            defender.pa = Math.max(0, defender.pa - move.effects.drainPa.amount);
-            logMessage(state, `O golpe no fígado drena ${move.effects.drainPa.amount} PA de ${defender.nome}!`, 'log-crit');
+        // --- LÓGICA DOS GOLPES ESPECÍFICOS ---
+        // Lógica do Liver Blow (perda de PA)
+        if (moveName === 'Liver Blow' && Math.random() < 0.3) {
+            if (defender.pa > 0) {
+                defender.pa--;
+                logMessage(state, `O golpe no fígado faz ${defender.nome} perder 1 PA!`, 'log-crit');
+            }
         }
-
+        
     } else { // Se o golpe errou
         soundToPlay = 'Esquiva.mp3';
     }
-    
+
+    // --- LÓGICA PÓS-ATAQUE (ACONTECE MESMO SE ERRAR) ---
+    // Lógica do Golpe Ilegal (penalidade/DQ)
+    if (moveName === 'Golpe Ilegal') {
+        const dqChance = 0.05 * Math.pow(2, attacker.illegalMoveUses);
+        attacker.illegalMoveUses++;
+
+        if (Math.random() < dqChance) {
+            // Desqualificação!
+            state.phase = 'gm_disqualification_ack';
+            state.winner = defenderKey;
+            state.reason = `${attacker.nome} foi desqualificado por uso de golpe ilegal.`;
+            logMessage(state, `INACREDITÁVEL! ${state.reason}`, 'log-crit');
+            // A finalização do jogo será tratada pelo GM
+        } else if (Math.random() < 0.5) {
+            // Perda de Ponto
+            attacker.pointDeductions++;
+            logMessage(state, `O juíz viu o golpe ilegal! ${attacker.nome} perde 1 ponto na decisão!`, 'log-crit');
+            io.to(roomId).emit('showInfoModal', { title: "Penalidade!", text: "O juíz penalizou você com a perda de 1 ponto pelo golpe ilegal." });
+        }
+    }
+
     if (soundToPlay) {
         io.to(roomId).emit('playSound', soundToPlay);
     }
     
+    // Reset de reações se um ataque foi feito (Counter já foi resolvido, mas Clinch precisa ser resetado)
+    if (state.reactionState && state.reactionState.move === 'Clinch') {
+         defender.def -= 2; // Remove o bônus do Clinch
+         state.reactionState = null;
+    }
+
     return hit;
 }
 
 function endTurn(state, io, roomId) {
+    // Se o jogador que está encerrando o turno tinha bônus de Clinch, remove
+    const endingPlayerKey = state.whoseTurn;
+    if(state.reactionState && state.reactionState.playerKey === endingPlayerKey && state.reactionState.move === 'Clinch') {
+        state.fighters[endingPlayerKey].def -= 2;
+    }
+
+    // Limpa qualquer estado de reação pendente
+    state.reactionState = null;
+    
     const lastPlayerKey = state.whoseTurn;
-
-    // Limpa estados temporários do jogador que acabou de agir
-    if (state.fighters[lastPlayerKey]) {
-        state.fighters[lastPlayerKey].tempDefBuff = 0;
-    }
-    
     state.followUpState = null;
-    state.reactiveState = null; // Limpa qualquer reação não utilizada
-    
-    // Limpa estado temporário do jogador que vai agir
-    const nextPlayerKey = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
-     if (state.fighters[nextPlayerKey]) {
-        state.fighters[nextPlayerKey].tempDefBuff = 0;
-    }
-
-    state.whoseTurn = nextPlayerKey;
-
+    state.whoseTurn = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
     const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
-    if (lastPlayerWentFirst) { 
-        state.phase = 'turn'; 
-    } else { 
-        processEndRound(state, io, roomId); 
-    }
+    if (lastPlayerWentFirst) { state.phase = 'turn'; } else { processEndRound(state, io, roomId); }
 }
 
 function processEndRound(state, io, roomId) {
@@ -265,10 +298,9 @@ function calculateDecisionScores(state) {
     const p2 = state.fighters.player2;
     let p1Score = 10, p2Score = 10;
     
-    const p1KnockdownPenalty = p1.knockdowns;
-    const p2KnockdownPenalty = p2.knockdowns;
-    p1Score -= p1KnockdownPenalty;
-    p2Score -= p2KnockdownPenalty;
+    // Penalidades existentes
+    const p1KnockdownPenalty = p1.knockdowns, p2KnockdownPenalty = p2.knockdowns;
+    p1Score -= p1KnockdownPenalty; p2Score -= p2KnockdownPenalty;
     
     let p1HitsPenalty = 0, p2HitsPenalty = 0;
     if (p1.hitsLanded < p2.hitsLanded) { p1HitsPenalty = 1; p1Score -= 1; }
@@ -278,9 +310,9 @@ function calculateDecisionScores(state) {
     if (p1.totalDamageTaken > p2.totalDamageTaken) { p1DamagePenalty = 1; p1Score -= 1; }
     else if (p2.totalDamageTaken > p1.totalDamageTaken) { p2DamagePenalty = 1; p2Score -= 1; }
     
-    // Nova penalidade por golpes ilegais
-    const p1IllegalPenalty = p1.illegalMovePenalties;
-    const p2IllegalPenalty = p2.illegalMovePenalties;
+    // NOVO: Penalidade por Golpes Ilegais
+    const p1IllegalPenalty = p1.pointDeductions;
+    const p2IllegalPenalty = p2.pointDeductions;
     p1Score -= p1IllegalPenalty;
     p2Score -= p2IllegalPenalty;
 
@@ -316,19 +348,22 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
 function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
+    const move = state.moves[action.move];
 
-    if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'confirm_disqualification') {
-        return isGm;
-    }
-
-    if (state.phase === 'paused') {
-        return false;
-    }
-
+    if (type === 'toggle_pause' || type === 'apply_cheats') { return isGm; }
+    if (state.phase === 'paused') { return false; }
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
         return (action.type === 'attack' && action.move === 'White Fang') || type === 'end_turn' || type === 'forfeit';
     }
+
+    // Lógica de validação para Reações
+    if (state.phase === 'turn' && move && move.reaction && playerKey !== state.whoseTurn) {
+        if (state.reactionState) return false; // Já existe uma reação ativa
+        const reactor = state.fighters[playerKey];
+        return reactor.pa >= move.cost;
+    }
+    
     switch (state.phase) {
         case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
         case 'p2_stat_assignment': return type === 'set_p2_stats' && playerKey === 'player1';
@@ -336,15 +371,13 @@ function isActionValid(state, action) {
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
-        case 'turn':
-            // Ataque normal ou desistência no próprio turno
-            if ((type === 'attack' || type === 'end_turn' || type === 'forfeit') && playerKey === state.whoseTurn) return true;
-            // Ação reativa no turno do oponente
-            if (type === 'set_reaction' && playerKey !== state.whoseTurn) return true;
-            return false;
+        case 'turn': 
+            if (playerKey !== state.whoseTurn) return false; // Ações de ataque normais só para quem tem o turno
+            return (type === 'attack' || type === 'end_turn' || type === 'forfeit');
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
         case 'gm_decision_knockdown': return (type === 'resolve_knockdown_loss' || type === 'give_last_chance') && isGm;
-        case 'gm_disqualification_decision': return type === 'confirm_disqualification' && isGm;
+        // NOVO: Fase de confirmação de DQ pelo GM
+        case 'gm_disqualification_ack': return type === 'confirm_disqualification' && isGm;
         case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host'));
         case 'arena_configuring': return type === 'configure_and_start_arena' && playerKey === 'host';
         case 'gameover': return false;
@@ -380,13 +413,13 @@ function dispatchAction(room) {
                 });
             }
             return;
-        case 'gm_disqualification_decision':
+        // NOVO: Dispatcher para a confirmação de DQ
+        case 'gm_disqualification_ack':
             if (state.gmId) {
-                const disqualifiedPlayerName = state.fighters[state.reason.player].nome;
-                 io.to(state.gmId).emit('showModal', {
-                    modalType: 'gm_disqualification_confirm',
+                io.to(state.gmId).emit('showModal', {
+                    modalType: 'disqualification',
                     title: "Desqualificação!",
-                    text: `${disqualifiedPlayerName} foi desqualificado por utilizar golpes ilegais.`,
+                    text: state.reason,
                     btnText: "Avançar",
                     action: { type: 'confirm_disqualification' }
                 });
@@ -394,7 +427,8 @@ function dispatchAction(room) {
             return;
         case 'decision_table_wait':
             const info = state.decisionInfo;
-            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Pen. por Golpes Ilegais</td><td style="text-align:center; color: #dc3545;">-${info.p1.illegalPenalty}</td><td style="text-align:center; color: #dc3545;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
+            // ATUALIZADO: Tabela de decisão inclui golpes ilegais
+            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Pen. por Golpes Ilegais</td><td style="text-align:center;">-${info.p1.illegalPenalty}</td><td style="text-align:center;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
             let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
             io.to(roomId).emit('showModal', {
                 modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
@@ -409,7 +443,7 @@ function dispatchAction(room) {
             }
             return;
         case 'gameover':
-            let reason = state.reason.text || state.reason || '';
+            let reason = state.reason || '';
             if (state.winner === 'draw') { reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`; } 
             else if (state.winner) { const winnerName = state.fighters[state.winner].nome; reason += `<br><br><strong style="color: #dc3545; font-size: 1.2em;">VITÓRIA DE ${winnerName.toUpperCase()}</strong>`; }
             else { reason = "Fim de Jogo"; }
@@ -420,7 +454,8 @@ function dispatchAction(room) {
 }
 
 io.on('connection', (socket) => {
-    // --- MODO CLÁSSICO ---
+    // --- LÓGICA DE CONEXÃO E LOBBY (SEM MUDANÇAS SIGNIFICATIVAS) ---
+    // ... (createGame, joinGame, createArenaGame, joinArenaGame, etc. permanecem iguais)
     socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);
         socket.join(newRoomId);
@@ -452,7 +487,6 @@ io.on('connection', (socket) => {
         dispatchAction(room);
     });
 
-    // --- MODO ARENA ---
     socket.on('createArenaGame', ({ scenario }) => {
         const newRoomId = uuidv4().substring(0, 6);
         socket.join(newRoomId);
@@ -504,7 +538,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- GERAL ---
     socket.on('spectateGame', (roomId) => {
         const room = games[roomId];
         if (!room) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
@@ -516,7 +549,7 @@ io.on('connection', (socket) => {
         logMessage(room.state, 'Um espectador entrou na sala.');
         io.to(roomId).emit('gameUpdate', room.state);
     });
-
+    
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId] || !action || !action.type) return;
@@ -526,13 +559,47 @@ io.on('connection', (socket) => {
         
         action.gmSocketId = socket.id;
 
+        // Validação de Reação aqui, pois o tipo da ação é dinâmico
+        const moveName = action.move;
+        const move = state.moves[moveName];
+        if (move && move.reaction) {
+            action.type = moveName; // Muda o tipo da ação para 'Counter', 'Clinch', etc.
+        }
+
         if (!isActionValid(state, action)) {
+            console.log("Ação inválida recebida:", action, "no estado:", state.phase);
             return;
         }
         
         const playerKey = action.playerKey;
 
         switch (action.type) {
+            // --- INÍCIO DAS NOVAS AÇÕES E ALTERAÇÕES ---
+            case 'Clinch':
+                const clincher = state.fighters[playerKey];
+                if (clincher.pa >= move.cost) {
+                    clincher.pa -= move.cost;
+                    clincher.def += 2;
+                    state.reactionState = { playerKey, move: 'Clinch' };
+                    logMessage(state, `${clincher.nome} se prepara para o <span class="log-move-name">Clinch</span>, aumentando sua defesa!`, 'log-info');
+                    io.to(roomId).emit('playSound', MOVE_SOUNDS['Clinch']);
+                }
+                break;
+
+            case 'Counter': // Ação para ATIVAR o modo Counter
+                const counterer = state.fighters[playerKey];
+                if (counterer.pa >= move.cost) {
+                    counterer.pa -= move.cost;
+                    state.reactionState = { playerKey, move: 'Counter' };
+                    logMessage(state, `${counterer.nome} está em posição de <span class="log-move-name">Contra-Ataque</span>!`, 'log-crit');
+                }
+                break;
+            
+            case 'confirm_disqualification':
+                state.phase = 'gameover';
+                break;
+            // --- FIM DAS NOVAS AÇÕES E ALTERAÇÕES ---
+
             case 'toggle_pause':
                 if (state.phase === 'paused') {
                     state.phase = state.previousPhase || 'turn';
@@ -576,11 +643,7 @@ io.on('connection', (socket) => {
                 const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                 state.phase = 'gameover';
                 state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
-                state.reason = { text: finalCountReason };
-                break;
-            
-            case 'confirm_disqualification':
-                state.phase = 'gameover';
+                state.reason = finalCountReason;
                 break;
 
             case 'configure_and_start_arena':
@@ -610,27 +673,8 @@ io.on('connection', (socket) => {
                 logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
                 state.phase = 'initiative_p1';
                 break;
-            
-            case 'set_reaction':
-                const reactionMoveName = action.move;
-                const reactionMove = state.moves[reactionMoveName];
-                const reactor = state.fighters[playerKey];
-
-                if (reactor.pa < reactionMove.cost) return;
-                reactor.pa -= reactionMove.cost;
-                
-                if (reactionMoveName === 'Clinch') {
-                    reactor.tempDefBuff = reactionMove.defBonus;
-                    logMessage(state, `${reactor.nome} entra em <span class="log-move-name">Clinch</span>, aumentando sua defesa!`, 'log-info');
-                } else if (reactionMoveName === 'Counter') {
-                    state.reactiveState = { playerKey, moveName: reactionMoveName };
-                    logMessage(state, `${reactor.nome} prepara um <span class="log-move-name">Contra-Ataque</span>!`, 'log-info');
-                }
-                break;
 
             case 'attack':
-                const moveName = action.move;
-                const move = state.moves[moveName];
                 const attacker = state.fighters[playerKey];
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
 
@@ -639,36 +683,13 @@ io.on('connection', (socket) => {
                     cost = 0;
                 }
                 if (attacker.pa < cost) return;
-                
-                // Lógica do Golpe Ilegal
-                if (move.illegal) {
-                    const dqChance = 0.05 * Math.pow(2, attacker.illegalMoveUses);
-                    attacker.illegalMoveUses++;
-
-                    if (Math.random() < dqChance) {
-                        // Desqualificado
-                        const winner = (playerKey === 'player1') ? 'player2' : 'player1';
-                        state.winner = winner;
-                        state.reason = { player: playerKey };
-                        logMessage(state, `${attacker.nome} FOI DESCLASSIFICADO POR GOLPE ILEGAL!`, 'log-crit');
-                        state.phase = 'gm_disqualification_decision';
-                        break; // Sai do switch
-                    }
-                    if (Math.random() < 0.5) {
-                        // Penalidade de pontos
-                        attacker.illegalMovePenalties++;
-                        logMessage(state, `O Juiz penaliza ${attacker.nome} com a perda de 1 ponto pelo golpe ilegal!`, 'log-miss');
-                        io.to(roomId).emit('showSystemMessage', { message: `O Juiz penalizou ${attacker.nome} com a perda de 1 ponto!`, type: 'penalty'});
-                    }
-                }
-
                 attacker.pa -= cost;
 
                 if (moveName === 'Flicker Jab') {
                     const executeFlicker = () => {
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
                         
-                        executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                        const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
                         io.to(roomId).emit('gameUpdate', room.state);
 
                         if (state.fighters[defenderKey].hp <= 0) {
@@ -677,7 +698,7 @@ io.on('connection', (socket) => {
                             dispatchAction(room);
                             return;
                         }
-                        if (state.log[state.log.length-1].className === 'log-hit') { // Checa se o último golpe acertou
+                        if (hit) {
                             setTimeout(executeFlicker, 700);
                         } else {
                             io.to(roomId).emit('gameUpdate', room.state);
@@ -708,8 +729,8 @@ io.on('connection', (socket) => {
                 const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
                 state.winner = winnerKey;
                 state.phase = 'gameover';
-                state.reason = { text: `${state.fighters[playerKey].nome} jogou a toalha.` };
-                logMessage(state, state.reason.text, 'log-crit');
+                state.reason = `${state.fighters[playerKey].nome} jogou a toalha.`;
+                logMessage(state, state.reason, 'log-crit');
                 break;
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
@@ -747,13 +768,13 @@ io.on('connection', (socket) => {
                 const p2FinalScore = state.decisionInfo.p2.finalScore;
                 if (p1FinalScore > p2FinalScore) {
                     state.winner = 'player1';
-                    state.reason = { text: `Vitória por Decisão (${p1FinalScore} a ${p2FinalScore})` };
+                    state.reason = `Vitória por Decisão (${p1FinalScore} a ${p2FinalScore})`;
                 } else if (p2FinalScore > p1FinalScore) {
                     state.winner = 'player2';
-                    state.reason = { text: `Vitória por Decisão (${p2FinalScore} a ${p1FinalScore})` };
+                    state.reason = `Vitória por Decisão (${p2FinalScore} a ${p1FinalScore})`;
                 } else {
                     state.winner = 'draw';
-                    state.reason = { text: `Empate por Decisão (${p1FinalScore} a ${p2FinalScore})` };
+                    state.reason = `Empate por Decisão (${p1FinalScore} a ${p2FinalScore})`;
                 }
                 state.phase = 'gameover';
                 break;
@@ -768,7 +789,6 @@ io.on('connection', (socket) => {
                 knockdownInfo.lastRoll = totalRoll;
                 
                 if (totalRoll >= 7) {
-                    // SUCESSO AO LEVANTAR
                     const fighter = state.fighters[playerKey];
                     logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}. Ele se levantou!`, 'log-info');
                     io.to(roomId).emit('getUpSuccess', { downedPlayerName: fighter.nome, rollValue: totalRoll });
@@ -783,18 +803,16 @@ io.on('connection', (socket) => {
                         io.to(roomId).emit('gameUpdate', room.state);
                         dispatchAction(room);
                     }, 3000);
-                    return; // Sai da lógica de knockdown
+                    return;
 
                 } else {
-                    // FALHA AO LEVANTAR
                     logMessage(state, `${state.fighters[playerKey].nome} tenta se levantar... Rolagem: ${totalRoll}. Falhou!`, 'log-miss');
                     
                     const maxAttempts = 4;
                     if (knockdownInfo.attempts >= maxAttempts) {
                         if (knockdownInfo.isLastChance) {
-                            // Usou a última chance dada pelo GM e falhou. Fim de jogo.
                             logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
-                            const finalKoReason = { text: "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!" };
+                            const finalKoReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                             setTimeout(() => {
                                 state.phase = 'gameover';
                                 state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
@@ -804,7 +822,6 @@ io.on('connection', (socket) => {
                             }, 1000);
                             return;
                         } else {
-                            // Esgotou as 4 tentativas, hora do GM decidir.
                             state.phase = 'gm_decision_knockdown';
                         }
                     }
@@ -821,7 +838,7 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId]) return;
         const room = games[roomId];
         
-        if (socket.id === room.hostId) {
+        if (socket.id === room.hostId || socket.id === room.gmId) { // GM saindo encerra
             io.to(roomId).emit('opponentDisconnected', { message: 'O Anfitrião encerrou a partida.' });
             delete games[roomId];
             return;
@@ -829,19 +846,9 @@ io.on('connection', (socket) => {
 
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex > -1) {
-            const playerKey = room.players[playerIndex].playerKey;
-            
-            if (room.state.mode === 'arena') {
-                io.to(roomId).emit('opponentDisconnected', { message: `O Jogador ${playerKey === 'player1' ? 1 : 2} se desconectou.`});
-                delete games[roomId];
-                return;
-            }
-            
-            if (room.state.mode === 'classic') {
-                io.to(roomId).emit('opponentDisconnected', { message: 'O oponente se desconectou.' });
-                delete games[roomId];
-                return;
-            }
+            io.to(roomId).emit('opponentDisconnected', { message: 'Um jogador se desconectou.' });
+            delete games[roomId]; // Encerra a partida se um jogador sai
+            return;
         } 
         
         const spectatorIndex = room.spectators.indexOf(socket.id);
