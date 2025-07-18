@@ -439,7 +439,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.reactionState) {
                 const reactorName = state.fighters[state.reactionState.playerKey].nome;
                 const reactionMoveName = state.moves[state.reactionState.move].displayName || state.reactionState.move;
-                roundInfoEl.innerHTML += `<br><span class="reaction-highlight">${reactorName} está em modo de ${reactionMoveName}!</span>`;
+                if(myPlayerKey === state.reactionState.playerKey) { // Só mostra pra quem usou
+                    roundInfoEl.innerHTML += `<br><span class="reaction-highlight">Você está em modo de ${reactionMoveName}!</span>`;
+                }
             }
         }
         
@@ -478,9 +480,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (!isReaction && moveName) {
                         const move = state.moves[moveName];
                         if (move && me.pa >= move.cost) {
-                            isDisabled = (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang');
+                            isDisabled = false;
                         }
                     }
+                    // Correção White Fang: não desabilitar tudo, só o próprio WF se o custo for > PA.
+                    if(state.phase === 'white_fang_follow_up' && moveName === 'White Fang' && me.pa < state.moves['White Fang'].cost) {
+                        // Desabilita o WF normal se não tiver PA, mas permite o de custo 0.
+                        if (state.followUpState) isDisabled = false; // permite o de custo 0
+                        else isDisabled = true; // não tem pa pro primeiro
+                    }
+
                 } else {
                     if (isReaction && !hasUsedReaction && moveName) {
                         const move = state.moves[moveName];
@@ -672,7 +681,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- NOVO LISTENER ---
     socket.on('showGameAlert', (message) => {
         const alertOverlay = document.getElementById('game-alert-overlay');
         const alertContent = document.getElementById('game-alert-content');
