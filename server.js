@@ -11,16 +11,13 @@ app.use(express.static('public'));
 
 const games = {};
 
-// --- INÍCIO DAS ALTERAÇÕES ---
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
     'Upper': { cost: 3, damage: 6, penalty: 2 },
     'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
-    // Alterado: Clinch
     'Clinch': { cost: 2, damage: 0, penalty: 0, reaction: true },
     'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 },
-    // Novo: Esquiva
     'Esquiva': { cost: 1, damage: 0, penalty: 0, reaction: true }
 };
 
@@ -53,7 +50,6 @@ const MOVE_SOUNDS = {
     'Clinch': ['Esquiva.mp3'],
     'Esquiva': ['Esquiva.mp3']
 };
-// --- FIM DAS ALTERAÇÕES ---
 
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
 
@@ -89,8 +85,9 @@ function createNewFighterState(data) {
         specialMoves: data.specialMoves || [],
         pointDeductions: 0,
         illegalMoveUses: 0,
-        // Novo: Efeitos ativos
-        activeEffects: {}
+        activeEffects: {},
+        // NOVO: para armazenar o resultado do dado de defesa
+        defRoll: 0
     };
 }
 
@@ -104,22 +101,16 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     const move = state.moves[moveName];
     const displayName = move.displayName || moveName;
 
-    // --- LÓGICA DO COUNTER ---
     if (state.reactionState && state.reactionState.playerKey === defenderKey && state.reactionState.move === 'Counter') {
         logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${displayName}</span>, mas ${defender.nome} tenta um <span class="log-move-name">Contra-Ataque</span>!`, 'log-crit');
-        
         const attackerRoll = rollAttackD6();
         const attackerValue = attackerRoll + attacker.agi - move.penalty;
         logMessage(state, `Ataque de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
-        
-        // Alterado: Penalidade do golpe do atacante agora se aplica ao contra-ataque.
         const counterRoll = rollAttackD6();
         const counterValue = counterRoll + defender.agi - move.penalty; 
         logMessage(state, `Contra-Ataque de ${defender.nome}: D6(${counterRoll}) + ${defender.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${counterValue}</span>`, 'log-info');
-
         const damageToDeal = move.damage * 2;
         let soundToPlay = 'Critical.mp3';
-
         if (counterValue > attackerValue) {
             logMessage(state, `Sucesso! ${attacker.nome} recebe ${damageToDeal} de dano do seu próprio golpe!`, 'log-crit');
             const hpBeforeHit = attacker.hp;
@@ -134,7 +125,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             defender.totalDamageTaken += hpBeforeHit - defender.hp;
             io.to(roomId).emit('triggerHitAnimation', { defenderKey });
             if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
-        } else { // Empate
+        } else {
             logMessage(state, `Empate! Ambos são atingidos no fogo cruzado e recebem ${damageToDeal} de dano!`, 'log-crit');
             let hpBeforeHit;
             hpBeforeHit = attacker.hp;
@@ -143,13 +134,11 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             hpBeforeHit = defender.hp;
             defender.hp = Math.max(0, defender.hp - damageToDeal);
             defender.totalDamageTaken += hpBeforeHit - defender.hp;
-
             io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
             io.to(roomId).emit('triggerHitAnimation', { defenderKey: defenderKey });
             if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
             if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
         }
-
         if (soundToPlay) io.to(roomId).emit('playSound', soundToPlay);
         state.reactionState = null;
         return;
@@ -236,10 +225,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     if (soundToPlay) {
         io.to(roomId).emit('playSound', soundToPlay);
     }
-    
-    // Removida a lógica de reset do Clinch daqui, agora é no endTurn.
-    // state.reactionState é resetado ao final do ataque APENAS se for um counter.
-    // Clinch e Esquiva permanecem ativos.
 
     return hit;
 }
@@ -247,23 +232,17 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
 
-    // LÓGICA DE FIM DE TURNO PARA REAÇÕES
     if (state.reactionState) {
         const reactionUserKey = state.reactionState.playerKey;
         const reactionUser = state.fighters[reactionUserKey];
-
-        // Se o jogador que usou a reação é o que está terminando o turno do adversário...
         if (reactionUserKey !== lastPlayerKey) {
-            // Remove o bônus de Clinch
             if (state.reactionState.move === 'Clinch') {
                 reactionUser.def -= 3;
             }
-            // Limpa o estado de reação, pois o turno do atacante acabou
             state.reactionState = null;
         }
     }
 
-    // LÓGICA DE GANHO DE PA (Alterado)
     if (state.fighters[lastPlayerKey]) {
         state.fighters[lastPlayerKey].pa += 3;
         logMessage(state, `${state.fighters[lastPlayerKey].nome} recupera 3 PA.`, 'log-info');
@@ -277,14 +256,15 @@ function endTurn(state, io, roomId) {
     if (lastPlayerWentFirst) { 
         state.phase = 'turn'; 
     } else { 
-        // Fim de uma "rodada" completa
-        // Decrementa a duração de efeitos
         Object.values(state.fighters).forEach(fighter => {
             if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
                 fighter.activeEffects.esquiva.duration--;
                 if(fighter.activeEffects.esquiva.duration === 0) {
                     logMessage(state, `O efeito da Esquiva de ${fighter.nome} terminou.`, 'log-info');
                     delete fighter.activeEffects.esquiva;
+                    // Recalcula a defesa de volta para o normal
+                    fighter.def = fighter.defRoll + fighter.res;
+                    logMessage(state, `Defesa de ${fighter.nome} voltou ao normal: ${fighter.def}.`, 'log-info');
                 }
             }
         });
@@ -303,14 +283,11 @@ function processEndRound(state, io, roomId) {
             return;
         }
         state.currentTurn = 1;
-        // Limpa efeitos no final do Round
         Object.values(state.fighters).forEach(f => f.activeEffects = {});
         logMessage(state, `Efeitos de longo prazo foram resetados para o novo round.`, 'log-info');
-
         logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-info');
         state.phase = 'initiative_p1';
     } else {
-        // Lógica de ganho de PA foi movida para endTurn
         logMessage(state, `--- Fim da Rodada ${state.currentTurn - 1} ---`, 'log-turn');
         state.whoseTurn = state.didPlayer1GoFirst ? 'player1' : 'player2';
         state.phase = 'turn';
@@ -367,14 +344,12 @@ function isActionValid(state, action) {
     if (type === 'toggle_pause' || type === 'apply_cheats') { return isGm; }
     if (state.phase === 'paused') { return false; }
     
-    // Corrigido: Lógica de validação do White Fang
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
-        // Permite o segundo White Fang (custo 0), qualquer outro ataque (verificando PA) ou encerrar o turno.
         if (type === 'attack') {
             const fighter = state.fighters[playerKey];
             const moveData = state.moves[action.move];
-            if (action.move === 'White Fang') return true; // Custo já é 0
+            if (action.move === 'White Fang') return true;
             return fighter.pa >= moveData.cost;
         }
         return type === 'end_turn' || type === 'forfeit';
@@ -578,7 +553,7 @@ io.on('connection', (socket) => {
                 const clincher = state.fighters[playerKey];
                 if (clincher.pa >= move.cost) {
                     clincher.pa -= move.cost;
-                    clincher.def += 3; // Custo e bônus alterados
+                    clincher.def += 3;
                     state.reactionState = { playerKey, move: 'Clinch' };
                     logMessage(state, `${clincher.nome} se prepara para o <span class="log-move-name">Clinch</span>, aumentando sua defesa!`, 'log-info');
                     io.to(roomId).emit('playSound', MOVE_SOUNDS['Clinch']);
@@ -589,8 +564,14 @@ io.on('connection', (socket) => {
                  if(esquivador.pa >= move.cost) {
                     esquivador.pa -= move.cost;
                     esquivador.activeEffects.esquiva = { duration: 2 };
+                    
+                    // Lógica de Recálculo Imediato da Defesa
+                    const currentDefRoll = esquivador.defRoll || 0;
+                    const newBaseStat = esquivador.agi;
+                    esquivador.def = currentDefRoll + newBaseStat;
+
                     state.reactionState = { playerKey, move: 'Esquiva' };
-                    logMessage(state, `${esquivador.nome} usa <span class="log-move-name">Esquiva</span>! Sua defesa agora se baseia em AGI.`, 'log-info');
+                    logMessage(state, `${esquivador.nome} usa <span class="log-move-name">Esquiva</span>! Sua defesa foi recalculada para <span class="highlight-total">${esquivador.def}</span>.`, 'log-info');
                     io.to(roomId).emit('playSound', MOVE_SOUNDS['Esquiva']);
                  }
                  break;
@@ -599,7 +580,6 @@ io.on('connection', (socket) => {
                 if (counterer.pa >= move.cost) {
                     counterer.pa -= move.cost;
                     state.reactionState = { playerKey, move: 'Counter' };
-                    // Mensagem de log removida para ser surpresa
                 }
                 break;
             case 'confirm_disqualification':
@@ -674,20 +654,18 @@ io.on('connection', (socket) => {
                 const attacker = state.fighters[playerKey];
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
                 let cost = move.cost;
-                // Corrigido: Custo 0 para White Fang em follow-up
                 if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
                     cost = 0;
                 }
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
                 
-                // Corrigido: Lógica do White Fang
                 if (moveName === 'White Fang') {
                     executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
-                    if (state.followUpState) { // Se usou o segundo golpe
+                    if (state.followUpState) {
                         state.followUpState = null;
                         state.phase = 'turn';
-                    } else { // Se usou o primeiro golpe
+                    } else {
                         state.followUpState = { playerKey, moveName };
                         state.phase = 'white_fang_follow_up';
                     }
@@ -710,10 +688,9 @@ io.on('connection', (socket) => {
                         }
                     };
                     executeFlicker();
-                    return; // Retorna para evitar o gameUpdate/dispatchAction no final
+                    return;
                 } else {
                      executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
-                     // Se um golpe normal foi usado durante o follow-up do White Fang, cancela o follow-up.
                      if (state.phase === 'white_fang_follow_up') {
                         state.followUpState = null;
                         state.phase = 'turn';
@@ -754,9 +731,8 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('playSound', 'dice1.mp3');
                 const defRoll = rollD(3);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
-                
-                // Alterado: Lógica de defesa considera Esquiva
                 const fighter = state.fighters[playerKey];
+                fighter.defRoll = defRoll; // Armazena o resultado do dado
                 let baseStat = fighter.res;
                 let statName = 'RES';
                 if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
@@ -764,10 +740,8 @@ io.on('connection', (socket) => {
                     statName = 'AGI';
                     logMessage(state, `Esquiva está ativa para ${fighter.nome}!`, 'log-info')
                 }
-                
                 fighter.def = defRoll + baseStat;
                 logMessage(state, `${fighter.nome} definiu defesa: D3(${defRoll}) + ${statName}(${baseStat}) = <span class="highlight-total">${fighter.def}</span>`, 'log-info');
-                
                 if (playerKey === 'player1') { state.phase = 'defense_p2'; } 
                 else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
                 break;
