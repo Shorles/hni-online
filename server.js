@@ -270,10 +270,9 @@ function endTurn(state, io, roomId) {
     }
 }
 
-// --- ALTERAÇÃO AQUI ---
 function processEndRound(state, io, roomId) {
     state.currentTurn++;
-    if (state.currentTurn > 4) { // FIM DE ROUND
+    if (state.currentTurn > 4) {
         state.currentRound++;
         if (state.currentRound > 4) {
             calculateDecisionScores(state);
@@ -283,7 +282,6 @@ function processEndRound(state, io, roomId) {
         }
         state.currentTurn = 1;
 
-        // Reset de PA para 3 para ambos os jogadores
         state.fighters.player1.pa = 3;
         state.fighters.player2.pa = 3;
         logMessage(state, `Pontos de Ação de ambos os lutadores foram resetados para 3.`, 'log-info');
@@ -292,13 +290,12 @@ function processEndRound(state, io, roomId) {
         logMessage(state, `Efeitos de longo prazo foram resetados para o novo round.`, 'log-info');
         logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-info');
         state.phase = 'initiative_p1';
-    } else { // FIM DE RODADA
+    } else {
         logMessage(state, `--- Fim da Rodada ${state.currentTurn - 1} ---`, 'log-turn');
         state.whoseTurn = state.didPlayer1GoFirst ? 'player1' : 'player2';
         state.phase = 'turn';
     }
 }
-// --- FIM DA ALTERAÇÃO ---
 
 function calculateDecisionScores(state) {
     const p1 = state.fighters.player1;
@@ -343,6 +340,7 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null, isLastChance: false };
 }
 
+// --- ALTERAÇÃO AQUI ---
 function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
@@ -364,8 +362,15 @@ function isActionValid(state, action) {
     if (state.phase === 'turn' && move && move.reaction && playerKey !== state.whoseTurn) {
         if (state.reactionState) return false;
         const reactor = state.fighters[playerKey];
+
+        // Regra: Não pode usar Clinch se Esquiva estiver ativa
+        if (action.move === 'Clinch' && reactor.activeEffects.esquiva) {
+            return false;
+        }
+
         return reactor.pa >= move.cost;
     }
+
     switch (state.phase) {
         case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
         case 'p2_stat_assignment': return type === 'set_p2_stats' && playerKey === 'player1';
@@ -385,6 +390,7 @@ function isActionValid(state, action) {
         default: return false;
     }
 }
+// --- FIM DA ALTERAÇÃO ---
 
 function dispatchAction(room) {
     if (!room) return;
