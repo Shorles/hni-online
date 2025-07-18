@@ -86,7 +86,6 @@ function createNewFighterState(data) {
         pointDeductions: 0,
         illegalMoveUses: 0,
         activeEffects: {},
-        // NOVO: para armazenar o resultado do dado de defesa
         defRoll: 0
     };
 }
@@ -262,7 +261,6 @@ function endTurn(state, io, roomId) {
                 if(fighter.activeEffects.esquiva.duration === 0) {
                     logMessage(state, `O efeito da Esquiva de ${fighter.nome} terminou.`, 'log-info');
                     delete fighter.activeEffects.esquiva;
-                    // Recalcula a defesa de volta para o normal
                     fighter.def = fighter.defRoll + fighter.res;
                     logMessage(state, `Defesa de ${fighter.nome} voltou ao normal: ${fighter.def}.`, 'log-info');
                 }
@@ -272,9 +270,10 @@ function endTurn(state, io, roomId) {
     }
 }
 
+// --- ALTERAÇÃO AQUI ---
 function processEndRound(state, io, roomId) {
     state.currentTurn++;
-    if (state.currentTurn > 4) {
+    if (state.currentTurn > 4) { // FIM DE ROUND
         state.currentRound++;
         if (state.currentRound > 4) {
             calculateDecisionScores(state);
@@ -283,16 +282,23 @@ function processEndRound(state, io, roomId) {
             return;
         }
         state.currentTurn = 1;
+
+        // Reset de PA para 3 para ambos os jogadores
+        state.fighters.player1.pa = 3;
+        state.fighters.player2.pa = 3;
+        logMessage(state, `Pontos de Ação de ambos os lutadores foram resetados para 3.`, 'log-info');
+
         Object.values(state.fighters).forEach(f => f.activeEffects = {});
         logMessage(state, `Efeitos de longo prazo foram resetados para o novo round.`, 'log-info');
         logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-info');
         state.phase = 'initiative_p1';
-    } else {
+    } else { // FIM DE RODADA
         logMessage(state, `--- Fim da Rodada ${state.currentTurn - 1} ---`, 'log-turn');
         state.whoseTurn = state.didPlayer1GoFirst ? 'player1' : 'player2';
         state.phase = 'turn';
     }
 }
+// --- FIM DA ALTERAÇÃO ---
 
 function calculateDecisionScores(state) {
     const p1 = state.fighters.player1;
@@ -564,12 +570,9 @@ io.on('connection', (socket) => {
                  if(esquivador.pa >= move.cost) {
                     esquivador.pa -= move.cost;
                     esquivador.activeEffects.esquiva = { duration: 2 };
-                    
-                    // Lógica de Recálculo Imediato da Defesa
                     const currentDefRoll = esquivador.defRoll || 0;
                     const newBaseStat = esquivador.agi;
                     esquivador.def = currentDefRoll + newBaseStat;
-
                     state.reactionState = { playerKey, move: 'Esquiva' };
                     logMessage(state, `${esquivador.nome} usa <span class="log-move-name">Esquiva</span>! Sua defesa foi recalculada para <span class="highlight-total">${esquivador.def}</span>.`, 'log-info');
                     io.to(roomId).emit('playSound', MOVE_SOUNDS['Esquiva']);
@@ -732,7 +735,7 @@ io.on('connection', (socket) => {
                 const defRoll = rollD(3);
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const fighter = state.fighters[playerKey];
-                fighter.defRoll = defRoll; // Armazena o resultado do dado
+                fighter.defRoll = defRoll;
                 let baseStat = fighter.res;
                 let statName = 'RES';
                 if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
