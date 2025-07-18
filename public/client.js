@@ -55,36 +55,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handlePlayerControlClick(event) {
-        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
+        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
 
         const target = event.target.closest('button');
         if (!target || target.disabled) return;
 
         const move = target.dataset.move;
-        const isReaction = target.dataset.reaction === 'true';
-
-        // --- LÓGICA DE CLIQUE ALTERADA ---
-        const isMyTurn = currentGameState && currentGameState.whoseTurn === myPlayerKey;
-
-        if (isReaction && !isMyTurn) {
-            // Se é um golpe de reação e NÃO é meu turno, permite o clique.
-            socket.emit('playerAction', { type: 'reaction', move: move, playerKey: myPlayerKey });
-        } else if (isMyTurn) {
-            // Se é meu turno, permite cliques em botões normais e de encerrar turno.
-            if (move) {
-                if (move === 'Golpe Ilegal') {
-                    showIllegalMoveConfirmation();
-                } else {
-                    socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-                }
-            } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) {
-                socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
+        
+        // CORREÇÃO: Lógica de clique agora tem a verificação de PA para o Golpe Ilegal
+        if (move === 'Golpe Ilegal') {
+            const fighter = currentGameState.fighters[myPlayerKey];
+            const moveData = currentGameState.moves['Golpe Ilegal'];
+            if (fighter && moveData && fighter.pa >= moveData.cost) {
+                showIllegalMoveConfirmation();
             }
+        } else if (move) {
+            // Ação de ataque normal ou de reação
+            socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+        } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) {
+            socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
-        // Ignora cliques em botões de ataque normais fora do turno.
     }
     
-    // NOVO: Modal de confirmação para golpe ilegal
     function showIllegalMoveConfirmation() {
         const modalContentHtml = `<p>Golpes ilegais são efetivos, mas podem gerar perda de pontos ou desqualificação imediata. Deseja continuar?</p>
         <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
@@ -100,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initialize() {
+        // ... (código existente sem alterações)
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
         const arenaPlayerKey = urlParams.get('player');
@@ -184,30 +177,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderScenarioSelection(mode = 'classic') {
-        scenarioListContainer.innerHTML = '';
-        Object.entries(SCENARIOS).forEach(([name, fileName]) => {
-            const card = document.createElement('div');
-            card.className = 'scenario-card';
-            card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
-            card.onclick = () => {
-                if (mode === 'classic') {
-                    player1SetupData.scenario = fileName;
-                    showScreen(selectionScreen);
-                    selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
-                    confirmBtn.innerText = 'Confirmar Personagem';
-                    confirmBtn.disabled = false;
-                    renderCharacterSelection('p1', true);
-                } else {
-                    socket.emit('createArenaGame', { scenario: fileName });
-                    showScreen(arenaLobbyScreen);
-                }
-            };
-            scenarioListContainer.appendChild(card);
-        });
-    }
-
     function onConfirmSelection() {
+        // ... (código existente sem alterações)
         const selectedCard = document.querySelector('.char-card.selected');
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
@@ -231,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderCharacterSelection(playerType, showStatsInputs = false) {
+        // ... (código existente sem alterações)
         charListContainer.innerHTML = '';
         const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
         for (const name in charData) {
@@ -247,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderSpecialMoveSelection(container, availableMoves) {
+        // ... (código existente, já modificado na etapa anterior)
         container.innerHTML = '';
         for (const moveName in availableMoves) {
             const moveData = availableMoves[moveName];
@@ -254,13 +227,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'special-move-card';
             card.dataset.name = moveName;
-            // ATUALIZADO: Mostra se é uma reação
             const reactionText = moveData.reaction ? '<br><span style="color:#17a2b8;">(Reação)</span>' : '';
             card.innerHTML = `<h4>${displayName}</h4><p>Custo: ${moveData.cost} PA</p>${moveData.damage > 0 ? `<p>Dano: ${moveData.damage}</p>` : ''}${moveData.penalty > 0 ? `<p>Penalidade: ${moveData.penalty}</p>` : ''}${reactionText}`;
             card.addEventListener('click', () => card.classList.toggle('selected'));
             container.appendChild(card);
         }
     }
+
+    function renderScenarioSelection(mode = 'classic') {
+        // ... (código existente sem alterações)
+        scenarioListContainer.innerHTML = '';
+        Object.entries(SCENARIOS).forEach(([name, fileName]) => {
+            const card = document.createElement('div');
+            card.className = 'scenario-card';
+            card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
+            card.onclick = () => {
+                if (mode === 'classic') {
+                    player1SetupData.scenario = fileName;
+                    showScreen(selectionScreen);
+                    selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
+                    confirmBtn.innerText = 'Confirmar Personagem';
+                    confirmBtn.disabled = false;
+                    renderCharacterSelection('p1', true);
+                } else {
+                    socket.emit('createArenaGame', { scenario: fileName });
+                    showScreen(arenaLobbyScreen);
+                }
+            };
+            scenarioListContainer.appendChild(card);
+        });
+    }
+
+    // --- Sockets e Handlers (sem grandes mudanças exceto updateUI) ---
     
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
@@ -423,6 +421,8 @@ document.addEventListener('DOMContentLoaded', () => {
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
     function updateUI(state) {
+        if (!state || !myPlayerKey) return;
+        
         if (state.scenario) {
             gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
         }
@@ -434,24 +434,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const fighter = state.fighters[key];
             if (fighter) {
                 document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
-                if (fighter.hpMax) {
+                document.getElementById(`${key}-fight-img`).src = fighter.img;
+                if (fighter.hpMax !== undefined) {
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`;
                     document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
                     document.getElementById(`${key}-def-text`).innerText = fighter.def;
                     document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
                     document.getElementById(`${key}-knockdowns`).innerText = fighter.knockdowns;
                     document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
-                    // NOVO: Exibe deduções de pontos
                     document.getElementById(`${key}-point-deductions`).innerText = fighter.pointDeductions;
                     document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
                 }
-                document.getElementById(`${key}-fight-img`).src = fighter.img;
 
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName];
-                        if (!moveData) return; 
+                        if (!moveData) return;
                         const displayName = moveData.displayName || moveName;
                         const btn = document.createElement('button');
                         btn.className = `action-btn special-btn-${key}`;
@@ -467,16 +466,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const roundInfoEl = document.getElementById('round-info');
-        if (state.phase === 'paused') {
-            roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
-        } else if (state.phase === 'gameover') {
-            roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
-        } else if (state.phase === 'decision_table_wait') {
-            roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
-        } else if (state.phase.startsWith('arena_')) {
-            roundInfoEl.innerHTML = `Aguardando início...`;
+        if (state.phase === 'paused') { roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
+        } else if (state.phase === 'gameover') { roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
+        } else if (state.phase === 'decision_table_wait') { roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
+        } else if (state.phase.startsWith('arena_')) { roundInfoEl.innerHTML = `Aguardando início...`;
         } else {
-            const turnName = state.whoseTurn ? (state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...') : '...';
+            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
             if (state.reactionState) {
                 const reactorName = state.fighters[state.reactionState.playerKey].nome;
@@ -489,67 +484,61 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2' && state.phase !== 'paused');
         
         const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
-        const actionWrapper = document.getElementById('action-buttons-wrapper');
-        if (!isPlayer) { actionWrapper.classList.add('hidden'); } 
-        else { actionWrapper.classList.remove('hidden'); }
+        document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer);
         
-        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
-        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
-        
-        // --- LÓGICA DE HABILITAR/DESABILITAR BOTÕES REFEITA ---
-        const myControls = document.getElementById(`${myPlayerKey}-controls`);
-        if (myControls) {
-            myControls.querySelectorAll('button').forEach(btn => {
-                let isDisabled = true; // Começa desabilitado por padrão
-                const moveName = btn.dataset.move;
-                const isReaction = btn.dataset.reaction === 'true';
-                const isEndTurn = btn.classList.contains('end-turn-btn');
+        // --- CORREÇÃO: LÓGICA DE HABILITAR/DESABILITAR BOTÕES REFEITA ---
+        document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => {
+            const controlsId = btn.closest('.move-buttons').id;
+            const buttonPlayerKey = (controlsId === 'p1-controls') ? 'player1' : 'player2';
+            
+            // Só processo botões do meu próprio painel. Botões do oponente são sempre desabilitados (cinza).
+            if (buttonPlayerKey !== myPlayerKey) {
+                btn.disabled = true;
+                return;
+            }
 
-                const isMyTurn = state.whoseTurn === myPlayerKey;
-                const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
-                const hasUsedReaction = state.reactionState && state.reactionState.playerKey === myPlayerKey;
+            // A partir daqui, é um botão do meu painel
+            let isDisabled = true;
+            const moveName = btn.dataset.move;
+            const isReaction = btn.dataset.reaction === 'true';
+            const isEndTurn = btn.classList.contains('end-turn-btn');
+            
+            const me = state.fighters[myPlayerKey];
+            const isMyTurn = state.whoseTurn === myPlayerKey;
+            const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
+            const hasUsedReaction = state.reactionState && state.reactionState.playerKey === myPlayerKey;
 
-                if (isActionPhase) {
-                    if (isReaction && !isMyTurn && !hasUsedReaction) {
-                        // Fora do meu turno, habilita reações se eu ainda não usei uma
+            if (isActionPhase && me) {
+                if (isMyTurn) { // MEU TURNO
+                    if (isEndTurn) { isDisabled = false; } 
+                    else if (!isReaction && moveName) { // Botão de ataque normal
                         const move = state.moves[moveName];
-                        if (move && state.fighters[myPlayerKey].pa >= move.cost) {
-                            isDisabled = false;
+                        if (move && me.pa >= move.cost) {
+                            isDisabled = (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang');
                         }
-                    } else if (isMyTurn && !isReaction) {
-                        // No meu turno, habilita ataques normais e o botão de encerrar
-                        if (isEndTurn) {
+                    }
+                } else { // TURNO DO OPONENTE
+                    if (isReaction && !hasUsedReaction && moveName) { // Botão de reação
+                        const move = state.moves[moveName];
+                        if (move && me.pa >= move.cost) {
                             isDisabled = false;
-                        } else { // É um botão de ataque
-                            const move = state.moves[moveName];
-                            if (move && state.fighters[myPlayerKey].pa >= move.cost) {
-                                // Lógica específica do White Fang
-                                if (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang') {
-                                    isDisabled = true;
-                                } else {
-                                    isDisabled = false;
-                                }
-                            }
                         }
                     }
                 }
-                
-                // Forfeit button
-                document.getElementById('forfeit-btn').disabled = !(isMyTurn && isActionPhase);
-
-                // Pausa do GM sobrepõe tudo
-                if (state.phase === 'paused' && !isGm) {
-                    isDisabled = true;
-                }
-                btn.disabled = isDisabled;
-            });
-        }
+            }
+            
+            if (state.phase === 'paused' && !isGm) { isDisabled = true; }
+            btn.disabled = isDisabled;
+        });
         
+        document.getElementById('forfeit-btn').disabled = !(state.whoseTurn === myPlayerKey && (state.phase === 'turn' || state.phase === 'white_fang_follow_up'));
+
         const logBox = document.getElementById('fight-log');
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
     }
     
+    // --- Funções de Modal e Handlers de Socket (sem alterações) ---
     function showForfeitConfirmation() {
         const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
         showInfoModal("Jogar a Toalha", modalContentHtml);
@@ -562,6 +551,13 @@ document.addEventListener('DOMContentLoaded', () => {
         modalText.innerHTML = text;
         modalButton.style.display = 'none';
         modal.classList.remove('hidden');
+         if (!document.getElementById('modal-text').querySelector('button')) {
+            const okButton = document.createElement('button');
+            okButton.textContent = 'OK';
+            okButton.style.cssText = "padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px;";
+            okButton.onclick = () => modal.classList.add('hidden');
+            document.getElementById('modal-text').appendChild(okButton);
+        }
     }
 
     function showInteractiveModal(title, text, btnText, action) {
@@ -663,11 +659,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => {
         let isMyTurnForAction = myPlayerKey === targetPlayerKey;
-        if (modalType === 'disqualification' && isGm) { isMyTurnForAction = true; } // GM sempre pode agir no modal de DQ
+        if (modalType === 'disqualification' && isGm) { isMyTurnForAction = true; } 
         if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') { isMyTurnForAction = myPlayerKey === 'host'; }
 
         switch(modalType) {
-            case 'gm_knockdown_decision': // ... (código existente)
+            case 'gm_knockdown_decision':
                 if (isGm) {
                     const cheatHtml = `
                         <p>${text}</p>
@@ -682,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('gm-last-chance-btn').onclick = () => { socket.emit('playerAction', { type: 'give_last_chance' }); modal.classList.add('hidden'); };
                 }
                 break;
-            case 'disqualification': // NOVO: Modal para o GM confirmar a DQ
+            case 'disqualification': 
                 if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
                 else { showInfoModal(title, text); }
                 break;
@@ -694,7 +690,6 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
                 let modalTitleText = `${downedFighterName} caiu!`;
-                
                 const attempts = knockdownInfo.attempts;
                 const maxAttempts = knockdownInfo.isLastChance ? 5 : 4;
                 const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
@@ -715,17 +710,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // NOVO: Listener para um modal de info genérico que pode ser disparado pelo servidor
     socket.on('showInfoModal', ({ title, text }) => {
         showInfoModal(title, text);
-        // Adiciona um botão OK para fechar, caso não seja fornecido HTML customizado
-        if (!document.getElementById('modal-text').querySelector('button')) {
-            const okButton = document.createElement('button');
-            okButton.textContent = 'OK';
-            okButton.style.marginTop = '15px';
-            okButton.onclick = () => modal.classList.add('hidden');
-            document.getElementById('modal-text').appendChild(okButton);
-        }
     });
 
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
@@ -734,7 +720,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); document.querySelectorAll('button').forEach(btn => btn.disabled = true); });
 
     initialize();
-    const scaleGame = () => { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; };
+    const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
