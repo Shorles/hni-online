@@ -56,13 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
-
         const target = event.target.closest('button');
         if (!target || target.disabled) return;
-
         const move = target.dataset.move;
         
-        // CORREÇÃO: Lógica de clique agora tem a verificação de PA para o Golpe Ilegal
         if (move === 'Golpe Ilegal') {
             const fighter = currentGameState.fighters[myPlayerKey];
             const moveData = currentGameState.moves['Golpe Ilegal'];
@@ -70,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showIllegalMoveConfirmation();
             }
         } else if (move) {
-            // Ação de ataque normal ou de reação
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
         } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) {
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
@@ -92,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initialize() {
-        // ... (código existente sem alterações)
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
         const arenaPlayerKey = urlParams.get('player');
@@ -178,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function onConfirmSelection() {
-        // ... (código existente sem alterações)
         const selectedCard = document.querySelector('.char-card.selected');
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
@@ -202,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderCharacterSelection(playerType, showStatsInputs = false) {
-        // ... (código existente sem alterações)
         charListContainer.innerHTML = '';
         const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
         for (const name in charData) {
@@ -219,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderSpecialMoveSelection(container, availableMoves) {
-        // ... (código existente, já modificado na etapa anterior)
         container.innerHTML = '';
         for (const moveName in availableMoves) {
             const moveData = availableMoves[moveName];
@@ -235,7 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderScenarioSelection(mode = 'classic') {
-        // ... (código existente sem alterações)
         scenarioListContainer.innerHTML = '';
         Object.entries(SCENARIOS).forEach(([name, fileName]) => {
             const card = document.createElement('div');
@@ -258,8 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Sockets e Handlers (sem grandes mudanças exceto updateUI) ---
-    
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
@@ -310,11 +299,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const p1Url = `${baseUrl}?room=${roomId}&player=player1`;
         const p2Url = `${baseUrl}?room=${roomId}&player=player2`;
         const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
-
         document.getElementById('arena-link-p1').textContent = p1Url;
         document.getElementById('arena-link-p2').textContent = p2Url;
         document.getElementById('arena-link-spectator').textContent = specUrl;
-
         document.getElementById('arena-link-p1').onclick = () => copyToClipboard(p1Url, document.getElementById('arena-link-p1'));
         document.getElementById('arena-link-p2').onclick = () => copyToClipboard(p2Url, document.getElementById('arena-link-p2'));
         document.getElementById('arena-link-spectator').onclick = () => copyToClipboard(specUrl, document.getElementById('arena-link-spectator'));
@@ -347,10 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>`;
         showInteractiveModal("Configurar Batalha da Arena", modalContentHtml, "Iniciar Batalha", null);
-        
         renderSpecialMoveSelection(document.getElementById('arena-p1-moves'), availableMoves);
         renderSpecialMoveSelection(document.getElementById('arena-p2-moves'), availableMoves);
-
         modalButton.onclick = () => {
             const p1_config = {
                 agi: document.getElementById('arena-p1-agi').value,
@@ -367,34 +352,19 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-
     socket.on('gameUpdate', (gameState) => {
         const oldPhase = currentGameState ? currentGameState.phase : null;
         currentGameState = gameState;
-        
         const wasPaused = oldPhase === 'paused';
         const isNowPaused = currentGameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
-
-        if (isNowPaused && !wasPaused) {
-            showCheatsModal();
-        } else if (!isNowPaused && wasPaused) {
-            modal.classList.add('hidden');
-        }
-
+        if (isNowPaused && !wasPaused) { showCheatsModal(); } 
+        else if (!isNowPaused && wasPaused) { modal.classList.add('hidden'); }
         updateUI(currentGameState);
-
-        if (currentGameState.mode === 'classic') {
-            gameWrapper.classList.add('mode-classic');
-            gameWrapper.classList.remove('mode-arena');
-        } else if (currentGameState.mode === 'arena') {
-            gameWrapper.classList.add('mode-arena');
-            gameWrapper.classList.remove('mode-classic');
-        }
-        
+        if (currentGameState.mode === 'classic') { gameWrapper.classList.add('mode-classic'); gameWrapper.classList.remove('mode-arena'); } 
+        else if (currentGameState.mode === 'arena') { gameWrapper.classList.add('mode-arena'); gameWrapper.classList.remove('mode-classic'); }
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) {
             showScreen(fightScreen);
         }
@@ -406,13 +376,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
         const shareLinkP2 = document.getElementById('share-link-p2');
         const shareLinkSpectator = document.getElementById('share-link-spectator');
-        
         shareLinkP2.textContent = p2Url;
         shareLinkSpectator.textContent = specUrl;
-
         shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
         shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-
         lobbyContent.classList.add('hidden');
         shareContainer.classList.remove('hidden');
     });
@@ -422,10 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
-        
-        if (state.scenario) {
-            gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
-        }
+        if (state.scenario) { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
 
         p1SpecialMovesContainer.innerHTML = '';
         p2SpecialMovesContainer.innerHTML = '';
@@ -445,7 +409,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById(`${key}-point-deductions`).innerText = fighter.pointDeductions;
                     document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
                 }
-
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
                     fighter.specialMoves.forEach(moveName => {
@@ -486,18 +449,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
         document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer);
         
-        // --- CORREÇÃO: LÓGICA DE HABILITAR/DESABILITAR BOTÕES REFEITA ---
+        // --- CORREÇÃO FINAL: LÓGICA DE VISIBILIDADE E HABILITAÇÃO ---
+        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
+        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
+        
         document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => {
             const controlsId = btn.closest('.move-buttons').id;
             const buttonPlayerKey = (controlsId === 'p1-controls') ? 'player1' : 'player2';
             
-            // Só processo botões do meu próprio painel. Botões do oponente são sempre desabilitados (cinza).
             if (buttonPlayerKey !== myPlayerKey) {
                 btn.disabled = true;
                 return;
             }
 
-            // A partir daqui, é um botão do meu painel
             let isDisabled = true;
             const moveName = btn.dataset.move;
             const isReaction = btn.dataset.reaction === 'true';
@@ -509,16 +473,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasUsedReaction = state.reactionState && state.reactionState.playerKey === myPlayerKey;
 
             if (isActionPhase && me) {
-                if (isMyTurn) { // MEU TURNO
+                if (isMyTurn) {
                     if (isEndTurn) { isDisabled = false; } 
-                    else if (!isReaction && moveName) { // Botão de ataque normal
+                    else if (!isReaction && moveName) {
                         const move = state.moves[moveName];
                         if (move && me.pa >= move.cost) {
                             isDisabled = (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang');
                         }
                     }
-                } else { // TURNO DO OPONENTE
-                    if (isReaction && !hasUsedReaction && moveName) { // Botão de reação
+                } else {
+                    if (isReaction && !hasUsedReaction && moveName) {
                         const move = state.moves[moveName];
                         if (move && me.pa >= move.cost) {
                             isDisabled = false;
@@ -538,7 +502,6 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
     
-    // --- Funções de Modal e Handlers de Socket (sem alterações) ---
     function showForfeitConfirmation() {
         const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
         showInfoModal("Jogar a Toalha", modalContentHtml);
@@ -695,7 +658,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
                 const countText = attempts === 0 ? `O juíz começa a contagem: ${counts[0]}` : `A contagem continua: ${counts[attempts] || counts[counts.length-1]}`;
                 let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p>`;
-                
                 if (knockdownInfo.lastRoll) { modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; }
                 if (targetPlayerKey === myPlayerKey) {
                     modalTitleText = `Você caiu!`;
@@ -710,8 +672,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    socket.on('showInfoModal', ({ title, text }) => {
-        showInfoModal(title, text);
+    // --- NOVO LISTENER ---
+    socket.on('showGameAlert', (message) => {
+        const alertOverlay = document.getElementById('game-alert-overlay');
+        const alertContent = document.getElementById('game-alert-content');
+        if (alertOverlay && alertContent) {
+            alertContent.innerHTML = message;
+            alertOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                alertOverlay.classList.add('hidden');
+            }, 3000);
+        }
     });
 
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });

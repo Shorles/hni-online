@@ -99,7 +99,6 @@
                     <p>Acertos: <span id="player1-hits">0</span></p>
                     <p>Quedas: <span id="player1-knockdowns">0</span></p>
                     <p>Dano Recebido: <span id="player1-damage-taken">0</span></p>
-                    <!-- NOVO: Penalidades por golpes ilegais -->
                     <p style="color: #dc3545;">Pontos Perdidos: <span id="player1-point-deductions">0</span></p>
                 </div>
                 <!-- LOG DE LUTA -->
@@ -116,7 +115,6 @@
                     <p>Acertos: <span id="player2-hits">0</span></p>
                     <p>Quedas: <span id="player2-knockdowns">0</span></p>
                     <p>Dano Recebido: <span id="player2-damage-taken">0</span></p>
-                     <!-- NOVO: Penalidades por golpes ilegais -->
                     <p style="color: #dc3545;">Pontos Perdidos: <span id="player2-point-deductions">0</span></p>
                 </div>
             </div>
@@ -128,7 +126,6 @@
                     <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
                     <button class="action-btn p1-btn" data-move="Upper">Upper (3 PA)</button>
                     <button class="action-btn p1-btn" data-move="Liver Blow">Liver Blow (3 PA)</button>
-                    <!-- NOVOS BOTÕES -->
                     <button class="action-btn p1-btn" data-move="Clinch" data-reaction="true">Clinch (3 PA)</button>
                     <button class="action-btn p1-btn illegal-btn" data-move="Golpe Ilegal">Golpe Ilegal (2 PA)</button>
                     <div id="p1-special-moves" class="special-moves-container"></div>
@@ -140,7 +137,6 @@
                     <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
                     <button class="action-btn p2-btn" data-move="Upper">Upper (3 PA)</button>
                     <button class="action-btn p2-btn" data-move="Liver Blow">Liver Blow (3 PA)</button>
-                    <!-- NOVOS BOTÕES -->
                     <button class="action-btn p2-btn" data-move="Clinch" data-reaction="true">Clinch (3 PA)</button>
                     <button class="action-btn p2-btn illegal-btn" data-move="Golpe Ilegal">Golpe Ilegal (2 PA)</button>
                     <div id="p2-special-moves" class="special-moves-container"></div>
@@ -160,6 +156,11 @@
         <div id="dice-overlay" class="hidden"></div>
         <div id="player1-dice-result" class="dice-result hidden"></div>
         <div id="player2-dice-result" class="dice-result hidden"></div>
+
+        <!-- NOVO: OVERLAY PARA ALERTAS DE TELA CHEIA -->
+        <div id="game-alert-overlay" class="hidden">
+            <div id="game-alert-content"></div>
+        </div>
     </div>
 
     <!-- MODAL PADRÃO -->
