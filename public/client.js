@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
     function updateUI(state) {
-        // PARTE 1: ATUALIZAÇÕES GERAIS DE UI
+        // --- PARTE 1: ATUALIZAÇÕES GERAIS DE UI ---
         if (state.scenario) {
             gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
         }
@@ -466,18 +466,18 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
 
-        // PARTE 2: LÓGICA DE CONTROLES
+        // --- PARTE 2: ATUALIZAÇÕES DE CONTROLE (BOTÕES) ---
         const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
-        document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer);
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
-        
-        if (isPlayer) {
-            const myFighter = state.fighters[myPlayerKey];
-            if (!myFighter) return; // Sai se os dados do lutador ainda não carregaram
+        document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer);
 
+        if (isPlayer && state.fighters[myPlayerKey]) {
+            const myFighter = state.fighters[myPlayerKey];
             const myControls = document.getElementById(`${myPlayerKey}-controls`);
             const specialMovesContainer = document.getElementById(`${myPlayerKey}-special-moves`);
+
+            // Limpa e renderiza golpes especiais
             specialMovesContainer.innerHTML = '';
             if (myFighter.specialMoves) {
                 myFighter.specialMoves.forEach(moveName => {
@@ -495,7 +495,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const isMyTurn = state.whoseTurn === myPlayerKey;
 
             allMyButtons.forEach(btn => {
-                let isDisabled = true;
+                let isDisabled = true; // Começa desabilitado por padrão
+                
                 if (state.phase === 'paused' && !isGm) {
                     btn.disabled = true;
                     return;
@@ -508,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const hasEnoughPA = myFighter.pa >= move.cost;
                         if (move.reaction) {
                             isDisabled = isMyTurn || !hasEnoughPA || state.reactiveState !== null || state.phase !== 'turn';
-                        } else {
+                        } else { // Golpes de ataque
                             if (state.phase === 'white_fang_follow_up') {
                                 isDisabled = !isMyTurn || moveName !== 'White Fang';
                             } else {
@@ -521,14 +522,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 btn.disabled = isDisabled;
             });
-            
+
             const forfeitBtn = document.getElementById('forfeit-btn');
-            if(forfeitBtn) {
-                 forfeitBtn.disabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
+            if (forfeitBtn) {
+                forfeitBtn.disabled = !isMyTurn || (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up');
             }
         }
     }
-
 
     function showForfeitConfirmation() {
         const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
