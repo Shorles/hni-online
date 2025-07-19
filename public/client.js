@@ -220,7 +220,8 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'special-move-card';
             card.dataset.name = moveName;
             const reactionText = moveData.reaction ? '<br><span style="color:#17a2b8;">(Reação)</span>' : '';
-            card.innerHTML = `<h4>${displayName}</h4><p>Custo: ${moveData.cost} PA</p>${moveData.damage > 0 ? `<p>Dano: ${moveData.damage}</p>` : ''}${moveData.penalty > 0 ? `<p>Penalidade: ${moveData.penalty}</p>` : ''}${reactionText}`;
+            const costText = moveName === 'Counter' ? 'Custo: Variável' : `Custo: ${moveData.cost} PA`;
+            card.innerHTML = `<h4>${displayName}</h4><p>${costText}</p>${moveData.damage > 0 ? `<p>Dano: ${moveData.damage}</p>` : ''}${moveData.penalty > 0 ? `<p>Penalidade: ${moveData.penalty}</p>` : ''}${reactionText}`;
             card.addEventListener('click', () => card.classList.toggle('selected'));
             container.appendChild(card);
         }
@@ -419,7 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         btn.className = `action-btn special-btn-${key}`;
                         btn.dataset.move = moveName;
                         btn.dataset.reaction = moveData.reaction || false;
-                        btn.textContent = `${displayName} (${moveData.cost} PA)`;
+                        const costText = moveName === 'Counter' ? '(Variável)' : `(${moveData.cost} PA)`;
+                        btn.textContent = `${displayName} ${costText}`;
                         container.appendChild(btn);
                     });
                 }
@@ -439,7 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.reactionState) {
                 const reactorName = state.fighters[state.reactionState.playerKey].nome;
                 const reactionMoveName = state.moves[state.reactionState.move].displayName || state.reactionState.move;
-                if(myPlayerKey === state.reactionState.playerKey) { // Só mostra pra quem usou
+                if(myPlayerKey === state.reactionState.playerKey) {
                     roundInfoEl.innerHTML += `<br><span class="reaction-highlight">Você está em modo de ${reactionMoveName}!</span>`;
                 }
             }
@@ -451,7 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
         document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer);
         
-        // --- CORREÇÃO FINAL: LÓGICA DE VISIBILIDADE E HABILITAÇÃO ---
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         
@@ -480,20 +481,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (!isReaction && moveName) {
                         const move = state.moves[moveName];
                         if (move && me.pa >= move.cost) {
-                            isDisabled = false;
+                            isDisabled = (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang');
                         }
                     }
-                    // Correção White Fang: não desabilitar tudo, só o próprio WF se o custo for > PA.
-                    if(state.phase === 'white_fang_follow_up' && moveName === 'White Fang' && me.pa < state.moves['White Fang'].cost) {
-                        // Desabilita o WF normal se não tiver PA, mas permite o de custo 0.
-                        if (state.followUpState) isDisabled = false; // permite o de custo 0
-                        else isDisabled = true; // não tem pa pro primeiro
-                    }
-
                 } else {
                     if (isReaction && !hasUsedReaction && moveName) {
                         const move = state.moves[moveName];
-                        if (move && me.pa >= move.cost) {
+                        if (moveName === 'Clinch' && me.activeEffects.esquiva) {
+                             isDisabled = true; // Não pode usar Clinch com Esquiva
+                        } else if (move && me.pa >= move.cost) {
                             isDisabled = false;
                         }
                     }

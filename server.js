@@ -11,18 +11,19 @@ app.use(express.static('public'));
 
 const games = {};
 
+// --- ALTERAÇÃO AQUI ---
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
     'Upper': { cost: 3, damage: 6, penalty: 2 },
     'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
-    'Clinch': { cost: 2, damage: 0, penalty: 0, reaction: true },
+    'Clinch': { cost: 2, damage: 0, penalty: 0 }, // Não é mais uma reação
     'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 },
     'Esquiva': { cost: 1, damage: 0, penalty: 0, reaction: true }
 };
 
 const SPECIAL_MOVES = {
-    'Counter': { cost: 3, damage: 0, penalty: 0, reaction: true },
+    'Counter': { cost: 0, damage: 0, penalty: 0, reaction: true },
     'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
     'Smash': { cost: 2, damage: 8, penalty: 3 },
     'Bala': { cost: 1, damage: 2, penalty: 0 },
@@ -32,6 +33,7 @@ const SPECIAL_MOVES = {
     'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
+// --- FIM DA ALTERAÇÃO ---
 
 const MOVE_SOUNDS = {
     'Jab': ['jab01.mp3', 'jab02.mp3', 'jab03.mp3'],
@@ -101,46 +103,54 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     const displayName = move.displayName || moveName;
 
     if (state.reactionState && state.reactionState.playerKey === defenderKey && state.reactionState.move === 'Counter') {
-        logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${displayName}</span>, mas ${defender.nome} tenta um <span class="log-move-name">Contra-Ataque</span>!`, 'log-crit');
-        const attackerRoll = rollAttackD6();
-        const attackerValue = attackerRoll + attacker.agi - move.penalty;
-        logMessage(state, `Ataque de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
-        const counterRoll = rollAttackD6();
-        const counterValue = counterRoll + defender.agi - move.penalty; 
-        logMessage(state, `Contra-Ataque de ${defender.nome}: D6(${counterRoll}) + ${defender.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${counterValue}</span>`, 'log-info');
-        const damageToDeal = move.damage * 2;
-        let soundToPlay = 'Critical.mp3';
-        if (counterValue > attackerValue) {
-            logMessage(state, `Sucesso! ${attacker.nome} recebe ${damageToDeal} de dano do seu próprio golpe!`, 'log-crit');
-            const hpBeforeHit = attacker.hp;
-            attacker.hp = Math.max(0, attacker.hp - damageToDeal);
-            attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
-            io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
-            if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
-        } else if (attackerValue > counterValue) {
-            logMessage(state, `Falhou! ${defender.nome} erra o tempo e recebe ${damageToDeal} de dano!`, 'log-crit');
-            const hpBeforeHit = defender.hp;
-            defender.hp = Math.max(0, defender.hp - damageToDeal);
-            defender.totalDamageTaken += hpBeforeHit - defender.hp;
-            io.to(roomId).emit('triggerHitAnimation', { defenderKey });
-            if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
+        const incomingAttackCost = move.cost;
+        if (defender.pa >= incomingAttackCost) {
+            defender.pa -= incomingAttackCost;
+            logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${displayName}</span>, mas ${defender.nome} revela um <span class="log-move-name">Contra-Ataque</span>!`, 'log-crit');
+            logMessage(state, `${defender.nome} gasta ${incomingAttackCost} PA para executar o Counter.`, 'log-info');
+            const attackerRoll = rollAttackD6();
+            const attackerValue = attackerRoll + attacker.agi - move.penalty;
+            logMessage(state, `Ataque de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
+            const counterRoll = rollAttackD6();
+            const counterValue = counterRoll + defender.agi - move.penalty; 
+            logMessage(state, `Contra-Ataque de ${defender.nome}: D6(${counterRoll}) + ${defender.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${counterValue}</span>`, 'log-info');
+            const damageToDeal = move.damage * 2;
+            let soundToPlay = 'Critical.mp3';
+            if (counterValue > attackerValue) {
+                logMessage(state, `Sucesso! ${attacker.nome} recebe ${damageToDeal} de dano do seu próprio golpe!`, 'log-crit');
+                const hpBeforeHit = attacker.hp;
+                attacker.hp = Math.max(0, attacker.hp - damageToDeal);
+                attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
+                io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
+                if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
+            } else if (attackerValue > counterValue) {
+                logMessage(state, `Falhou! ${defender.nome} erra o tempo e recebe ${damageToDeal} de dano!`, 'log-crit');
+                const hpBeforeHit = defender.hp;
+                defender.hp = Math.max(0, defender.hp - damageToDeal);
+                defender.totalDamageTaken += hpBeforeHit - defender.hp;
+                io.to(roomId).emit('triggerHitAnimation', { defenderKey });
+                if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
+            } else {
+                logMessage(state, `Empate! Ambos são atingidos no fogo cruzado e recebem ${damageToDeal} de dano!`, 'log-crit');
+                let hpBeforeHit;
+                hpBeforeHit = attacker.hp;
+                attacker.hp = Math.max(0, attacker.hp - damageToDeal);
+                attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
+                hpBeforeHit = defender.hp;
+                defender.hp = Math.max(0, defender.hp - damageToDeal);
+                defender.totalDamageTaken += hpBeforeHit - defender.hp;
+                io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
+                io.to(roomId).emit('triggerHitAnimation', { defenderKey: defenderKey });
+                if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
+                if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
+            }
+            if (soundToPlay) io.to(roomId).emit('playSound', soundToPlay);
+            state.reactionState = null;
+            return;
         } else {
-            logMessage(state, `Empate! Ambos são atingidos no fogo cruzado e recebem ${damageToDeal} de dano!`, 'log-crit');
-            let hpBeforeHit;
-            hpBeforeHit = attacker.hp;
-            attacker.hp = Math.max(0, attacker.hp - damageToDeal);
-            attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
-            hpBeforeHit = defender.hp;
-            defender.hp = Math.max(0, defender.hp - damageToDeal);
-            defender.totalDamageTaken += hpBeforeHit - defender.hp;
-            io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
-            io.to(roomId).emit('triggerHitAnimation', { defenderKey: defenderKey });
-            if (attacker.hp <= 0) handleKnockdown(state, attackerKey, io, roomId);
-            if (defender.hp <= 0) handleKnockdown(state, defenderKey, io, roomId);
+            logMessage(state, `${defender.nome} tenta o Contra-Ataque, mas não tem ${incomingAttackCost} PA para interceptar o golpe!`, 'log-miss');
+            state.reactionState = null;
         }
-        if (soundToPlay) io.to(roomId).emit('playSound', soundToPlay);
-        state.reactionState = null;
-        return;
     }
     
     logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
@@ -171,31 +181,40 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     if (hit) {
         io.to(roomId).emit('triggerHitAnimation', { defenderKey });
         
+        const sounds = MOVE_SOUNDS[moveName];
         if (crit) { 
             soundToPlay = 'Critical.mp3';
-        } else {
-            const sounds = MOVE_SOUNDS[moveName];
-            if (Array.isArray(sounds)) {
-                soundToPlay = sounds[Math.floor(Math.random() * sounds.length)];
-            } else if (sounds) {
-                soundToPlay = sounds;
-            }
+        } else if (Array.isArray(sounds)) {
+            soundToPlay = sounds[Math.floor(Math.random() * sounds.length)];
+        } else if (sounds) {
+            soundToPlay = sounds;
         }
         
         let damage = crit ? move.damage * 2 : move.damage;
-        const hpBeforeHit = defender.hp;
-        defender.hp = Math.max(0, defender.hp - damage);
-        const actualDamageTaken = hpBeforeHit - defender.hp;
-        
-        attacker.hitsLanded++;
-        defender.totalDamageTaken += actualDamageTaken;
-        logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
+        if (damage > 0) {
+            const hpBeforeHit = defender.hp;
+            defender.hp = Math.max(0, defender.hp - damage);
+            const actualDamageTaken = hpBeforeHit - defender.hp;
+            attacker.hitsLanded++;
+            defender.totalDamageTaken += actualDamageTaken;
+            logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
+        }
 
-        if (moveName === 'Liver Blow' && Math.random() < 0.3) {
+        if (moveName === 'Liver Blow') {
+            if (Math.random() < 0.3) {
+                if (defender.pa > 0) {
+                    defender.pa--;
+                    logMessage(state, `O golpe no fígado faz ${defender.nome} perder 1 PA!`, 'log-crit');
+                }
+            }
+        } else if (moveName === 'Clinch') { // Lógica do Clinch
             if (defender.pa > 0) {
                 defender.pa--;
-                logMessage(state, `O golpe no fígado faz ${defender.nome} perder 1 PA!`, 'log-crit');
+                logMessage(state, `${attacker.nome} acerta o Clinch! ${defender.nome} perde 1 PA.`, 'log-hit');
             }
+            attacker.def++;
+            attacker.activeEffects.clinch = { active: true }; // O efeito é rastreado para ser removido no tempo certo
+            logMessage(state, `${attacker.nome} aumenta sua defesa em 1!`, 'log-info');
         }
         
     } else {
@@ -228,16 +247,22 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     return hit;
 }
 
+// --- ALTERAÇÃO AQUI ---
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
+    const opponentKey = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
+
+    // Efeito do Clinch: O bônus de defesa do oponente (que usou no turno dele) expira agora.
+    const opponent = state.fighters[opponentKey];
+    if (opponent && opponent.activeEffects.clinch) {
+        opponent.def--;
+        delete opponent.activeEffects.clinch;
+        logMessage(state, `O efeito do Clinch de ${opponent.nome} terminou.`, 'log-info');
+    }
 
     if (state.reactionState) {
         const reactionUserKey = state.reactionState.playerKey;
-        const reactionUser = state.fighters[reactionUserKey];
         if (reactionUserKey !== lastPlayerKey) {
-            if (state.reactionState.move === 'Clinch') {
-                reactionUser.def -= 3;
-            }
             state.reactionState = null;
         }
     }
@@ -248,13 +273,14 @@ function endTurn(state, io, roomId) {
     }
     
     state.followUpState = null;
-    state.whoseTurn = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
+    state.whoseTurn = opponentKey;
     
     const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
     
     if (lastPlayerWentFirst) { 
         state.phase = 'turn'; 
     } else { 
+        // Fim da rodada, decrementa durações de Esquiva
         Object.values(state.fighters).forEach(fighter => {
             if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
                 fighter.activeEffects.esquiva.duration--;
@@ -269,6 +295,7 @@ function endTurn(state, io, roomId) {
         processEndRound(state, io, roomId); 
     }
 }
+// --- FIM DA ALTERAÇÃO ---
 
 function processEndRound(state, io, roomId) {
     state.currentTurn++;
@@ -286,8 +313,19 @@ function processEndRound(state, io, roomId) {
         state.fighters.player2.pa = 3;
         logMessage(state, `Pontos de Ação de ambos os lutadores foram resetados para 3.`, 'log-info');
 
-        Object.values(state.fighters).forEach(f => f.activeEffects = {});
-        logMessage(state, `Efeitos de longo prazo foram resetados para o novo round.`, 'log-info');
+        Object.values(state.fighters).forEach(f => {
+             // Limpa Clinch no fim do round, caso tenha bugado
+            if (f.activeEffects.clinch) {
+                f.def--;
+                delete f.activeEffects.clinch;
+            }
+            // Limpa Esquiva no fim do round
+            if (f.activeEffects.esquiva) {
+                delete f.activeEffects.esquiva;
+                f.def = f.defRoll + f.res; // Garante que a DEF volte ao normal
+            }
+        });
+        logMessage(state, `Efeitos foram resetados para o novo round.`, 'log-info');
         logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-info');
         state.phase = 'initiative_p1';
     } else {
@@ -296,7 +334,6 @@ function processEndRound(state, io, roomId) {
         state.phase = 'turn';
     }
 }
-
 function calculateDecisionScores(state) {
     const p1 = state.fighters.player1;
     const p2 = state.fighters.player2;
@@ -318,7 +355,6 @@ function calculateDecisionScores(state) {
         p2: { name: p2.nome, knockdownPenalty: p2KnockdownPenalty, hitsPenalty: p2HitsPenalty, damagePenalty: p2DamagePenalty, illegalPenalty: p2IllegalPenalty, finalScore: p2Score }
     };
 }
-
 function handleKnockdown(state, downedPlayerKey, io, roomId) {
     if (state.phase === 'knockdown' || state.phase === 'gameover') return;
     state.phase = 'knockdown';
@@ -339,15 +375,12 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     }
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null, isLastChance: false };
 }
-
-// --- ALTERAÇÃO AQUI ---
 function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
     const move = state.moves[action.move];
     if (type === 'toggle_pause' || type === 'apply_cheats') { return isGm; }
     if (state.phase === 'paused') { return false; }
-    
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
         if (type === 'attack') {
@@ -358,19 +391,14 @@ function isActionValid(state, action) {
         }
         return type === 'end_turn' || type === 'forfeit';
     }
-    
     if (state.phase === 'turn' && move && move.reaction && playerKey !== state.whoseTurn) {
         if (state.reactionState) return false;
         const reactor = state.fighters[playerKey];
-
-        // Regra: Não pode usar Clinch se Esquiva estiver ativa
         if (action.move === 'Clinch' && reactor.activeEffects.esquiva) {
             return false;
         }
-
         return reactor.pa >= move.cost;
     }
-
     switch (state.phase) {
         case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
         case 'p2_stat_assignment': return type === 'set_p2_stats' && playerKey === 'player1';
@@ -390,8 +418,6 @@ function isActionValid(state, action) {
         default: return false;
     }
 }
-// --- FIM DA ALTERAÇÃO ---
-
 function dispatchAction(room) {
     if (!room) return;
     const { state, id: roomId } = room;
@@ -457,7 +483,6 @@ function dispatchAction(room) {
         default: io.to(roomId).emit('hideModal'); return;
     }
 }
-
 io.on('connection', (socket) => {
     socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);
@@ -562,14 +587,10 @@ io.on('connection', (socket) => {
         const playerKey = action.playerKey;
         switch (action.type) {
             case 'Clinch':
-                const clincher = state.fighters[playerKey];
-                if (clincher.pa >= move.cost) {
-                    clincher.pa -= move.cost;
-                    clincher.def += 3;
-                    state.reactionState = { playerKey, move: 'Clinch' };
-                    logMessage(state, `${clincher.nome} se prepara para o <span class="log-move-name">Clinch</span>, aumentando sua defesa!`, 'log-info');
-                    io.to(roomId).emit('playSound', MOVE_SOUNDS['Clinch']);
-                }
+                 const clincher = state.fighters[playerKey];
+                 // A lógica do Clinch agora é toda dentro de executeAttack, pois requer rolagem.
+                 // Esta ação é agora desnecessária, pois 'attack' vai lidar com isso.
+                 // Mantendo a estrutura por consistência, mas o trabalho pesado está em executeAttack.
                 break;
             case 'Esquiva':
                  const esquivador = state.fighters[playerKey];
@@ -586,10 +607,9 @@ io.on('connection', (socket) => {
                  break;
             case 'Counter':
                 const counterer = state.fighters[playerKey];
-                if (counterer.pa >= move.cost) {
-                    counterer.pa -= move.cost;
-                    state.reactionState = { playerKey, move: 'Counter' };
-                }
+                // Custo agora é 0, então não precisa verificar PA aqui.
+                state.reactionState = { playerKey, move: 'Counter' };
+                logMessage(state, `${counterer.nome} assume uma postura de contra-ataque...`, 'log-info');
                 break;
             case 'confirm_disqualification':
                 state.phase = 'gameover';
