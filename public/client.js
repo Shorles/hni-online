@@ -43,10 +43,63 @@ document.addEventListener('DOMContentLoaded', () => {
     const specialMovesBackBtn = document.getElementById('special-moves-back-btn');
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const exitGameBtn = document.getElementById('exit-game-btn');
+    // NOVO: Botão de Ajuda
+    const helpBtn = document.getElementById('help-btn');
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
+
+    // --- NOVO: FUNÇÃO PARA MOSTRAR O MODAL DE AJUDA ---
+    function showHelpModal() {
+        if (!currentGameState) return;
+
+        const MOVE_EFFECTS = {
+            'Liver Blow': '30% de chance de remover 1 PA do oponente.',
+            'Clinch': 'Se acertar, remove 2 PA do oponente.',
+            'Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.',
+            'Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.',
+            'Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.',
+            'Flicker Jab': 'Repete o ataque continuamente até errar.',
+            'White Fang': 'Permite um segundo uso consecutivo sem custo de PA.',
+            'OraOraOra': 'Um golpe de alto dano com um bônus de acerto (penalidade negativa).'
+        };
+
+        let tableHtml = `
+            <div class="help-table-container">
+                <table id="help-modal-table">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Custo (PA)</th>
+                            <th>Dano</th>
+                            <th>Penalidade</th>
+                            <th>Efeito</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        for(const moveName in currentGameState.moves) {
+            const move = currentGameState.moves[moveName];
+            const displayName = move.displayName || moveName;
+            const cost = moveName === 'Counter' ? 'Variável' : move.cost;
+            const effect = MOVE_EFFECTS[moveName] || 'Nenhum';
+
+            tableHtml += `
+                <tr>
+                    <td>${displayName}</td>
+                    <td>${cost}</td>
+                    <td>${move.damage}</td>
+                    <td>${move.penalty}</td>
+                    <td>${effect}</td>
+                </tr>
+            `;
+        }
+        
+        tableHtml += `</tbody></table></div>`;
+        showInfoModal("Guia de Golpes e Efeitos", tableHtml);
+    }
 
     function showScreen(screenToShow) {
         allScreens.forEach(screen => {
@@ -155,6 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
+        helpBtn.addEventListener('click', showHelpModal); // Adicionado listener
         
         document.getElementById('forfeit-btn').onclick = () => {
             if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) {
@@ -439,9 +493,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
             if (state.reactionState) {
-                const reactorName = state.fighters[state.reactionState.playerKey].nome;
+                const reactionUserKey = state.reactionState.playerKey;
                 const reactionMoveName = state.moves[state.reactionState.move].displayName || state.reactionState.move;
-                if(myPlayerKey === state.reactionState.playerKey) {
+                if(myPlayerKey === reactionUserKey) {
                     roundInfoEl.innerHTML += `<br><span class="reaction-highlight">Você está em modo de ${reactionMoveName}!</span>`;
                 }
             }
@@ -481,14 +535,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (!isReaction && moveName) {
                         const move = state.moves[moveName];
                         if (move && me.pa >= move.cost) {
-                            isDisabled = (state.phase === 'white_fang_follow_up' && moveName !== 'White Fang');
+                            isDisabled = false;
                         }
                     }
                 } else {
                     if (isReaction && !hasUsedReaction && moveName) {
                         const move = state.moves[moveName];
+                        // --- ALTERAÇÃO AQUI ---
                         if (moveName === 'Clinch' && me.activeEffects.esquiva) {
-                             isDisabled = true; // Não pode usar Clinch com Esquiva
+                             isDisabled = true;
                         } else if (move && me.pa >= move.cost) {
                             isDisabled = false;
                         }
@@ -519,12 +574,12 @@ document.addEventListener('DOMContentLoaded', () => {
         modalText.innerHTML = text;
         modalButton.style.display = 'none';
         modal.classList.remove('hidden');
-         if (!document.getElementById('modal-text').querySelector('button')) {
+         if (!modalText.querySelector('button')) {
             const okButton = document.createElement('button');
             okButton.textContent = 'OK';
             okButton.style.cssText = "padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px;";
             okButton.onclick = () => modal.classList.add('hidden');
-            document.getElementById('modal-text').appendChild(okButton);
+            modalText.appendChild(okButton);
         }
     }
 
