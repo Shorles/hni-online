@@ -49,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
-    // --- FUNÇÃO DE AJUDA MODIFICADA ---
     function showHelpModal() {
         if (!currentGameState) return;
 
@@ -61,25 +60,23 @@ document.addEventListener('DOMContentLoaded', () => {
             'Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.',
             'Flicker Jab': 'Repete o ataque continuamente até errar.',
             'White Fang': 'Permite um segundo uso consecutivo sem custo de PA.',
-            'OraOraOra': 'Nenhum' // Efeito alterado
+            'OraOraOra': 'Nenhum'
         };
 
         const BASIC_MOVES = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Esquiva'];
         let movesToShow = [];
 
-        // Filtra os golpes a serem mostrados
         if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
             const fighter = currentGameState.fighters[myPlayerKey];
             if (fighter) {
                 movesToShow = [...BASIC_MOVES, ...fighter.specialMoves];
             } else {
-                movesToShow = Object.keys(currentGameState.moves); // Fallback
+                movesToShow = Object.keys(currentGameState.moves);
             }
-        } else { // Espectador ou Host vê tudo
+        } else { 
             movesToShow = Object.keys(currentGameState.moves);
         }
         
-        // Garante que não haja duplicatas e que o golpe exista
         movesToShow = [...new Set(movesToShow)].filter(moveName => currentGameState.moves[moveName]);
 
         let tableHtml = `
@@ -102,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const displayName = move.displayName || moveName;
             const cost = moveName === 'Counter' ? 'Variável' : move.cost;
             const effect = MOVE_EFFECTS[moveName] || 'Nenhum';
-            const penaltyDisplay = move.penalty > 0 ? `-${move.penalty}` : move.penalty; // Mostra penalidade como negativa
+            const penaltyDisplay = move.penalty > 0 ? `-${move.penalty}` : move.penalty;
 
             tableHtml += `
                 <tr>
@@ -586,17 +583,21 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('cancel-forfeit-btn').onclick = () => modal.classList.add('hidden');
     }
 
+    // --- FUNÇÃO DE MODAL MODIFICADA ---
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
         modalButton.style.display = 'none';
         modal.classList.remove('hidden');
-         if (!modalText.querySelector('button') && !modalText.querySelector('table')) {
+
+        // Adiciona um botão OK se não houver outros botões no conteúdo
+        if (!modalText.querySelector('button')) {
             const okButton = document.createElement('button');
             okButton.textContent = 'OK';
             okButton.style.cssText = "padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px;";
             okButton.onclick = () => modal.classList.add('hidden');
-            modalText.appendChild(okButton);
+            // Anexa o botão dentro do conteúdo do modal, não apenas no texto
+            document.getElementById('modal-content').appendChild(okButton);
         }
     }
 
