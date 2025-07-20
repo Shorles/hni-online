@@ -11,20 +11,19 @@ app.use(express.static('public'));
 
 const games = {};
 
-// --- ALTERAÇÃO AQUI ---
+// --- ALTERAÇÕES AQUI ---
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
     'Upper': { cost: 3, damage: 6, penalty: 2 },
     'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
-    'Clinch': { cost: 3, damage: 0, penalty: 0 }, // Penalidade alterada de 1 para 0
+    'Clinch': { cost: 3, damage: 0, penalty: 1 }, // Custo 3, Penalidade 1
     'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 },
     'Esquiva': { cost: 1, damage: 0, penalty: 0, reaction: true }
 };
-// --- FIM DA ALTERAÇÃO ---
 
 const SPECIAL_MOVES = {
-    'Counter': { cost: 0, damage: 0, penalty: 0, reaction: true },
+    'Counter': { cost: 0, damage: 0, penalty: 0, reaction: true }, // Custo de ativação é 0
     'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
     'Smash': { cost: 2, damage: 8, penalty: 3 },
     'Bala': { cost: 1, damage: 2, penalty: 0 },
@@ -33,6 +32,8 @@ const SPECIAL_MOVES = {
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
     'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
 };
+// --- FIM DAS ALTERAÇÕES ---
+
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
 const MOVE_SOUNDS = {
@@ -56,7 +57,10 @@ const MOVE_SOUNDS = {
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
 
 const ATTACK_DICE_OUTCOMES = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6];
-const rollAttackD6 = () => {
+const rollAttackD6 = (state) => {
+    if (state.diceCheat === 'crit') return 6;
+    if (state.diceCheat === 'fumble') return 1;
+
     const randomIndex = Math.floor(Math.random() * ATTACK_DICE_OUTCOMES.length);
     return ATTACK_DICE_OUTCOMES[randomIndex];
 };
@@ -71,7 +75,8 @@ function createNewGameState() {
         hostId: null,
         gmId: null,
         playersReady: { player1: false, player2: false },
-        reactionState: null 
+        reactionState: null,
+        diceCheat: null
     };
 }
 
@@ -108,10 +113,10 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             defender.pa -= incomingAttackCost;
             logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${displayName}</span>, mas ${defender.nome} revela um <span class="log-move-name">Contra-Ataque</span>!`, 'log-crit');
             logMessage(state, `${defender.nome} gasta ${incomingAttackCost} PA para executar o Counter.`, 'log-info');
-            const attackerRoll = rollAttackD6();
+            const attackerRoll = rollAttackD6(state);
             const attackerValue = attackerRoll + attacker.agi - move.penalty;
             logMessage(state, `Ataque de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
-            const counterRoll = rollAttackD6();
+            const counterRoll = rollAttackD6(state);
             const counterValue = counterRoll + defender.agi - move.penalty; 
             logMessage(state, `Contra-Ataque de ${defender.nome}: D6(${counterRoll}) + ${defender.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${counterValue}</span>`, 'log-info');
             const damageToDeal = move.damage * 2;
@@ -155,7 +160,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     
     logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
     
-    const roll = rollAttackD6();
+    const roll = rollAttackD6(state);
     let hit = false;
     let crit = false;
     let soundToPlay = null;
@@ -280,7 +285,6 @@ function endTurn(state, io, roomId) {
         processEndRound(state, io, roomId); 
     }
 }
-
 function processEndRound(state, io, roomId) {
     state.currentTurn++;
     if (state.currentTurn > 4) {
@@ -357,7 +361,7 @@ function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
     const move = state.moves[action.move];
-    if (type === 'toggle_pause' || type === 'apply_cheats') { return isGm; }
+    if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat') { return isGm; }
     if (state.phase === 'paused') { return false; }
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
@@ -561,6 +565,14 @@ io.on('connection', (socket) => {
         }
         const playerKey = action.playerKey;
         switch (action.type) {
+            case 'toggle_dice_cheat':
+                if (state.diceCheat === action.cheat) {
+                    state.diceCheat = null;
+                } else {
+                    state.diceCheat = action.cheat;
+                }
+                logMessage(state, `GM alterou o cheat de dados para: ${state.diceCheat || 'Nenhum'}.`, 'log-info');
+                break;
             case 'Esquiva':
                  const esquivador = state.fighters[playerKey];
                  if(esquivador.pa >= move.cost) {
@@ -576,7 +588,7 @@ io.on('connection', (socket) => {
                  break;
             case 'Counter':
                 state.reactionState = { playerKey, move: 'Counter' };
-                // A mensagem de log foi intencionalmente removida
+                // A mensagem de log pública foi removida
                 break;
             case 'confirm_disqualification':
                 state.phase = 'gameover';

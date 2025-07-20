@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
             const fighter = currentGameState.fighters[myPlayerKey];
-            if (fighter) {
+            if (fighter && fighter.specialMoves) {
                 movesToShow = [...BASIC_MOVES, ...fighter.specialMoves];
             } else {
                 movesToShow = Object.keys(currentGameState.moves);
@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <tbody>
         `;
         
-        movesToShow.forEach(moveName => {
+        movesToShow.sort().forEach(moveName => {
             const move = currentGameState.moves[moveName];
             const displayName = move.displayName || moveName;
             const cost = moveName === 'Counter' ? 'Variável' : move.cost;
@@ -237,6 +237,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 socket.emit('playerAction', { type: 'toggle_pause' });
+            }
+            if (e.key.toLowerCase() === 't' && isGm) {
+                socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' });
+            }
+            if (e.key.toLowerCase() === 'r' && isGm) {
+                socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
             }
         });
     }
@@ -461,6 +467,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state || !myPlayerKey) return;
         if (state.scenario) { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
 
+        // --- ATUALIZAÇÃO PARA O CHEAT ---
+        if(isGm) {
+            const cheatIndicator = document.getElementById('dice-cheat-indicator');
+            if (state.diceCheat === 'crit') {
+                cheatIndicator.textContent = 'CHEAT DE CRÍTICOS ATIVO (T)';
+                cheatIndicator.classList.remove('hidden');
+            } else if (state.diceCheat === 'fumble') {
+                cheatIndicator.textContent = 'CHEAT DE ERROS ATIVO (R)';
+                cheatIndicator.classList.remove('hidden');
+            } else {
+                cheatIndicator.classList.add('hidden');
+            }
+        }
+        // --- FIM DA ATUALIZAÇÃO ---
+
         p1SpecialMovesContainer.innerHTML = '';
         p2SpecialMovesContainer.innerHTML = '';
 
@@ -580,201 +601,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-
+    
+        // Temporariamente cria um elemento para verificar se o HTML inserido já tem botões
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = text;
-
-        if (tempDiv.querySelector('button')) {
-            modalButton.style.display = 'none';
-        } else {
-            modalButton.style.display = 'inline-block';
-            modalButton.innerText = 'OK';
-
-            const newButton = modalButton.cloneNode(true);
-            modalButton.parentNode.replaceChild(newButton, modalButton);
-            modalButton = document.getElementById('modal-button');
-            modalButton.onclick = () => {
-                modal.classList.add('hidden');
-                // Remove o botão clonado para não interferir com o interactiveModal
-                const clonedButton = document.getElementById('modal-button');
-                if(clonedButton) clonedButton.remove();
-                // Adiciona o botão original de volta
-                document.getElementById('modal-content').appendChild(newButton);
-                modalButton = newButton;
-            };
-        }
-        
-        modal.classList.remove('hidden');
-    }
-
-    function showInteractiveModal(title, text, btnText, action) {
-        modalTitle.innerText = title;
-        modalText.innerHTML = text;
-        modalButton.innerText = btnText;
-        modalButton.style.display = btnText ? 'inline-block' : 'none';
-        modalButton.disabled = false;
-        const newButton = modalButton.cloneNode(true);
-        modalButton.parentNode.replaceChild(newButton, modalButton);
-        modalButton = document.getElementById('modal-button');
-        if (action) { modalButton.onclick = () => { modalButton.disabled = true; modalButton.innerText = "Aguarde..."; socket.emit('playerAction', action); }; }
-        modal.classList.remove('hidden');
-    }
-
-    function showCheatsModal() {
-        if (!isGm || !currentGameState) return;
-        const p1 = currentGameState.fighters.player1;
-        const p2 = currentGameState.fighters.player2;
-        if (!p1 || !p2) { console.warn("Cheats tentado antes dos lutadores estarem prontos."); socket.emit('playerAction', { type: 'toggle_pause' }); return; }
-        const cheatHtml = `
-            <div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;">
-                <div id="cheat-p1">
-                    <h4>${p1.nome}</h4>
-                    <label>AGI: <input type="number" id="cheat-p1-agi" value="${p1.agi}"></label><br>
-                    <label>RES: <input type="number" id="cheat-p1-res" value="${p1.res}"></label><br>
-                    <label>HP: <input type="number" id="cheat-p1-hp" value="${p1.hp}"></label><br>
-                    <label>PA: <input type="number" id="cheat-p1-pa" value="${p1.pa}"></label><br>
-                </div>
-                <div id="cheat-p2">
-                    <h4>${p2.nome}</h4>
-                    <label>AGI: <input type="number" id="cheat-p2-agi" value="${p2.agi}"></label><br>
-                    <label>RES: <input type="number" id="cheat-p2-res" value="${p2.res}"></label><br>
-                    <label>HP: <input type="number" id="cheat-p2-hp" value="${p2.hp}"></label><br>
-                    <label>PA: <input type="number" id="cheat-p2-pa" value="${p2.pa}"></label><br>
-                </div>
-            </div>`;
-        showInteractiveModal("Menu de Trapaças (GM)", cheatHtml, "Aplicar e Continuar", null);
-        modalButton.onclick = () => {
-            const cheats = {
-                p1: { agi: document.getElementById('cheat-p1-agi').value, res: document.getElementById('cheat-p1-res').value, hp: document.getElementById('cheat-p1-hp').value, pa: document.getElementById('cheat-p1-pa').value, },
-                p2: { agi: document.getElementById('cheat-p2-agi').value, res: document.getElementById('cheat-p2-res').value, hp: document.getElementById('cheat-p2-hp').value, pa: document.getElementById('cheat-p2-pa').value, }
-            };
-            socket.emit('playerAction', { type: 'apply_cheats', cheats });
-            socket.emit('playerAction', { type: 'toggle_pause' });
-        };
-    }
-
-    function showDiceRollAnimation({ playerKey, rollValue, diceType }) {
-        const diceOverlay = document.getElementById('dice-overlay');
-        const diceContainer = document.getElementById(`${playerKey}-dice-result`);
-        if (!diceOverlay || !diceContainer) { return; }
-        let imagePrefix = (diceType === 'd6') ? (playerKey === 'player1' ? 'diceA' : 'diceP') : (playerKey === 'player1' ? 'D3A-' : 'D3P-');
-        diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`;
-        diceOverlay.classList.remove('hidden');
-        diceContainer.classList.remove('hidden');
-        const hideAndResolve = () => { diceOverlay.classList.add('hidden'); diceContainer.classList.add('hidden'); };
-        diceOverlay.addEventListener('click', hideAndResolve, { once: true });
-        setTimeout(hideAndResolve, 2000); 
-    }
+        const hasCustomButtons = tempDiv.querySelector('button');
     
-    socket.on('playSound', (soundFile) => {
-        if (!soundFile) return;
-        const sound = new Audio(`sons/${soundFile}`);
-        sound.currentTime = 0;
-        sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e));
-    });
-
-    socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
-    socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
-    
-    socket.on('assignPlayer', (data) => { 
-        myPlayerKey = data.playerKey;
-        isGm = data.isGm;
-        if (myPlayerKey === 'host') {
-            exitGameBtn.classList.remove('hidden');
-        }
-    });
-
-    socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
-        let btn = document.getElementById(`${targetPlayerKey}-roll-btn`);
-        const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        btn = newBtn;
-        btn.innerText = text;
-        btn.classList.remove('hidden', 'inactive');
-        if (isMyTurnToRoll) {
-            btn.onclick = () => { btn.disabled = true; socket.emit('playerAction', action); };
-            btn.disabled = false;
-        } else {
-            btn.disabled = true;
-            btn.onclick = null;
-            if (myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && !isGm) btn.classList.add('inactive');
-        }
-    });
-
-    socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
-    
-    socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => {
-        let isMyTurnForAction = myPlayerKey === targetPlayerKey;
-        if (modalType === 'disqualification' && isGm) { isMyTurnForAction = true; } 
-        if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') { isMyTurnForAction = myPlayerKey === 'host'; }
-
-        switch(modalType) {
-            case 'gm_knockdown_decision':
-                if (isGm) {
-                    const cheatHtml = `
-                        <p>${text}</p>
-                        <div style="margin-top:20px; display: flex; justify-content: center; gap: 20px;">
-                            <button id="gm-continue-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Continuar</button>
-                            <button id="gm-last-chance-btn" style="background-color: #ffeb3b; color: black; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Dar mais uma chance</button>
-                        </div>
-                        <p style="margin-top: 15px; font-size: 0.9em;">(Você também pode pressionar 'C' para abrir o menu de trapaças)</p>
-                    `;
-                    showInfoModal(title, cheatHtml);
-                    document.getElementById('gm-continue-btn').onclick = () => { socket.emit('playerAction', { type: 'resolve_knockdown_loss' }); modal.classList.add('hidden'); };
-                    document.getElementById('gm-last-chance-btn').onclick = () => { socket.emit('playerAction', { type: 'give_last_chance' }); modal.classList.add('hidden'); };
-                }
-                break;
-            case 'disqualification': 
-                if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
-                else { showInfoModal(title, text); }
-                break;
-            case 'gameover': showInfoModal(title, text); break;
-            case 'decision_table':
-                if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
-                else { showInfoModal(title, text); }
-                break;
-            case 'knockdown':
-                const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
-                let modalTitleText = `${downedFighterName} caiu!`;
-                const attempts = knockdownInfo.attempts;
-                const maxAttempts = knockdownInfo.isLastChance ? 5 : 4;
-                const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
-                const countText = attempts === 0 ? `O juíz começa a contagem: ${counts[0]}` : `A contagem continua: ${counts[attempts] || counts[counts.length-1]}`;
-                let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p>`;
-                if (knockdownInfo.lastRoll) { modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; }
-                if (targetPlayerKey === myPlayerKey) {
-                    modalTitleText = `Você caiu!`;
-                    modalContentText += `<br>Tentativas restantes: ${maxAttempts - attempts}`;
-                    showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action);
-                } else {
-                     modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p> Aguarde a contagem...`;
-                     if (knockdownInfo.lastRoll) { modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; }
-                    showInfoModal(modalTitleText, modalContentText);
-                }
-                break;
-        }
-    });
-
-    socket.on('showGameAlert', (message) => {
-        const alertOverlay = document.getElementById('game-alert-overlay');
-        const alertContent = document.getElementById('game-alert-content');
-        if (alertOverlay && alertContent) {
-            alertContent.innerHTML = message;
-            alertOverlay.classList.remove('hidden');
-            setTimeout(() => {
-                alertOverlay.classList.add('hidden');
-            }, 3000);
-        }
-    });
-
-    socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
-    socket.on('hideModal', () => modal.classList.add('hidden'));
-    socket.on('diceRoll', showDiceRollAnimation);
-    socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); });
-
-    initialize();
-    const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
-    scaleGame();
-    window.addEventListener('resize', scaleGame);
-});
+        if (hasCustomButtons) {
+            

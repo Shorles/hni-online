@@ -190,6 +190,38 @@ body {
 .copy-link-button { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 1.5em; background-color: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid #fff; border-radius: 50%; cursor: pointer; z-index: 100; }
 .copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
 
+/* --- NOVO: BOTÃO DE AJUDA E INDICADOR DE CHEAT --- */
+.help-btn {
+    position: absolute;
+    top: 20px;
+    right: 80px;
+    width: 40px;
+    height: 40px;
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #fff;
+    background-color: rgba(0, 123, 255, 0.5);
+    border: 1px solid #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 3100;
+}
+.help-btn:hover { background-color: rgba(0, 123, 255, 0.8); }
+
+.cheat-indicator {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(220, 53, 69, 0.8);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 5px;
+    font-weight: bold;
+    z-index: 3100;
+    pointer-events: none;
+}
+/* --- FIM DA ADIÇÃO --- */
 
 /* POSICIONAMENTO E ANIMAÇÃO DOS LUTADORES */
 .fighter-img { 
@@ -325,6 +357,13 @@ body {
 .special-move-card h4 { margin: 0 0 5px 0; color: #ffeb3b; }
 .special-move-card p { margin: 2px 0; font-size: 0.9em; }
 
+/* MODAL DE AJUDA - TABELA */
+.help-table-container { max-height: 50vh; overflow-y: auto; margin: 15px 0; }
+#help-modal-table { width: 100%; border-collapse: collapse; text-align: left; }
+#help-modal-table th, #help-modal-table td { padding: 8px; border-bottom: 1px solid #555; }
+#help-modal-table th { font-weight: bold; color: #ffeb3b; }
+#help-modal-table td:nth-child(5) { font-size: 0.9em; } /* Efeito */
+
 #dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
 #player1-dice-result { left: 400px; bottom: 530px; }
@@ -333,7 +372,6 @@ body {
 #get-up-success-content { background: rgba(0, 0, 0, 0.85); color: #28a745; padding: 25px 40px; border-radius: 15px; border: 3px solid #28a745; text-align: center; font-size: 1.8em; font-weight: bold; text-shadow: 1px 1px 2px #000; }
 #get-up-success-content span { color: #aaa; font-size: 0.7em; display: block; margin-top: 10px; }
 
-/* --- NOVO: ESTILO PARA O ALERTA DE TELA CHEIA --- */
 #game-alert-overlay {
     position: absolute;
     top: 0;
@@ -352,7 +390,7 @@ body {
     opacity: 0;
 }
 #game-alert-content {
-    background: rgba(220, 53, 69, 0.85); /* Vermelho translúcido */
+    background: rgba(220, 53, 69, 0.85);
     color: #fff;
     padding: 30px 50px;
     border-radius: 15px;
