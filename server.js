@@ -57,7 +57,6 @@ const ATTACK_DICE_OUTCOMES = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6];
 const rollAttackD6 = (state) => {
     if (state.diceCheat === 'crit') return 6;
     if (state.diceCheat === 'fumble') return 1;
-
     const randomIndex = Math.floor(Math.random() * ATTACK_DICE_OUTCOMES.length);
     return ATTACK_DICE_OUTCOMES[randomIndex];
 };
@@ -73,7 +72,9 @@ function createNewGameState() {
         gmId: null,
         playersReady: { player1: false, player2: false },
         reactionState: null,
-        diceCheat: null
+        diceCheat: null,
+        // NOVO: Cheat de golpes ilegais
+        illegalCheat: 'normal' // Estados: 'normal', 'always', 'never'
     };
 }
 
@@ -218,9 +219,14 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         soundToPlay = 'Esquiva.mp3';
     }
 
-    if (moveName === 'Golpe Ilegal') {
-        const dqChance = 0.05 * Math.pow(2, attacker.illegalMoveUses);
+    // --- LÓGICA DO CHEAT DE GOLPE ILEGAL ---
+    const isActuallyIllegal = 
+        (state.illegalCheat === 'always' && move.damage > 0) || 
+        (state.illegalCheat === 'normal' && moveName === 'Golpe Ilegal');
+
+    if (isActuallyIllegal) {
         attacker.illegalMoveUses++;
+        const dqChance = 0.05 * Math.pow(2, attacker.illegalMoveUses - 1);
 
         if (Math.random() < dqChance) {
             state.phase = 'gm_disqualification_ack';
@@ -358,7 +364,7 @@ function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
     const move = state.moves[action.move];
-    if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat') { return isGm; }
+    if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat' || type === 'toggle_illegal_cheat') { return isGm; }
     if (state.phase === 'paused') { return false; }
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
@@ -568,8 +574,18 @@ io.on('connection', (socket) => {
                 } else {
                     state.diceCheat = action.cheat;
                 }
-                // Log removido
                 break;
+            // --- NOVO CHEAT ---
+            case 'toggle_illegal_cheat':
+                if (state.illegalCheat === 'normal') {
+                    state.illegalCheat = 'always';
+                } else if (state.illegalCheat === 'always') {
+                    state.illegalCheat = 'never';
+                } else {
+                    state.illegalCheat = 'normal';
+                }
+                break;
+            // --- FIM DO NOVO CHEAT ---
             case 'Esquiva':
                  const esquivador = state.fighters[playerKey];
                  if(esquivador.pa >= move.cost) {
@@ -585,7 +601,6 @@ io.on('connection', (socket) => {
                  break;
             case 'Counter':
                 state.reactionState = { playerKey, move: 'Counter' };
-                // A mensagem de log pública foi intencionalmente removida
                 break;
             case 'confirm_disqualification':
                 state.phase = 'gameover';
@@ -772,8 +787,6 @@ io.on('connection', (socket) => {
                 const knockdownInfo = state.knockdownInfo;
                 if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
                 knockdownInfo.attempts++;
-
-                // --- ALTERAÇÃO AQUI ---
                 let getUpRoll;
                 if (state.diceCheat === 'crit') {
                     getUpRoll = 6;
@@ -782,8 +795,6 @@ io.on('connection', (socket) => {
                 } else {
                     getUpRoll = rollD(6);
                 }
-                // --- FIM DA ALTERAÇÃO ---
-
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
                 const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 knockdownInfo.lastRoll = totalRoll;

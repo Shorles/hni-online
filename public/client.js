@@ -244,6 +244,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key.toLowerCase() === 'r' && isGm) {
                 socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
             }
+            if (e.key.toLowerCase() === 'i' && isGm) {
+                socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
+            }
         });
     }
 
@@ -469,11 +472,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(isGm) {
             const cheatIndicator = document.getElementById('dice-cheat-indicator');
+            let cheatText = '';
             if (state.diceCheat === 'crit') {
-                cheatIndicator.textContent = 'CHEAT DE CRÍTICOS ATIVO (T)';
-                cheatIndicator.classList.remove('hidden');
+                cheatText += 'Críticos (T) ';
             } else if (state.diceCheat === 'fumble') {
-                cheatIndicator.textContent = 'CHEAT DE ERROS ATIVO (R)';
+                cheatText += 'Erros (R) ';
+            }
+
+            if (state.illegalCheat === 'always') {
+                cheatText += 'Sempre Ilegal (I) ';
+            } else if (state.illegalCheat === 'never') {
+                cheatText += 'Nunca Ilegal (I) ';
+            }
+            
+            if (cheatText) {
+                cheatIndicator.textContent = 'CHEAT ATIVO: ' + cheatText.trim();
                 cheatIndicator.classList.remove('hidden');
             } else {
                 cheatIndicator.classList.add('hidden');
@@ -575,9 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if (isReaction && !hasUsedReaction && moveName) {
                         const move = state.moves[moveName];
-                        if (moveName === 'Clinch' && me.activeEffects.esquiva) {
-                             isDisabled = true;
-                        } else if (move && me.pa >= move.cost) {
+                         if (move && me.pa >= move.cost) {
                             isDisabled = false;
                         }
                     }
@@ -595,19 +606,18 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
     
-    // --- FUNÇÃO DE MODAL CORRIGIDA E SIMPLIFICADA ---
+    // --- FUNÇÃO DE MODAL CORRIGIDA E ROBUSTA ---
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = text;
+        const hasCustomButtons = tempDiv.querySelector('button');
 
-        if (tempDiv.querySelector('button')) {
-            // Se o conteúdo já tem seus próprios botões (ex: desistir), esconde o botão padrão
+        if (hasCustomButtons) {
             modalButton.style.display = 'none';
         } else {
-            // Caso contrário, mostra e configura o botão padrão "OK"
             modalButton.style.display = 'inline-block';
             modalButton.innerText = 'OK';
             modalButton.onclick = () => modal.classList.add('hidden');
