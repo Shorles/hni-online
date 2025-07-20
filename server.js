@@ -11,17 +11,17 @@ app.use(express.static('public'));
 
 const games = {};
 
-// --- INÍCIO DAS ALTERAÇÕES ---
+// --- ALTERAÇÃO AQUI ---
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
     'Upper': { cost: 3, damage: 6, penalty: 2 },
     'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
-    'Clinch': { cost: 3, damage: 0, penalty: 1 }, // Custo 3, Penalidade 1
+    'Clinch': { cost: 3, damage: 0, penalty: 0 }, // Penalidade alterada de 1 para 0
     'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 },
     'Esquiva': { cost: 1, damage: 0, penalty: 0, reaction: true }
 };
-// --- FIM DAS ALTERAÇÕES ---
+// --- FIM DA ALTERAÇÃO ---
 
 const SPECIAL_MOVES = {
     'Counter': { cost: 0, damage: 0, penalty: 0, reaction: true },
@@ -200,7 +200,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
         }
 
-        // --- ALTERAÇÃO AQUI ---
         if (moveName === 'Liver Blow') {
             if (Math.random() < 0.3) {
                 if (defender.pa > 0) {
@@ -212,7 +211,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             defender.pa = Math.max(0, defender.pa - 2);
             logMessage(state, `${attacker.nome} acerta o Clinch! ${defender.nome} perde 2 PA.`, 'log-hit');
         }
-        // --- FIM DA ALTERAÇÃO ---
         
     } else {
         soundToPlay = 'Esquiva.mp3';
@@ -247,8 +245,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
 function endTurn(state, io, roomId) {
     const lastPlayerKey = state.whoseTurn;
     const opponentKey = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
-
-    // --- LÓGICA DO CLINCH REMOVIDA DAQUI, POIS NÃO TEM MAIS EFEITO PERSISTENTE ---
 
     if (state.reactionState) {
         const reactionUserKey = state.reactionState.playerKey;
@@ -579,9 +575,8 @@ io.on('connection', (socket) => {
                  }
                  break;
             case 'Counter':
-                // --- ALTERAÇÃO AQUI ---
                 state.reactionState = { playerKey, move: 'Counter' };
-                // Log removido para ser surpresa
+                // A mensagem de log foi intencionalmente removida
                 break;
             case 'confirm_disqualification':
                 state.phase = 'gameover';
