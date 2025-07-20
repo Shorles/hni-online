@@ -11,19 +11,18 @@ app.use(express.static('public'));
 
 const games = {};
 
-// --- ALTERAÇÕES AQUI ---
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
     'Upper': { cost: 3, damage: 6, penalty: 2 },
     'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
-    'Clinch': { cost: 3, damage: 0, penalty: 1 }, // Custo 3, Penalidade 1
+    'Clinch': { cost: 3, damage: 0, penalty: 0 },
     'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 },
     'Esquiva': { cost: 1, damage: 0, penalty: 0, reaction: true }
 };
 
 const SPECIAL_MOVES = {
-    'Counter': { cost: 0, damage: 0, penalty: 0, reaction: true }, // Custo de ativação é 0
+    'Counter': { cost: 0, damage: 0, penalty: 0, reaction: true },
     'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
     'Smash': { cost: 2, damage: 8, penalty: 3 },
     'Bala': { cost: 1, damage: 2, penalty: 0 },
@@ -32,8 +31,6 @@ const SPECIAL_MOVES = {
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
     'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
 };
-// --- FIM DAS ALTERAÇÕES ---
-
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
 const MOVE_SOUNDS = {
@@ -571,7 +568,7 @@ io.on('connection', (socket) => {
                 } else {
                     state.diceCheat = action.cheat;
                 }
-                logMessage(state, `GM alterou o cheat de dados para: ${state.diceCheat || 'Nenhum'}.`, 'log-info');
+                // Log removido
                 break;
             case 'Esquiva':
                  const esquivador = state.fighters[playerKey];
@@ -588,7 +585,7 @@ io.on('connection', (socket) => {
                  break;
             case 'Counter':
                 state.reactionState = { playerKey, move: 'Counter' };
-                // A mensagem de log pública foi removida
+                // A mensagem de log pública foi intencionalmente removida
                 break;
             case 'confirm_disqualification':
                 state.phase = 'gameover';
@@ -775,7 +772,18 @@ io.on('connection', (socket) => {
                 const knockdownInfo = state.knockdownInfo;
                 if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
                 knockdownInfo.attempts++;
-                const getUpRoll = rollD(6);
+
+                // --- ALTERAÇÃO AQUI ---
+                let getUpRoll;
+                if (state.diceCheat === 'crit') {
+                    getUpRoll = 6;
+                } else if (state.diceCheat === 'fumble') {
+                    getUpRoll = 1;
+                } else {
+                    getUpRoll = rollD(6);
+                }
+                // --- FIM DA ALTERAÇÃO ---
+
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
                 const totalRoll = getUpRoll + state.fighters[playerKey].res;
                 knockdownInfo.lastRoll = totalRoll;

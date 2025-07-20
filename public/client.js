@@ -595,46 +595,34 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
     
-    function showForfeitConfirmation() {
-        const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
-        showInfoModal("Jogar a Toalha", modalContentHtml);
-        document.getElementById('confirm-forfeit-btn').onclick = () => { socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey }); modal.classList.add('hidden'); };
-        document.getElementById('cancel-forfeit-btn').onclick = () => modal.classList.add('hidden');
-    }
-
-    // --- FUNÇÃO DE MODAL CORRIGIDA ---
+    // --- FUNÇÃO DE MODAL CORRIGIDA E SIMPLIFICADA ---
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-        
-        // Remove qualquer botão OK antigo para evitar duplicação
-        const oldOkButton = document.getElementById('modal-ok-button');
-        if (oldOkButton) oldOkButton.remove();
 
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = text;
-        const hasCustomButtons = tempDiv.querySelector('button');
 
-        if (hasCustomButtons) {
+        if (tempDiv.querySelector('button')) {
+            // Se o conteúdo já tem seus próprios botões (ex: desistir), esconde o botão padrão
             modalButton.style.display = 'none';
         } else {
+            // Caso contrário, mostra e configura o botão padrão "OK"
             modalButton.style.display = 'inline-block';
             modalButton.innerText = 'OK';
-            modalButton.id = 'modal-ok-button'; // Dá um ID para remover depois
             modalButton.onclick = () => modal.classList.add('hidden');
         }
         
         modal.classList.remove('hidden');
     }
-    
+
     function showInteractiveModal(title, text, btnText, action) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-        
-        // Limpa listeners antigos clonando o botão principal
-        const newMainButton = modalButton.cloneNode(true);
-        modalButton.parentNode.replaceChild(newMainButton, modalButton);
-        modalButton = newMainButton;
+
+        const newButton = modalButton.cloneNode(true);
+        modalButton.parentNode.replaceChild(newButton, modalButton);
+        modalButton = newButton;
         
         modalButton.innerText = btnText;
         modalButton.style.display = btnText ? 'inline-block' : 'none';
@@ -651,7 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         modal.classList.remove('hidden');
     }
-
+    
     function showCheatsModal() {
         if (!isGm || !currentGameState) return;
         const p1 = currentGameState.fighters.player1;
