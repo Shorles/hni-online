@@ -576,29 +576,35 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
     
-    function showForfeitConfirmation() {
-        const modalContentHtml = `<p>Você tem certeza que deseja jogar a toalha e desistir da luta?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
-        showInfoModal("Jogar a Toalha", modalContentHtml);
-        document.getElementById('confirm-forfeit-btn').onclick = () => { socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey }); modal.classList.add('hidden'); };
-        document.getElementById('cancel-forfeit-btn').onclick = () => modal.classList.add('hidden');
-    }
-
-    // --- FUNÇÃO DE MODAL MODIFICADA ---
+    // --- FUNÇÃO DE MODAL CORRIGIDA ---
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-        modalButton.style.display = 'none';
-        modal.classList.remove('hidden');
 
-        // Adiciona um botão OK se não houver outros botões no conteúdo
-        if (!modalText.querySelector('button')) {
-            const okButton = document.createElement('button');
-            okButton.textContent = 'OK';
-            okButton.style.cssText = "padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px;";
-            okButton.onclick = () => modal.classList.add('hidden');
-            // Anexa o botão dentro do conteúdo do modal, não apenas no texto
-            document.getElementById('modal-content').appendChild(okButton);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = text;
+
+        if (tempDiv.querySelector('button')) {
+            modalButton.style.display = 'none';
+        } else {
+            modalButton.style.display = 'inline-block';
+            modalButton.innerText = 'OK';
+
+            const newButton = modalButton.cloneNode(true);
+            modalButton.parentNode.replaceChild(newButton, modalButton);
+            modalButton = document.getElementById('modal-button');
+            modalButton.onclick = () => {
+                modal.classList.add('hidden');
+                // Remove o botão clonado para não interferir com o interactiveModal
+                const clonedButton = document.getElementById('modal-button');
+                if(clonedButton) clonedButton.remove();
+                // Adiciona o botão original de volta
+                document.getElementById('modal-content').appendChild(newButton);
+                modalButton = newButton;
+            };
         }
+        
+        modal.classList.remove('hidden');
     }
 
     function showInteractiveModal(title, text, btnText, action) {
@@ -765,7 +771,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
     socket.on('hideModal', () => modal.classList.add('hidden'));
     socket.on('diceRoll', showDiceRollAnimation);
-    socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); document.querySelectorAll('button').forEach(btn => btn.disabled = true); });
+    socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); });
 
     initialize();
     const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
