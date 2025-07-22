@@ -239,7 +239,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         if (isActuallyIllegal) {
             attacker.illegalMoveUses++;
 
-            // --- NOVA LÓGICA DE GOLPE ILEGAL ---
             // A checagem de DQ só acontece se o jogador já tiver perdido pontos por isso.
             if (attacker.pointDeductions > 0) {
                 // A chance começa em 10% no 2º uso e dobra a cada uso subsequente.
@@ -699,15 +698,21 @@ io.on('connection', (socket) => {
             case 'attack':
                 const attacker = state.fighters[playerKey];
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
+                
+                // --- ALTERAÇÃO AQUI: Lógica do custo do White Fang ---
                 let cost = move.cost;
                 if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
                     cost = 0;
                 }
+
                 if (attacker.pa < cost) return;
+                // --- FIM DA ALTERAÇÃO ---
+
                 attacker.pa -= cost;
                 
                 if (moveName === 'White Fang') {
                     executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                    if (state.phase === 'gm_disqualification_ack') break; // Para se houver DQ
                     if (state.followUpState) {
                         state.followUpState = null;
                         state.phase = 'turn';
@@ -719,6 +724,7 @@ io.on('connection', (socket) => {
                     const executeFlicker = () => {
                         if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
                         const hit = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                        if (state.phase === 'gm_disqualification_ack') return; // Para se houver DQ
                         io.to(roomId).emit('gameUpdate', room.state);
                         if (state.fighters[defenderKey].hp <= 0) {
                             return; // Para a execução se o oponente cair

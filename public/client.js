@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         btn.dataset.move = moveName;
                         btn.dataset.reaction = moveData.reaction || false;
                         const costText = moveName === 'Counter' ? '(Variável)' : `(${moveData.cost} PA)`;
-                        btn.textContent = `${displayName} ${costText}`;
+                        btn.innerHTML = `${displayName} ${costText}`; // Use innerHTML para permitir tags
                         container.appendChild(btn);
                     });
                 }
@@ -572,6 +572,14 @@ document.addEventListener('DOMContentLoaded', () => {
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         
+        // --- ALTERAÇÃO AQUI: Lógica do botão do White Fang ---
+        // Limpa qualquer estado anterior
+        document.querySelectorAll('.white-fang-ready').forEach(btn => {
+            btn.classList.remove('white-fang-ready');
+            const extraText = btn.querySelector('.white-fang-extra');
+            if (extraText) extraText.remove();
+        });
+        
         document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => {
             const controlsId = btn.closest('.move-buttons').id;
             const buttonPlayerKey = (controlsId === 'p1-controls') ? 'player1' : 'player2';
@@ -596,7 +604,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (isEndTurn) { isDisabled = false; } 
                     else if (!isReaction && moveName) {
                         const move = state.moves[moveName];
-                        if (move && me.pa >= move.cost) {
+                        let cost = move.cost;
+                        // Verifica se é o segundo golpe do White Fang
+                        if (state.phase === 'white_fang_follow_up' && moveName === 'White Fang') {
+                            cost = 0;
+                            // Adiciona o feedback visual
+                            btn.classList.add('white-fang-ready');
+                            if (!btn.querySelector('.white-fang-extra')) {
+                                btn.innerHTML += '<span class="white-fang-extra">Ataque Extra!</span>';
+                            }
+                        }
+                        if (move && me.pa >= cost) {
                             isDisabled = false;
                         }
                     }

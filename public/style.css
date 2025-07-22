@@ -190,7 +190,7 @@ body {
 .copy-link-button { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 1.5em; background-color: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid #fff; border-radius: 50%; cursor: pointer; z-index: 100; }
 .copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
 
-/* --- NOVO: BOTÃO DE AJUDA E INDICADOR DE CHEAT --- */
+/* --- BOTÃO DE AJUDA E INDICADOR DE CHEAT --- */
 .help-btn {
     position: absolute;
     top: 20px;
@@ -221,7 +221,6 @@ body {
     z-index: 3100;
     pointer-events: none;
 }
-/* --- FIM DA ADIÇÃO --- */
 
 /* POSICIONAMENTO E ANIMAÇÃO DOS LUTADORES */
 .fighter-img { 
@@ -241,6 +240,13 @@ body {
 @keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(50px); } }
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
 .is-hit { animation: hit-flash 0.5s ease-in-out; }
+
+/* --- ALTERAÇÃO AQUI: ANIMAÇÃO DE PULSO PARA WHITE FANG --- */
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 235, 59, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0); }
+}
 
 /* Regras para MODO CLÁSSICO */
 .mode-classic #player1-fight-img { left: 380px; transform: scaleX(-1); }
@@ -294,6 +300,7 @@ body {
     color: white; 
     transition: background-color 0.2s; 
     min-width: 110px;
+    position: relative; /* Necessário para posicionar o texto extra */
 }
 .end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6f42c1; }
@@ -315,6 +322,19 @@ body {
 .illegal-btn:hover:not(:disabled) {
     background-color: #800000 !important;
 }
+
+/* --- ALTERAÇÃO AQUI: Estilo para o botão White Fang pronto --- */
+.action-btn.white-fang-ready {
+    border: 2px solid #ffeb3b;
+    animation: pulse 2s infinite;
+}
+.white-fang-extra {
+    font-size: 0.8em;
+    color: #ffeb3b;
+    display: block;
+    font-style: italic;
+}
+
 
 /* BOTÕES DE ROLAGEM */
 .roll-dice-button { position: absolute; bottom: 450px; padding: 10px 15px; font-size: 1em; font-weight: bold; border: 2px solid #fff; border-radius: 8px; cursor: pointer; z-index: 100; transition: all 0.2s ease; }
@@ -363,7 +383,6 @@ body {
 #help-modal-table th, #help-modal-table td { padding: 8px; border-bottom: 1px solid #555; }
 #help-modal-table th { font-weight: bold; color: #ffeb3b; }
 #help-modal-table td:nth-child(5) { font-size: 0.9em; } /* Efeito */
-/* --- ALTERAÇÃO AQUI: Estilo para a linha divisória --- */
 #help-modal-table .special-moves-divider td {
     border-bottom: 2px solid #ffeb3b;
     padding: 2px;
