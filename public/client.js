@@ -549,6 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'paused') { roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
         } else if (state.phase === 'gameover') { roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
+        } else if (state.phase === 'double_knockdown') { roundInfoEl.innerHTML = `<span class="turn-highlight">QUEDA DUPLA!</span>`;
         } else if (state.phase === 'decision_table_wait') { roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
         } else if (state.phase.startsWith('arena_')) { roundInfoEl.innerHTML = `Aguardando início...`;
         } else {
@@ -572,8 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         
-        // --- ALTERAÇÃO AQUI: Lógica do botão do White Fang ---
-        // Limpa qualquer estado anterior
         document.querySelectorAll('.white-fang-ready').forEach(btn => {
             btn.classList.remove('white-fang-ready');
             const extraText = btn.querySelector('.white-fang-extra');
@@ -605,10 +604,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (!isReaction && moveName) {
                         const move = state.moves[moveName];
                         let cost = move.cost;
-                        // Verifica se é o segundo golpe do White Fang
                         if (state.phase === 'white_fang_follow_up' && moveName === 'White Fang') {
                             cost = 0;
-                            // Adiciona o feedback visual
                             btn.classList.add('white-fang-ready');
                             if (!btn.querySelector('.white-fang-extra')) {
                                 btn.innerHTML += '<span class="white-fang-extra">Ataque Extra!</span>';
@@ -639,34 +636,23 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
     
-    // --- FUNÇÃO DE MODAL CORRIGIDA E ROBUSTA ---
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = text;
         const hasCustomButtons = tempDiv.querySelector('button');
-
-        if (hasCustomButtons) {
-            modalButton.style.display = 'none';
-        } else {
-            modalButton.style.display = 'inline-block';
-            modalButton.innerText = 'OK';
-            modalButton.onclick = () => modal.classList.add('hidden');
-        }
-        
+        if (hasCustomButtons) { modalButton.style.display = 'none';
+        } else { modalButton.style.display = 'inline-block'; modalButton.innerText = 'OK'; modalButton.onclick = () => modal.classList.add('hidden'); }
         modal.classList.remove('hidden');
     }
 
     function showInteractiveModal(title, text, btnText, action) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-
         const newButton = modalButton.cloneNode(true);
         modalButton.parentNode.replaceChild(newButton, modalButton);
         modalButton = newButton;
-        
         modalButton.innerText = btnText;
         modalButton.style.display = btnText ? 'inline-block' : 'none';
         modalButton.disabled = false;
@@ -767,7 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
     
-    socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo }) => {
+    socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo, doubleKnockdownInfo }) => {
         let isMyTurnForAction = myPlayerKey === targetPlayerKey;
         if (modalType === 'disqualification' && isGm) { isMyTurnForAction = true; } 
         if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') { isMyTurnForAction = myPlayerKey === 'host'; }
@@ -775,43 +761,50 @@ document.addEventListener('DOMContentLoaded', () => {
         switch(modalType) {
             case 'gm_knockdown_decision':
                 if (isGm) {
-                    const cheatHtml = `
-                        <p>${text}</p>
-                        <div style="margin-top:20px; display: flex; justify-content: center; gap: 20px;">
-                            <button id="gm-continue-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Continuar</button>
-                            <button id="gm-last-chance-btn" style="background-color: #ffeb3b; color: black; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Dar mais uma chance</button>
-                        </div>
-                        <p style="margin-top: 15px; font-size: 0.9em;">(Você também pode pressionar 'C' para abrir o menu de trapaças)</p>
-                    `;
+                    const cheatHtml = `<p>${text}</p><div style="margin-top:20px; display: flex; justify-content: center; gap: 20px;"><button id="gm-continue-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Continuar</button><button id="gm-last-chance-btn" style="background-color: #ffeb3b; color: black; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Dar mais uma chance</button></div><p style="margin-top: 15px; font-size: 0.9em;">(Você também pode pressionar 'C' para abrir o menu de trapaças)</p>`;
                     showInfoModal(title, cheatHtml);
                     document.getElementById('gm-continue-btn').onclick = () => { socket.emit('playerAction', { type: 'resolve_knockdown_loss' }); modal.classList.add('hidden'); };
                     document.getElementById('gm-last-chance-btn').onclick = () => { socket.emit('playerAction', { type: 'give_last_chance' }); modal.classList.add('hidden'); };
                 }
                 break;
             case 'disqualification': 
-                if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
-                else { showInfoModal(title, text); }
-                break;
-            case 'gameover': showInfoModal(title, text); break;
+            case 'gameover': 
             case 'decision_table':
                 if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
                 else { showInfoModal(title, text); }
+                break;
+            case 'double_knockdown':
+                const dki = doubleKnockdownInfo;
+                const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
+                const countText = `O juíz começa a contagem: ${counts[dki.attempts] || counts[counts.length-1]}`;
+                const p1Name = currentGameState.fighters.player1.nome;
+                const p2Name = currentGameState.fighters.player2.nome;
+
+                let p1RollText = dki.lastRolls.player1 ? `Rolagem de ${p1Name}: <strong>${dki.lastRolls.player1}</strong>` : `Aguardando ${p1Name}...`;
+                let p2RollText = dki.lastRolls.player2 ? `Rolagem de ${p2Name}: <strong>${dki.lastRolls.player2}</strong>` : `Aguardando ${p2Name}...`;
+
+                let modalContentHtml = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p><div style="display:flex; justify-content:space-around; margin: 15px 0;"><p>${p1RollText}</p><p>${p2RollText}</p></div>`;
+
+                const canMyPlayerAct = (myPlayerKey === 'player1' && dki.getUpStatus.player1 === 'pending') || (myPlayerKey === 'player2' && dki.getUpStatus.player2 === 'pending');
+                
+                showInteractiveModal(title, modalContentHtml, btnText, { ...action, playerKey: myPlayerKey });
+                modalButton.disabled = !canMyPlayerAct;
                 break;
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
                 let modalTitleText = `${downedFighterName} caiu!`;
                 const attempts = knockdownInfo.attempts;
                 const maxAttempts = knockdownInfo.isLastChance ? 5 : 4;
-                const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
-                const countText = attempts === 0 ? `O juíz começa a contagem: ${counts[0]}` : `A contagem continua: ${counts[attempts] || counts[counts.length-1]}`;
-                let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p>`;
+                const counts_single = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
+                const countText_single = attempts === 0 ? `O juíz começa a contagem: ${counts_single[0]}` : `A contagem continua: ${counts_single[attempts] || counts_single[counts_single.length-1]}`;
+                let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText_single}</p>`;
                 if (knockdownInfo.lastRoll) { modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; }
                 if (targetPlayerKey === myPlayerKey) {
                     modalTitleText = `Você caiu!`;
                     modalContentText += `<br>Tentativas restantes: ${maxAttempts - attempts}`;
                     showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action);
                 } else {
-                     modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p> Aguarde a contagem...`;
+                     modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText_single}</p> Aguarde a contagem...`;
                      if (knockdownInfo.lastRoll) { modalContentText += `<br>Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; }
                     showInfoModal(modalTitleText, modalContentText);
                 }

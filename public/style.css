@@ -241,7 +241,6 @@ body {
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
 .is-hit { animation: hit-flash 0.5s ease-in-out; }
 
-/* --- ALTERAÇÃO AQUI: ANIMAÇÃO DE PULSO PARA WHITE FANG --- */
 @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.7); }
     70% { box-shadow: 0 0 0 10px rgba(255, 235, 59, 0); }
@@ -266,6 +265,8 @@ body {
 .fighter-info { flex-basis: 28%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
 .fighter-info.active-turn { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
 .fighter-info p { margin: 0; font-size: 0.9em; }
+/* --- ALTERAÇÃO AQUI: Mudança para estilizar o texto de Penalidades --- */
+.fighter-info p:last-of-type { color: #dc3545; }
 .stats-bar { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
 .hp-bar-container { width: 100%; height: 20px; background-color: #555; border: 1px solid #000; border-radius: 5px; }
 .hp-bar { height: 100%; background-color: #28a745; border-radius: 5px; transition: width 0.5s ease-in-out; }
@@ -300,7 +301,7 @@ body {
     color: white; 
     transition: background-color 0.2s; 
     min-width: 110px;
-    position: relative; /* Necessário para posicionar o texto extra */
+    position: relative;
 }
 .end-turn-btn { background-color: #ffc107; color: #000; }
 #forfeit-btn { background-color: #6f42c1; }
@@ -323,7 +324,6 @@ body {
     background-color: #800000 !important;
 }
 
-/* --- ALTERAÇÃO AQUI: Estilo para o botão White Fang pronto --- */
 .action-btn.white-fang-ready {
     border: 2px solid #ffeb3b;
     animation: pulse 2s infinite;
