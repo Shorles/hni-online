@@ -63,21 +63,21 @@ document.addEventListener('DOMContentLoaded', () => {
             'OraOraOra': 'Nenhum'
         };
 
-        const BASIC_MOVES = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Esquiva'];
-        let movesToShow = [];
+        const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Esquiva'];
+        let playerSpecialMoves = [];
 
         if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
             const fighter = currentGameState.fighters[myPlayerKey];
             if (fighter && fighter.specialMoves) {
-                movesToShow = [...BASIC_MOVES, ...fighter.specialMoves];
+                playerSpecialMoves = fighter.specialMoves;
             } else {
-                movesToShow = Object.keys(currentGameState.moves);
+                playerSpecialMoves = Object.keys(availableSpecialMoves || {});
             }
-        } else { 
-            movesToShow = Object.keys(currentGameState.moves);
+        } else {
+            playerSpecialMoves = Object.keys(currentGameState.moves).filter(m => !BASIC_MOVES_ORDER.includes(m));
         }
         
-        movesToShow = [...new Set(movesToShow)].filter(moveName => currentGameState.moves[moveName]).sort();
+        playerSpecialMoves.sort();
 
         let tableHtml = `
             <div class="help-table-container">
@@ -94,14 +94,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <tbody>
         `;
         
-        movesToShow.forEach(moveName => {
+        const renderRow = (moveName) => {
             const move = currentGameState.moves[moveName];
+            if (!move) return '';
             const displayName = move.displayName || moveName;
             const cost = moveName === 'Counter' ? 'Variável' : move.cost;
             const effect = MOVE_EFFECTS[moveName] || 'Nenhum';
             const penaltyDisplay = move.penalty > 0 ? `-${move.penalty}` : move.penalty;
-
-            tableHtml += `
+            return `
                 <tr>
                     <td>${displayName}</td>
                     <td>${cost}</td>
@@ -110,6 +110,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${effect}</td>
                 </tr>
             `;
+        };
+        
+        // Renderiza golpes básicos
+        BASIC_MOVES_ORDER.forEach(moveName => {
+            tableHtml += renderRow(moveName);
+        });
+
+        // Adiciona a divisão se houver golpes especiais
+        if (playerSpecialMoves.length > 0) {
+            tableHtml += `<tr class="special-moves-divider"><td colspan="5"></td></tr>`;
+        }
+
+        // Renderiza golpes especiais
+        playerSpecialMoves.forEach(moveName => {
+            tableHtml += renderRow(moveName);
         });
         
         tableHtml += `</tbody></table></div>`;
@@ -588,9 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if (isReaction && !hasUsedReaction && moveName) {
                         const move = state.moves[moveName];
-                        if (moveName === 'Clinch' && me.activeEffects.esquiva) {
-                             isDisabled = true;
-                        } else if (move && me.pa >= move.cost) {
+                         if (move && me.pa >= move.cost) {
                             isDisabled = false;
                         }
                     }
@@ -608,7 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
     
-    // --- FUNÇÃO DE MODAL CORRIGIDA ---
+    // --- FUNÇÃO DE MODAL CORRIGIDA E ROBUSTA ---
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
@@ -617,11 +630,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tempDiv.innerHTML = text;
         const hasCustomButtons = tempDiv.querySelector('button');
 
-        // Sempre recria o listener do botão principal para garantir que funcione
-        const newButton = modalButton.cloneNode(true);
-        modalButton.parentNode.replaceChild(newButton, modalButton);
-        modalButton = newButton;
-        
         if (hasCustomButtons) {
             modalButton.style.display = 'none';
         } else {
@@ -636,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showInteractiveModal(title, text, btnText, action) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-        
+
         const newButton = modalButton.cloneNode(true);
         modalButton.parentNode.replaceChild(newButton, modalButton);
         modalButton = newButton;

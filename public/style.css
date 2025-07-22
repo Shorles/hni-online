@@ -363,6 +363,11 @@ body {
 #help-modal-table th, #help-modal-table td { padding: 8px; border-bottom: 1px solid #555; }
 #help-modal-table th { font-weight: bold; color: #ffeb3b; }
 #help-modal-table td:nth-child(5) { font-size: 0.9em; } /* Efeito */
+/* --- ALTERAÇÃO AQUI: Estilo para a linha divisória --- */
+#help-modal-table .special-moves-divider td {
+    border-bottom: 2px solid #ffeb3b;
+    padding: 2px;
+}
 
 #dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; }
 .dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
@@ -462,7 +467,6 @@ body {
     #special-moves-list { max-height: 50vh; }
     #mode-selection-screen h1 { font-size: 2.5em; text-align: center; }
     #mode-selection-screen h2 { font-size: 1.5em; text-align: center; }
-    .mode-buttons-container { flex-direction: column; gap: 20px; }
     #selection-title { font-size: 2em; text-align: center; }
     #game-alert-content { font-size: 1.5em; padding: 20px; }
 }
