@@ -588,7 +588,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if (isReaction && !hasUsedReaction && moveName) {
                         const move = state.moves[moveName];
-                         if (move && me.pa >= move.cost) {
+                        if (moveName === 'Clinch' && me.activeEffects.esquiva) {
+                             isDisabled = true;
+                        } else if (move && me.pa >= move.cost) {
                             isDisabled = false;
                         }
                     }
@@ -606,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logBox.scrollTop = logBox.scrollHeight;
     }
     
-    // --- FUNÇÃO DE MODAL CORRIGIDA E ROBUSTA ---
+    // --- FUNÇÃO DE MODAL CORRIGIDA ---
     function showInfoModal(title, text) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
@@ -615,6 +617,11 @@ document.addEventListener('DOMContentLoaded', () => {
         tempDiv.innerHTML = text;
         const hasCustomButtons = tempDiv.querySelector('button');
 
+        // Sempre recria o listener do botão principal para garantir que funcione
+        const newButton = modalButton.cloneNode(true);
+        modalButton.parentNode.replaceChild(newButton, modalButton);
+        modalButton = newButton;
+        
         if (hasCustomButtons) {
             modalButton.style.display = 'none';
         } else {
@@ -629,7 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showInteractiveModal(title, text, btnText, action) {
         modalTitle.innerText = title;
         modalText.innerHTML = text;
-
+        
         const newButton = modalButton.cloneNode(true);
         modalButton.parentNode.replaceChild(newButton, modalButton);
         modalButton = newButton;
