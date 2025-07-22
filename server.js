@@ -238,18 +238,26 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
 
         if (isActuallyIllegal) {
             attacker.illegalMoveUses++;
-            const dqChance = 0.05 * Math.pow(2, attacker.illegalMoveUses - 1);
 
-            if (Math.random() < dqChance) {
-                state.phase = 'gm_disqualification_ack';
-                state.winner = defenderKey;
-                state.reason = `${attacker.nome} foi desqualificado por uso de golpe ilegal.`;
-                const alertMsg = `INACREDITÁVEL!<br>${attacker.nome} foi desqualificado!`;
-                logMessage(state, `INACREDITÁVEL! ${state.reason}`, 'log-crit');
-                io.to(roomId).emit('showGameAlert', alertMsg);
-                // --- ALTERAÇÃO AQUI: Interrompe a função para dar prioridade à DQ ---
-                return hit; 
-            } else if (Math.random() < 0.5) {
+            // --- NOVA LÓGICA DE GOLPE ILEGAL ---
+            // A checagem de DQ só acontece se o jogador já tiver perdido pontos por isso.
+            if (attacker.pointDeductions > 0) {
+                // A chance começa em 10% no 2º uso e dobra a cada uso subsequente.
+                const dqChance = Math.min(1, 0.1 * Math.pow(2, attacker.illegalMoveUses - 2));
+
+                if (Math.random() < dqChance) {
+                    state.phase = 'gm_disqualification_ack';
+                    state.winner = defenderKey;
+                    state.reason = `${attacker.nome} foi desqualificado por uso repetido de golpes ilegais.`;
+                    const alertMsg = `INACREDITÁVEL!<br>${attacker.nome} foi desqualificado!`;
+                    logMessage(state, `INACREDITÁVEL! ${state.reason}`, 'log-crit');
+                    io.to(roomId).emit('showGameAlert', alertMsg);
+                    return hit; // Interrompe a função para dar prioridade à DQ.
+                }
+            }
+
+            // Se não foi desqualificado, há uma chance de 50% de perder um ponto.
+            if (Math.random() < 0.5) {
                 attacker.pointDeductions++;
                 const alertMsg = `O juíz viu o golpe ilegal!<br>${attacker.nome} perde 1 ponto!`;
                 logMessage(state, `O juíz viu o golpe ilegal! ${attacker.nome} perde 1 ponto na decisão!`, 'log-crit');
@@ -261,7 +269,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             io.to(roomId).emit('playSound', soundToPlay);
         }
 
-        // --- DELAY PARA KNOCKDOWN ---
+        // DELAY PARA KNOCKDOWN
         if (defender.hp <= 0 && state.phase !== 'knockdown') {
             triggerKnockdown(defenderKey);
         }
