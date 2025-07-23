@@ -875,32 +875,38 @@ io.on('connection', (socket) => {
                             const p1Status = dki.getUpStatus.player1;
                             const p2Status = dki.getUpStatus.player2;
                             const isFinalAttempt = dki.attempts >= 4;
-                            const p1CanContinue = p1Status === 'success' || p1Status === 'pending';
-                            const p2CanContinue = p2Status === 'success' || p2Status === 'pending';
+                            
+                            const p1Up = p1Status === 'success';
+                            const p2Up = p2Status === 'success';
 
-                            if (p1Status === 'success' && p2Status === 'success') {
+                            let gameOver = false;
+                            
+                            if (p1Up && p2Up) {
                                 logMessage(state, `INCRÍVEL! Ambos se levantam e a luta continua!`, 'log-crit');
                                 [state.fighters.player1, state.fighters.player2].forEach(f => { f.res--; const newHp = f.res * 5; f.hp = newHp; f.hpMax = newHp; });
                                 state.phase = 'turn'; state.doubleKnockdownInfo = null;
-                            } else if (isFinalAttempt || !p1CanContinue || !p2CanContinue) {
-                                const p1Up = p1Status === 'success';
-                                const p2Up = p2Status === 'success';
-                                if (p1Up && !p2Up) {
-                                    state.phase = 'gameover'; state.winner = 'player1'; state.reason = `${state.fighters.player1.nome} se levantou, mas ${state.fighters.player2.nome} não! Vitória por Nocaute!`;
-                                } else if (!p1Up && p2Up) {
-                                    state.phase = 'gameover'; state.winner = 'player2'; state.reason = `${state.fighters.player2.nome} se levantou, mas ${state.fighters.player1.nome} não! Vitória por Nocaute!`;
-                                } else {
-                                    state.phase = 'gameover'; state.winner = 'draw'; state.reason = `Nenhum dos lutadores conseguiu se levantar. A luta termina em empate!`;
-                                }
-                            } else {
+                                gameOver = true;
+                            } else if ( (p1Up && p2Status === 'fail_tko') || (p1Up && !p2Up && isFinalAttempt) ) {
+                                state.phase = 'gameover'; state.winner = 'player1'; state.reason = `${state.fighters.player1.nome} se levantou, mas ${state.fighters.player2.nome} não! Vitória por Nocaute!`;
+                                gameOver = true;
+                            } else if ( (p2Up && p1Status === 'fail_tko') || (p2Up && !p1Up && isFinalAttempt) ) {
+                                state.phase = 'gameover'; state.winner = 'player2'; state.reason = `${state.fighters.player2.nome} se levantou, mas ${state.fighters.player1.nome} não! Vitória por Nocaute!`;
+                                gameOver = true;
+                            } else if (isFinalAttempt) {
+                                state.phase = 'gameover'; state.winner = 'draw'; state.reason = `Nenhum dos lutadores conseguiu se levantar. A luta termina em empate!`;
+                                gameOver = true;
+                            }
+                            
+                            if (!gameOver) {
                                 logMessage(state, `A contagem continua...`, 'log-miss');
                                 dki.readyStatus = {
-                                    player1: dki.getUpStatus.player1 === 'success',
-                                    player2: dki.getUpStatus.player2 === 'success'
+                                    player1: dki.getUpStatus.player1 === 'success' || dki.getUpStatus.player1 === 'fail_tko',
+                                    player2: dki.getUpStatus.player2 === 'success' || dki.getUpStatus.player2 === 'fail_tko'
                                 };
                                 if (dki.getUpStatus.player1 === 'fail') dki.getUpStatus.player1 = 'pending';
                                 if (dki.getUpStatus.player2 === 'fail') dki.getUpStatus.player2 = 'pending';
                             }
+                            
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
                         }, 3000);
