@@ -440,11 +440,6 @@ function dispatchAction(room) {
         case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
         case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
         case 'gm_decision_knockdown':
-            io.to(roomId).emit('showModal', {
-                modalType: 'info_only',
-                title: 'Contagem Encerrada',
-                text: `Aguardando a decisão do juíz...`
-            });
             if (state.gmId) {
                 io.to(state.gmId).emit('showModal', {
                     modalType: 'gm_knockdown_decision',
@@ -605,11 +600,21 @@ io.on('connection', (socket) => {
         }
         const playerKey = action.playerKey;
         switch (action.type) {
-            case 'toggle_dice_cheat': state.diceCheat = state.diceCheat === action.cheat ? null : action.cheat; break;
+            case 'toggle_dice_cheat':
+                if (state.diceCheat === action.cheat) {
+                    state.diceCheat = null;
+                } else {
+                    state.diceCheat = action.cheat;
+                }
+                break;
             case 'toggle_illegal_cheat':
-                if (state.illegalCheat === 'normal') state.illegalCheat = 'always';
-                else if (state.illegalCheat === 'always') state.illegalCheat = 'never';
-                else state.illegalCheat = 'normal';
+                if (state.illegalCheat === 'normal') {
+                    state.illegalCheat = 'always';
+                } else if (state.illegalCheat === 'always') {
+                    state.illegalCheat = 'never';
+                } else {
+                    state.illegalCheat = 'normal';
+                }
                 break;
             case 'Esquiva':
                  const esquivador = state.fighters[playerKey];
@@ -633,31 +638,38 @@ io.on('connection', (socket) => {
             case 'toggle_pause':
                 if (state.phase === 'paused') {
                     state.phase = state.previousPhase || 'turn';
-                    // No log message for resuming
+                    logMessage(state, 'Jogo reativado pelo GM.', 'log-info');
                 } else {
                     if (state.phase === 'decision_table_wait' || state.phase === 'gameover') return;
                     state.previousPhase = state.phase;
                     state.phase = 'paused';
-                     // No log message for pausing
+                    logMessage(state, 'Jogo pausado pelo GM.', 'log-info');
                 }
                 break;
             case 'apply_cheats':
                 const { p1, p2 } = action.cheats;
                 const p1f = state.fighters.player1;
                 const p2f = state.fighters.player2;
-                p1f.agi = parseInt(p1.agi, 10); p1f.res = parseInt(p1.res, 10);
-                p1f.hp = parseInt(p1.hp, 10); p1f.pa = parseInt(p1.pa, 10);
+                p1f.agi = parseInt(p1.agi, 10);
+                p1f.res = parseInt(p1.res, 10);
+                p1f.hp = parseInt(p1.hp, 10);
+                p1f.pa = parseInt(p1.pa, 10);
                 p1f.hpMax = p1f.res * 5;
-                p2f.agi = parseInt(p2.agi, 10); p2f.res = parseInt(p2.res, 10);
-                p2f.hp = parseInt(p2.hp, 10); p2f.pa = parseInt(p2.pa, 10);
+                p2f.agi = parseInt(p2.agi, 10);
+                p2f.res = parseInt(p2.res, 10);
+                p2f.hp = parseInt(p2.hp, 10);
+                p2f.pa = parseInt(p2.pa, 10);
                 p2f.hpMax = p2f.res * 5;
+                logMessage(state, 'O GM alterou os atributos dos lutadores!', 'log-crit');
                 break;
             case 'give_last_chance':
                 state.knockdownInfo.attempts = 3; 
                 state.knockdownInfo.isLastChance = true; 
                 state.phase = 'knockdown';
+                logMessage(state, `O GM deu uma última chance para ${state.fighters[state.knockdownInfo.downedPlayer].nome}!`, 'log-crit');
                 break;
             case 'resolve_knockdown_loss':
+                logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
                 const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
                 state.phase = 'gameover';
                 state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
@@ -825,10 +837,7 @@ io.on('connection', (socket) => {
                     } else {
                         logMessage(state, `${downedFighter.nome} tenta se levantar... ${logCalc}. Falhou!`, 'log-miss');
                         if (knockdownInfo.attempts >= 4) {
-                            if (state.mode === 'classic' && !knockdownInfo.isLastChance) {
-                                logMessage(state, `${downedFighter.nome} não se levanta! A decisão está com o juíz...`, 'log-crit');
-                                state.phase = 'gm_decision_knockdown';
-                            } else {
+                            if (knockdownInfo.isLastChance) {
                                 logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
                                 setTimeout(() => {
                                     state.phase = 'gameover'; state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
@@ -836,7 +845,7 @@ io.on('connection', (socket) => {
                                     io.to(roomId).emit('gameUpdate', room.state); dispatchAction(room);
                                 }, 1000);
                                 return;
-                            }
+                            } else { state.phase = 'gm_decision_knockdown'; }
                         }
                     }
                 } else if (state.phase === 'double_knockdown') {
@@ -856,11 +865,7 @@ io.on('connection', (socket) => {
                                 const totalRoll = getUpRoll + fighter.res;
                                 const success = totalRoll >= 7;
                                 results[pKey] = { roll: getUpRoll, total: totalRoll, success };
-                                if (success) {
-                                    dki.getUpStatus[pKey] = 'success';
-                                } else {
-                                    dki.getUpStatus[pKey] = 'fail';
-                                }
+                                dki.getUpStatus[pKey] = success ? 'success' : 'fail';
                             }
                         });
 
@@ -873,8 +878,6 @@ io.on('connection', (socket) => {
                             
                             const p1Up = p1Status === 'success';
                             const p2Up = p2Status === 'success';
-                            const p1TKO = p1Status === 'fail_tko';
-                            const p2TKO = p2Status === 'fail_tko';
 
                             let gameOver = false;
                             
@@ -883,13 +886,13 @@ io.on('connection', (socket) => {
                                 [state.fighters.player1, state.fighters.player2].forEach(f => { f.res--; const newHp = f.res * 5; f.hp = newHp; f.hpMax = newHp; });
                                 state.phase = 'turn'; state.doubleKnockdownInfo = null;
                                 gameOver = true;
-                            } else if ((p1Up && p2TKO) || (p1Up && !p2Up && isFinalAttempt) ) {
+                            } else if ( (p1Up && p2Status === 'fail_tko') || (p1Up && !p2Up && isFinalAttempt) ) {
                                 state.phase = 'gameover'; state.winner = 'player1'; state.reason = `${state.fighters.player1.nome} se levantou, mas ${state.fighters.player2.nome} não! Vitória por Nocaute!`;
                                 gameOver = true;
-                            } else if ((p2Up && p1TKO) || (p2Up && !p1Up && isFinalAttempt) ) {
+                            } else if ( (p2Up && p1Status === 'fail_tko') || (p2Up && !p1Up && isFinalAttempt) ) {
                                 state.phase = 'gameover'; state.winner = 'player2'; state.reason = `${state.fighters.player2.nome} se levantou, mas ${state.fighters.player1.nome} não! Vitória por Nocaute!`;
                                 gameOver = true;
-                            } else if (isFinalAttempt || (p1TKO && p2TKO)) {
+                            } else if (isFinalAttempt) {
                                 state.phase = 'gameover'; state.winner = 'draw'; state.reason = `Nenhum dos lutadores conseguiu se levantar. A luta termina em empate!`;
                                 gameOver = true;
                             }
@@ -897,8 +900,8 @@ io.on('connection', (socket) => {
                             if (!gameOver) {
                                 logMessage(state, `A contagem continua...`, 'log-miss');
                                 dki.readyStatus = {
-                                    player1: dki.getUpStatus.player1 === 'success' || p1TKO,
-                                    player2: dki.getUpStatus.player2 === 'success' || p2TKO
+                                    player1: dki.getUpStatus.player1 === 'success' || dki.getUpStatus.player1 === 'fail_tko',
+                                    player2: dki.getUpStatus.player2 === 'success' || dki.getUpStatus.player2 === 'fail_tko'
                                 };
                                 if (dki.getUpStatus.player1 === 'fail') dki.getUpStatus.player1 = 'pending';
                                 if (dki.getUpStatus.player2 === 'fail') dki.getUpStatus.player2 = 'pending';
