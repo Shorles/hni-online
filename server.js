@@ -874,15 +874,15 @@ io.on('connection', (socket) => {
                         setTimeout(() => {
                             const p1Status = dki.getUpStatus.player1;
                             const p2Status = dki.getUpStatus.player2;
-
-                            const p1Final = p1Status === 'success' || p1Status === 'fail_tko';
-                            const p2Final = p2Status === 'success' || p2Status === 'fail_tko';
+                            const isFinalAttempt = dki.attempts >= 4;
+                            const p1CanContinue = p1Status === 'success' || p1Status === 'pending';
+                            const p2CanContinue = p2Status === 'success' || p2Status === 'pending';
 
                             if (p1Status === 'success' && p2Status === 'success') {
                                 logMessage(state, `INCRÍVEL! Ambos se levantam e a luta continua!`, 'log-crit');
                                 [state.fighters.player1, state.fighters.player2].forEach(f => { f.res--; const newHp = f.res * 5; f.hp = newHp; f.hpMax = newHp; });
                                 state.phase = 'turn'; state.doubleKnockdownInfo = null;
-                            } else if (dki.attempts >= 4 || (p1Final && p2Final)) {
+                            } else if (isFinalAttempt || !p1CanContinue || !p2CanContinue) {
                                 const p1Up = p1Status === 'success';
                                 const p2Up = p2Status === 'success';
                                 if (p1Up && !p2Up) {
@@ -894,7 +894,10 @@ io.on('connection', (socket) => {
                                 }
                             } else {
                                 logMessage(state, `A contagem continua...`, 'log-miss');
-                                dki.readyStatus = { player1: false, player2: false };
+                                dki.readyStatus = {
+                                    player1: dki.getUpStatus.player1 === 'success',
+                                    player2: dki.getUpStatus.player2 === 'success'
+                                };
                                 if (dki.getUpStatus.player1 === 'fail') dki.getUpStatus.player1 = 'pending';
                                 if (dki.getUpStatus.player2 === 'fail') dki.getUpStatus.player2 = 'pending';
                             }
