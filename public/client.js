@@ -573,9 +573,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isGm || !currentGameState) return;
         const p1 = currentGameState.fighters.player1; const p2 = currentGameState.fighters.player2;
         if (!p1 || !p2) { console.warn("Cheats tentado antes dos lutadores estarem prontos."); socket.emit('playerAction', { type: 'toggle_pause' }); return; }
-        const cheatHtml = `...`; // O conteúdo do modal de cheats permanece o mesmo
+        const cheatHtml = `
+            <div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;">
+                <div id="cheat-p1">
+                    <h4>${p1.nome}</h4>
+                    <label>AGI: <input type="number" id="cheat-p1-agi" value="${p1.agi}"></label><br>
+                    <label>RES: <input type="number" id="cheat-p1-res" value="${p1.res}"></label><br>
+                    <label>HP: <input type="number" id="cheat-p1-hp" value="${p1.hp}"></label><br>
+                    <label>PA: <input type="number" id="cheat-p1-pa" value="${p1.pa}"></label><br>
+                </div>
+                <div id="cheat-p2">
+                    <h4>${p2.nome}</h4>
+                    <label>AGI: <input type="number" id="cheat-p2-agi" value="${p2.agi}"></label><br>
+                    <label>RES: <input type="number" id="cheat-p2-res" value="${p2.res}"></label><br>
+                    <label>HP: <input type="number" id="cheat-p2-hp" value="${p2.hp}"></label><br>
+                    <label>PA: <input type="number" id="cheat-p2-pa" value="${p2.pa}"></label><br>
+                </div>
+            </div>`;
         showInteractiveModal("Menu de Trapaças (GM)", cheatHtml, "Aplicar e Continuar", null);
-        modalButton.onclick = () => { /* ... */ };
+        modalButton.onclick = () => {
+            const cheats = {
+                p1: { agi: document.getElementById('cheat-p1-agi').value, res: document.getElementById('cheat-p1-res').value, hp: document.getElementById('cheat-p1-hp').value, pa: document.getElementById('cheat-p1-pa').value, },
+                p2: { agi: document.getElementById('cheat-p2-agi').value, res: document.getElementById('cheat-p2-res').value, hp: document.getElementById('cheat-p2-hp').value, pa: document.getElementById('cheat-p2-pa').value, }
+            };
+            socket.emit('playerAction', { type: 'apply_cheats', cheats });
+            socket.emit('playerAction', { type: 'toggle_pause' });
+        };
     }
 
     function showDiceRollAnimation({ playerKey, rollValue, diceType }) {
@@ -612,32 +635,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') isMyTurnForAction = myPlayerKey === 'host';
 
         switch(modalType) {
-            case 'gm_knockdown_decision':
-                if (isGm) { /* ... */ }
-                break;
+            case 'gm_knockdown_decision': if (isGm) { /* ... */ } break;
             case 'disqualification': case 'gameover': case 'decision_table':
-                if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } 
-                else { showInfoModal(title, text); }
+                if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } else { showInfoModal(title, text); }
                 break;
             case 'double_knockdown':
                 const dki = doubleKnockdownInfo;
                 const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
                 const countText = `O juíz inicia a contagem: ${counts[dki.attempts] || counts[counts.length-1]}`;
-                const p1Name = currentGameState.fighters.player1.nome;
-                const p2Name = currentGameState.fighters.player2.nome;
-
+                const p1Name = currentGameState.fighters.player1.nome; const p2Name = currentGameState.fighters.player2.nome;
                 let p1StatusText = dki.readyStatus.player1 ? "Pronto!" : `Aguardando ${p1Name}...`;
                 let p2StatusText = dki.readyStatus.player2 ? "Pronto!" : `Aguardando ${p2Name}...`;
-
                 let modalContentHtml = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p><div style="display:flex; justify-content:space-around; margin: 15px 0;"><p>${p1StatusText}</p><p>${p2StatusText}</p></div>`;
-
                 const myPlayerIsPending = (myPlayerKey === 'player1' && !dki.readyStatus.player1) || (myPlayerKey === 'player2' && !dki.readyStatus.player2);
-                
                 showInteractiveModal(title, modalContentHtml, btnText, { ...action, playerKey: myPlayerKey });
-                if(!myPlayerIsPending) {
-                    modalButton.disabled = true;
-                    modalButton.innerText = "Aguardando Oponente...";
-                }
+                if (!myPlayerIsPending) { modalButton.disabled = true; modalButton.innerText = "Aguardando Oponente..."; }
                 break;
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
@@ -648,8 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText_single}</p>`;
                 if (knockdownInfo.lastRoll) { modalContentText += `Rolagem: <strong>${knockdownInfo.lastRoll}</strong> <span>(precisa de 7 ou mais)</span>`; }
                 if (targetPlayerKey === myPlayerKey) {
-                    modalTitleText = `Você caiu!`;
-                    modalContentText += `<br>Tentativas restantes: ${maxAttempts - attempts}`;
+                    modalTitleText = `Você caiu!`; modalContentText += `<br>Tentativas restantes: ${maxAttempts - attempts}`;
                     showInteractiveModal(modalTitleText, modalContentText, 'Tentar Levantar', action);
                 } else {
                      modalContentText = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText_single}</p> Aguarde a contagem...`;
@@ -660,7 +671,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    socket.on('showGameAlert', (message) => { /* ... */ });
     socket.on('doubleKnockdownResults', (results) => {
         modal.classList.add('hidden');
         ['player1', 'player2'].forEach(pKey => {
@@ -668,7 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resultData) {
                 const overlay = document.getElementById(`${pKey}-dk-result`);
                 overlay.innerHTML = `<h4>${currentGameState.fighters[pKey].nome}</h4><p>Rolagem: ${resultData.total}</p>`;
-                overlay.className = 'dk-result-overlay'; // Reset class
+                overlay.className = 'dk-result-overlay';
                 overlay.classList.add(resultData.success ? 'success' : 'fail');
                 overlay.classList.remove('hidden');
             }
@@ -678,13 +688,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('player2-dk-result').classList.add('hidden');
         }, 3000);
     });
+    socket.on('showGameAlert', (message) => { /* ... */ });
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
     socket.on('hideModal', () => modal.classList.add('hidden'));
     socket.on('diceRoll', showDiceRollAnimation);
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); });
 
     initialize();
-    const scaleGame = () => { /* ... */ };
+    const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
