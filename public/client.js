@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
             myPlayerKey = arenaPlayerKey;
             socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen);
-            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : '2'}: Selecione seu Lutador`;
+            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : 2}: Selecione seu Lutador`;
             confirmBtn.innerText = 'Confirmar Personagem';
             renderCharacterSelection('p2', false);
         } else if (isSpectator && currentRoomId) {
@@ -635,7 +635,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentGameState.mode === 'arena' && action?.type === 'reveal_winner') isMyTurnForAction = myPlayerKey === 'host';
 
         switch(modalType) {
-            case 'gm_knockdown_decision': if (isGm) { /* ... */ } break;
+            case 'gm_knockdown_decision':
+                if (isGm) {
+                    const downedFighterName = currentGameState.fighters[knockdownInfo.downedPlayer]?.nome || 'O lutador';
+                    const modalContentHtml = `
+                        <p>${downedFighterName} falhou em todas as tentativas de se levantar. O que o juíz (você) fará?</p>
+                        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+                            <button id="gm-give-chance-btn" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Dar Última Chance</button>
+                            <button id="gm-end-fight-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Encerrar a Luta (KO)</button>
+                        </div>`;
+                    showInfoModal("Decisão do Juíz", modalContentHtml);
+
+                    document.getElementById('gm-give-chance-btn').onclick = () => {
+                        socket.emit('playerAction', { type: 'give_last_chance' });
+                        modal.classList.add('hidden');
+                    };
+                    document.getElementById('gm-end-fight-btn').onclick = () => {
+                        socket.emit('playerAction', { type: 'resolve_knockdown_loss' });
+                        modal.classList.add('hidden');
+                    };
+                }
+                break;
             case 'disqualification': case 'gameover': case 'decision_table':
                 if (isMyTurnForAction) { showInteractiveModal(title, text, btnText, action); } else { showInfoModal(title, text); }
                 break;
