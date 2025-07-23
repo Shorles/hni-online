@@ -440,6 +440,11 @@ function dispatchAction(room) {
         case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
         case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
         case 'gm_decision_knockdown':
+            io.to(roomId).emit('showModal', {
+                modalType: 'gameover',
+                title: 'Contagem Encerrada',
+                text: `Aguardando a decisão do juíz...`
+            });
             if (state.gmId) {
                 io.to(state.gmId).emit('showModal', {
                     modalType: 'gm_knockdown_decision',
@@ -462,7 +467,6 @@ function dispatchAction(room) {
             return;
         case 'decision_table_wait':
             const info = state.decisionInfo;
-            // --- ALTERAÇÃO AQUI: Corrigido o erro de sintaxe ---
             const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Penalidades</td><td style="text-align:center;">-${info.p1.illegalPenalty}</td><td style="text-align:center;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
             let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
             io.to(roomId).emit('showModal', {
@@ -829,7 +833,10 @@ io.on('connection', (socket) => {
                                     io.to(roomId).emit('gameUpdate', room.state); dispatchAction(room);
                                 }, 1000);
                                 return;
-                            } else { state.phase = 'gm_decision_knockdown'; }
+                            } else {
+                                logMessage(state, `${downedFighter.nome} não se levanta! A decisão está com o juíz...`, 'log-crit');
+                                state.phase = 'gm_decision_knockdown';
+                            }
                         }
                     }
                 } else if (state.phase === 'double_knockdown') {
