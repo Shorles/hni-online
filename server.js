@@ -66,7 +66,7 @@ function createNewGameState() {
         fighters: {}, pendingP2Choice: null, winner: null, reason: null,
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
         phase: 'waiting', previousPhase: null, log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
-        doubleKnockdownInfo: null, // NOVO
+        doubleKnockdownInfo: null,
         decisionInfo: null, followUpState: null, scenario: 'Ringue.png',
         mode: null,
         hostId: null,
@@ -166,10 +166,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             }
             if (soundToPlay) io.to(roomId).emit('playSound', soundToPlay);
             state.reactionState = null;
-            if (attacker.hp <= 0 || defender.hp <= 0) {
-                 // Deixa a checagem de KD/Double KD no final da função
-            }
-            
         } else {
             logMessage(state, `${defender.nome} tenta o Contra-Ataque, mas não tem ${incomingAttackCost} PA para interceptar o golpe!`, 'log-miss');
             state.reactionState = null;
@@ -177,7 +173,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     }
     
     if (state.phase !== 'knockdown' && state.phase !== 'double_knockdown') {
-        if (!counterLanded) { // Se um counter já aconteceu, não faz o ataque normal
+        if (!counterLanded) {
             logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
             const roll = rollAttackD6(state);
             let crit = false;
@@ -249,33 +245,24 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
 
 function handleDoubleKnockdown(state, io, roomId) {
     if (state.phase === 'double_knockdown' || state.phase === 'gameover') return;
-    
     logMessage(state, `INACREDITÁVEL! AMBOS OS LUTADORES FORAM AO CHÃO!`, 'log-crit');
     
-    const p1 = state.fighters.player1;
-    const p2 = state.fighters.player2;
-    const p1_tko = p1.res <= 1;
-    const p2_tko = p2.res <= 1;
+    const p1 = state.fighters.player1; const p2 = state.fighters.player2;
+    const p1_tko = p1.res <= 1; const p2_tko = p2.res <= 1;
 
-    p1.knockdowns++;
-    p2.knockdowns++;
+    p1.knockdowns++; p2.knockdowns++;
 
     if (p1_tko && p2_tko) {
         logMessage(state, `Nenhum dos dois consegue se levantar! O juíz encerra a luta!`, 'log-crit');
-        state.phase = 'gameover';
-        state.winner = 'draw';
-        state.reason = "Ambos os lutadores foram nocauteados e não puderam continuar.<br><br>EMPATE";
+        state.phase = 'gameover'; state.winner = 'draw'; state.reason = "Ambos os lutadores foram nocauteados e não puderam continuar.<br><br>EMPATE";
         return;
     }
 
     state.phase = 'double_knockdown';
     state.doubleKnockdownInfo = {
         attempts: 0,
-        lastRolls: { player1: null, player2: null },
-        getUpStatus: { 
-            player1: p1_tko ? 'fail' : 'pending', 
-            player2: p2_tko ? 'fail' : 'pending' 
-        }
+        getUpStatus: { player1: p1_tko ? 'fail' : 'pending', player2: p2_tko ? 'fail' : 'pending' },
+        readyStatus: { player1: p1_tko, player2: p2_tko } // Players em TKO já estão "prontos"
     };
 
     if (p1_tko) logMessage(state, `${p1.nome} não tem condições de continuar!`, 'log-crit');
@@ -475,7 +462,7 @@ function dispatchAction(room) {
             return;
         case 'decision_table_wait':
             const info = state.decisionInfo;
-            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Penalidades</td><td style="text-align:center;">-${info.p1.illegalPenalty}</td><td style="text-align:center;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
+            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Penalidades</td><td style="text-align:center;">-${info.p1.illegalPenalty}</td><td style="text-align:center;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
             let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
             io.to(roomId).emit('showModal', {
                 modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
@@ -716,12 +703,10 @@ io.on('connection', (socket) => {
             case 'attack':
                 const attacker = state.fighters[playerKey];
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
-                
                 let cost = move.cost;
                 if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
                     cost = 0;
                 }
-
                 if (attacker.pa < cost) return;
                 attacker.pa -= cost;
                 
@@ -741,14 +726,11 @@ io.on('connection', (socket) => {
                         const attackResult = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
                         io.to(roomId).emit('gameUpdate', room.state);
                         
-                        if (attackResult.counterLanded || state.phase === 'gm_disqualification_ack') {
+                        if (attackResult.counterLanded || state.phase === 'gm_disqualification_ack' || state.phase === 'knockdown' || state.phase === 'double_knockdown') {
                             dispatchAction(room);
                             return;
                         }
-
-                        if (state.fighters[defenderKey].hp <= 0) {
-                            return;
-                        }
+                        if (state.fighters[defenderKey].hp <= 0) return;
                         if (attackResult.hit) {
                             setTimeout(executeFlicker, 700);
                         } else {
@@ -845,12 +827,9 @@ io.on('connection', (socket) => {
                         logMessage(state, `${downedFighter.nome} tenta se levantar... ${logCalc}. Ele se levantou!`, 'log-info');
                         io.to(roomId).emit('getUpSuccess', { downedPlayerName: downedFighter.nome, rollValue: totalRoll });
                         setTimeout(() => {
-                            downedFighter.res--;
-                            const newHp = downedFighter.res * 5;
-                            downedFighter.hp = newHp;
-                            downedFighter.hpMax = newHp;
-                            state.phase = 'turn'; 
-                            state.knockdownInfo = null;
+                            downedFighter.res--; const newHp = downedFighter.res * 5;
+                            downedFighter.hp = newHp; downedFighter.hpMax = newHp;
+                            state.phase = 'turn'; state.knockdownInfo = null;
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
                         }, 3000);
@@ -861,11 +840,9 @@ io.on('connection', (socket) => {
                             if (knockdownInfo.isLastChance) {
                                 logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
                                 setTimeout(() => {
-                                    state.phase = 'gameover';
-                                    state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
+                                    state.phase = 'gameover'; state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
                                     state.reason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
-                                    io.to(roomId).emit('gameUpdate', room.state);
-                                    dispatchAction(room);
+                                    io.to(roomId).emit('gameUpdate', room.state); dispatchAction(room);
                                 }, 1000);
                                 return;
                             } else { state.phase = 'gm_decision_knockdown'; }
@@ -873,31 +850,32 @@ io.on('connection', (socket) => {
                     }
                 } else if (state.phase === 'double_knockdown') {
                     const dki = state.doubleKnockdownInfo;
-                    if (!dki || dki.getUpStatus[playerKey] !== 'pending') return;
-                    if (dki.getUpStatus.player1 === 'pending' && dki.getUpStatus.player2 === 'pending') { dki.attempts++; }
+                    if (!dki || dki.readyStatus[playerKey]) return;
+                    dki.readyStatus[playerKey] = true;
 
-                    const fighter = state.fighters[playerKey];
-                    const getUpRoll = rollD(6);
-                    io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
-                    const totalRoll = getUpRoll + fighter.res;
-                    dki.lastRolls[playerKey] = totalRoll;
-                    const logCalc = `D6(${getUpRoll}) + RES(${fighter.res}) = <span class="highlight-total">${totalRoll}</span> (Necessário 7)`;
+                    if (dki.readyStatus.player1 && dki.readyStatus.player2) {
+                        dki.attempts++;
+                        const results = {};
 
-                    if (totalRoll >= 7) { dki.getUpStatus[playerKey] = 'success'; logMessage(state, `${fighter.nome} tenta se levantar... ${logCalc}. Ele conseguiu!`, 'log-info');
-                    } else { dki.getUpStatus[playerKey] = 'fail'; logMessage(state, `${fighter.nome} tenta se levantar... ${logCalc}. Falhou!`, 'log-miss'); }
-                    
-                    const p1Status = dki.getUpStatus.player1;
-                    const p2Status = dki.getUpStatus.player2;
+                        ['player1', 'player2'].forEach(pKey => {
+                            if (dki.getUpStatus[pKey] === 'pending') {
+                                const fighter = state.fighters[pKey];
+                                const getUpRoll = rollD(6);
+                                const totalRoll = getUpRoll + fighter.res;
+                                results[pKey] = { roll: getUpRoll, total: totalRoll, success: totalRoll >= 7 };
+                                dki.getUpStatus[pKey] = results[pKey].success ? 'success' : 'fail';
+                            }
+                        });
 
-                    if (p1Status !== 'pending' && p2Status !== 'pending') {
+                        io.to(roomId).emit('doubleKnockdownResults', results);
+
                         setTimeout(() => {
-                            const p1Up = p1Status === 'success';
-                            const p2Up = p2Status === 'success';
+                            const p1Up = dki.getUpStatus.player1 === 'success';
+                            const p2Up = dki.getUpStatus.player2 === 'success';
                             if (p1Up && p2Up) {
                                 logMessage(state, `INCRÍVEL! Ambos se levantam e a luta continua!`, 'log-crit');
                                 [state.fighters.player1, state.fighters.player2].forEach(f => { f.res--; const newHp = f.res * 5; f.hp = newHp; f.hpMax = newHp; });
-                                state.phase = 'turn';
-                                state.doubleKnockdownInfo = null;
+                                state.phase = 'turn'; state.doubleKnockdownInfo = null;
                             } else if (p1Up && !p2Up) {
                                 state.phase = 'gameover'; state.winner = 'player1'; state.reason = `${state.fighters.player1.nome} se levantou, mas ${state.fighters.player2.nome} não! Vitória por Nocaute!`;
                             } else if (!p1Up && p2Up) {
@@ -907,14 +885,19 @@ io.on('connection', (socket) => {
                                     state.phase = 'gameover'; state.winner = 'draw'; state.reason = `Nenhum dos lutadores conseguiu se levantar. A luta termina em empate!`;
                                 } else {
                                     logMessage(state, `Ambos falharam, a contagem continua...`, 'log-miss');
-                                    dki.getUpStatus.player1 = state.fighters.player1.res <= 1 ? 'fail' : 'pending';
-                                    dki.getUpStatus.player2 = state.fighters.player2.res <= 1 ? 'fail' : 'pending';
-                                    dki.lastRolls = { player1: null, player2: null };
+                                    dki.getUpStatus = { 
+                                        player1: state.fighters.player1.res <= 1 ? 'fail' : 'pending', 
+                                        player2: state.fighters.player2.res <= 1 ? 'fail' : 'pending' 
+                                    };
+                                    dki.readyStatus = {
+                                        player1: state.fighters.player1.res <= 1,
+                                        player2: state.fighters.player2.res <= 1
+                                    };
                                 }
                             }
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
-                        }, 2000);
+                        }, 3000);
                         return;
                     }
                 }
