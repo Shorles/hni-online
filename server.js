@@ -440,7 +440,6 @@ function dispatchAction(room) {
         case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
         case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
         case 'gm_decision_knockdown':
-            // --- ALTERAÇÃO AQUI: Informa a todos antes de pedir a decisão do GM ---
             io.to(roomId).emit('showModal', {
                 modalType: 'info_only',
                 title: 'Contagem Encerrada',
@@ -826,7 +825,10 @@ io.on('connection', (socket) => {
                     } else {
                         logMessage(state, `${downedFighter.nome} tenta se levantar... ${logCalc}. Falhou!`, 'log-miss');
                         if (knockdownInfo.attempts >= 4) {
-                            if (knockdownInfo.isLastChance) {
+                            if (state.mode === 'classic' && !knockdownInfo.isLastChance) {
+                                logMessage(state, `${downedFighter.nome} não se levanta! A decisão está com o juíz...`, 'log-crit');
+                                state.phase = 'gm_decision_knockdown';
+                            } else {
                                 logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
                                 setTimeout(() => {
                                     state.phase = 'gameover'; state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
@@ -834,9 +836,6 @@ io.on('connection', (socket) => {
                                     io.to(roomId).emit('gameUpdate', room.state); dispatchAction(room);
                                 }, 1000);
                                 return;
-                            } else {
-                                logMessage(state, `${downedFighter.nome} não se levanta! A decisão está com o juíz...`, 'log-crit');
-                                state.phase = 'gm_decision_knockdown';
                             }
                         }
                     }
