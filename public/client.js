@@ -722,6 +722,20 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('player2-dk-result').classList.add('hidden');
         }, 3000);
     });
+
+    // NOVO: Listener para o alerta vermelho
+    socket.on('showGameAlert', (message) => {
+        const alertOverlay = document.getElementById('game-alert-overlay');
+        const alertContent = document.getElementById('game-alert-content');
+        if (alertOverlay && alertContent) {
+            alertContent.innerHTML = message;
+            alertOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                alertOverlay.classList.add('hidden');
+            }, 3000); // O alerta some após 3 segundos
+        }
+    });
+
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
     socket.on('hideModal', () => modal.classList.add('hidden'));
     socket.on('diceRoll', showDiceRollAnimation);
