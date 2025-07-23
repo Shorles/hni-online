@@ -638,12 +638,10 @@ io.on('connection', (socket) => {
             case 'toggle_pause':
                 if (state.phase === 'paused') {
                     state.phase = state.previousPhase || 'turn';
-                    logMessage(state, 'Jogo reativado pelo GM.', 'log-info');
                 } else {
                     if (state.phase === 'decision_table_wait' || state.phase === 'gameover') return;
                     state.previousPhase = state.phase;
                     state.phase = 'paused';
-                    logMessage(state, 'Jogo pausado pelo GM.', 'log-info');
                 }
                 break;
             case 'apply_cheats':
@@ -660,13 +658,11 @@ io.on('connection', (socket) => {
                 p2f.hp = parseInt(p2.hp, 10);
                 p2f.pa = parseInt(p2.pa, 10);
                 p2f.hpMax = p2f.res * 5;
-                logMessage(state, 'O GM alterou os atributos dos lutadores!', 'log-crit');
                 break;
             case 'give_last_chance':
                 state.knockdownInfo.attempts = 3; 
                 state.knockdownInfo.isLastChance = true; 
                 state.phase = 'knockdown';
-                logMessage(state, `O GM deu uma última chance para ${state.fighters[state.knockdownInfo.downedPlayer].nome}!`, 'log-crit');
                 break;
             case 'resolve_knockdown_loss':
                 logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
