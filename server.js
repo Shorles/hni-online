@@ -440,8 +440,9 @@ function dispatchAction(room) {
         case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
         case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
         case 'gm_decision_knockdown':
+            // --- ALTERAÇÃO AQUI: Informa a todos antes de pedir a decisão do GM ---
             io.to(roomId).emit('showModal', {
-                modalType: 'gameover',
+                modalType: 'info_only',
                 title: 'Contagem Encerrada',
                 text: `Aguardando a decisão do juíz...`
             });
