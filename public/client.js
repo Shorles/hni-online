@@ -644,12 +644,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const counts = ["1..... 2.....", "3..... 4.....", "5..... 6.....", "7..... 8.....", "9....."];
                 const countText = `O juíz inicia a contagem: ${counts[dki.attempts] || counts[counts.length-1]}`;
                 const p1Name = currentGameState.fighters.player1.nome; const p2Name = currentGameState.fighters.player2.nome;
-                let p1StatusText = dki.readyStatus.player1 ? "Pronto!" : `Aguardando ${p1Name}...`;
-                let p2StatusText = dki.readyStatus.player2 ? "Pronto!" : `Aguardando ${p2Name}...`;
+                
+                const getStatusText = (playerKey) => {
+                    if (dki.getUpStatus[playerKey] === 'success') return `<span style="color: #28a745;">Se levantou!</span>`;
+                    if (dki.getUpStatus[playerKey] === 'fail_tko') return `<span style="color: #dc3545;">Não pode continuar!</span>`;
+                    if (dki.readyStatus[playerKey]) return "Pronto!";
+                    return `Aguardando ${playerKey === 'player1' ? p1Name : p2Name}...`;
+                };
+
+                let p1StatusText = getStatusText('player1');
+                let p2StatusText = getStatusText('player2');
+
                 let modalContentHtml = `<p style='text-align: center; font-style: italic; color: #ccc;'>${countText}</p><div style="display:flex; justify-content:space-around; margin: 15px 0;"><p>${p1StatusText}</p><p>${p2StatusText}</p></div>`;
-                const myPlayerIsPending = (myPlayerKey === 'player1' && !dki.readyStatus.player1) || (myPlayerKey === 'player2' && !dki.readyStatus.player2);
+
+                const myPlayerCanAct = (myPlayerKey === 'player1' && dki.getUpStatus.player1 === 'pending' && !dki.readyStatus.player1) || (myPlayerKey === 'player2' && dki.getUpStatus.player2 === 'pending' && !dki.readyStatus.player2);
+                
                 showInteractiveModal(title, modalContentHtml, btnText, { ...action, playerKey: myPlayerKey });
-                if (!myPlayerIsPending) { modalButton.disabled = true; modalButton.innerText = "Aguardando Oponente..."; }
+                if(!myPlayerCanAct) {
+                    modalButton.disabled = true;
+                    modalButton.innerText = "Aguardando Oponente...";
+                }
                 break;
             case 'knockdown':
                 const downedFighterName = currentGameState.fighters[targetPlayerKey]?.nome || 'Oponente';
@@ -688,7 +702,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('player2-dk-result').classList.add('hidden');
         }, 3000);
     });
-    socket.on('showGameAlert', (message) => { /* ... */ });
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
     socket.on('hideModal', () => modal.classList.add('hidden'));
     socket.on('diceRoll', showDiceRollAnimation);
