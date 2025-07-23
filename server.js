@@ -462,4 +462,477 @@ function dispatchAction(room) {
             return;
         case 'decision_table_wait':
             const info = state.decisionInfo;
-            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdown
+            // --- ALTERAÇÃO AQUI: Corrigido o erro de sintaxe ---
+            const tableHtml = `<p>A luta acabou e irá para decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Penalidades</td><td style="text-align:center;">-${info.p1.illegalPenalty}</td><td style="text-align:center;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
+            let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
+            io.to(roomId).emit('showModal', {
+                modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
+                btnText: "Anunciar Vencedor", action: { type: 'reveal_winner', playerKey: decisionMakerKey }, targetPlayerKey: decisionMakerKey
+            });
+            return;
+        case 'double_knockdown':
+            if (state.doubleKnockdownInfo) {
+                io.to(roomId).emit('showModal', { 
+                    modalType: 'double_knockdown', 
+                    doubleKnockdownInfo: state.doubleKnockdownInfo, 
+                    title: `QUEDA DUPLA!`, 
+                    btnText: `Tentar Levantar`, 
+                    action: { type: 'request_get_up' }
+                });
+            }
+            return;
+        case 'knockdown':
+            if (state.knockdownInfo) {
+                const targetPlayerKey = state.knockdownInfo.downedPlayer;
+                const modalPayload = { modalType: 'knockdown', knockdownInfo: state.knockdownInfo, title: `Você caiu!`, text: ``, btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey } };
+                io.to(roomId).emit('showModal', { ...modalPayload, targetPlayerKey });
+            }
+            return;
+        case 'gameover':
+            let reason = state.reason || '';
+            if (state.winner === 'draw') { reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`; } 
+            else if (state.winner) { const winnerName = state.fighters[state.winner].nome; reason += `<br><br><strong style="color: #dc3545; font-size: 1.2em;">VITÓRIA DE ${winnerName.toUpperCase()}</strong>`; }
+            else { reason = "Fim de Jogo"; }
+            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason });
+            return;
+        default: io.to(roomId).emit('hideModal'); return;
+    }
+}
+io.on('connection', (socket) => {
+    socket.on('createGame', ({player1Data, scenario}) => {
+        const newRoomId = uuidv4().substring(0, 6);
+        socket.join(newRoomId);
+        socket.currentRoomId = newRoomId;
+        const newState = createNewGameState();
+        newState.mode = 'classic';
+        newState.scenario = scenario;
+        newState.gmId = socket.id;
+        newState.fighters.player1 = createNewFighterState(player1Data);
+        newState.phase = 'p1_special_moves_selection';
+        games[newRoomId] = { id: newRoomId, hostId: null, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
+        socket.emit('assignPlayer', {playerKey: 'player1', isGm: true});
+        io.to(socket.id).emit('gameUpdate', newState);
+        dispatchAction(games[newRoomId]);
+    });
+    socket.on('joinGame', ({ roomId, player2Data }) => {
+        const room = games[roomId];
+        if (!room || room.players.length !== 1 || room.state.mode !== 'classic') { socket.emit('error', { message: 'Sala não encontrada, cheia, ou não é uma sala de modo clássico.' }); return; }
+        socket.join(roomId);
+        room.players.push({ id: socket.id, playerKey: 'player2' });
+        socket.currentRoomId = roomId;
+        socket.emit('assignPlayer', {playerKey: 'player2', isGm: false});
+        const state = room.state;
+        state.pendingP2Choice = player2Data;
+        logMessage(state, `${player2Data.nome} entrou. Aguardando P1 definir atributos e golpes...`);
+        state.phase = 'p2_stat_assignment';
+        io.to(roomId).emit('gameUpdate', state);
+        dispatchAction(room);
+    });
+    socket.on('createArenaGame', ({ scenario }) => {
+        const newRoomId = uuidv4().substring(0, 6);
+        socket.join(newRoomId);
+        socket.currentRoomId = newRoomId;
+        const newState = createNewGameState();
+        newState.scenario = scenario;
+        newState.mode = 'arena';
+        newState.hostId = socket.id;
+        newState.gmId = socket.id;
+        newState.phase = 'arena_lobby';
+        logMessage(newState, "Lobby da Arena criado. Aguardando jogadores...");
+        games[newRoomId] = { id: newRoomId, hostId: socket.id, players: [], spectators: [], state: newState };
+        socket.emit('assignPlayer', {playerKey: 'host', isGm: true});
+        socket.emit('arenaRoomCreated', newRoomId);
+        io.to(socket.id).emit('gameUpdate', newState);
+    });
+    socket.on('joinArenaGame', ({ roomId, playerKey }) => {
+        const room = games[roomId];
+        if (!room || room.state.mode !== 'arena') { socket.emit('error', { message: 'Sala de arena não encontrada.' }); return; }
+        if (room.players.find(p => p.playerKey === playerKey)) { socket.emit('error', { message: `O lugar do ${playerKey} já está ocupado.`}); return; }
+        socket.join(roomId);
+        room.players.push({ id: socket.id, playerKey });
+        socket.currentRoomId = roomId;
+        socket.emit('assignPlayer', {playerKey: playerKey, isGm: false});
+        io.to(roomId).emit('gameUpdate', room.state);
+        io.to(room.hostId).emit('updateArenaLobby', { playerKey, status: 'connected' });
+    });
+    socket.on('selectArenaCharacter', ({ character }) => {
+        const roomId = socket.currentRoomId;
+        const room = games[roomId];
+        if (!room) return;
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player) return;
+        room.state.fighters[player.playerKey] = { nome: character.nome, img: character.img };
+        room.state.playersReady[player.playerKey] = true;
+        io.to(room.hostId).emit('updateArenaLobby', { playerKey: player.playerKey, status: 'character_selected', character });
+        if (room.state.playersReady.player1 && room.state.playersReady.player2) {
+            room.state.phase = 'arena_configuring';
+            io.to(room.hostId).emit('promptArenaConfiguration', {
+                p1: room.state.fighters.player1,
+                p2: room.state.fighters.player2,
+                availableMoves: SPECIAL_MOVES
+            });
+        }
+    });
+    socket.on('spectateGame', (roomId) => {
+        const room = games[roomId];
+        if (!room) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
+        socket.join(roomId);
+        room.spectators.push(socket.id);
+        socket.currentRoomId = roomId;
+        socket.emit('assignPlayer', {playerKey: 'spectator', isGm: false});
+        socket.emit('gameUpdate', room.state);
+        logMessage(room.state, 'Um espectador entrou na sala.');
+        io.to(roomId).emit('gameUpdate', room.state);
+    });
+    socket.on('playerAction', (action) => {
+        const roomId = socket.currentRoomId;
+        if (!roomId || !games[roomId] || !action || !action.type) return;
+        const room = games[roomId];
+        const state = room.state;
+        action.gmSocketId = socket.id;
+        const moveName = action.move;
+        const move = state.moves[moveName];
+        if (move && move.reaction) {
+            action.type = moveName;
+        }
+        if (!isActionValid(state, action)) {
+            console.log("Ação inválida recebida:", action, "no estado:", state.phase);
+            return;
+        }
+        const playerKey = action.playerKey;
+        switch (action.type) {
+            case 'toggle_dice_cheat': state.diceCheat = state.diceCheat === action.cheat ? null : action.cheat; break;
+            case 'toggle_illegal_cheat':
+                if (state.illegalCheat === 'normal') state.illegalCheat = 'always';
+                else if (state.illegalCheat === 'always') state.illegalCheat = 'never';
+                else state.illegalCheat = 'normal';
+                break;
+            case 'Esquiva':
+                 const esquivador = state.fighters[playerKey];
+                 if(esquivador.pa >= move.cost) {
+                    esquivador.pa -= move.cost;
+                    esquivador.activeEffects.esquiva = { duration: 2 };
+                    const currentDefRoll = esquivador.defRoll || 0;
+                    const newBaseStat = esquivador.agi;
+                    esquivador.def = currentDefRoll + newBaseStat;
+                    state.reactionState = { playerKey, move: 'Esquiva' };
+                    logMessage(state, `${esquivador.nome} usa <span class="log-move-name">Esquiva</span>! Sua defesa foi recalculada para <span class="highlight-total">${esquivador.def}</span>.`, 'log-info');
+                    io.to(roomId).emit('playSound', MOVE_SOUNDS['Esquiva']);
+                 }
+                 break;
+            case 'Counter':
+                state.reactionState = { playerKey, move: 'Counter' };
+                break;
+            case 'confirm_disqualification':
+                state.phase = 'gameover';
+                break;
+            case 'toggle_pause':
+                if (state.phase === 'paused') {
+                    state.phase = state.previousPhase || 'turn';
+                    // No log message for resuming
+                } else {
+                    if (state.phase === 'decision_table_wait' || state.phase === 'gameover') return;
+                    state.previousPhase = state.phase;
+                    state.phase = 'paused';
+                     // No log message for pausing
+                }
+                break;
+            case 'apply_cheats':
+                const { p1, p2 } = action.cheats;
+                const p1f = state.fighters.player1;
+                const p2f = state.fighters.player2;
+                p1f.agi = parseInt(p1.agi, 10); p1f.res = parseInt(p1.res, 10);
+                p1f.hp = parseInt(p1.hp, 10); p1f.pa = parseInt(p1.pa, 10);
+                p1f.hpMax = p1f.res * 5;
+                p2f.agi = parseInt(p2.agi, 10); p2f.res = parseInt(p2.res, 10);
+                p2f.hp = parseInt(p2.hp, 10); p2f.pa = parseInt(p2.pa, 10);
+                p2f.hpMax = p2f.res * 5;
+                break;
+            case 'give_last_chance':
+                state.knockdownInfo.attempts = 3; 
+                state.knockdownInfo.isLastChance = true; 
+                state.phase = 'knockdown';
+                break;
+            case 'resolve_knockdown_loss':
+                const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
+                state.phase = 'gameover';
+                state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
+                state.reason = finalCountReason;
+                break;
+            case 'configure_and_start_arena':
+                state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
+                state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
+                logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
+                state.phase = 'initiative_p1';
+                break;
+            case 'set_p1_special_moves':
+                state.fighters.player1.specialMoves = action.moves;
+                logMessage(state, `${state.fighters.player1.nome} definiu seus golpes especiais.`);
+                state.phase = 'waiting';
+                socket.emit('roomCreated', roomId);
+                break;
+            case 'set_p2_stats':
+                const p2Data = state.pendingP2Choice;
+                const p2Stats = action.stats;
+                state.fighters.player2 = createNewFighterState({
+                    ...p2Data,
+                    agi: p2Stats.agi,
+                    res: p2Stats.res,
+                    specialMoves: action.moves
+                });
+                delete state.pendingP2Choice;
+                logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
+                state.phase = 'initiative_p1';
+                break;
+            case 'attack':
+                const attacker = state.fighters[playerKey];
+                const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
+                let cost = move.cost;
+                if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
+                    cost = 0;
+                }
+                if (attacker.pa < cost) return;
+                attacker.pa -= cost;
+                
+                if (moveName === 'White Fang') {
+                    executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                    if (state.phase === 'gm_disqualification_ack') break;
+                    if (state.followUpState) {
+                        state.followUpState = null;
+                        state.phase = 'turn';
+                    } else {
+                        state.followUpState = { playerKey, moveName };
+                        state.phase = 'white_fang_follow_up';
+                    }
+                } else if (moveName === 'Flicker Jab') {
+                    const executeFlicker = () => {
+                        if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
+                        const attackResult = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                        io.to(roomId).emit('gameUpdate', room.state);
+                        
+                        if (attackResult.counterLanded || state.phase === 'gm_disqualification_ack' || state.phase === 'knockdown' || state.phase === 'double_knockdown') {
+                            dispatchAction(room);
+                            return;
+                        }
+                        if (state.fighters[defenderKey].hp <= 0) return;
+                        if (attackResult.hit) {
+                            setTimeout(executeFlicker, 700);
+                        } else {
+                            io.to(roomId).emit('gameUpdate', room.state);
+                            dispatchAction(room);
+                        }
+                    };
+                    executeFlicker();
+                    return; 
+                } else {
+                     executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
+                     if (state.phase === 'white_fang_follow_up') {
+                        state.followUpState = null;
+                        state.phase = 'turn';
+                     }
+                }
+                break;
+            case 'forfeit':
+                const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
+                state.winner = winnerKey;
+                state.phase = 'gameover';
+                state.reason = `${state.fighters[playerKey].nome} jogou a toalha.`;
+                logMessage(state, state.reason, 'log-crit');
+                break;
+            case 'roll_initiative':
+                io.to(roomId).emit('playSound', 'dice1.mp3');
+                const roll = rollD(6);
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
+                const agi = state.fighters[playerKey].agi;
+                state.initiativeRolls[playerKey] = roll + agi;
+                logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[playerKey]}</span>`, 'log-info');
+                if (playerKey === 'player1') { state.phase = 'initiative_p2'; } else {
+                    if (state.initiativeRolls.player1 === state.initiativeRolls.player2) {
+                        logMessage(state, "EMPATE na iniciativa! Rolando novamente...", 'log-info');
+                        state.initiativeRolls = {};
+                        state.phase = 'initiative_p1';
+                    } else {
+                        if (state.initiativeRolls.player1 > state.initiativeRolls.player2) { state.whoseTurn = 'player1'; state.didPlayer1GoFirst = true; } else { state.whoseTurn = 'player2'; state.didPlayer1GoFirst = false; }
+                        logMessage(state, `${state.fighters[state.whoseTurn].nome} venceu a iniciativa!`, 'log-info');
+                        state.phase = 'defense_p1';
+                    }
+                }
+                break;
+            case 'roll_defense':
+                io.to(roomId).emit('playSound', 'dice1.mp3');
+                const defRoll = rollD(3);
+                io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
+                const fighter = state.fighters[playerKey];
+                fighter.defRoll = defRoll;
+                let baseStat = fighter.res;
+                let statName = 'RES';
+                if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
+                    baseStat = fighter.agi;
+                    statName = 'AGI';
+                    logMessage(state, `Esquiva está ativa para ${fighter.nome}!`, 'log-info')
+                }
+                fighter.def = defRoll + baseStat;
+                logMessage(state, `${fighter.nome} definiu defesa: D3(${defRoll}) + ${statName}(${baseStat}) = <span class="highlight-total">${fighter.def}</span>`, 'log-info');
+                if (playerKey === 'player1') { state.phase = 'defense_p2'; } 
+                else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
+                break;
+            case 'end_turn':
+                endTurn(state, io, roomId);
+                break;
+            case 'reveal_winner':
+                const p1FinalScore = state.decisionInfo.p1.finalScore;
+                const p2FinalScore = state.decisionInfo.p2.finalScore;
+                if (p1FinalScore > p2FinalScore) {
+                    state.winner = 'player1';
+                    state.reason = `Vitória por Decisão (${p1FinalScore} a ${p2FinalScore})`;
+                } else if (p2FinalScore > p1FinalScore) {
+                    state.winner = 'player2';
+                    state.reason = `Vitória por Decisão (${p2FinalScore} a ${p1FinalScore})`;
+                } else {
+                    state.winner = 'draw';
+                    state.reason = `Empate por Decisão (${p1FinalScore} a ${p2FinalScore})`;
+                }
+                state.phase = 'gameover';
+                break;
+            case 'request_get_up':
+                if (state.phase === 'knockdown') {
+                    const knockdownInfo = state.knockdownInfo;
+                    if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
+                    knockdownInfo.attempts++;
+                    let getUpRoll = rollD(6);
+                    if (state.diceCheat === 'crit') getUpRoll = 6; else if (state.diceCheat === 'fumble') getUpRoll = 1;
+                    io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
+                    const downedFighter = state.fighters[playerKey];
+                    const totalRoll = getUpRoll + downedFighter.res;
+                    knockdownInfo.lastRoll = totalRoll;
+                    const logCalc = `D6(${getUpRoll}) + RES(${downedFighter.res}) = <span class="highlight-total">${totalRoll}</span> (Necessário 7)`;
+                    
+                    if (totalRoll >= 7) {
+                        logMessage(state, `${downedFighter.nome} tenta se levantar... ${logCalc}. Ele se levantou!`, 'log-info');
+                        io.to(roomId).emit('getUpSuccess', { downedPlayerName: downedFighter.nome, rollValue: totalRoll });
+                        setTimeout(() => {
+                            downedFighter.res--; const newHp = downedFighter.res * 5;
+                            downedFighter.hp = newHp; downedFighter.hpMax = newHp;
+                            state.phase = 'turn'; state.knockdownInfo = null;
+                            io.to(roomId).emit('gameUpdate', room.state);
+                            dispatchAction(room);
+                        }, 3000);
+                        return;
+                    } else {
+                        logMessage(state, `${downedFighter.nome} tenta se levantar... ${logCalc}. Falhou!`, 'log-miss');
+                        if (knockdownInfo.attempts >= 4) {
+                            if (knockdownInfo.isLastChance) {
+                                logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
+                                setTimeout(() => {
+                                    state.phase = 'gameover'; state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
+                                    state.reason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
+                                    io.to(roomId).emit('gameUpdate', room.state); dispatchAction(room);
+                                }, 1000);
+                                return;
+                            } else { state.phase = 'gm_decision_knockdown'; }
+                        }
+                    }
+                } else if (state.phase === 'double_knockdown') {
+                    const dki = state.doubleKnockdownInfo;
+                    if (!dki || dki.readyStatus[playerKey]) return;
+                    
+                    dki.readyStatus[playerKey] = true;
+
+                    const bothReady = dki.readyStatus.player1 && dki.readyStatus.player2;
+                    if (bothReady) {
+                        dki.attempts++;
+                        const results = {};
+                        ['player1', 'player2'].forEach(pKey => {
+                            if (dki.getUpStatus[pKey] === 'pending') {
+                                const fighter = state.fighters[pKey];
+                                const getUpRoll = rollD(6);
+                                const totalRoll = getUpRoll + fighter.res;
+                                const success = totalRoll >= 7;
+                                results[pKey] = { roll: getUpRoll, total: totalRoll, success };
+                                if (success) {
+                                    dki.getUpStatus[pKey] = 'success';
+                                } else {
+                                    dki.getUpStatus[pKey] = 'fail';
+                                }
+                            }
+                        });
+
+                        io.to(roomId).emit('doubleKnockdownResults', results);
+
+                        setTimeout(() => {
+                            const p1Status = dki.getUpStatus.player1;
+                            const p2Status = dki.getUpStatus.player2;
+                            const isFinalAttempt = dki.attempts >= 4;
+                            
+                            const p1Up = p1Status === 'success';
+                            const p2Up = p2Status === 'success';
+                            const p1TKO = p1Status === 'fail_tko';
+                            const p2TKO = p2Status === 'fail_tko';
+
+                            let gameOver = false;
+                            
+                            if (p1Up && p2Up) {
+                                logMessage(state, `INCRÍVEL! Ambos se levantam e a luta continua!`, 'log-crit');
+                                [state.fighters.player1, state.fighters.player2].forEach(f => { f.res--; const newHp = f.res * 5; f.hp = newHp; f.hpMax = newHp; });
+                                state.phase = 'turn'; state.doubleKnockdownInfo = null;
+                                gameOver = true;
+                            } else if ((p1Up && p2TKO) || (p1Up && !p2Up && isFinalAttempt) ) {
+                                state.phase = 'gameover'; state.winner = 'player1'; state.reason = `${state.fighters.player1.nome} se levantou, mas ${state.fighters.player2.nome} não! Vitória por Nocaute!`;
+                                gameOver = true;
+                            } else if ((p2Up && p1TKO) || (p2Up && !p1Up && isFinalAttempt) ) {
+                                state.phase = 'gameover'; state.winner = 'player2'; state.reason = `${state.fighters.player2.nome} se levantou, mas ${state.fighters.player1.nome} não! Vitória por Nocaute!`;
+                                gameOver = true;
+                            } else if (isFinalAttempt || (p1TKO && p2TKO)) {
+                                state.phase = 'gameover'; state.winner = 'draw'; state.reason = `Nenhum dos lutadores conseguiu se levantar. A luta termina em empate!`;
+                                gameOver = true;
+                            }
+                            
+                            if (!gameOver) {
+                                logMessage(state, `A contagem continua...`, 'log-miss');
+                                dki.readyStatus = {
+                                    player1: dki.getUpStatus.player1 === 'success' || p1TKO,
+                                    player2: dki.getUpStatus.player2 === 'success' || p2TKO
+                                };
+                                if (dki.getUpStatus.player1 === 'fail') dki.getUpStatus.player1 = 'pending';
+                                if (dki.getUpStatus.player2 === 'fail') dki.getUpStatus.player2 = 'pending';
+                            }
+                            
+                            io.to(roomId).emit('gameUpdate', room.state);
+                            dispatchAction(room);
+                        }, 3000);
+                        return; 
+                    }
+                }
+                break;
+        }
+        io.to(roomId).emit('gameUpdate', room.state);
+        dispatchAction(room);
+    });
+    socket.on('disconnect', () => {
+        const roomId = socket.currentRoomId;
+        if (!roomId || !games[roomId]) return;
+        const room = games[roomId];
+        if (socket.id === room.hostId || socket.id === room.gmId) {
+            io.to(roomId).emit('opponentDisconnected', { message: 'O Anfitrião encerrou a partida.' });
+            delete games[roomId];
+            return;
+        }
+        const playerIndex = room.players.findIndex(p => p.id === socket.id);
+        if (playerIndex > -1) {
+            io.to(roomId).emit('opponentDisconnected', { message: 'Um jogador se desconectou.' });
+            delete games[roomId];
+            return;
+        } 
+        const spectatorIndex = room.spectators.indexOf(socket.id);
+        if (spectatorIndex > -1) {
+            room.spectators.splice(spectatorIndex, 1);
+            if (room.state) {
+                logMessage(room.state, 'Um espectador saiu.');
+                io.to(roomId).emit('gameUpdate', room.state);
+            }
+        }
+    });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
