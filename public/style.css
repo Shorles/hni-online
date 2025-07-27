@@ -151,21 +151,20 @@ body {
     top: 0; left: 0;
     width: 100%; height: 100%;
     z-index: 2;
-    transform-style: preserve-3d; /* Para a escala global */
+    transform-style: preserve-3d;
 }
 .theater-token {
     position: absolute;
-    width: 200px; /* Tamanho base */
+    width: 200px;
     height: auto;
     cursor: grab;
     user-select: none;
     -webkit-user-drag: none;
-    pointer-events: none; /* Deixa o mousedown passar para o container */
+    pointer-events: none; /* Espectadores não interagem */
 }
 .theater-token.is-gm {
-    pointer-events: auto; /* Apenas o GM pode interagir */
+    pointer-events: auto; /* GM pode interagir */
 }
-
 .theater-token:active {
     cursor: grabbing;
 }
@@ -193,7 +192,6 @@ body {
 #theater-gm-panel.hidden-panel {
     transform: translateX(100%);
 }
-
 #theater-toggle-panel-btn {
     position: absolute;
     top: 50%;
@@ -210,12 +208,11 @@ body {
     font-size: 1.5em;
     padding: 0;
     line-height: 50px;
+    transition: transform 0.3s ease-in-out;
 }
-
 #theater-gm-panel.hidden-panel #theater-toggle-panel-btn {
     transform: translateY(-50%) rotate(180deg);
 }
-
 .panel-section {
     background-color: rgba(255, 255, 255, 0.1);
     padding: 10px;
@@ -241,7 +238,6 @@ body {
 .theater-char-mini:hover {
     border-color: #ffeb3b;
 }
-
 #theater-gm-panel h4 {
     margin-top: 0;
     margin-bottom: 10px;
@@ -559,7 +555,7 @@ body {
         flex-wrap: wrap;
         justify-content: center;
         border-top: 2px solid #555;
-        transform: translateY(100%); /* Começa escondido para baixo */
+        transform: translateY(100%);
     }
     #theater-gm-panel.hidden-panel {
         transform: translateY(100%);

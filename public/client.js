@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const arenaLobbyScreen = document.getElementById('arena-lobby-screen');
     const modeClassicBtn = document.getElementById('mode-classic-btn');
     const modeArenaBtn = document.getElementById('mode-arena-btn');
-    const modeTheaterBtn = document.getElementById('mode-theater-btn'); // NOVO
+    const modeTheaterBtn = document.getElementById('mode-theater-btn');
     const scenarioScreen = document.getElementById('scenario-screen');
     const scenarioListContainer = document.getElementById('scenario-list-container');
     const selectionScreen = document.getElementById('selection-screen');
@@ -46,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const exitGameBtn = document.getElementById('exit-game-btn');
     const helpBtn = document.getElementById('help-btn');
 
-    // NOVO: Elementos do Modo Teatro
     const theaterScreen = document.getElementById('theater-screen');
     const theaterBackground = document.getElementById('theater-background');
     const theaterTokenContainer = document.getElementById('theater-token-container');
@@ -63,7 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
-    // CORREÇÃO: Constantes para o Modo Teatro agora incluem todos os personagens
     const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
     for (let i = 2; i <= 10; i++) {
         const num = i < 10 ? '0' + i : i;
@@ -273,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key.toLowerCase() === 'i' && isGm) socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
         });
 
-        
         initializeTheaterMode();
     }
 
@@ -396,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
     
-    socket.on('arenaRoomCreated', ({ roomId, mode }) => {
+    socket.on('arenaRoomCreated', ({ roomId }) => {
         currentRoomId = roomId;
         const baseUrl = window.location.origin;
         const p1Url = `${baseUrl}?room=${roomId}&player=player1`; const p2Url = `${baseUrl}?room=${roomId}&player=player2`; const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
@@ -474,13 +471,14 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('roomCreated', (data) => {
         const { roomId, mode } = data;
         currentRoomId = roomId;
+        const baseUrl = window.location.origin;
 
         if (mode === 'theater') {
-            const specUrl = `${window.location.origin}?room=${roomId}&theater=true`;
+            const specUrl = `${baseUrl}?room=${roomId}&theater=true`;
             copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
         } else {
-            const p2Url = `${window.location.origin}?room=${roomId}`;
-            const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
+            const p2Url = `${baseUrl}?room=${roomId}`;
+            const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
             const shareLinkP2 = document.getElementById('share-link-p2');
             const shareLinkSpectator = document.getElementById('share-link-spectator');
             shareLinkP2.textContent = p2Url;
@@ -697,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mini.onclick = () => {
                 if (!isGm) return;
                 const newToken = {
-                    id: `token-${Date.now()}`,
+                    id: `token-${Date.now()}-${Math.random()}`,
                     charName: charName,
                     img: charImg,
                     x: 100,
@@ -734,7 +732,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
         
-        // CORREÇÃO: Lógica de arrastar
         theaterTokenContainer.addEventListener('mousedown', (e) => {
             if (!isGm || !e.target.classList.contains('theater-token')) {
                 if (activeToken) {
@@ -750,8 +747,8 @@ document.addEventListener('DOMContentLoaded', () => {
             activeToken.classList.add('selected');
 
             const rect = activeToken.getBoundingClientRect();
-            const containerRect = gameWrapper.getBoundingClientRect(); // Usar o wrapper para escala
-            const scale = containerRect.width / 1280; // Calcular a escala atual do wrapper
+            const containerRect = gameWrapper.getBoundingClientRect();
+            const scale = containerRect.width / 1280;
             const globalScale = parseFloat(theaterGlobalScale.value) || 1;
 
             offset.x = (e.clientX - rect.left) / scale / globalScale;
@@ -803,7 +800,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, scale: newScale }});
         }, { passive: false });
 
-        // CORREÇÃO: Lógica do botão de esconder/mostrar painel
         theaterTogglePanelBtn.onclick = () => {
             theaterGmPanel.classList.toggle('hidden-panel');
         };
@@ -822,7 +818,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tokenEl = document.createElement('img');
             tokenEl.id = tokenId;
             tokenEl.className = 'theater-token';
-            if(isGm) tokenEl.classList.add('is-gm'); // Adiciona classe para permitir interação
+            if(isGm) tokenEl.classList.add('is-gm');
             tokenEl.src = tokenData.img;
             tokenEl.style.left = `${tokenData.x}px`;
             tokenEl.style.top = `${tokenData.y}px`;
@@ -954,7 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alertOverlay.classList.remove('hidden');
             setTimeout(() => {
                 alertOverlay.classList.add('hidden');
-            }, 3000); // O alerta some após 3 segundos
+            }, 3000);
         }
     });
 

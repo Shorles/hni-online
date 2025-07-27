@@ -80,14 +80,12 @@ function createNewGameState() {
     };
 }
 
-// NOVO: Estado para o Modo Teatro
 function createNewTheaterState(scenario) {
     return {
         mode: 'theater',
         scenario: scenario,
         tokens: {}, // Ex: { tokenId: { charName, img, x, y, scale } }
         gmId: null,
-        log: [{ text: "Modo Teatro iniciado."}]
     };
 }
 
@@ -397,7 +395,6 @@ function isActionValid(state, action) {
     const isGm = gmSocketId === state.gmId;
     const move = state.moves[action.move];
 
-    // NOVO: Validação para Modo Teatro
     if (state.mode === 'theater') {
         return (type === 'updateToken' || type === 'changeScenario') && isGm;
     }
@@ -444,7 +441,6 @@ function dispatchAction(room) {
     if (!room) return;
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
-    // NOVO: dispatch para Modo Teatro é tratado apenas pela emissão do gameUpdate
     if (state.mode === 'theater') return;
 
     switch (state.phase) {
@@ -535,7 +531,7 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
-    // NOVO: Criador de sala para Modo Teatro
+    
     socket.on('createTheaterGame', ({ scenario }) => {
         const newRoomId = uuidv4().substring(0, 6);
         socket.join(newRoomId);
@@ -616,7 +612,7 @@ io.on('connection', (socket) => {
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', {playerKey: 'spectator', isGm: false});
         socket.emit('gameUpdate', room.state);
-        if (room.state.log) {
+        if (room.state.mode !== 'theater' && room.state.log) {
             logMessage(room.state, 'Um espectador entrou na sala.');
             io.to(roomId).emit('gameUpdate', room.state);
         }
@@ -641,7 +637,6 @@ io.on('connection', (socket) => {
 
         const playerKey = action.playerKey;
         switch (action.type) {
-            // NOVO: Handlers para Modo Teatro
             case 'updateToken':
                 if (action.token.remove) {
                     delete state.tokens[action.token.id];
@@ -655,7 +650,6 @@ io.on('connection', (socket) => {
             case 'changeScenario':
                 state.scenario = action.scenario;
                 break;
-
             case 'toggle_dice_cheat':
                 if (state.diceCheat === action.cheat) {
                     state.diceCheat = null;
