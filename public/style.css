@@ -206,7 +206,7 @@ body {
     background-color: #333;
     border: 2px solid #555;
     border-radius: 5px;
-    cursor: grab; /* MUDADO: Indica que pode ser arrastado */
+    cursor: grab;
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;

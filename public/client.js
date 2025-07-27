@@ -60,8 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
-    // CORRIGIDO (Bug 2): A ordem destas declarações é CRUCIAL.
-    // THEATER_CHARACTERS deve ser definido APÓS CHARACTERS_P1 e CHARACTERS_P2.
+    // CORRIGIDO (Bug 1): A ordem destas declarações é CRUCIAL. THEATER_CHARACTERS deve ser definido APÓS CHARACTERS_P1 e CHARACTERS_P2.
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
     for (let i = 2; i <= 10; i++) {
@@ -69,7 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
         THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
     }
 
-    // ... (O resto das funções showHelpModal, showScreen, etc., permanecem iguais até a função 'initialize') ...
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
 
@@ -234,7 +232,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderScenarioSelection('theater');
         };
 
-
         charSelectBackBtn.addEventListener('click', () => showScreen(scenarioScreen));
         specialMovesBackBtn.addEventListener('click', () => { alert('A partida já foi criada no servidor. Para alterar o personagem, a página será recarregada.'); location.reload(); });
         lobbyBackBtn.addEventListener('click', () => { specialMovesModal.classList.remove('hidden'); });
@@ -273,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         initializeTheaterMode();
     }
-    // ... (As funções onConfirmSelection, renderCharacterSelection, renderSpecialMoveSelection, renderScenarioSelection, etc. permanecem iguais até socket.on('roomCreated')) ...
+
     function onConfirmSelection() {
         const selectedCard = document.querySelector('.char-card.selected');
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
@@ -353,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen);
         selectionScreen.classList.remove('active');
         specialMovesModal.classList.remove('hidden');
@@ -493,7 +490,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
     
-    // ... (As funções updateUI, showInfoModal, showInteractiveModal, showCheatsModal, showDiceRollAnimation permanecem iguais até a LÓGICA DO MODO TEATRO) ...
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
         if (state.scenario) { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
@@ -685,15 +681,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeToken = null;
     let offset = { x: 0, y: 0 };
 
-    // CORRIGIDO (Bug 1): Refatorado para verdadeiro "arrastar e soltar" do painel
     function initializeTheaterMode() {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         const theaterScreenEl = document.getElementById('theater-screen');
-
+    
         toggleGmPanelBtn.addEventListener('click', () => {
             theaterScreenEl.classList.toggle('panel-hidden');
         });
 
+        // CORRIGIDO (Bug 1 & 2): Implementação do sistema de arrastar e soltar
         theaterCharList.innerHTML = '';
         Object.keys(THEATER_CHARACTERS).forEach(charName => {
             const charImg = `images/${charName}.png`;
@@ -701,44 +697,41 @@ document.addEventListener('DOMContentLoaded', () => {
             mini.className = 'theater-char-mini';
             mini.style.backgroundImage = `url(${charImg})`;
             mini.title = charName;
-            mini.draggable = true; // Permite que o elemento seja arrastado
+            mini.draggable = true;
 
-            // Evento que dispara quando o arrasto começa
             mini.addEventListener('dragstart', (e) => {
                 if (!isGm) return;
-                // Armazena os dados do personagem que está sendo arrastado
                 e.dataTransfer.setData('text/plain', JSON.stringify({ charName, img: charImg }));
             });
-
             theaterCharList.appendChild(mini);
         });
 
-        // Evento para permitir que a área do cenário aceite o "drop"
         theaterTokenContainer.addEventListener('dragover', (e) => {
-            e.preventDefault(); // Necessário para permitir o drop
+            e.preventDefault(); 
         });
 
-        // Evento que dispara quando o personagem é solto no cenário
         theaterTokenContainer.addEventListener('drop', (e) => {
             e.preventDefault();
             if (!isGm) return;
 
-            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-            const containerRect = theaterTokenContainer.getBoundingClientRect();
-            
-            // Calcula a posição do drop relativa ao container
-            const x = e.clientX - containerRect.left;
-            const y = e.clientY - containerRect.top;
+            try {
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                const containerRect = theaterTokenContainer.getBoundingClientRect();
+                const x = e.clientX - containerRect.left;
+                const y = e.clientY - containerRect.top;
 
-            const newToken = {
-                id: `token-${Date.now()}`,
-                charName: data.charName,
-                img: data.img,
-                x: x - 100, // Centraliza o token no cursor (metade da largura padrão)
-                y: y - 100, // Centraliza o token no cursor (metade da altura padrão)
-                scale: 1,
-            };
-            socket.emit('playerAction', { type: 'updateToken', token: newToken });
+                const newToken = {
+                    id: `token-${Date.now()}`,
+                    charName: data.charName,
+                    img: data.img,
+                    x: x - 100,
+                    y: y - 100,
+                    scale: 1,
+                };
+                socket.emit('playerAction', { type: 'updateToken', token: newToken });
+            } catch (error) {
+                console.error("Erro ao processar o drop:", error);
+            }
         });
 
         theaterGlobalScale.addEventListener('input', (e) => {
@@ -766,7 +759,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
 
-        // Eventos para arrastar tokens que JÁ ESTÃO no cenário
         theaterTokenContainer.addEventListener('mousedown', (e) => {
             if (!isGm || !e.target.classList.contains('theater-token')) {
                 if (activeToken) {
