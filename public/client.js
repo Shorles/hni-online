@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const arenaLobbyScreen = document.getElementById('arena-lobby-screen');
     const modeClassicBtn = document.getElementById('mode-classic-btn');
     const modeArenaBtn = document.getElementById('mode-arena-btn');
-    const modeTheaterBtn = document.getElementById('mode-theater-btn'); // NOVO
+    const modeTheaterBtn = document.getElementById('mode-theater-btn');
     const scenarioScreen = document.getElementById('scenario-screen');
     const scenarioListContainer = document.getElementById('scenario-list-container');
     const selectionScreen = document.getElementById('selection-screen');
@@ -46,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const exitGameBtn = document.getElementById('exit-game-btn');
     const helpBtn = document.getElementById('help-btn');
 
-    // NOVO: Elementos do Modo Teatro
     const theaterScreen = document.getElementById('theater-screen');
     const theaterBackground = document.getElementById('theater-background');
     const theaterTokenContainer = document.getElementById('theater-token-container');
@@ -57,20 +56,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
     const theaterBackBtn = document.getElementById('theater-back-btn');
 
-
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
-    // NOVO: Constantes para o Modo Teatro
+    // CORRIGIDO (Bug 2): A ordem destas declarações é CRUCIAL.
+    // THEATER_CHARACTERS deve ser definido APÓS CHARACTERS_P1 e CHARACTERS_P2.
+    const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
     for (let i = 2; i <= 10; i++) {
         const num = i < 10 ? '0' + i : i;
         THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
     }
-    const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
 
-
+    // ... (O resto das funções showHelpModal, showScreen, etc., permanecem iguais até a função 'initialize') ...
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
 
@@ -189,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
-        if (isTheater && currentRoomId) { // NOVO: Entrando como espectador do teatro
+        if (isTheater && currentRoomId) {
             showScreen(theaterScreen);
             socket.emit('spectateGame', currentRoomId);
         } else if (arenaPlayerKey && currentRoomId) {
@@ -225,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(scenarioScreen);
             renderScenarioSelection('arena');
         };
-        // NOVO: Handler do botão Teatro
+
         modeTheaterBtn.onclick = () => {
             myPlayerKey = 'gm';
             theaterBackBtn.classList.remove('hidden');
@@ -272,10 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key.toLowerCase() === 'i' && isGm) socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
         });
 
-        // NOVO: Listeners do Modo Teatro
         initializeTheaterMode();
     }
-
+    // ... (As funções onConfirmSelection, renderCharacterSelection, renderSpecialMoveSelection, renderScenarioSelection, etc. permanecem iguais até socket.on('roomCreated')) ...
     function onConfirmSelection() {
         const selectedCard = document.querySelector('.char-card.selected');
         if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
@@ -448,7 +446,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldState = currentGameState;
         currentGameState = gameState;
         
-        // NOVO: Roteamento para a função de renderização correta
         if (gameState.mode === 'theater') {
             if (!oldState || oldState.mode !== 'theater') {
                 showScreen(theaterScreen);
@@ -473,10 +470,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
-        // Lógica de URL adaptada para os diferentes modos
         let specUrl;
         if(currentGameState && currentGameState.mode === 'theater') {
             specUrl = `${window.location.origin}?room=${roomId}&theater=true`;
+            // CORRIGIDO (Bug 3): Habilita o botão e atribui o evento de clique
+            copyTheaterSpectatorLinkBtn.disabled = false;
             copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
         } else {
             const p2Url = `${window.location.origin}?room=${roomId}`;
@@ -494,7 +492,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
-
+    
+    // ... (As funções updateUI, showInfoModal, showInteractiveModal, showCheatsModal, showDiceRollAnimation permanecem iguais até a LÓGICA DO MODO TEATRO) ...
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
         if (state.scenario) { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
@@ -686,15 +685,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeToken = null;
     let offset = { x: 0, y: 0 };
 
+    // CORRIGIDO (Bug 1): Refatorado para verdadeiro "arrastar e soltar" do painel
     function initializeTheaterMode() {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         const theaterScreenEl = document.getElementById('theater-screen');
-    
+
         toggleGmPanelBtn.addEventListener('click', () => {
             theaterScreenEl.classList.toggle('panel-hidden');
         });
 
-        // Populando a lista de personagens no painel do GM
         theaterCharList.innerHTML = '';
         Object.keys(THEATER_CHARACTERS).forEach(charName => {
             const charImg = `images/${charName}.png`;
@@ -702,27 +701,50 @@ document.addEventListener('DOMContentLoaded', () => {
             mini.className = 'theater-char-mini';
             mini.style.backgroundImage = `url(${charImg})`;
             mini.title = charName;
-            mini.onclick = () => {
+            mini.draggable = true; // Permite que o elemento seja arrastado
+
+            // Evento que dispara quando o arrasto começa
+            mini.addEventListener('dragstart', (e) => {
                 if (!isGm) return;
-                const newToken = {
-                    id: `token-${Date.now()}`,
-                    charName: charName,
-                    img: charImg,
-                    x: 100,
-                    y: 100,
-                    scale: 1,
-                };
-                socket.emit('playerAction', { type: 'updateToken', token: newToken });
-            };
+                // Armazena os dados do personagem que está sendo arrastado
+                e.dataTransfer.setData('text/plain', JSON.stringify({ charName, img: charImg }));
+            });
+
             theaterCharList.appendChild(mini);
         });
 
-        // Evento para a escala global
+        // Evento para permitir que a área do cenário aceite o "drop"
+        theaterTokenContainer.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Necessário para permitir o drop
+        });
+
+        // Evento que dispara quando o personagem é solto no cenário
+        theaterTokenContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (!isGm) return;
+
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            const containerRect = theaterTokenContainer.getBoundingClientRect();
+            
+            // Calcula a posição do drop relativa ao container
+            const x = e.clientX - containerRect.left;
+            const y = e.clientY - containerRect.top;
+
+            const newToken = {
+                id: `token-${Date.now()}`,
+                charName: data.charName,
+                img: data.img,
+                x: x - 100, // Centraliza o token no cursor (metade da largura padrão)
+                y: y - 100, // Centraliza o token no cursor (metade da altura padrão)
+                scale: 1,
+            };
+            socket.emit('playerAction', { type: 'updateToken', token: newToken });
+        });
+
         theaterGlobalScale.addEventListener('input', (e) => {
             theaterTokenContainer.style.transform = `scale(${e.target.value})`;
         });
-        
-        // Evento para mudar cenário
+
         theaterChangeScenarioBtn.onclick = () => {
             let scenarioCardsHtml = '<div style="display:flex; flex-wrap:wrap; gap:15px; justify-content:center;">';
             Object.entries(THEATER_SCENARIOS).forEach(([name, fileName]) => {
@@ -744,20 +766,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
 
-        // Eventos de Drag-and-Drop e seleção
+        // Eventos para arrastar tokens que JÁ ESTÃO no cenário
         theaterTokenContainer.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-
             if (!isGm || !e.target.classList.contains('theater-token')) {
-                // Desselecionar se clicar no fundo
                 if (activeToken) {
                     activeToken.classList.remove('selected');
                     activeToken = null;
                 }
                 return;
             }
+            e.preventDefault();
 
-            // Selecionar o novo token
             if (activeToken) activeToken.classList.remove('selected');
             activeToken = e.target;
             activeToken.classList.add('selected');
@@ -791,7 +810,6 @@ document.addEventListener('DOMContentLoaded', () => {
             window.addEventListener('mouseup', onMouseUp);
         });
 
-        // Evento de escalonamento com a roda do mouse e remoção com a tecla Del
         window.addEventListener('keydown', (e) => {
              if (isGm && activeToken && e.key === 'Delete') {
                 e.preventDefault();
@@ -805,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
 
             const currentScale = parseFloat(activeToken.dataset.scale) || 1;
-            const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1; // Diminui se scroll down, aumenta se scroll up
+            const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
             const newScale = Math.max(0.1, currentScale + scaleAmount);
 
             activeToken.dataset.scale = newScale;
@@ -830,7 +848,6 @@ document.addEventListener('DOMContentLoaded', () => {
             theaterScreenEl.classList.add('panel-hidden');
         }
         
-        // Sincronizar tokens
         theaterTokenContainer.innerHTML = '';
         for (const tokenId in state.tokens) {
             const tokenData = state.tokens[tokenId];
@@ -969,7 +986,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alertOverlay.classList.remove('hidden');
             setTimeout(() => {
                 alertOverlay.classList.add('hidden');
-            }, 3000); // O alerta some após 3 segundos
+            }, 3000); 
         }
     });
 
