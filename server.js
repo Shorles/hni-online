@@ -11,6 +11,7 @@ app.use(express.static('public'));
 
 const games = {};
 
+// --- MANTIDO PARA OUTROS MODOS ---
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
@@ -50,6 +51,7 @@ const MOVE_SOUNDS = {
     'Clinch': ['Esquiva.mp3'],
     'Esquiva': ['Esquiva.mp3']
 };
+// --- FIM DA MANUTENÇÃO ---
 
 const rollD = (s) => Math.floor(Math.random() * s) + 1;
 
@@ -75,6 +77,17 @@ function createNewGameState() {
         reactionState: null,
         diceCheat: null,
         illegalCheat: 'normal'
+    };
+}
+
+// NOVO: Estado para o Modo Teatro
+function createNewTheaterState(scenario) {
+    return {
+        mode: 'theater',
+        scenario: scenario,
+        tokens: {}, // Ex: { tokenId: { charName, img, x, y, scale } }
+        gmId: null,
+        log: [{ text: "Modo Teatro iniciado."}]
     };
 }
 
@@ -383,6 +396,12 @@ function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
     const move = state.moves[action.move];
+
+    // NOVO: Validação para Modo Teatro
+    if (state.mode === 'theater') {
+        return (type === 'updateToken' || type === 'changeScenario') && isGm;
+    }
+
     if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat' || type === 'toggle_illegal_cheat') { return isGm; }
     if (state.phase === 'paused') { return false; }
     if (state.phase === 'white_fang_follow_up') {
@@ -425,6 +444,9 @@ function dispatchAction(room) {
     if (!room) return;
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
+    // NOVO: dispatch para Modo Teatro é tratado apenas pela emissão do gameUpdate
+    if (state.mode === 'theater') return;
+
     switch (state.phase) {
         case 'paused': return;
         case 'p1_special_moves_selection':
@@ -513,6 +535,20 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
+    // NOVO: Criador de sala para Modo Teatro
+    socket.on('createTheaterGame', ({ scenario }) => {
+        const newRoomId = uuidv4().substring(0, 6);
+        socket.join(newRoomId);
+        socket.currentRoomId = newRoomId;
+        const newState = createNewTheaterState(scenario);
+        newState.gmId = socket.id;
+        games[newRoomId] = { id: newRoomId, hostId: null, players: [], spectators: [], state: newState };
+        socket.emit('assignPlayer', { playerKey: 'gm', isGm: true });
+        socket.emit('roomCreated', newRoomId); // Reutiliza o evento para enviar o link
+        io.to(socket.id).emit('gameUpdate', newState);
+        dispatchAction(games[newRoomId]);
+    });
+
     socket.on('joinGame', ({ roomId, player2Data }) => {
         const room = games[roomId];
         if (!room || room.players.length !== 1 || room.state.mode !== 'classic') { socket.emit('error', { message: 'Sala não encontrada, cheia, ou não é uma sala de modo clássico.' }); return; }
@@ -580,8 +616,10 @@ io.on('connection', (socket) => {
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', {playerKey: 'spectator', isGm: false});
         socket.emit('gameUpdate', room.state);
-        logMessage(room.state, 'Um espectador entrou na sala.');
-        io.to(roomId).emit('gameUpdate', room.state);
+        if (room.state.log) {
+            logMessage(room.state, 'Um espectador entrou na sala.');
+            io.to(roomId).emit('gameUpdate', room.state);
+        }
     });
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
@@ -589,17 +627,35 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const state = room.state;
         action.gmSocketId = socket.id;
+
+        if (!isActionValid(state, action)) {
+            console.log("Ação inválida recebida:", action, "no modo/fase:", state.mode, state.phase);
+            return;
+        }
+
         const moveName = action.move;
         const move = state.moves[moveName];
         if (move && move.reaction) {
             action.type = moveName;
         }
-        if (!isActionValid(state, action)) {
-            console.log("Ação inválida recebida:", action, "no estado:", state.phase);
-            return;
-        }
+
         const playerKey = action.playerKey;
         switch (action.type) {
+            // NOVO: Handlers para Modo Teatro
+            case 'updateToken':
+                if (action.token.remove) {
+                    delete state.tokens[action.token.id];
+                } else {
+                    if (!state.tokens[action.token.id]) {
+                        state.tokens[action.token.id] = {};
+                    }
+                    Object.assign(state.tokens[action.token.id], action.token);
+                }
+                break;
+            case 'changeScenario':
+                state.scenario = action.scenario;
+                break;
+
             case 'toggle_dice_cheat':
                 if (state.diceCheat === action.cheat) {
                     state.diceCheat = null;
@@ -932,7 +988,7 @@ io.on('connection', (socket) => {
         const spectatorIndex = room.spectators.indexOf(socket.id);
         if (spectatorIndex > -1) {
             room.spectators.splice(spectatorIndex, 1);
-            if (room.state) {
+            if (room.state && room.state.log) {
                 logMessage(room.state, 'Um espectador saiu.');
                 io.to(roomId).emit('gameUpdate', room.state);
             }

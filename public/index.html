@@ -21,6 +21,7 @@
         <div class="mode-buttons-container">
             <button id="mode-classic-btn" class="mode-btn">Player vs. "NPC" (Clássico)</button>
             <button id="mode-arena-btn" class="mode-btn">Player vs. Player (Arena)</button>
+            <button id="mode-theater-btn" class="mode-btn">Cenários (GM)</button>
         </div>
     </div>
 
@@ -55,11 +56,34 @@
         <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
     </div>
 
-    <!-- TELA DE SELEÇÃO DE CENÁRIO -->
+    <!-- TELA DE SELEÇÃO DE CENÁRIO (REUTILIZADA) -->
     <div id="scenario-screen" class="screen">
         <h1 id="scenario-title">Selecione o Cenário</h1>
         <div id="scenario-list-container"></div>
     </div>
+    
+    <!-- NOVO: TELA DO MODO TEATRO -->
+    <div id="theater-screen" class="screen">
+        <div id="theater-background"></div>
+        <div id="theater-token-container"></div>
+
+        <button id="copy-theater-spectator-link" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
+        
+        <div id="theater-gm-panel" class="hidden">
+            <div class="panel-section">
+                <h4>Personagens</h4>
+                <div id="theater-char-list"></div>
+            </div>
+            <div class="panel-section">
+                <h4>Controles Gerais</h4>
+                <label for="theater-global-scale">Escala Global:</label>
+                <input type="range" id="theater-global-scale" min="0.2" max="3" step="0.1" value="1">
+                <button id="theater-change-scenario-btn">Mudar Cenário</button>
+            </div>
+        </div>
+        <button id="theater-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
+    </div>
+
 
     <!-- TELA DE SELEÇÃO DE PERSONAGENS -->
     <div id="selection-screen" class="screen">
@@ -167,7 +191,6 @@
             <div id="game-alert-content"></div>
         </div>
         
-        <!-- NOVO: OVERLAYS DE RESULTADO DA QUEDA DUPLA -->
         <div id="player1-dk-result" class="dk-result-overlay hidden"></div>
         <div id="player2-dk-result" class="dk-result-overlay hidden"></div>
     </div>

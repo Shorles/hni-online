@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const arenaLobbyScreen = document.getElementById('arena-lobby-screen');
     const modeClassicBtn = document.getElementById('mode-classic-btn');
     const modeArenaBtn = document.getElementById('mode-arena-btn');
+    const modeTheaterBtn = document.getElementById('mode-theater-btn'); // NOVO
     const scenarioScreen = document.getElementById('scenario-screen');
     const scenarioListContainer = document.getElementById('scenario-list-container');
     const selectionScreen = document.getElementById('selection-screen');
@@ -45,12 +46,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const exitGameBtn = document.getElementById('exit-game-btn');
     const helpBtn = document.getElementById('help-btn');
 
+    // NOVO: Elementos do Modo Teatro
+    const theaterScreen = document.getElementById('theater-screen');
+    const theaterBackground = document.getElementById('theater-background');
+    const theaterTokenContainer = document.getElementById('theater-token-container');
+    const theaterGmPanel = document.getElementById('theater-gm-panel');
+    const theaterCharList = document.getElementById('theater-char-list');
+    const theaterGlobalScale = document.getElementById('theater-global-scale');
+    const theaterChangeScenarioBtn = document.getElementById('theater-change-scenario-btn');
+    const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
+    const theaterBackBtn = document.getElementById('theater-back-btn');
+
+
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
+    // NOVO: Constantes para o Modo Teatro
+    const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
+    for (let i = 2; i <= 10; i++) {
+        const num = i < 10 ? '0' + i : i;
+        THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
+    }
+    const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
+
+
     function showHelpModal() {
-        if (!currentGameState) return;
+        if (!currentGameState || currentGameState.mode === 'theater') return;
 
         const MOVE_EFFECTS = {
             'Liver Blow': '30% de chance de remover 1 PA do oponente.',
@@ -163,10 +185,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = urlParams.get('room');
         const arenaPlayerKey = urlParams.get('player');
         const isSpectator = urlParams.get('spectate') === 'true';
+        const isTheater = urlParams.get('theater') === 'true';
 
-        [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn].forEach(btn => btn.classList.add('hidden'));
+        [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
-        if (arenaPlayerKey && currentRoomId) {
+        if (isTheater && currentRoomId) { // NOVO: Entrando como espectador do teatro
+            showScreen(theaterScreen);
+            socket.emit('spectateGame', currentRoomId);
+        } else if (arenaPlayerKey && currentRoomId) {
             myPlayerKey = arenaPlayerKey;
             socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen);
@@ -199,18 +225,32 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(scenarioScreen);
             renderScenarioSelection('arena');
         };
+        // NOVO: Handler do botão Teatro
+        modeTheaterBtn.onclick = () => {
+            myPlayerKey = 'gm';
+            theaterBackBtn.classList.remove('hidden');
+            copyTheaterSpectatorLinkBtn.classList.remove('hidden');
+            showScreen(scenarioScreen);
+            selectionTitle.innerText = 'Selecione o Cenário Inicial';
+            renderScenarioSelection('theater');
+        };
+
 
         charSelectBackBtn.addEventListener('click', () => showScreen(scenarioScreen));
         specialMovesBackBtn.addEventListener('click', () => { alert('A partida já foi criada no servidor. Para alterar o personagem, a página será recarregada.'); location.reload(); });
         lobbyBackBtn.addEventListener('click', () => { specialMovesModal.classList.remove('hidden'); });
-        exitGameBtn.addEventListener('click', () => {
+        
+        const exitAndReload = () => {
             showInfoModal(
                 "Sair da Partida",
-                `<p>Tem certeza que deseja voltar ao menu principal? A partida atual será encerrada.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-exit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Sair</button><button id="cancel-exit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Ficar</button></div>`
+                `<p>Tem certeza que deseja voltar ao menu principal? A sessão atual será encerrada.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-exit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Sair</button><button id="cancel-exit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Ficar</button></div>`
             );
             document.getElementById('confirm-exit-btn').onclick = () => { socket.disconnect(); window.location.href = '/'; };
             document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
-        });
+        };
+
+        exitGameBtn.addEventListener('click', exitAndReload);
+        theaterBackBtn.addEventListener('click', exitAndReload);
         
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
@@ -224,13 +264,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'c' && isGm) {
-                if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover')) return;
+                if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover' || currentGameState.mode === 'theater')) return;
                 socket.emit('playerAction', { type: 'toggle_pause' });
             }
             if (e.key.toLowerCase() === 't' && isGm) socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' });
             if (e.key.toLowerCase() === 'r' && isGm) socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
             if (e.key.toLowerCase() === 'i' && isGm) socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
         });
+
+        // NOVO: Listeners do Modo Teatro
+        initializeTheaterMode();
     }
 
     function onConfirmSelection() {
@@ -287,7 +330,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderScenarioSelection(mode = 'classic') {
         scenarioListContainer.innerHTML = '';
-        Object.entries(SCENARIOS).forEach(([name, fileName]) => {
+        const scenarios = mode === 'theater' ? THEATER_SCENARIOS : SCENARIOS;
+        Object.entries(scenarios).forEach(([name, fileName]) => {
             const card = document.createElement('div'); card.className = 'scenario-card';
             card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
             card.onclick = () => {
@@ -297,9 +341,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
                     confirmBtn.innerText = 'Confirmar Personagem'; confirmBtn.disabled = false;
                     renderCharacterSelection('p1', true);
-                } else {
+                } else if (mode === 'arena') {
                     socket.emit('createArenaGame', { scenario: fileName });
                     showScreen(arenaLobbyScreen);
+                } else if (mode === 'theater') {
+                    socket.emit('createTheaterGame', { scenario: fileName });
                 }
             };
             scenarioListContainer.appendChild(card);
@@ -399,8 +445,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => {
-        const oldPhase = currentGameState ? currentGameState.phase : null;
+        const oldState = currentGameState;
         currentGameState = gameState;
+        
+        // NOVO: Roteamento para a função de renderização correta
+        if (gameState.mode === 'theater') {
+            if (!oldState || oldState.mode !== 'theater') {
+                showScreen(theaterScreen);
+                helpBtn.classList.add('hidden');
+            }
+            renderTheaterMode(gameState);
+            return;
+        }
+
+        const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused'; const isNowPaused = currentGameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
         if (isNowPaused && !wasPaused) { showCheatsModal(); } 
@@ -410,16 +468,28 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (currentGameState.mode === 'arena') { gameWrapper.classList.add('mode-arena'); gameWrapper.classList.remove('mode-classic'); }
         const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); }
+        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); helpBtn.classList.remove('hidden'); }
     });
 
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
-        const p2Url = `${window.location.origin}?room=${roomId}`; const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
-        const shareLinkP2 = document.getElementById('share-link-p2'); const shareLinkSpectator = document.getElementById('share-link-spectator');
-        shareLinkP2.textContent = p2Url; shareLinkSpectator.textContent = specUrl;
-        shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2); shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-        lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
+        // Lógica de URL adaptada para os diferentes modos
+        let specUrl;
+        if(currentGameState && currentGameState.mode === 'theater') {
+            specUrl = `${window.location.origin}?room=${roomId}&theater=true`;
+            copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
+        } else {
+            const p2Url = `${window.location.origin}?room=${roomId}`;
+            specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
+            const shareLinkP2 = document.getElementById('share-link-p2');
+            shareLinkP2.textContent = p2Url;
+            shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+            lobbyContent.classList.add('hidden'); 
+            shareContainer.classList.remove('hidden');
+        }
+        const shareLinkSpectator = document.getElementById('share-link-spectator');
+        shareLinkSpectator.textContent = specUrl;
+        shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
     });
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
@@ -612,6 +682,157 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(hideAndResolve, 2000); 
     }
     
+    // #region LÓGICA DO MODO TEATRO
+    let activeToken = null;
+    let offset = { x: 0, y: 0 };
+
+    function initializeTheaterMode() {
+        // Populando a lista de personagens no painel do GM
+        theaterCharList.innerHTML = '';
+        Object.keys(THEATER_CHARACTERS).forEach(charName => {
+            const charImg = `images/${charName}.png`;
+            const mini = document.createElement('div');
+            mini.className = 'theater-char-mini';
+            mini.style.backgroundImage = `url(${charImg})`;
+            mini.title = charName;
+            mini.onclick = () => {
+                if (!isGm) return;
+                const newToken = {
+                    id: `token-${Date.now()}`,
+                    charName: charName,
+                    img: charImg,
+                    x: 100,
+                    y: 100,
+                    scale: 1,
+                };
+                socket.emit('playerAction', { type: 'updateToken', token: newToken });
+            };
+            theaterCharList.appendChild(mini);
+        });
+
+        // Evento para a escala global
+        theaterGlobalScale.addEventListener('input', (e) => {
+            theaterTokenContainer.style.transform = `scale(${e.target.value})`;
+        });
+        
+        // Evento para mudar cenário
+        theaterChangeScenarioBtn.onclick = () => {
+            let scenarioCardsHtml = '<div style="display:flex; flex-wrap:wrap; gap:15px; justify-content:center;">';
+            Object.entries(THEATER_SCENARIOS).forEach(([name, fileName]) => {
+                scenarioCardsHtml += `
+                    <div class="scenario-card" data-file-name="${fileName}" style="width: 200px; height: 150px;">
+                        <img src="images/${fileName}" alt="${name}" style="height: 100px;">
+                        <div class="scenario-name" style="font-size: 1.1em; padding: 5px;">${name}</div>
+                    </div>`;
+            });
+            scenarioCardsHtml += '</div>';
+            
+            showInfoModal("Mudar Cenário", scenarioCardsHtml);
+            document.querySelectorAll('#modal .scenario-card').forEach(card => {
+                card.onclick = () => {
+                    const newScenario = card.dataset.fileName;
+                    socket.emit('playerAction', { type: 'changeScenario', scenario: newScenario });
+                    modal.classList.add('hidden');
+                }
+            });
+        };
+
+        // Eventos de Drag-and-Drop e seleção
+        theaterTokenContainer.addEventListener('mousedown', (e) => {
+            if (!isGm || !e.target.classList.contains('theater-token')) {
+                // Desselecionar se clicar no fundo
+                if (activeToken) {
+                    activeToken.classList.remove('selected');
+                    activeToken = null;
+                }
+                return;
+            }
+            e.preventDefault();
+
+            // Selecionar o novo token
+            if (activeToken) activeToken.classList.remove('selected');
+            activeToken = e.target;
+            activeToken.classList.add('selected');
+
+            const rect = activeToken.getBoundingClientRect();
+            const containerRect = theaterTokenContainer.getBoundingClientRect();
+            const globalScale = parseFloat(theaterGlobalScale.value) || 1;
+
+            offset.x = (e.clientX - rect.left) / globalScale;
+            offset.y = (e.clientY - rect.top) / globalScale;
+
+            function onMouseMove(moveEvent) {
+                if (!activeToken) return;
+                const newX = (moveEvent.clientX - containerRect.left) / globalScale - offset.x;
+                const newY = (moveEvent.clientY - containerRect.top) / globalScale - offset.y;
+                activeToken.style.left = `${newX}px`;
+                activeToken.style.top = `${newY}px`;
+            }
+
+            function onMouseUp() {
+                if (!activeToken) return;
+                const finalX = parseFloat(activeToken.style.left);
+                const finalY = parseFloat(activeToken.style.top);
+                socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, x: finalX, y: finalY }});
+                
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+            }
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+        });
+
+        // Evento de escalonamento com a roda do mouse e remoção com a tecla Del
+        window.addEventListener('keydown', (e) => {
+             if (isGm && activeToken && e.key === 'Delete') {
+                e.preventDefault();
+                socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
+                activeToken = null;
+            }
+        });
+
+        window.addEventListener('wheel', (e) => {
+            if (!isGm || !activeToken || !e.target.classList.contains('theater-token')) return;
+            e.preventDefault();
+
+            const currentScale = parseFloat(activeToken.dataset.scale) || 1;
+            const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1; // Diminui se scroll down, aumenta se scroll up
+            const newScale = Math.max(0.1, currentScale + scaleAmount);
+
+            activeToken.dataset.scale = newScale;
+            activeToken.style.transform = `scale(${newScale})`;
+            
+            socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, scale: newScale }});
+        }, { passive: false });
+    }
+
+    function renderTheaterMode(state) {
+        if (state.scenario) {
+            theaterBackground.style.backgroundImage = `url('images/${state.scenario}')`;
+        }
+        
+        theaterGmPanel.classList.toggle('hidden', !isGm);
+        
+        // Sincronizar tokens
+        theaterTokenContainer.innerHTML = '';
+        for (const tokenId in state.tokens) {
+            const tokenData = state.tokens[tokenId];
+            const tokenEl = document.createElement('img');
+            tokenEl.id = tokenId;
+            tokenEl.className = 'theater-token';
+            tokenEl.src = tokenData.img;
+            tokenEl.style.left = `${tokenData.x}px`;
+            tokenEl.style.top = `${tokenData.y}px`;
+            tokenEl.style.transform = `scale(${tokenData.scale})`;
+            tokenEl.dataset.scale = tokenData.scale;
+            tokenEl.title = tokenData.charName;
+            
+            theaterTokenContainer.appendChild(tokenEl);
+        }
+    }
+    // #endregion
+
     socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
@@ -723,7 +944,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     });
 
-    // NOVO: Listener para o alerta vermelho
     socket.on('showGameAlert', (message) => {
         const alertOverlay = document.getElementById('game-alert-overlay');
         const alertContent = document.getElementById('game-alert-content');
