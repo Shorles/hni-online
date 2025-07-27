@@ -544,7 +544,7 @@ io.on('connection', (socket) => {
         newState.gmId = socket.id;
         games[newRoomId] = { id: newRoomId, hostId: null, players: [], spectators: [], state: newState };
         socket.emit('assignPlayer', { playerKey: 'gm', isGm: true });
-        socket.emit('roomCreated', newRoomId); // Reutiliza o evento para enviar o link
+        socket.emit('roomCreated', { roomId: newRoomId, mode: 'theater' });
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
@@ -576,7 +576,7 @@ io.on('connection', (socket) => {
         logMessage(newState, "Lobby da Arena criado. Aguardando jogadores...");
         games[newRoomId] = { id: newRoomId, hostId: socket.id, players: [], spectators: [], state: newState };
         socket.emit('assignPlayer', {playerKey: 'host', isGm: true});
-        socket.emit('arenaRoomCreated', newRoomId);
+        socket.emit('arenaRoomCreated', { roomId: newRoomId, mode: 'arena' });
         io.to(socket.id).emit('gameUpdate', newState);
     });
     socket.on('joinArenaGame', ({ roomId, playerKey }) => {
@@ -737,7 +737,7 @@ io.on('connection', (socket) => {
                 state.fighters.player1.specialMoves = action.moves;
                 logMessage(state, `${state.fighters.player1.nome} definiu seus golpes especiais.`);
                 state.phase = 'waiting';
-                socket.emit('roomCreated', roomId);
+                socket.emit('roomCreated', { roomId, mode: 'classic' });
                 break;
             case 'set_p2_stats':
                 const p2Data = state.pendingP2Choice;

@@ -56,7 +56,7 @@ body {
 }
 #mode-selection-screen h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; }
 #mode-selection-screen h2 { font-size: 2em; color: #fff; }
-.mode-buttons-container { display: flex; gap: 40px; }
+.mode-buttons-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; }
 .mode-btn {
     padding: 20px 40px;
     font-size: 1.5em;
@@ -160,7 +160,12 @@ body {
     cursor: grab;
     user-select: none;
     -webkit-user-drag: none;
+    pointer-events: none; /* Deixa o mousedown passar para o container */
 }
+.theater-token.is-gm {
+    pointer-events: auto; /* Apenas o GM pode interagir */
+}
+
 .theater-token:active {
     cursor: grabbing;
 }
@@ -183,7 +188,34 @@ body {
     gap: 20px;
     color: #fff;
     overflow-y: auto;
+    transition: transform 0.3s ease-in-out;
 }
+#theater-gm-panel.hidden-panel {
+    transform: translateX(100%);
+}
+
+#theater-toggle-panel-btn {
+    position: absolute;
+    top: 50%;
+    left: -25px;
+    transform: translateY(-50%);
+    width: 25px;
+    height: 50px;
+    background-color: rgba(0,0,0,0.75);
+    color: #ffeb3b;
+    border: 2px solid #ffeb3b;
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    cursor: pointer;
+    font-size: 1.5em;
+    padding: 0;
+    line-height: 50px;
+}
+
+#theater-gm-panel.hidden-panel #theater-toggle-panel-btn {
+    transform: translateY(-50%) rotate(180deg);
+}
+
 .panel-section {
     background-color: rgba(255, 255, 255, 0.1);
     padding: 10px;
@@ -527,5 +559,23 @@ body {
         flex-wrap: wrap;
         justify-content: center;
         border-top: 2px solid #555;
+        transform: translateY(100%); /* Começa escondido para baixo */
+    }
+    #theater-gm-panel.hidden-panel {
+        transform: translateY(100%);
+    }
+    #theater-gm-panel:not(.hidden-panel) {
+        transform: translateY(0);
+    }
+    #theater-toggle-panel-btn {
+        top: -30px;
+        left: 50%;
+        transform: translateX(-50%) rotate(90deg);
+        border-radius: 8px 8px 0 0;
+        border-right: 2px solid #ffeb3b;
+        border-bottom: none;
+    }
+    #theater-gm-panel.hidden-panel #theater-toggle-panel-btn {
+        transform: translateX(-50%) rotate(-90deg);
     }
 }
