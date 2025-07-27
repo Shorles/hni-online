@@ -60,14 +60,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
 
-    const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
+    let THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
     for (let i = 2; i <= 10; i++) {
         const num = i < 10 ? '0' + i : i;
         THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
     }
 
-    let theaterLinkInitialized = false; // Flag para o link do espectador
+    let theaterLinkInitialized = false;
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
@@ -260,7 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldState = currentGameState; currentGameState = gameState;
         if (gameState.mode === 'theater') {
             if (!oldState || oldState.mode !== 'theater') { showScreen(theaterScreen); helpBtn.classList.add('hidden'); }
-            // CORRIGIDO (Bug 2): Ativa o link do espectador no primeiro 'gameUpdate'
             if (isGm && !theaterLinkInitialized && currentRoomId) {
                 const specUrl = `${window.location.origin}?room=${currentRoomId}&theater=true`;
                 copyTheaterSpectatorLinkBtn.disabled = false;
@@ -282,10 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('roomCreated', (roomId) => {
-        currentRoomId = roomId; 
-        if(currentGameState && currentGameState.mode === 'theater') {
-            // A lógica foi movida para o 'gameUpdate' para garantir que o estado exista.
-        } else {
+        currentRoomId = roomId;
+        if(!(currentGameState && currentGameState.mode === 'theater')) {
             const p2Url = `${window.location.origin}?room=${roomId}`;
             const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
             const shareLinkP2 = document.getElementById('share-link-p2');
@@ -417,17 +414,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // #region LÓGICA DO MODO TEATRO
     let activeToken = null; let offset = { x: 0, y: 0 };
-    
-    function initializeTheaterMode() {
-        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
-        const theaterScreenEl = document.getElementById('theater-screen');
-        toggleGmPanelBtn.addEventListener('click', () => { theaterScreenEl.classList.toggle('panel-hidden'); });
-        
+
+    socket.on('initializeTheaterPanel', ({ dynamicCharacters }) => {
+        // Limpa a lista antes de adicionar novos
         theaterCharList.innerHTML = '';
+        
+        // Personagens fixos
         Object.keys(THEATER_CHARACTERS).forEach(charName => {
             const charImg = `images/${charName}.png`; const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
-            // CORRIGIDO (Bug 1): Adiciona aspas na URL do CSS para lidar com espaços nos nomes.
             mini.style.backgroundImage = `url("${charImg}")`;
             mini.title = charName; mini.draggable = true;
             mini.addEventListener('dragstart', (e) => {
@@ -436,14 +431,33 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             theaterCharList.appendChild(mini);
         });
+
+        // Personagens dinâmicos (da pasta "Personagens")
+        dynamicCharacters.forEach(char => {
+            const mini = document.createElement('div');
+            mini.className = 'theater-char-mini';
+            mini.style.backgroundImage = `url("${char.img}")`;
+            mini.title = char.name; mini.draggable = true;
+            mini.addEventListener('dragstart', (e) => {
+                if (!isGm) return;
+                e.dataTransfer.setData('application/json', JSON.stringify({ charName: char.name, img: char.img }));
+            });
+            theaterCharList.appendChild(mini);
+        });
+    });
     
+    function initializeTheaterMode() {
+        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
+        const theaterScreenEl = document.getElementById('theater-screen');
+        toggleGmPanelBtn.addEventListener('click', () => { theaterScreenEl.classList.toggle('panel-hidden'); });
+        
         theaterTokenContainer.addEventListener('dragover', (e) => { e.preventDefault(); });
     
         theaterTokenContainer.addEventListener('drop', (e) => {
             e.preventDefault(); if (!isGm) return;
             try {
                 const dataString = e.dataTransfer.getData('application/json');
-                if (!dataString) return; // Se arrastar algo que não é personagem, ignora.
+                if (!dataString) return;
                 const data = JSON.parse(dataString);
                 const containerRect = theaterTokenContainer.getBoundingClientRect();
                 const x = e.clientX - containerRect.left; const y = e.clientY - containerRect.top;
@@ -483,7 +497,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
                     activeToken = null;
                  }
-                 // NOVO (Feature 2): Espelhar com a tecla 'F'
                  if(e.key.toLowerCase() === 'f') {
                     e.preventDefault();
                     const currentTokenState = currentGameState.tokens[activeToken.id];
@@ -495,12 +508,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     
         window.addEventListener('wheel', (e) => {
-            // NOVO (Feature 1): Confirmação de que o escalonamento individual funciona.
             if (!isGm || !activeToken || !e.target.classList.contains('theater-token')) return;
             e.preventDefault();
             const currentScale = parseFloat(activeToken.dataset.scale) || 1; const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1; const newScale = Math.max(0.1, currentScale + scaleAmount);
-            activeToken.dataset.scale = newScale;
-            // A renderização do transform é feita na função renderTheaterMode
             socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, scale: newScale }});
         }, { passive: false });
     }
@@ -517,7 +527,6 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.id = tokenId; tokenEl.className = 'theater-token'; tokenEl.src = tokenData.img;
             tokenEl.style.left = `${tokenData.x}px`; tokenEl.style.top = `${tokenData.y}px`;
             
-            // NOVO (Feature 1 & 2): Combina a escala e o espelhamento no transform
             const scale = tokenData.scale || 1;
             const flip = tokenData.isFlipped ? 'scaleX(-1)' : '';
             tokenEl.style.transform = `scale(${scale}) ${flip}`;

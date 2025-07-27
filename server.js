@@ -2,6 +2,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,6 +12,26 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 const games = {};
+
+// --- LÓGICA DOS PERSONAGENS DINÂMICOS ---
+let dynamicCharacters = [];
+try {
+    const charactersDir = path.join(__dirname, 'public/images/Personagens');
+    if (fs.existsSync(charactersDir)) {
+        const files = fs.readdirSync(charactersDir);
+        dynamicCharacters = files
+            .filter(file => file.toLowerCase().endsWith('.png'))
+            .map(file => ({
+                name: path.parse(file).name, // Extrai o nome do arquivo sem a extensão
+                img: `images/Personagens/${file}` // Caminho completo para o cliente
+            }));
+        console.log(`Carregados ${dynamicCharacters.length} personagens dinâmicos.`);
+    }
+} catch (error) {
+    console.error("Não foi possível carregar personagens dinâmicos:", error);
+}
+// --- FIM DA LÓGICA ---
+
 
 // --- MANTIDO PARA OUTROS MODOS ---
 const MOVES = {
@@ -85,7 +107,7 @@ function createNewTheaterState(scenario) {
     return {
         mode: 'theater',
         scenario: scenario,
-        tokens: {}, // Ex: { tokenId: { charName, img, x, y, scale } }
+        tokens: {}, // Ex: { tokenId: { charName, img, x, y, scale, isFlipped } }
         gmId: null,
         log: [{ text: "Modo Teatro iniciado."}]
     };
@@ -108,7 +130,7 @@ function createNewFighterState(data) {
     };
 }
 
-function logMessage(state, text, className = '') { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); }
+function logMessage(state, text, className = '') { if(state && state.log) { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); } }
 
 
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
@@ -396,13 +418,10 @@ function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
 
-    // CORREÇÃO DEFINITIVA: Mover a validação do Modo Teatro para o INÍCIO.
-    // Isso evita que o código tente acessar 'state.moves' em um estado de teatro, que não possui essa propriedade.
     if (state.mode === 'theater') {
         return (type === 'updateToken' || type === 'changeScenario') && isGm;
     }
 
-    // Agora que sabemos que NÃO é o modo teatro, podemos acessar 'state.moves' com segurança.
     const move = state.moves[action.move];
 
     if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat' || type === 'toggle_illegal_cheat') { return isGm; }
@@ -447,7 +466,6 @@ function dispatchAction(room) {
     if (!room) return;
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
-    // NOVO: dispatch para Modo Teatro é tratado apenas pela emissão do gameUpdate
     if (state.mode === 'theater') return;
 
     switch (state.phase) {
@@ -538,7 +556,7 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
-    // NOVO: Criador de sala para Modo Teatro
+
     socket.on('createTheaterGame', ({ scenario }) => {
         const newRoomId = uuidv4().substring(0, 6);
         socket.join(newRoomId);
@@ -547,7 +565,9 @@ io.on('connection', (socket) => {
         newState.gmId = socket.id;
         games[newRoomId] = { id: newRoomId, hostId: null, players: [], spectators: [], state: newState };
         socket.emit('assignPlayer', { playerKey: 'gm', isGm: true });
-        socket.emit('roomCreated', newRoomId); // Reutiliza o evento para enviar o link
+        socket.emit('roomCreated', newRoomId);
+        // NOVO: Envia a lista de personagens dinâmicos ao criar a sala
+        socket.emit('initializeTheaterPanel', { dynamicCharacters });
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
@@ -618,11 +638,13 @@ io.on('connection', (socket) => {
         room.spectators.push(socket.id);
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', {playerKey: 'spectator', isGm: false});
-        socket.emit('gameUpdate', room.state);
-        if (room.state.log) {
-            logMessage(room.state, 'Um espectador entrou na sala.');
-            io.to(roomId).emit('gameUpdate', room.state);
+        // Espectador do teatro também precisa da lista de personagens
+        if (room.state.mode === 'theater') {
+            socket.emit('initializeTheaterPanel', { dynamicCharacters });
         }
+        socket.emit('gameUpdate', room.state);
+        logMessage(room.state, 'Um espectador entrou na sala.');
+        io.to(roomId).emit('gameUpdate', room.state);
     });
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
@@ -637,20 +659,19 @@ io.on('connection', (socket) => {
         }
 
         const moveName = action.move;
-        const move = (state.moves && moveName) ? state.moves[moveName] : undefined; // Evitar crash se não houver 'moves'
+        const move = (state.moves && moveName) ? state.moves[moveName] : undefined;
         if (move && move.reaction) {
             action.type = moveName;
         }
 
         const playerKey = action.playerKey;
         switch (action.type) {
-            // NOVO: Handlers para Modo Teatro
             case 'updateToken':
                 if (action.token.remove) {
                     delete state.tokens[action.token.id];
                 } else {
                     if (!state.tokens[action.token.id]) {
-                        state.tokens[action.token.id] = {};
+                        state.tokens[action.token.id] = { isFlipped: false }; // Garante valor padrão
                     }
                     Object.assign(state.tokens[action.token.id], action.token);
                 }
