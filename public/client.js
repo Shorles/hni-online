@@ -67,6 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
         THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
     }
 
+    let theaterLinkInitialized = false; // Flag para o link do espectador
+
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
         const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum'};
@@ -150,12 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         p2Controls.addEventListener('click', handlePlayerControlClick);
         helpBtn.addEventListener('click', showHelpModal);
         document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) { showForfeitConfirmation(); } };
-        window.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'c' && isGm) { if (currentGameState && (currentGameState.phase === 'decision_table_wait' || currentGameState.phase === 'gameover' || currentGameState.mode === 'theater')) return; socket.emit('playerAction', { type: 'toggle_pause' }); }
-            if (e.key.toLowerCase() === 't' && isGm) socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' });
-            if (e.key.toLowerCase() === 'r' && isGm) socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
-            if (e.key.toLowerCase() === 'i' && isGm) socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
-        });
+        
         initializeTheaterMode();
     }
 
@@ -211,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('promptSpecialMoves', (data) => {
-        availableSpecialMoves = data.availableMoves; specialMovesTitle.innerText = 'Selecione seus Golpes Especiais'; renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        availableSpecialMoves = data.availableMoves; specialMovesTitle.innerText = 'Selecione seus Golpes Especiais'; renderSpecialMoveSelection(specialMovesList, availableMoves);
         showScreen(selectionScreen); selectionScreen.classList.remove('active'); specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
@@ -263,6 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldState = currentGameState; currentGameState = gameState;
         if (gameState.mode === 'theater') {
             if (!oldState || oldState.mode !== 'theater') { showScreen(theaterScreen); helpBtn.classList.add('hidden'); }
+            // CORRIGIDO (Bug 2): Ativa o link do espectador no primeiro 'gameUpdate'
+            if (isGm && !theaterLinkInitialized && currentRoomId) {
+                const specUrl = `${window.location.origin}?room=${currentRoomId}&theater=true`;
+                copyTheaterSpectatorLinkBtn.disabled = false;
+                copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
+                theaterLinkInitialized = true;
+            }
             renderTheaterMode(gameState); return;
         }
         const oldPhase = oldState ? oldState.phase : null;
@@ -278,20 +282,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('roomCreated', (roomId) => {
-        currentRoomId = roomId; let specUrl;
+        currentRoomId = roomId; 
         if(currentGameState && currentGameState.mode === 'theater') {
-            specUrl = `${window.location.origin}?room=${roomId}&theater=true`;
-            copyTheaterSpectatorLinkBtn.disabled = false;
-            copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
+            // A lógica foi movida para o 'gameUpdate' para garantir que o estado exista.
         } else {
             const p2Url = `${window.location.origin}?room=${roomId}`;
-            specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
+            const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
             const shareLinkP2 = document.getElementById('share-link-p2');
             shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
             lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
+            const shareLinkSpectator = document.getElementById('share-link-spectator');
+            shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
         }
-        const shareLinkSpectator = document.getElementById('share-link-spectator');
-        shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
     });
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
@@ -424,10 +426,12 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterCharList.innerHTML = '';
         Object.keys(THEATER_CHARACTERS).forEach(charName => {
             const charImg = `images/${charName}.png`; const mini = document.createElement('div');
-            mini.className = 'theater-char-mini'; mini.style.backgroundImage = `url(${charImg})`; mini.title = charName; mini.draggable = true;
+            mini.className = 'theater-char-mini';
+            // CORRIGIDO (Bug 1): Adiciona aspas na URL do CSS para lidar com espaços nos nomes.
+            mini.style.backgroundImage = `url("${charImg}")`;
+            mini.title = charName; mini.draggable = true;
             mini.addEventListener('dragstart', (e) => {
                 if (!isGm) return;
-                // A ação aqui é crucial: definimos os dados que serão transferidos.
                 e.dataTransfer.setData('application/json', JSON.stringify({ charName, img: charImg }));
             });
             theaterCharList.appendChild(mini);
@@ -438,18 +442,12 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterTokenContainer.addEventListener('drop', (e) => {
             e.preventDefault(); if (!isGm) return;
             try {
-                // Tentamos ler os dados que foram definidos no 'dragstart'.
                 const dataString = e.dataTransfer.getData('application/json');
-                // Se a string de dados estiver vazia, o navegador pode ter bloqueado. Isso é um ponto comum de falha.
-                if (!dataString) {
-                    console.error("Falha no Drag and Drop: os dados não foram transferidos. Verifique as políticas do navegador.");
-                    alert("Ocorreu um erro ao arrastar o personagem. Tente novamente.");
-                    return;
-                }
+                if (!dataString) return; // Se arrastar algo que não é personagem, ignora.
                 const data = JSON.parse(dataString);
                 const containerRect = theaterTokenContainer.getBoundingClientRect();
                 const x = e.clientX - containerRect.left; const y = e.clientY - containerRect.top;
-                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: x - 100, y: y - 100, scale: 1 };
+                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: x - 100, y: y - 100, scale: 1, isFlipped: false };
                 socket.emit('playerAction', { type: 'updateToken', token: newToken });
             } catch (error) { console.error("Erro ao processar o drop:", error); }
         });
@@ -478,13 +476,31 @@ document.addEventListener('DOMContentLoaded', () => {
             window.addEventListener('mousemove', onMouseMove); window.addEventListener('mouseup', onMouseUp);
         });
     
-        window.addEventListener('keydown', (e) => { if (isGm && activeToken && e.key === 'Delete') { e.preventDefault(); socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }}); activeToken = null; } });
+        window.addEventListener('keydown', (e) => {
+             if (isGm && activeToken) {
+                 if(e.key === 'Delete') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
+                    activeToken = null;
+                 }
+                 // NOVO (Feature 2): Espelhar com a tecla 'F'
+                 if(e.key.toLowerCase() === 'f') {
+                    e.preventDefault();
+                    const currentTokenState = currentGameState.tokens[activeToken.id];
+                    if (currentTokenState) {
+                        socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, isFlipped: !currentTokenState.isFlipped }});
+                    }
+                 }
+             }
+        });
     
         window.addEventListener('wheel', (e) => {
+            // NOVO (Feature 1): Confirmação de que o escalonamento individual funciona.
             if (!isGm || !activeToken || !e.target.classList.contains('theater-token')) return;
             e.preventDefault();
             const currentScale = parseFloat(activeToken.dataset.scale) || 1; const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1; const newScale = Math.max(0.1, currentScale + scaleAmount);
-            activeToken.dataset.scale = newScale; activeToken.style.transform = `scale(${newScale})`;
+            activeToken.dataset.scale = newScale;
+            // A renderização do transform é feita na função renderTheaterMode
             socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, scale: newScale }});
         }, { passive: false });
     }
@@ -494,12 +510,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const theaterScreenEl = document.getElementById('theater-screen'); const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         theaterGmPanel.classList.toggle('hidden', !isGm); toggleGmPanelBtn.classList.toggle('hidden', !isGm);
         if (!isGm) { theaterScreenEl.classList.add('panel-hidden'); }
+        
         theaterTokenContainer.innerHTML = '';
         for (const tokenId in state.tokens) {
             const tokenData = state.tokens[tokenId]; const tokenEl = document.createElement('img');
             tokenEl.id = tokenId; tokenEl.className = 'theater-token'; tokenEl.src = tokenData.img;
             tokenEl.style.left = `${tokenData.x}px`; tokenEl.style.top = `${tokenData.y}px`;
-            tokenEl.style.transform = `scale(${tokenData.scale})`; tokenEl.dataset.scale = tokenData.scale;
+            
+            // NOVO (Feature 1 & 2): Combina a escala e o espelhamento no transform
+            const scale = tokenData.scale || 1;
+            const flip = tokenData.isFlipped ? 'scaleX(-1)' : '';
+            tokenEl.style.transform = `scale(${scale}) ${flip}`;
+
+            tokenEl.dataset.scale = scale;
             tokenEl.title = tokenData.charName; tokenEl.draggable = false;
             theaterTokenContainer.appendChild(tokenEl);
         }
