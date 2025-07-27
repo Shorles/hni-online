@@ -395,12 +395,15 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
 function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
-    const move = state.moves[action.move];
 
-    // NOVO: Validação para Modo Teatro
+    // CORREÇÃO DEFINITIVA: Mover a validação do Modo Teatro para o INÍCIO.
+    // Isso evita que o código tente acessar 'state.moves' em um estado de teatro, que não possui essa propriedade.
     if (state.mode === 'theater') {
         return (type === 'updateToken' || type === 'changeScenario') && isGm;
     }
+
+    // Agora que sabemos que NÃO é o modo teatro, podemos acessar 'state.moves' com segurança.
+    const move = state.moves[action.move];
 
     if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat' || type === 'toggle_illegal_cheat') { return isGm; }
     if (state.phase === 'paused') { return false; }
@@ -634,7 +637,7 @@ io.on('connection', (socket) => {
         }
 
         const moveName = action.move;
-        const move = state.moves[moveName];
+        const move = (state.moves && moveName) ? state.moves[moveName] : undefined; // Evitar crash se não houver 'moves'
         if (move && move.reaction) {
             action.type = moveName;
         }
