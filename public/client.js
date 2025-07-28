@@ -59,16 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
-
+    
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
-    // NOVO: Lista de personagens dinâmicos
     const DYNAMIC_CHARACTERS = [
         { name: 'Personagem (1)', img: 'images/Personagens/Personagem (1).png' },
         { name: 'Personagem (2)', img: 'images/Personagens/Personagem (2).png' },
         { name: 'Personagem (3)', img: 'images/Personagens/Personagem (3).png' },
         { name: 'Personagem (4)', img: 'images/Personagens/Personagem (4).png' },
-        // Adicione mais personagens aqui no futuro
     ];
     
     const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
@@ -78,8 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let theaterLinkInitialized = false;
-
-    // ... (O resto do código até 'initializeTheaterMode' permanece igual) ...
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
@@ -167,8 +163,106 @@ document.addEventListener('DOMContentLoaded', () => {
         
         initializeTheaterMode();
     }
+
+    function onConfirmSelection() {
+        const selectedCard = document.querySelector('.char-card.selected'); if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
+        let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
+        if (myPlayerKey === 'player1' && !currentRoomId) {
+            playerData.agi = selectedCard.querySelector('.agi-input').value; playerData.res = selectedCard.querySelector('.res-input').value;
+            confirmBtn.disabled = true; socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
+        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
+             confirmBtn.disabled = true; socket.emit('selectArenaCharacter', { character: playerData });
+             showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
+        } else {
+            confirmBtn.disabled = true; showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
+            socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
+        }
+    }
+
+    function renderCharacterSelection(playerType, showStatsInputs = false) {
+        charListContainer.innerHTML = ''; const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
+        for (const name in charData) {
+            const stats = charData[name]; const card = document.createElement('div'); card.className = 'char-card'; card.dataset.name = name; card.dataset.img = `images/${name}.png`;
+            const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
+            card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
+            card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
+            charListContainer.appendChild(card);
+        }
+    }
+
+    function renderSpecialMoveSelection(container, availableMoves) {
+        container.innerHTML = '';
+        for (const moveName in availableMoves) {
+            const moveData = availableMoves[moveName]; const displayName = moveData.displayName || moveName; const card = document.createElement('div'); card.className = 'special-move-card'; card.dataset.name = moveName;
+            const reactionText = moveData.reaction ? '<br><span style="color:#17a2b8;">(Reação)</span>' : ''; const costText = moveName === 'Counter' ? 'Custo: Variável' : `Custo: ${moveData.cost} PA`;
+            card.innerHTML = `<h4>${displayName}</h4><p>${costText}</p>${moveData.damage > 0 ? `<p>Dano: ${moveData.damage}</p>` : ''}${moveData.penalty > 0 ? `<p>Penalidade: ${moveData.penalty}</p>` : ''}${reactionText}`;
+            card.addEventListener('click', () => card.classList.toggle('selected')); container.appendChild(card);
+        }
+    }
+
+    function renderScenarioSelection(mode = 'classic') {
+        scenarioListContainer.innerHTML = ''; const scenarios = mode === 'theater' ? THEATER_SCENARIOS : SCENARIOS;
+        Object.entries(scenarios).forEach(([name, fileName]) => {
+            const card = document.createElement('div'); card.className = 'scenario-card'; card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
+            card.onclick = () => {
+                if (mode === 'classic') {
+                    player1SetupData.scenario = fileName; showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador'; confirmBtn.innerText = 'Confirmar Personagem'; confirmBtn.disabled = false;
+                    renderCharacterSelection('p1', true);
+                } else if (mode === 'arena') { socket.emit('createArenaGame', { scenario: fileName }); showScreen(arenaLobbyScreen);
+                } else if (mode === 'theater') { socket.emit('createTheaterGame', { scenario: fileName }); }
+            };
+            scenarioListContainer.appendChild(card);
+        });
+    }
+
+    socket.on('promptSpecialMoves', (data) => {
+        availableSpecialMoves = data.availableMoves; specialMovesTitle.innerText = 'Selecione seus Golpes Especiais'; renderSpecialMoveSelection(specialMovesList, availableMoves);
+        showScreen(selectionScreen); selectionScreen.classList.remove('active'); specialMovesModal.classList.remove('hidden');
+        confirmSpecialMovesBtn.onclick = () => {
+            const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
+            socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
+            specialMovesModal.classList.add('hidden'); showScreen(lobbyScreen); lobbyBackBtn.classList.remove('hidden'); lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
+        };
+    });
+
+    socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
+        const modalContentHtml = `<div style="display:flex; gap: 30px;"><div style="flex: 1; text-align: center;"><h4>Definir Atributos de ${p2data.nome}</h4><img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;"><label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center;"></label></div><div style="flex: 2; border-left: 1px solid #555; padding-left: 20px; text-align: center;"><h4>Escolher Golpes Especiais</h4><div id="p2-moves-selection-list"></div></div></div>`;
+        showInteractiveModal("Definir Oponente", modalContentHtml, "Confirmar e Iniciar Luta", null);
+        const p2MovesContainer = document.getElementById('p2-moves-selection-list'); renderSpecialMoveSelection(p2MovesContainer, availableMoves);
+        modalButton.onclick = () => {
+            const agi = document.getElementById('p2-stat-agi').value; const res = document.getElementById('p2-stat-res').value; const selectedMoves = Array.from(p2MovesContainer.querySelectorAll('.selected')).map(card => card.dataset.name);
+            if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) { alert("Valores inválidos para AGI/RES."); return; }
+            const action = { type: 'set_p2_stats', playerKey: myPlayerKey, stats: { agi, res }, moves: selectedMoves };
+            socket.emit('playerAction', action); modal.classList.add('hidden');
+        };
+    });
     
-    // ... (As funções até `initializeTheaterMode` permanecem iguais) ...
+    socket.on('arenaRoomCreated', (roomId) => {
+        currentRoomId = roomId; const baseUrl = window.location.origin;
+        const p1Url = `${baseUrl}?room=${roomId}&player=player1`; const p2Url = `${baseUrl}?room=${roomId}&player=player2`; const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
+        document.getElementById('arena-link-p1').textContent = p1Url; document.getElementById('arena-link-p2').textContent = p2Url; document.getElementById('arena-link-spectator').textContent = specUrl;
+        document.getElementById('arena-link-p1').onclick = () => copyToClipboard(p1Url, document.getElementById('arena-link-p1'));
+        document.getElementById('arena-link-p2').onclick = () => copyToClipboard(p2Url, document.getElementById('arena-link-p2'));
+        document.getElementById('arena-link-spectator').onclick = () => copyToClipboard(specUrl, document.getElementById('arena-link-spectator'));
+    });
+
+    socket.on('updateArenaLobby', ({ playerKey, status, character }) => {
+        const statusEl = document.getElementById(`arena-${playerKey}-status`);
+        if (status === 'connected') { statusEl.innerHTML = `<h4>Jogador ${playerKey === 'player1' ? 1 : 2}</h4><p style="color: #28a745;">Conectado! Aguardando seleção de personagem...</p>`;
+        } else if (status === 'character_selected') { statusEl.innerHTML = `<h4>Jogador ${playerKey === 'player1' ? 1 : 2}</h4><p style="color: #17a2b8;">Selecionou: ${character.nome}</p><img src="${character.img}" style="width: 50px; height: 50px; border-radius: 50%;" />`;
+        } else if (status === 'disconnected') { statusEl.innerHTML = `<h4>Jogador ${playerKey === 'player1' ? 1 : 2}</h4><p style="color: #dc3545;">Desconectado.</p>`; }
+    });
+    
+    socket.on('promptArenaConfiguration', ({ p1, p2, availableMoves }) => {
+        const modalContentHtml = `<div style="display:flex; gap: 20px;"><div style="flex: 1; text-align: center; border-right: 1px solid #555; padding-right: 20px;"><h4>${p1.nome} (Jogador 1)</h4><label>AGI: <input type="number" id="arena-p1-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p1-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p1-moves"></div></div><div style="flex: 1; text-align: center;"><h4>${p2.nome} (Jogador 2)</h4><label>AGI: <input type="number" id="arena-p2-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p2-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p2-moves"></div></div></div>`;
+        showInteractiveModal("Configurar Batalha da Arena", modalContentHtml, "Iniciar Batalha", null);
+        renderSpecialMoveSelection(document.getElementById('arena-p1-moves'), availableMoves); renderSpecialMoveSelection(document.getElementById('arena-p2-moves'), availableMoves);
+        modalButton.onclick = () => {
+            const p1_config = { agi: document.getElementById('arena-p1-agi').value, res: document.getElementById('arena-p1-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p1-moves .selected')).map(c => c.dataset.name) };
+            const p2_config = { agi: document.getElementById('arena-p2-agi').value, res: document.getElementById('arena-p2-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p2-moves .selected')).map(c => c.dataset.name) };
+            socket.emit('playerAction', { type: 'configure_and_start_arena', playerKey: 'host', p1_config, p2_config }); modal.classList.add('hidden');
+        };
+    });
 
     socket.on('gameUpdate', (gameState) => {
         const oldState = currentGameState; currentGameState = gameState;
@@ -194,6 +288,138 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); helpBtn.classList.remove('hidden'); }
     });
 
+    socket.on('roomCreated', (roomId) => {
+        currentRoomId = roomId;
+        if(!(currentGameState && currentGameState.mode === 'theater')) {
+            const p2Url = `${window.location.origin}?room=${roomId}`;
+            const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
+            const shareLinkP2 = document.getElementById('share-link-p2');
+            shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+            lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
+            const shareLinkSpectator = document.getElementById('share-link-spectator');
+            shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+        }
+    });
+
+    function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent || '🔗'; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
+    copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
+    
+    function updateUI(state) {
+        if (!state || !myPlayerKey) return;
+        if (state.scenario) { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
+        if(isGm) {
+            const cheatIndicator = document.getElementById('dice-cheat-indicator'); let cheatText = '';
+            if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; if (state.diceCheat === 'fumble') cheatText += 'Erros (R) ';
+            if (state.illegalCheat === 'always') cheatText += 'Sempre Ilegal (I) '; else if (state.illegalCheat === 'never') cheatText += 'Nunca Ilegal (I) ';
+            if (cheatText) { cheatIndicator.textContent = 'CHEAT ATIVO: ' + cheatText.trim(); cheatIndicator.classList.remove('hidden'); } 
+            else { cheatIndicator.classList.add('hidden'); }
+        }
+        p1SpecialMovesContainer.innerHTML = ''; p2SpecialMovesContainer.innerHTML = '';
+        ['player1', 'player2'].forEach(key => {
+            const fighter = state.fighters[key];
+            if (fighter) {
+                document.getElementById(`${key}-fight-name`).innerText = fighter.nome; document.getElementById(`${key}-fight-img`).src = fighter.img;
+                if (fighter.hpMax !== undefined) {
+                    document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`; document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
+                    document.getElementById(`${key}-def-text`).innerText = fighter.def; document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
+                    document.getElementById(`${key}-knockdowns`).innerText = fighter.knockdowns; document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
+                    document.getElementById(`${key}-point-deductions`).innerText = fighter.pointDeductions; document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
+                }
+                if (fighter.specialMoves) {
+                    const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
+                    fighter.specialMoves.forEach(moveName => {
+                        const moveData = state.moves[moveName]; if (!moveData) return;
+                        const displayName = moveData.displayName || moveName; const btn = document.createElement('button');
+                        btn.className = `action-btn special-btn-${key}`; btn.dataset.move = moveName; btn.dataset.reaction = moveData.reaction || false;
+                        const costText = moveName === 'Counter' ? '(Variável)' : `(${moveData.cost} PA)`; btn.innerHTML = `${displayName} ${costText}`;
+                        container.appendChild(btn);
+                    });
+                }
+            } else if (key === 'player2' && state.pendingP2Choice) { document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img; }
+        });
+        const roundInfoEl = document.getElementById('round-info');
+        if (state.phase === 'paused') roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
+        else if (state.phase === 'gameover') roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
+        else if (state.phase === 'double_knockdown') roundInfoEl.innerHTML = `<span class="turn-highlight">QUEDA DUPLA!</span>`;
+        else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
+        else if (state.phase.startsWith('arena_')) roundInfoEl.innerHTML = `Aguardando início...`;
+        else {
+            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...';
+            roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
+            if (state.reactionState) {
+                const reactionUserKey = state.reactionState.playerKey; const reactionMoveName = state.moves[state.reactionState.move].displayName || state.reactionState.move;
+                if(myPlayerKey === reactionUserKey) { roundInfoEl.innerHTML += `<br><span class="reaction-highlight">Você está em modo de ${reactionMoveName}!</span>`; }
+            }
+        }
+        document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1' && state.phase !== 'paused');
+        document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2' && state.phase !== 'paused');
+        const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
+        document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer);
+        p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
+        p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
+        document.querySelectorAll('.white-fang-ready').forEach(btn => { btn.classList.remove('white-fang-ready'); const extraText = btn.querySelector('.white-fang-extra'); if (extraText) extraText.remove(); });
+        document.querySelectorAll('#p1-controls button, #p2-controls button').forEach(btn => {
+            const controlsId = btn.closest('.move-buttons').id; const buttonPlayerKey = (controlsId === 'p1-controls') ? 'player1' : 'player2';
+            if (buttonPlayerKey !== myPlayerKey) { btn.disabled = true; return; }
+            let isDisabled = true;
+            const moveName = btn.dataset.move; const isReaction = btn.dataset.reaction === 'true'; const isEndTurn = btn.classList.contains('end-turn-btn');
+            const me = state.fighters[myPlayerKey]; const isMyTurn = state.whoseTurn === myPlayerKey; const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
+            const hasUsedReaction = state.reactionState && state.reactionState.playerKey === myPlayerKey;
+            if (isActionPhase && me) {
+                if (isMyTurn) {
+                    if (isEndTurn) { isDisabled = false; } 
+                    else if (!isReaction && moveName) {
+                        const move = state.moves[moveName]; let cost = move.cost;
+                        if (state.phase === 'white_fang_follow_up' && moveName === 'White Fang') { cost = 0; btn.classList.add('white-fang-ready'); if (!btn.querySelector('.white-fang-extra')) { btn.innerHTML += '<span class="white-fang-extra">Ataque Extra!</span>'; } }
+                        if (move && me.pa >= cost) isDisabled = false;
+                    }
+                } else { if (isReaction && !hasUsedReaction && moveName) { const move = state.moves[moveName]; if (move && me.pa >= move.cost) isDisabled = false; } }
+            }
+            if (state.phase === 'paused' && !isGm) isDisabled = true;
+            btn.disabled = isDisabled;
+        });
+        document.getElementById('forfeit-btn').disabled = !(state.whoseTurn === myPlayerKey && (state.phase === 'turn' || state.phase === 'white_fang_follow_up'));
+        const logBox = document.getElementById('fight-log'); logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+    
+    function showInfoModal(title, text) {
+        modalTitle.innerText = title; modalText.innerHTML = text; const tempDiv = document.createElement('div'); tempDiv.innerHTML = text;
+        const hasCustomButtons = tempDiv.querySelector('button');
+        if (hasCustomButtons) { modalButton.style.display = 'none';
+        } else { modalButton.style.display = 'inline-block'; modalButton.innerText = 'OK'; modalButton.onclick = () => modal.classList.add('hidden'); }
+        modal.classList.remove('hidden');
+    }
+
+    function showInteractiveModal(title, text, btnText, action) {
+        modalTitle.innerText = title; modalText.innerHTML = text; const newButton = modalButton.cloneNode(true);
+        modalButton.parentNode.replaceChild(newButton, modalButton); modalButton = newButton;
+        modalButton.innerText = btnText; modalButton.style.display = btnText ? 'inline-block' : 'none'; modalButton.disabled = false;
+        if (action) { modalButton.onclick = () => { modalButton.disabled = true; modalButton.innerText = "Aguarde..."; socket.emit('playerAction', action); }; 
+        } else { modalButton.onclick = () => modal.classList.add('hidden'); }
+        modal.classList.remove('hidden');
+    }
+    
+    function showCheatsModal() {
+        if (!isGm || !currentGameState) return;
+        const p1 = currentGameState.fighters.player1; const p2 = currentGameState.fighters.player2;
+        if (!p1 || !p2) { console.warn("Cheats tentado antes dos lutadores estarem prontos."); socket.emit('playerAction', { type: 'toggle_pause' }); return; }
+        const cheatHtml = `<div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;"><div id="cheat-p1"><h4>${p1.nome}</h4><label>AGI: <input type="number" id="cheat-p1-agi" value="${p1.agi}"></label><br><label>RES: <input type="number" id="cheat-p1-res" value="${p1.res}"></label><br><label>HP: <input type="number" id="cheat-p1-hp" value="${p1.hp}"></label><br><label>PA: <input type="number" id="cheat-p1-pa" value="${p1.pa}"></label><br></div><div id="cheat-p2"><h4>${p2.nome}</h4><label>AGI: <input type="number" id="cheat-p2-agi" value="${p2.agi}"></label><br><label>RES: <input type="number" id="cheat-p2-res" value="${p2.res}"></label><br><label>HP: <input type="number" id="cheat-p2-hp" value="${p2.hp}"></label><br><label>PA: <input type="number" id="cheat-p2-pa" value="${p2.pa}"></label><br></div></div>`;
+        showInteractiveModal("Menu de Trapaças (GM)", cheatHtml, "Aplicar e Continuar", null);
+        modalButton.onclick = () => {
+            const cheats = { p1: { agi: document.getElementById('cheat-p1-agi').value, res: document.getElementById('cheat-p1-res').value, hp: document.getElementById('cheat-p1-hp').value, pa: document.getElementById('cheat-p1-pa').value, }, p2: { agi: document.getElementById('cheat-p2-agi').value, res: document.getElementById('cheat-p2-res').value, hp: document.getElementById('cheat-p2-hp').value, pa: document.getElementById('cheat-p2-pa').value, } };
+            socket.emit('playerAction', { type: 'apply_cheats', cheats }); socket.emit('playerAction', { type: 'toggle_pause' });
+        };
+    }
+
+    function showDiceRollAnimation({ playerKey, rollValue, diceType }) {
+        const diceOverlay = document.getElementById('dice-overlay'); const diceContainer = document.getElementById(`${playerKey}-dice-result`); if (!diceOverlay || !diceContainer) return;
+        let imagePrefix = (diceType === 'd6') ? (playerKey === 'player1' ? 'diceA' : 'diceP') : (playerKey === 'player1' ? 'D3A-' : 'D3P-');
+        diceContainer.style.backgroundImage = `url('images/${imagePrefix}${rollValue}.png')`; diceOverlay.classList.remove('hidden'); diceContainer.classList.remove('hidden');
+        const hideAndResolve = () => { diceOverlay.classList.add('hidden'); diceContainer.classList.add('hidden'); };
+        diceOverlay.addEventListener('click', hideAndResolve, { once: true }); setTimeout(hideAndResolve, 2000); 
+    }
+    
     // #region LÓGICA DO MODO TEATRO
     let activeToken = null; let offset = { x: 0, y: 0 };
     
@@ -203,8 +429,6 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleGmPanelBtn.addEventListener('click', () => { theaterScreenEl.classList.toggle('panel-hidden'); });
         
         theaterCharList.innerHTML = '';
-
-        // Personagens fixos
         Object.keys(THEATER_CHARACTERS).forEach(charName => {
             const charImg = `images/${charName}.png`; const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
@@ -217,7 +441,6 @@ document.addEventListener('DOMContentLoaded', () => {
             theaterCharList.appendChild(mini);
         });
 
-        // Personagens dinâmicos (da pasta "Personagens")
         DYNAMIC_CHARACTERS.forEach(char => {
             const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
@@ -317,108 +540,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // #endregion
 
-    // ... (O resto do arquivo a partir daqui permanece o mesmo, sem alterações) ...
-    // ... (Copie e cole o restante do seu arquivo client.js original aqui, da linha que começa com "socket.on('playSound', ...)" até o final)
-    function onConfirmSelection() {
-        const selectedCard = document.querySelector('.char-card.selected'); if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
-        let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
-        if (myPlayerKey === 'player1' && !currentRoomId) {
-            playerData.agi = selectedCard.querySelector('.agi-input').value; playerData.res = selectedCard.querySelector('.res-input').value;
-            confirmBtn.disabled = true; socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
-        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-             confirmBtn.disabled = true; socket.emit('selectArenaCharacter', { character: playerData });
-             showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
-        } else {
-            confirmBtn.disabled = true; showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
-            socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
-        }
-    }
-    
-    function renderCharacterSelection(playerType, showStatsInputs = false) {
-        charListContainer.innerHTML = ''; const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
-        for (const name in charData) {
-            const stats = charData[name]; const card = document.createElement('div'); card.className = 'char-card'; card.dataset.name = name; card.dataset.img = `images/${name}.png`;
-            const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
-            card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
-            card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
-            charListContainer.appendChild(card);
-        }
-    }
-    
-    function renderSpecialMoveSelection(container, availableMoves) {
-        container.innerHTML = '';
-        for (const moveName in availableMoves) {
-            const moveData = availableMoves[moveName]; const displayName = moveData.displayName || moveName; const card = document.createElement('div'); card.className = 'special-move-card'; card.dataset.name = moveName;
-            const reactionText = moveData.reaction ? '<br><span style="color:#17a2b8;">(Reação)</span>' : ''; const costText = moveName === 'Counter' ? 'Custo: Variável' : `Custo: ${moveData.cost} PA`;
-            card.innerHTML = `<h4>${displayName}</h4><p>${costText}</p>${moveData.damage > 0 ? `<p>Dano: ${moveData.damage}</p>` : ''}${moveData.penalty > 0 ? `<p>Penalidade: ${moveData.penalty}</p>` : ''}${reactionText}`;
-            card.addEventListener('click', () => card.classList.toggle('selected')); container.appendChild(card);
-        }
-    }
-    
-    function renderScenarioSelection(mode = 'classic') {
-        scenarioListContainer.innerHTML = ''; const scenarios = mode === 'theater' ? THEATER_SCENARIOS : SCENARIOS;
-        Object.entries(scenarios).forEach(([name, fileName]) => {
-            const card = document.createElement('div'); card.className = 'scenario-card'; card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
-            card.onclick = () => {
-                if (mode === 'classic') {
-                    player1SetupData.scenario = fileName; showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador'; confirmBtn.innerText = 'Confirmar Personagem'; confirmBtn.disabled = false;
-                    renderCharacterSelection('p1', true);
-                } else if (mode === 'arena') { socket.emit('createArenaGame', { scenario: fileName }); showScreen(arenaLobbyScreen);
-                } else if (mode === 'theater') { socket.emit('createTheaterGame', { scenario: fileName }); }
-            };
-            scenarioListContainer.appendChild(card);
-        });
-    }
-    
-    socket.on('promptSpecialMoves', (data) => {
-        availableSpecialMoves = data.availableMoves; specialMovesTitle.innerText = 'Selecione seus Golpes Especiais'; renderSpecialMoveSelection(specialMovesList, availableMoves);
-        showScreen(selectionScreen); selectionScreen.classList.remove('active'); specialMovesModal.classList.remove('hidden');
-        confirmSpecialMovesBtn.onclick = () => {
-            const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
-            socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
-            specialMovesModal.classList.add('hidden'); showScreen(lobbyScreen); lobbyBackBtn.classList.remove('hidden'); lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
-        };
-    });
-    
-    socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
-        const modalContentHtml = `<div style="display:flex; gap: 30px;"><div style="flex: 1; text-align: center;"><h4>Definir Atributos de ${p2data.nome}</h4><img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;"><label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center;"></label></div><div style="flex: 2; border-left: 1px solid #555; padding-left: 20px; text-align: center;"><h4>Escolher Golpes Especiais</h4><div id="p2-moves-selection-list"></div></div></div>`;
-        showInteractiveModal("Definir Oponente", modalContentHtml, "Confirmar e Iniciar Luta", null);
-        const p2MovesContainer = document.getElementById('p2-moves-selection-list'); renderSpecialMoveSelection(p2MovesContainer, availableMoves);
-        modalButton.onclick = () => {
-            const agi = document.getElementById('p2-stat-agi').value; const res = document.getElementById('p2-stat-res').value; const selectedMoves = Array.from(p2MovesContainer.querySelectorAll('.selected')).map(card => card.dataset.name);
-            if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) { alert("Valores inválidos para AGI/RES."); return; }
-            const action = { type: 'set_p2_stats', playerKey: myPlayerKey, stats: { agi, res }, moves: selectedMoves };
-            socket.emit('playerAction', action); modal.classList.add('hidden');
-        };
-    });
-        
-    socket.on('arenaRoomCreated', (roomId) => {
-        currentRoomId = roomId; const baseUrl = window.location.origin;
-        const p1Url = `${baseUrl}?room=${roomId}&player=player1`; const p2Url = `${baseUrl}?room=${roomId}&player=player2`; const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
-        document.getElementById('arena-link-p1').textContent = p1Url; document.getElementById('arena-link-p2').textContent = p2Url; document.getElementById('arena-link-spectator').textContent = specUrl;
-        document.getElementById('arena-link-p1').onclick = () => copyToClipboard(p1Url, document.getElementById('arena-link-p1'));
-        document.getElementById('arena-link-p2').onclick = () => copyToClipboard(p2Url, document.getElementById('arena-link-p2'));
-        document.getElementById('arena-link-spectator').onclick = () => copyToClipboard(specUrl, document.getElementById('arena-link-spectator'));
-    });
-    
-    socket.on('updateArenaLobby', ({ playerKey, status, character }) => {
-        const statusEl = document.getElementById(`arena-${playerKey}-status`);
-        if (status === 'connected') { statusEl.innerHTML = `<h4>Jogador ${playerKey === 'player1' ? 1 : 2}</h4><p style="color: #28a745;">Conectado! Aguardando seleção de personagem...</p>`;
-        } else if (status === 'character_selected') { statusEl.innerHTML = `<h4>Jogador ${playerKey === 'player1' ? 1 : 2}</h4><p style="color: #17a2b8;">Selecionou: ${character.nome}</p><img src="${character.img}" style="width: 50px; height: 50px; border-radius: 50%;" />`;
-        } else if (status === 'disconnected') { statusEl.innerHTML = `<h4>Jogador ${playerKey === 'player1' ? 1 : 2}</h4><p style="color: #dc3545;">Desconectado.</p>`; }
-    });
-    
-    socket.on('promptArenaConfiguration', ({ p1, p2, availableMoves }) => {
-        const modalContentHtml = `<div style="display:flex; gap: 20px;"><div style="flex: 1; text-align: center; border-right: 1px solid #555; padding-right: 20px;"><h4>${p1.nome} (Jogador 1)</h4><label>AGI: <input type="number" id="arena-p1-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p1-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p1-moves"></div></div><div style="flex: 1; text-align: center;"><h4>${p2.nome} (Jogador 2)</h4><label>AGI: <input type="number" id="arena-p2-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p2-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p2-moves"></div></div></div>`;
-        showInteractiveModal("Configurar Batalha da Arena", modalContentHtml, "Iniciar Batalha", null);
-        renderSpecialMoveSelection(document.getElementById('arena-p1-moves'), availableMoves); renderSpecialMoveSelection(document.getElementById('arena-p2-moves'), availableMoves);
-        modalButton.onclick = () => {
-            const p1_config = { agi: document.getElementById('arena-p1-agi').value, res: document.getElementById('arena-p1-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p1-moves .selected')).map(c => c.dataset.name) };
-            const p2_config = { agi: document.getElementById('arena-p2-agi').value, res: document.getElementById('arena-p2-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p2-moves .selected')).map(c => c.dataset.name) };
-            socket.emit('playerAction', { type: 'configure_and_start_arena', playerKey: 'host', p1_config, p2_config }); modal.classList.add('hidden');
-        };
-    });
-    
     socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });

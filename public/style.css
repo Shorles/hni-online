@@ -102,7 +102,6 @@ body {
     gap: 30px;
     justify-content: center;
     padding: 20px;
-    /* CORREÇÃO: Adiciona barra de rolagem quando necessário */
     max-height: 550px;
     overflow-y: auto;
     width: 90%;
