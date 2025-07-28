@@ -60,10 +60,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const CHARACTERS_P1 = {
         'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3},
-        'Rukyanu Hoo-SD': { agi: 1, res: 1 },
-        'Shirubio Sando-SD': { agi: 1, res: 1 },
-        'Guguro Riberatsu-SD': { agi: 1, res: 1 },
-        'Raujiro Oka-SD': { agi: 1, res: 1 }
+        'Rukyanu Hoo': { agi: 1, res: 1 },
+        'Shirubio Sando': { agi: 1, res: 1 },
+        'Guguro Riberatsu': { agi: 1, res: 1 },
+        'Raujiro Oka': { agi: 1, res: 1 }
     };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
     
@@ -227,7 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableMoves);
-        specialMovesModal.classList.remove('hidden');
+        showScreen(selectionScreen); // Garante que a tela de fundo está correta
+        specialMovesModal.classList.remove('hidden'); // Mostra o modal por cima
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
