@@ -85,6 +85,7 @@ function createNewTheaterState(scenario) {
         mode: 'theater',
         scenario: scenario,
         tokens: {}, // Ex: { tokenId: { charName, img, x, y, scale, isFlipped } }
+        tokenOrder: [], // Controla a ordem de renderização (z-index)
         gmId: null,
         log: [{ text: "Modo Teatro iniciado."}]
     };
@@ -396,7 +397,7 @@ function isActionValid(state, action) {
     const isGm = gmSocketId === state.gmId;
 
     if (state.mode === 'theater') {
-        return (type === 'updateToken' || type === 'changeScenario') && isGm;
+        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder') && isGm;
     }
 
     const move = state.moves[action.move];
@@ -640,11 +641,27 @@ io.on('connection', (socket) => {
             case 'updateToken':
                 if (action.token.remove) {
                     delete state.tokens[action.token.id];
+                    state.tokenOrder = state.tokenOrder.filter(id => id !== action.token.id);
                 } else {
                     if (!state.tokens[action.token.id]) {
                         state.tokens[action.token.id] = { isFlipped: false };
+                        state.tokenOrder.push(action.token.id);
                     }
                     Object.assign(state.tokens[action.token.id], action.token);
+                }
+                break;
+            case 'changeTokenOrder':
+                const { tokenId, direction } = action;
+                const order = state.tokenOrder;
+                const currentIndex = order.indexOf(tokenId);
+                if (currentIndex === -1) break;
+
+                if (direction === 'forward' && currentIndex < order.length - 1) {
+                    // Swap with the element in front (higher index)
+                    [order[currentIndex], order[currentIndex + 1]] = [order[currentIndex + 1], order[currentIndex]];
+                } else if (direction === 'backward' && currentIndex > 0) {
+                    // Swap with the element behind (lower index)
+                    [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
                 }
                 break;
             case 'changeScenario':

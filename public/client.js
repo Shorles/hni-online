@@ -226,7 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        // CORREÇÃO: Passando a variável correta ('availableSpecialMoves') para a função.
         renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
         specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
@@ -511,17 +510,22 @@ document.addEventListener('DOMContentLoaded', () => {
     
         window.addEventListener('keydown', (e) => {
              if (isGm && activeToken) {
-                 if(e.key === 'Delete') {
+                 if (e.key === 'Delete') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
                     activeToken = null;
-                 }
-                 if(e.key.toLowerCase() === 'f') {
+                 } else if (e.key.toLowerCase() === 'f') {
                     e.preventDefault();
                     const currentTokenState = currentGameState.tokens[activeToken.id];
                     if (currentTokenState) {
                         socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, isFlipped: !currentTokenState.isFlipped }});
                     }
+                 } else if (e.key === 'ArrowDown') { // Trazer para frente
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'forward' });
+                 } else if (e.key === 'ArrowUp') { // Enviar para trás
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'backward' });
                  }
              }
         });
@@ -541,19 +545,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isGm) { theaterScreenEl.classList.add('panel-hidden'); }
         
         theaterTokenContainer.innerHTML = '';
-        for (const tokenId in state.tokens) {
-            const tokenData = state.tokens[tokenId]; const tokenEl = document.createElement('img');
-            tokenEl.id = tokenId; tokenEl.className = 'theater-token'; tokenEl.src = tokenData.img;
-            tokenEl.style.left = `${tokenData.x}px`; tokenEl.style.top = `${tokenData.y}px`;
+        // Renderiza os tokens na ordem definida por tokenOrder
+        state.tokenOrder.forEach((tokenId, index) => {
+            const tokenData = state.tokens[tokenId];
+            if (!tokenData) return;
+
+            const tokenEl = document.createElement('img');
+            tokenEl.id = tokenId;
+            tokenEl.className = 'theater-token';
+            tokenEl.src = tokenData.img;
+            tokenEl.style.left = `${tokenData.x}px`;
+            tokenEl.style.top = `${tokenData.y}px`;
+            tokenEl.style.zIndex = index; // Define a profundidade visual
             
             const scale = tokenData.scale || 1;
             const flip = tokenData.isFlipped ? 'scaleX(-1)' : '';
             tokenEl.style.transform = `scale(${scale}) ${flip}`;
 
             tokenEl.dataset.scale = scale;
-            tokenEl.title = tokenData.charName; tokenEl.draggable = false;
+            tokenEl.title = tokenData.charName;
+            tokenEl.draggable = false;
             theaterTokenContainer.appendChild(tokenEl);
-        }
+        });
     }
     // #endregion
 
