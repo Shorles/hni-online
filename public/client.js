@@ -541,30 +541,24 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterGlobalScale.addEventListener('input', (e) => { theaterTokenContainer.style.transform = `scale(${e.target.value})`; });
     
         theaterChangeScenarioBtn.onclick = () => {
-            const modalContent = document.createElement('div');
-            const tabsContainer = document.createElement('div');
-            tabsContainer.style.display = 'flex';
-            tabsContainer.style.gap = '10px';
-            tabsContainer.style.marginBottom = '15px';
-            tabsContainer.style.justifyContent = 'center';
+            const modalHtml = `
+                <div id="modal-tabs-container" style="display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; flex-wrap: wrap;"></div>
+                <div id="modal-scenarios-container" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; max-height: 400px; overflow-y: auto;"></div>
+            `;
+            showInfoModal("Mudar Cenário", modalHtml);
 
-            const scenariosContainer = document.createElement('div');
-            scenariosContainer.style.display = 'flex';
-            scenariosContainer.style.flexWrap = 'wrap';
-            scenariosContainer.style.gap = '15px';
-            scenariosContainer.style.justifyContent = 'center';
+            const tabsContainer = document.getElementById('modal-tabs-container');
+            const scenariosContainer = document.getElementById('modal-scenarios-container');
 
             const renderCategory = (categoryName) => {
                 scenariosContainer.innerHTML = '';
-                 const category = THEATER_SCENARIOS[categoryName];
+                const category = THEATER_SCENARIOS[categoryName];
                 for (let i = 1; i <= category.count; i++) {
                     const name = `${category.baseName} (${i})`;
                     const fileName = `mapas/${categoryName}/${name}.png`;
                     const card = document.createElement('div');
                     card.className = 'scenario-card';
-                    card.dataset.fileName = fileName;
                     card.style.width = '200px';
-                    card.style.height = '150px';
                     card.innerHTML = `<img src="images/${fileName}" alt="${name}" style="height: 100px;"><div class="scenario-name" style="font-size: 1.1em; padding: 5px;">${name}</div>`;
                     card.onclick = () => {
                         socket.emit('playerAction', { type: 'changeScenario', scenario: fileName });
@@ -573,7 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     scenariosContainer.appendChild(card);
                 }
             };
-            
+
             Object.keys(THEATER_SCENARIOS).forEach((categoryName, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'category-tab-btn';
@@ -583,13 +577,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.target.classList.add('active');
                     renderCategory(categoryName);
                 };
-                if (index === 0) btn.classList.add('active');
+                if (index === 0) {
+                    btn.classList.add('active');
+                }
                 tabsContainer.appendChild(btn);
             });
             
-            modalContent.appendChild(tabsContainer);
-            modalContent.appendChild(scenariosContainer);
-            showInfoModal("Mudar Cenário", modalContent.outerHTML);
             renderCategory(Object.keys(THEATER_SCENARIOS)[0]);
         };
     
