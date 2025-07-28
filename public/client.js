@@ -58,7 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
-    // CORRIGIDO: Nome do personagem atualizado e novos adicionados
     const CHARACTERS_P1 = {
         'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3},
         '1 Rukyanu Hoo-SD': { agi: 1, res: 1 },
@@ -83,7 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
         THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
     }
 
-    let linkInitialized = false; // Flag unificada para links
+    let linkInitialized = false;
+
+    // ... (O restante do código até o listener de 'gameUpdate' permanece o mesmo) ...
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
