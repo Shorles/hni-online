@@ -58,17 +58,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
-    // NOVO: Adição dos novos personagens ao P1
+    // CORRIGIDO: Nome do personagem atualizado e novos adicionados
     const CHARACTERS_P1 = {
         'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3},
         '1 Rukyanu Hoo-SD': { agi: 1, res: 1 },
-        '2 Oruwa Furikikage-SD': { agi: 1, res: 1 },
+        '2 Shirubio Sando-SD': { agi: 1, res: 1 },
         '3 Guguro Riberatsu-SD': { agi: 1, res: 1 },
         '4 Raujiro Oka-SD': { agi: 1, res: 1 }
     };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
     
-    // Agora, THEATER_CHARACTERS automaticamente inclui os novos personagens
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
     const DYNAMIC_CHARACTERS = [
@@ -84,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
     }
 
-    let theaterLinkInitialized = false;
+    let linkInitialized = false; // Flag unificada para links
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
@@ -192,10 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
         charListContainer.innerHTML = ''; const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
         for (const name in charData) {
             const stats = charData[name]; const card = document.createElement('div'); card.className = 'char-card'; card.dataset.name = name; 
-            // CORRIGIDO: Garante que a imagem .png seja referenciada corretamente
             card.dataset.img = `images/${name}.png`;
             const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
-            card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
+            card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name.replace(/-SD$/, '')}</div>${statsHtml}`;
             card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
             charListContainer.appendChild(card);
         }
@@ -279,13 +277,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldState = currentGameState; currentGameState = gameState;
         if (gameState.mode === 'theater') {
             if (!oldState || oldState.mode !== 'theater') { showScreen(theaterScreen); helpBtn.classList.add('hidden'); }
-            if (isGm && !theaterLinkInitialized && currentRoomId) {
+            if (isGm && !linkInitialized && currentRoomId) {
                 const specUrl = `${window.location.origin}?room=${currentRoomId}&theater=true`;
                 copyTheaterSpectatorLinkBtn.disabled = false;
                 copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
-                theaterLinkInitialized = true;
+                linkInitialized = true;
             }
             renderTheaterMode(gameState); return;
+        }
+        // CORRIGIDO: Bug do Modo Clássico
+        if (gameState.mode === 'classic' && myPlayerKey === 'player1' && !linkInitialized && currentRoomId) {
+            const p2Url = `${window.location.origin}?room=${currentRoomId}`;
+            const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
+            const shareLinkP2 = document.getElementById('share-link-p2');
+            shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+            lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
+            const shareLinkSpectator = document.getElementById('share-link-spectator');
+            shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+            linkInitialized = true;
         }
         const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused'; const isNowPaused = currentGameState.phase === 'paused';
@@ -299,19 +308,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); helpBtn.classList.remove('hidden'); }
     });
 
-    // CORRIGIDO: Lógica simplificada para não depender do `currentGameState` que pode não existir ainda.
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
-        if (myPlayerKey === 'player1') { // Modo Clássico
-            const p2Url = `${window.location.origin}?room=${roomId}`;
-            const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
-            const shareLinkP2 = document.getElementById('share-link-p2');
-            shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
-            lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
-            const shareLinkSpectator = document.getElementById('share-link-spectator');
-            shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-        }
-        // A lógica do link do Modo Teatro foi movida para o 'gameUpdate' para maior confiabilidade.
     });
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent || '🔗'; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
@@ -331,7 +329,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
             if (fighter) {
-                document.getElementById(`${key}-fight-name`).innerText = fighter.nome; document.getElementById(`${key}-fight-img`).src = fighter.img;
+                document.getElementById(`${key}-fight-name`).innerText = fighter.nome.replace(/-SD$/, '');
+                document.getElementById(`${key}-fight-img`).src = fighter.img;
                 if (fighter.hpMax !== undefined) {
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`; document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
                     document.getElementById(`${key}-def-text`).innerText = fighter.def; document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
@@ -357,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
         else if (state.phase.startsWith('arena_')) roundInfoEl.innerHTML = `Aguardando início...`;
         else {
-            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...';
+            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome.replace(/-SD$/, '') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
             if (state.reactionState) {
                 const reactionUserKey = state.reactionState.playerKey; const reactionMoveName = state.moves[state.reactionState.move].displayName || state.reactionState.move;
@@ -446,10 +445,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const charImg = `images/${charName}.png`; const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
             mini.style.backgroundImage = `url("${charImg}")`;
-            mini.title = charName; mini.draggable = true;
+            mini.title = charName.replace(/-SD$/, ''); mini.draggable = true;
             mini.addEventListener('dragstart', (e) => {
                 if (!isGm) return;
-                e.dataTransfer.setData('application/json', JSON.stringify({ charName, img: charImg }));
+                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName.replace(/-SD$/, ''), img: charImg }));
             });
             theaterCharList.appendChild(mini);
         });
