@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
+    // CORRIGIDO: Nome do personagem atualizado e novos adicionados
     const CHARACTERS_P1 = {
         'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3},
         '1 Rukyanu Hoo-SD': { agi: 1, res: 1 },
@@ -82,9 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
     }
 
-    let linkInitialized = false;
-
-    // ... (O restante do código até o listener de 'gameUpdate' permanece o mesmo) ...
+    let linkInitialized = false; // Flag unificada para links
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
@@ -226,12 +225,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('promptSpecialMoves', (data) => {
-        availableSpecialMoves = data.availableMoves; specialMovesTitle.innerText = 'Selecione seus Golpes Especiais'; renderSpecialMoveSelection(specialMovesList, availableMoves);
-        showScreen(selectionScreen); selectionScreen.classList.remove('active'); specialMovesModal.classList.remove('hidden');
+        availableSpecialMoves = data.availableMoves;
+        specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
+        specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
-            specialMovesModal.classList.add('hidden'); showScreen(lobbyScreen); lobbyBackBtn.classList.remove('hidden'); lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
+            specialMovesModal.classList.add('hidden');
+            showScreen(lobbyScreen);
+            lobbyBackBtn.classList.remove('hidden');
+            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
 
