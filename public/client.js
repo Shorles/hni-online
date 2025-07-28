@@ -226,8 +226,9 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableMoves);
-        specialMovesModal.classList.remove('hidden'); // Apenas mostra o modal. A tela de fundo (selectionScreen) já está visível.
+        // CORREÇÃO: Passando a variável correta ('availableSpecialMoves') para a função.
+        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
