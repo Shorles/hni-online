@@ -177,8 +177,13 @@ body {
     height: 100%;
     z-index: 1;
     transition: width 0.3s ease-in-out;
-    overflow: auto; /* Habilita a rolagem */
+    overflow: auto;
+    cursor: grab;
 }
+/* Esconder a barra de rolagem visualmente */
+#theater-background-viewport::-webkit-scrollbar { display: none; }
+#theater-background-viewport { -ms-overflow-style: none; scrollbar-width: none; }
+
 
 #theater-background-image {
     min-width: 100%;
@@ -191,10 +196,9 @@ body {
 #theater-token-container {
     position: absolute;
     top: 0; left: 0;
-    /* O container de tokens agora é um filho do viewport para rolar junto */
     z-index: 2; 
     transform-style: preserve-3d;
-    pointer-events: none; /* Só os tokens dentro dele receberão eventos */
+    pointer-events: none;
 }
 
 .theater-token {
@@ -204,7 +208,7 @@ body {
     cursor: grab;
     user-select: none;
     -webkit-user-drag: none;
-    pointer-events: all; /* Habilita eventos de mouse nos tokens */
+    pointer-events: all;
 }
 .theater-token:active {
     cursor: grabbing;

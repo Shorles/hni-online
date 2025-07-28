@@ -493,6 +493,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeToken = null;
     let activeTokenId = null; 
     let currentScenarioScale = 1.0;
+    let isDraggingScenario = false;
+    let lastMouseX, lastMouseY, startScrollX, startScrollY;
 
     function updateTheaterZoom() {
         const globalTokenScale = isGm ? parseFloat(theaterGlobalScale.value) : 1;
@@ -605,42 +607,64 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
-            if (!isGm) return;
-            if (!e.target.classList.contains('theater-token')) {
+            if (isGm && e.target.classList.contains('theater-token')) {
+                // Lógica de arrastar token
+                e.preventDefault();
                 if (activeToken) activeToken.classList.remove('selected');
-                activeToken = null;
-                activeTokenId = null;
-                return;
-            }
-            e.preventDefault();
-            if (activeToken) activeToken.classList.remove('selected');
-            activeToken = e.target;
-            activeTokenId = activeToken.id;
-            activeToken.classList.add('selected');
-            
-            const startTokenX = parseFloat(activeToken.style.left);
-            const startTokenY = parseFloat(activeToken.style.top);
-            const startMouseX = e.clientX;
-            const startMouseY = e.clientY;
+                activeToken = e.target;
+                activeTokenId = activeToken.id;
+                activeToken.classList.add('selected');
+                
+                const startTokenX = parseFloat(activeToken.style.left);
+                const startTokenY = parseFloat(activeToken.style.top);
+                const startMouseX = e.clientX;
+                const startMouseY = e.clientY;
 
-            function onMouseMove(moveEvent) { 
-                if (!activeToken) return;
-                const dx = (moveEvent.clientX - startMouseX) / currentScenarioScale;
-                const dy = (moveEvent.clientY - startMouseY) / currentScenarioScale;
-                activeToken.style.left = `${startTokenX + dx}px`;
-                activeToken.style.top = `${startTokenY + dy}px`;
-            }
+                function onMouseMoveToken(moveEvent) { 
+                    if (!activeToken) return;
+                    const dx = (moveEvent.clientX - startMouseX) / currentScenarioScale;
+                    const dy = (moveEvent.clientY - startMouseY) / currentScenarioScale;
+                    activeToken.style.left = `${startTokenX + dx}px`;
+                    activeToken.style.top = `${startTokenY + dy}px`;
+                }
 
-            function onMouseUp() { 
-                if (!activeToken) return; 
-                const finalX = parseFloat(activeToken.style.left); 
-                const finalY = parseFloat(activeToken.style.top); 
-                socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, x: finalX, y: finalY }}); 
-                window.removeEventListener('mousemove', onMouseMove); 
-                window.removeEventListener('mouseup', onMouseUp); 
+                function onMouseUpToken() { 
+                    if (!activeToken) return; 
+                    const finalX = parseFloat(activeToken.style.left); 
+                    const finalY = parseFloat(activeToken.style.top); 
+                    socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, x: finalX, y: finalY }}); 
+                    window.removeEventListener('mousemove', onMouseMoveToken); 
+                    window.removeEventListener('mouseup', onMouseUpToken); 
+                }
+                window.addEventListener('mousemove', onMouseMoveToken);
+                window.addEventListener('mouseup', onMouseUpToken);
+            } else if (e.target === theaterBackgroundImage || e.target === theaterBackgroundViewport) {
+                 // Lógica de arrastar cenário
+                isDraggingScenario = true;
+                theaterBackgroundViewport.style.cursor = 'grabbing';
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                startScrollX = theaterBackgroundViewport.scrollLeft;
+                startScrollY = theaterBackgroundViewport.scrollTop;
+
+                const onMouseMoveScenario = (moveEvent) => {
+                    if (!isDraggingScenario) return;
+                    const dx = moveEvent.clientX - lastMouseX;
+                    const dy = moveEvent.clientY - lastMouseY;
+                    theaterBackgroundViewport.scrollLeft = startScrollX - dx;
+                    theaterBackgroundViewport.scrollTop = startScrollY - dy;
+                };
+
+                const onMouseUpScenario = () => {
+                    isDraggingScenario = false;
+                    theaterBackgroundViewport.style.cursor = 'grab';
+                    window.removeEventListener('mousemove', onMouseMoveScenario);
+                    window.removeEventListener('mouseup', onMouseUpScenario);
+                };
+
+                window.addEventListener('mousemove', onMouseMoveScenario);
+                window.addEventListener('mouseup', onMouseUpScenario);
             }
-            window.addEventListener('mousemove', onMouseMove);
-            window.addEventListener('mouseup', onMouseUp);
         });
     
         window.addEventListener('keydown', (e) => {
@@ -695,7 +719,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isGm) { theaterScreenEl.classList.add('panel-hidden'); }
         
         theaterBackgroundViewport.appendChild(theaterTokenContainer);
-        // Garante que o container de tokens tenha o mesmo tamanho da imagem de fundo
         theaterTokenContainer.style.width = `${theaterBackgroundImage.offsetWidth}px`;
         theaterTokenContainer.style.height = `${theaterBackgroundImage.offsetHeight}px`;
 
