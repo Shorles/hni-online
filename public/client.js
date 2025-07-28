@@ -493,8 +493,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeToken = null;
     let activeTokenId = null; 
     let offset = { x: 0, y: 0 };
-    let currentTheaterScale = 1;
-    
+    let currentScenarioScale = 1.0;
+
+    function updateTheaterZoom() {
+        const globalTokenScale = isGm ? parseFloat(theaterGlobalScale.value) : 1;
+        // Aplica o zoom do cenário à imagem e ao container de tokens para que rolem juntos
+        theaterBackgroundImage.style.transform = `scale(${currentScenarioScale})`;
+        theaterTokenContainer.style.transform = `scale(${currentScenarioScale})`;
+        // A "Escala Global" do GM é aplicada aos tokens *individualmente* para não afetar a posição
+        document.querySelectorAll('.theater-token').forEach(token => {
+            const baseScale = parseFloat(token.dataset.scale) || 1;
+            const isFlipped = token.style.transform.includes('scaleX(-1)');
+            token.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
+        });
+    }
+
     function initializeTheaterMode() {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         const theaterScreenEl = document.getElementById('theater-screen');
@@ -534,22 +547,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!dataString) return;
                 const data = JSON.parse(dataString);
                 const containerRect = theaterBackgroundViewport.getBoundingClientRect();
-                // Ajusta as coordenadas para considerar a rolagem do viewport
-                const x = e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
-                const y = e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
-                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: x - 100, y: y - 100, scale: 1, isFlipped: false };
+                const x = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
+                const y = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: x - (100 / currentScenarioScale), y: y - (100 / currentScenarioScale), scale: 1, isFlipped: false };
                 socket.emit('playerAction', { type: 'updateToken', token: newToken });
             } catch (error) { console.error("Erro ao processar o drop:", error); }
         });
     
-        const updateTokenContainerTransform = () => {
-             theaterTokenContainer.style.transform = `scale(${currentTheaterScale})`;
-        };
-        
-        theaterGlobalScale.addEventListener('input', (e) => { 
-            currentTheaterScale = e.target.value;
-            updateTokenContainerTransform();
-        });
+        theaterGlobalScale.addEventListener('input', updateTheaterZoom);
 
         theaterChangeScenarioBtn.onclick = () => {
             const modalHtml = `
@@ -618,8 +623,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             function onMouseMove(moveEvent) { 
                 if (!activeToken) return;
-                const dx = moveEvent.clientX - startMouseX;
-                const dy = moveEvent.clientY - startMouseY;
+                const dx = (moveEvent.clientX - startMouseX) / currentScenarioScale;
+                const dy = (moveEvent.clientY - startMouseY) / currentScenarioScale;
                 activeToken.style.left = `${startTokenX + dx}px`;
                 activeToken.style.top = `${startTokenY + dy}px`;
             }
@@ -659,14 +664,23 @@ document.addEventListener('DOMContentLoaded', () => {
              }
         });
     
-        window.addEventListener('wheel', (e) => {
-            if (!isGm || !activeToken || !e.target.classList.contains('theater-token')) return;
-            e.preventDefault();
-            const currentScale = parseFloat(activeToken.dataset.scale) || 1;
-            const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
-            const newScale = Math.max(0.1, currentScale + scaleAmount);
-            activeToken.dataset.scale = newScale;
-            socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, scale: newScale }});
+        theaterBackgroundViewport.addEventListener('wheel', (e) => {
+            if (currentGameState.mode !== 'theater') return;
+            
+            if (isGm && e.target.classList.contains('theater-token')) {
+                e.preventDefault();
+                const currentToken = e.target;
+                const currentScale = parseFloat(currentToken.dataset.scale) || 1;
+                const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+                const newScale = Math.max(0.1, currentScale + scaleAmount);
+                currentToken.dataset.scale = newScale;
+                socket.emit('playerAction', { type: 'updateToken', token: { id: currentToken.id, scale: newScale }});
+            } else {
+                 e.preventDefault();
+                const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+                currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
+                updateTheaterZoom();
+            }
         }, { passive: false });
     }
 
@@ -678,7 +692,6 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterGmPanel.classList.toggle('hidden', !isGm); toggleGmPanelBtn.classList.toggle('hidden', !isGm);
         if (!isGm) { theaterScreenEl.classList.add('panel-hidden'); }
         
-        // Coloca o container de tokens dentro do viewport do cenário
         theaterBackgroundViewport.appendChild(theaterTokenContainer);
         theaterTokenContainer.innerHTML = '';
         activeToken = null;
@@ -696,10 +709,10 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.style.zIndex = index;
             
             const scale = tokenData.scale || 1;
-            const flip = tokenData.isFlipped ? 'scaleX(-1)' : '';
-            tokenEl.style.transform = `scale(${scale}) ${flip}`;
-
+            const isFlipped = tokenData.isFlipped;
             tokenEl.dataset.scale = scale;
+            tokenEl.dataset.flipped = isFlipped;
+
             tokenEl.title = tokenData.charName;
             tokenEl.draggable = false;
             
@@ -707,9 +720,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 tokenEl.classList.add('selected');
                 activeToken = tokenEl;
             }
-
             theaterTokenContainer.appendChild(tokenEl);
         });
+        
+        updateTheaterZoom();
     }
     // #endregion
 
