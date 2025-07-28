@@ -76,11 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: 'Personagem (4)', img: 'images/personagens/Personagem (4).png' },
     ];
     
-    const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
-    for (let i = 2; i <= 10; i++) {
-        const num = i < 10 ? '0' + i : i;
-        THEATER_SCENARIOS[`Cenário ${num}`] = `mapas/Cenario${num}.png`;
-    }
+    const THEATER_SCENARIOS = {
+        "cenarios externos": { baseName: "externo", count: 10 },
+        "cenarios internos": { baseName: "interno", count: 10 },
+        "cenas": { baseName: "cena", count: 10 },
+        "fichas": { baseName: "ficha", count: 10 },
+        "objetos": { baseName: "objeto", count: 10 },
+        "outros": { baseName: "outro", count: 10 }
+    };
 
     let linkInitialized = false; // Flag unificada para links
 
@@ -209,18 +212,67 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderScenarioSelection(mode = 'classic') {
-        scenarioListContainer.innerHTML = ''; const scenarios = mode === 'theater' ? THEATER_SCENARIOS : SCENARIOS;
-        Object.entries(scenarios).forEach(([name, fileName]) => {
-            const card = document.createElement('div'); card.className = 'scenario-card'; card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
-            card.onclick = () => {
-                if (mode === 'classic') {
-                    player1SetupData.scenario = fileName; showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador'; confirmBtn.innerText = 'Confirmar Personagem'; confirmBtn.disabled = false;
-                    renderCharacterSelection('p1', true);
-                } else if (mode === 'arena') { socket.emit('createArenaGame', { scenario: fileName }); showScreen(arenaLobbyScreen);
-                } else if (mode === 'theater') { socket.emit('createTheaterGame', { scenario: fileName }); }
+        const tabsContainer = document.getElementById('scenario-category-tabs');
+        tabsContainer.innerHTML = '';
+        scenarioListContainer.innerHTML = '';
+
+        if (mode === 'theater') {
+            tabsContainer.style.display = 'flex';
+            const categories = Object.keys(THEATER_SCENARIOS);
+
+            const renderCategory = (categoryName) => {
+                scenarioListContainer.innerHTML = '';
+                const category = THEATER_SCENARIOS[categoryName];
+                for (let i = 1; i <= category.count; i++) {
+                    const name = `${category.baseName} (${i})`;
+                    const fileName = `mapas/${categoryName}/${name}.png`;
+                    const card = document.createElement('div');
+                    card.className = 'scenario-card';
+                    card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
+                    card.onclick = () => {
+                        socket.emit('createTheaterGame', { scenario: fileName });
+                    };
+                    scenarioListContainer.appendChild(card);
+                }
             };
-            scenarioListContainer.appendChild(card);
-        });
+
+            categories.forEach((categoryName, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'category-tab-btn';
+                btn.textContent = categoryName.replace(/_/g, ' ').toUpperCase();
+                btn.onclick = () => {
+                    document.querySelectorAll('.category-tab-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    renderCategory(categoryName);
+                };
+                tabsContainer.appendChild(btn);
+                if (index === 0) {
+                    btn.classList.add('active');
+                    renderCategory(categoryName);
+                }
+            });
+        } else {
+            tabsContainer.style.display = 'none';
+            Object.entries(SCENARIOS).forEach(([name, fileName]) => {
+                const card = document.createElement('div');
+                card.className = 'scenario-card';
+                card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
+                card.onclick = () => {
+                    if (mode === 'classic') {
+                        player1SetupData.scenario = fileName;
+                        showScreen(selectionScreen);
+                        selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
+                        confirmBtn.innerText = 'Confirmar Personagem';
+                        confirmBtn.disabled = false;
+                        renderCharacterSelection('p1', true);
+                    } else if (mode === 'arena') {
+                        socket.emit('createArenaGame', { scenario: fileName });
+                        showScreen(arenaLobbyScreen);
+                    }
+                };
+                scenarioListContainer.appendChild(card);
+            });
+        }
     }
 
     socket.on('promptSpecialMoves', (data) => {
@@ -438,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // #region LÓGICA DO MODO TEATRO
     let activeToken = null;
-    let activeTokenId = null; // Guarda o ID do token selecionado
+    let activeTokenId = null; 
     let offset = { x: 0, y: 0 };
     
     function initializeTheaterMode() {
@@ -489,27 +541,66 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterGlobalScale.addEventListener('input', (e) => { theaterTokenContainer.style.transform = `scale(${e.target.value})`; });
     
         theaterChangeScenarioBtn.onclick = () => {
-            let scenarioCardsHtml = '<div style="display:flex; flex-wrap:wrap; gap:15px; justify-content:center;">';
-            Object.entries(THEATER_SCENARIOS).forEach(([name, fileName]) => { scenarioCardsHtml += `<div class="scenario-card" data-file-name="${fileName}" style="width: 200px; height: 150px;"><img src="images/${fileName}" alt="${name}" style="height: 100px;"><div class="scenario-name" style="font-size: 1.1em; padding: 5px;">${name}</div></div>`; });
-            scenarioCardsHtml += '</div>';
-            showInfoModal("Mudar Cenário", scenarioCardsHtml);
-            document.querySelectorAll('#modal .scenario-card').forEach(card => {
-                card.onclick = () => { const newScenario = card.dataset.fileName; socket.emit('playerAction', { type: 'changeScenario', scenario: newScenario }); modal.classList.add('hidden'); }
+            const modalContent = document.createElement('div');
+            const tabsContainer = document.createElement('div');
+            tabsContainer.style.display = 'flex';
+            tabsContainer.style.gap = '10px';
+            tabsContainer.style.marginBottom = '15px';
+            tabsContainer.style.justifyContent = 'center';
+
+            const scenariosContainer = document.createElement('div');
+            scenariosContainer.style.display = 'flex';
+            scenariosContainer.style.flexWrap = 'wrap';
+            scenariosContainer.style.gap = '15px';
+            scenariosContainer.style.justifyContent = 'center';
+
+            const renderCategory = (categoryName) => {
+                scenariosContainer.innerHTML = '';
+                 const category = THEATER_SCENARIOS[categoryName];
+                for (let i = 1; i <= category.count; i++) {
+                    const name = `${category.baseName} (${i})`;
+                    const fileName = `mapas/${categoryName}/${name}.png`;
+                    const card = document.createElement('div');
+                    card.className = 'scenario-card';
+                    card.dataset.fileName = fileName;
+                    card.style.width = '200px';
+                    card.style.height = '150px';
+                    card.innerHTML = `<img src="images/${fileName}" alt="${name}" style="height: 100px;"><div class="scenario-name" style="font-size: 1.1em; padding: 5px;">${name}</div>`;
+                    card.onclick = () => {
+                        socket.emit('playerAction', { type: 'changeScenario', scenario: fileName });
+                        modal.classList.add('hidden');
+                    };
+                    scenariosContainer.appendChild(card);
+                }
+            };
+            
+            Object.keys(THEATER_SCENARIOS).forEach((categoryName, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'category-tab-btn';
+                btn.textContent = categoryName.replace(/_/g, ' ').toUpperCase();
+                btn.onclick = (e) => {
+                    tabsContainer.querySelectorAll('.category-tab-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    renderCategory(categoryName);
+                };
+                if (index === 0) btn.classList.add('active');
+                tabsContainer.appendChild(btn);
             });
+            
+            modalContent.appendChild(tabsContainer);
+            modalContent.appendChild(scenariosContainer);
+            showInfoModal("Mudar Cenário", modalContent.outerHTML);
+            renderCategory(Object.keys(THEATER_SCENARIOS)[0]);
         };
     
         theaterTokenContainer.addEventListener('mousedown', (e) => {
             if (!isGm) return;
-            // Desseleciona se clicar fora de um token
             if (!e.target.classList.contains('theater-token')) {
-                if (activeToken) {
-                    activeToken.classList.remove('selected');
-                }
+                if (activeToken) activeToken.classList.remove('selected');
                 activeToken = null;
                 activeTokenId = null;
                 return;
             }
-            // Seleciona o novo token
             e.preventDefault();
             if (activeToken) activeToken.classList.remove('selected');
             activeToken = e.target;
@@ -529,17 +620,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
                     activeToken = null;
-                    activeTokenId = null; // Limpa o ID também
+                    activeTokenId = null;
                  } else if (e.key.toLowerCase() === 'f') {
                     e.preventDefault();
                     const currentTokenState = currentGameState.tokens[activeToken.id];
                     if (currentTokenState) {
                         socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, isFlipped: !currentTokenState.isFlipped }});
                     }
-                 } else if (e.key === 'ArrowDown') { // Trazer para frente
+                 } else if (e.key === 'ArrowDown') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'forward' });
-                 } else if (e.key === 'ArrowUp') { // Enviar para trás
+                 } else if (e.key === 'ArrowUp') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'backward' });
                  }
@@ -552,7 +643,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentScale = parseFloat(activeToken.dataset.scale) || 1;
             const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
             const newScale = Math.max(0.1, currentScale + scaleAmount);
-            // Atualiza o dataset localmente para permitir scroll contínuo
             activeToken.dataset.scale = newScale;
             socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, scale: newScale }});
         }, { passive: false });
@@ -565,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isGm) { theaterScreenEl.classList.add('panel-hidden'); }
         
         theaterTokenContainer.innerHTML = '';
-        activeToken = null; // Reseta a referência antes de redesenhar
+        activeToken = null;
 
         state.tokenOrder.forEach((tokenId, index) => {
             const tokenData = state.tokens[tokenId];
@@ -587,10 +677,9 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.title = tokenData.charName;
             tokenEl.draggable = false;
             
-            // Restaura o estado de seleção
             if (tokenId === activeTokenId) {
                 tokenEl.classList.add('selected');
-                activeToken = tokenEl; // Reatribui a referência ao novo elemento
+                activeToken = tokenEl;
             }
 
             theaterTokenContainer.appendChild(tokenEl);
