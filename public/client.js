@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const stats = charData[name]; const card = document.createElement('div'); card.className = 'char-card'; card.dataset.name = name; 
             card.dataset.img = `images/${name}.png`;
             const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
-            card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name.replace(/-SD$/, '')}</div>${statsHtml}`;
+            card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
             card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
             charListContainer.appendChild(card);
         }
@@ -227,8 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
         renderSpecialMoveSelection(specialMovesList, availableMoves);
-        showScreen(selectionScreen); // Garante que a tela de fundo está correta
-        specialMovesModal.classList.remove('hidden'); // Mostra o modal por cima
+        specialMovesModal.classList.remove('hidden'); // Apenas mostra o modal. A tela de fundo (selectionScreen) já está visível.
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
@@ -334,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
             if (fighter) {
-                document.getElementById(`${key}-fight-name`).innerText = fighter.nome.replace(/-SD$/, '');
+                document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
                 if (fighter.hpMax !== undefined) {
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`; document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
@@ -361,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
         else if (state.phase.startsWith('arena_')) roundInfoEl.innerHTML = `Aguardando início...`;
         else {
-            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome.replace(/-SD$/, '') : '...';
+            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
             if (state.reactionState) {
                 const reactionUserKey = state.reactionState.playerKey; const reactionMoveName = state.moves[state.reactionState.move].displayName || state.reactionState.move;
@@ -450,10 +449,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const charImg = `images/${charName}.png`; const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
             mini.style.backgroundImage = `url("${charImg}")`;
-            mini.title = charName.replace(/-SD$/, ''); mini.draggable = true;
+            mini.title = charName; mini.draggable = true;
             mini.addEventListener('dragstart', (e) => {
                 if (!isGm) return;
-                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName.replace(/-SD$/, ''), img: charImg }));
+                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: charImg }));
             });
             theaterCharList.appendChild(mini);
         });
