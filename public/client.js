@@ -437,7 +437,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // #region LÓGICA DO MODO TEATRO
-    let activeToken = null; let offset = { x: 0, y: 0 };
+    let activeToken = null;
+    let activeTokenId = null; // Guarda o ID do token selecionado
+    let offset = { x: 0, y: 0 };
     
     function initializeTheaterMode() {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
@@ -497,10 +499,23 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     
         theaterTokenContainer.addEventListener('mousedown', (e) => {
-            if (!isGm || !e.target.classList.contains('theater-token')) { if (activeToken) { activeToken.classList.remove('selected'); activeToken = null; } return; }
+            if (!isGm) return;
+            // Desseleciona se clicar fora de um token
+            if (!e.target.classList.contains('theater-token')) {
+                if (activeToken) {
+                    activeToken.classList.remove('selected');
+                }
+                activeToken = null;
+                activeTokenId = null;
+                return;
+            }
+            // Seleciona o novo token
             e.preventDefault();
             if (activeToken) activeToken.classList.remove('selected');
-            activeToken = e.target; activeToken.classList.add('selected');
+            activeToken = e.target;
+            activeTokenId = activeToken.id;
+            activeToken.classList.add('selected');
+
             const rect = activeToken.getBoundingClientRect(); const containerRect = theaterTokenContainer.getBoundingClientRect(); const globalScale = parseFloat(theaterGlobalScale.value) || 1;
             offset.x = (e.clientX - rect.left) / globalScale; offset.y = (e.clientY - rect.top) / globalScale;
             function onMouseMove(moveEvent) { if (!activeToken) return; const newX = (moveEvent.clientX - containerRect.left) / globalScale - offset.x; const newY = (moveEvent.clientY - containerRect.top) / globalScale - offset.y; activeToken.style.left = `${newX}px`; activeToken.style.top = `${newY}px`; }
@@ -514,6 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
                     activeToken = null;
+                    activeTokenId = null; // Limpa o ID também
                  } else if (e.key.toLowerCase() === 'f') {
                     e.preventDefault();
                     const currentTokenState = currentGameState.tokens[activeToken.id];
@@ -533,7 +549,11 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('wheel', (e) => {
             if (!isGm || !activeToken || !e.target.classList.contains('theater-token')) return;
             e.preventDefault();
-            const currentScale = parseFloat(activeToken.dataset.scale) || 1; const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1; const newScale = Math.max(0.1, currentScale + scaleAmount);
+            const currentScale = parseFloat(activeToken.dataset.scale) || 1;
+            const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+            const newScale = Math.max(0.1, currentScale + scaleAmount);
+            // Atualiza o dataset localmente para permitir scroll contínuo
+            activeToken.dataset.scale = newScale;
             socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, scale: newScale }});
         }, { passive: false });
     }
@@ -545,7 +565,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isGm) { theaterScreenEl.classList.add('panel-hidden'); }
         
         theaterTokenContainer.innerHTML = '';
-        // Renderiza os tokens na ordem definida por tokenOrder
+        activeToken = null; // Reseta a referência antes de redesenhar
+
         state.tokenOrder.forEach((tokenId, index) => {
             const tokenData = state.tokens[tokenId];
             if (!tokenData) return;
@@ -556,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.src = tokenData.img;
             tokenEl.style.left = `${tokenData.x}px`;
             tokenEl.style.top = `${tokenData.y}px`;
-            tokenEl.style.zIndex = index; // Define a profundidade visual
+            tokenEl.style.zIndex = index;
             
             const scale = tokenData.scale || 1;
             const flip = tokenData.isFlipped ? 'scaleX(-1)' : '';
@@ -565,6 +586,13 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.dataset.scale = scale;
             tokenEl.title = tokenData.charName;
             tokenEl.draggable = false;
+            
+            // Restaura o estado de seleção
+            if (tokenId === activeTokenId) {
+                tokenEl.classList.add('selected');
+                activeToken = tokenEl; // Reatribui a referência ao novo elemento
+            }
+
             theaterTokenContainer.appendChild(tokenEl);
         });
     }
