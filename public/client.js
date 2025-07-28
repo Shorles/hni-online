@@ -57,18 +57,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterBackBtn = document.getElementById('theater-back-btn');
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
-    const CHARACTERS_P1 = { 'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3} };
+    
+    // NOVO: Adição dos novos personagens ao P1
+    const CHARACTERS_P1 = {
+        'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3},
+        '1 Rukyanu Hoo-SD': { agi: 1, res: 1 },
+        '2 Oruwa Furikikage-SD': { agi: 1, res: 1 },
+        '3 Guguro Riberatsu-SD': { agi: 1, res: 1 },
+        '4 Raujiro Oka-SD': { agi: 1, res: 1 }
+    };
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
     
+    // Agora, THEATER_CHARACTERS automaticamente inclui os novos personagens
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
-    // CORREÇÃO FINAL: O nome da pasta deve ser 'personagens' em minúsculo.
     const DYNAMIC_CHARACTERS = [
         { name: 'Personagem (1)', img: 'images/personagens/Personagem (1).png' },
         { name: 'Personagem (2)', img: 'images/personagens/Personagem (2).png' },
         { name: 'Personagem (3)', img: 'images/personagens/Personagem (3).png' },
         { name: 'Personagem (4)', img: 'images/personagens/Personagem (4).png' },
-        // Adicione mais personagens aqui no futuro
     ];
     
     const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
@@ -184,7 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderCharacterSelection(playerType, showStatsInputs = false) {
         charListContainer.innerHTML = ''; const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
         for (const name in charData) {
-            const stats = charData[name]; const card = document.createElement('div'); card.className = 'char-card'; card.dataset.name = name; card.dataset.img = `images/${name}.png`;
+            const stats = charData[name]; const card = document.createElement('div'); card.className = 'char-card'; card.dataset.name = name; 
+            // CORRIGIDO: Garante que a imagem .png seja referenciada corretamente
+            card.dataset.img = `images/${name}.png`;
             const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
             card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
             card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
@@ -290,9 +299,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); helpBtn.classList.remove('hidden'); }
     });
 
+    // CORRIGIDO: Lógica simplificada para não depender do `currentGameState` que pode não existir ainda.
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
-        if(!(currentGameState && currentGameState.mode === 'theater')) {
+        if (myPlayerKey === 'player1') { // Modo Clássico
             const p2Url = `${window.location.origin}?room=${roomId}`;
             const specUrl = `${window.location.origin}?room=${roomId}&spectate=true`;
             const shareLinkP2 = document.getElementById('share-link-p2');
@@ -301,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const shareLinkSpectator = document.getElementById('share-link-spectator');
             shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
         }
+        // A lógica do link do Modo Teatro foi movida para o 'gameUpdate' para maior confiabilidade.
     });
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent || '🔗'; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
