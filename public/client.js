@@ -62,11 +62,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
+    // CORREÇÃO FINAL: O nome da pasta deve ser 'personagens' em minúsculo.
     const DYNAMIC_CHARACTERS = [
-        { name: 'Personagem (1)', img: 'images/Personagens/Personagem (1).png' },
-        { name: 'Personagem (2)', img: 'images/Personagens/Personagem (2).png' },
-        { name: 'Personagem (3)', img: 'images/Personagens/Personagem (3).png' },
-        { name: 'Personagem (4)', img: 'images/Personagens/Personagem (4).png' },
+        { name: 'Personagem (1)', img: 'images/personagens/Personagem (1).png' },
+        { name: 'Personagem (2)', img: 'images/personagens/Personagem (2).png' },
+        { name: 'Personagem (3)', img: 'images/personagens/Personagem (3).png' },
+        { name: 'Personagem (4)', img: 'images/personagens/Personagem (4).png' },
+        // Adicione mais personagens aqui no futuro
     ];
     
     const THEATER_SCENARIOS = { 'Cenário 01': 'mapas/Cenario01.png' };
