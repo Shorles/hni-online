@@ -492,18 +492,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // #region LÓGICA DO MODO TEATRO
     let activeToken = null;
     let activeTokenId = null; 
-    let offset = { x: 0, y: 0 };
     let currentScenarioScale = 1.0;
 
     function updateTheaterZoom() {
         const globalTokenScale = isGm ? parseFloat(theaterGlobalScale.value) : 1;
-        // Aplica o zoom do cenário à imagem e ao container de tokens para que rolem juntos
+        
+        theaterBackgroundImage.style.transformOrigin = '0 0';
+        theaterTokenContainer.style.transformOrigin = '0 0';
+
         theaterBackgroundImage.style.transform = `scale(${currentScenarioScale})`;
         theaterTokenContainer.style.transform = `scale(${currentScenarioScale})`;
-        // A "Escala Global" do GM é aplicada aos tokens *individualmente* para não afetar a posição
+
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
-            const isFlipped = token.style.transform.includes('scaleX(-1)');
+            const isFlipped = token.dataset.flipped === 'true';
             token.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
         });
     }
@@ -693,6 +695,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isGm) { theaterScreenEl.classList.add('panel-hidden'); }
         
         theaterBackgroundViewport.appendChild(theaterTokenContainer);
+        // Garante que o container de tokens tenha o mesmo tamanho da imagem de fundo
+        theaterTokenContainer.style.width = `${theaterBackgroundImage.offsetWidth}px`;
+        theaterTokenContainer.style.height = `${theaterBackgroundImage.offsetHeight}px`;
+
         theaterTokenContainer.innerHTML = '';
         activeToken = null;
 
@@ -711,7 +717,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const scale = tokenData.scale || 1;
             const isFlipped = tokenData.isFlipped;
             tokenEl.dataset.scale = scale;
-            tokenEl.dataset.flipped = isFlipped;
+            tokenEl.dataset.flipped = String(isFlipped);
 
             tokenEl.title = tokenData.charName;
             tokenEl.draggable = false;
@@ -720,6 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tokenEl.classList.add('selected');
                 activeToken = tokenEl;
             }
+
             theaterTokenContainer.appendChild(tokenEl);
         });
         
