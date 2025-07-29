@@ -509,11 +509,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateTheaterZoom() {
         const globalTokenScale = isGm ? parseFloat(theaterGlobalScale.value) : 1;
         
-        theaterBackgroundImage.style.transformOrigin = '0 0';
-        theaterTokenContainer.style.transformOrigin = '0 0';
-
-        theaterBackgroundImage.style.transform = `scale(${currentScenarioScale})`;
-        theaterTokenContainer.style.transform = `scale(${currentScenarioScale})`;
+        const worldContainer = document.getElementById('theater-world-container');
+        if (!worldContainer) {
+            // Create a wrapper for zoomable content if it doesn't exist
+            const newWorldContainer = document.createElement('div');
+            newWorldContainer.id = 'theater-world-container';
+            newWorldContainer.style.transformOrigin = '0 0';
+            newWorldContainer.appendChild(theaterBackgroundImage);
+            newWorldContainer.appendChild(theaterTokenContainer);
+            theaterBackgroundViewport.insertBefore(newWorldContainer, theaterBackgroundViewport.firstChild);
+        }
+        
+        document.getElementById('theater-world-container').style.transform = `scale(${currentScenarioScale})`;
 
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
@@ -629,9 +636,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!dataString) return;
                 const data = JSON.parse(dataString);
                 const containerRect = theaterBackgroundViewport.getBoundingClientRect();
-                const x = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
-                const y = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
-                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: x - (100 / currentScenarioScale), y: y - (100 / currentScenarioScale), scale: 1, isFlipped: false };
+                // Correctly calculate world coordinates from screen coordinates, accounting for zoom and scroll
+                const worldX = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
+                const worldY = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+
+                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: worldX - (100 / currentScenarioScale), y: worldY - (100 / currentScenarioScale), scale: 1, isFlipped: false };
                 socket.emit('playerAction', { type: 'updateToken', token: newToken });
             } catch (error) { console.error("Erro ao processar o drop:", error); }
         });
@@ -695,8 +704,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isGroupSelectMode) {
                 e.preventDefault();
-                const startX = (e.clientX - theaterBackgroundViewport.getBoundingClientRect().left + theaterBackgroundViewport.scrollLeft);
-                const startY = (e.clientY - theaterBackgroundViewport.getBoundingClientRect().top + theaterBackgroundViewport.scrollTop);
+                const containerRect = theaterBackgroundViewport.getBoundingClientRect();
+                const startX = e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
+                const startY = e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
+                
                 selectionBox.style.left = `${startX}px`;
                 selectionBox.style.top = `${startY}px`;
                 selectionBox.style.width = '0px';
@@ -704,14 +715,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = (moveEvent.clientX - theaterBackgroundViewport.getBoundingClientRect().left + theaterBackgroundViewport.scrollLeft);
-                    const currentY = (moveEvent.clientY - theaterBackgroundViewport.getBoundingClientRect().top + theaterBackgroundViewport.scrollTop);
+                    const currentX = moveEvent.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
+                    const currentY = moveEvent.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
                     const width = currentX - startX;
                     const height = currentY - startY;
+
+                    selectionBox.style.transform = `scale(${1 / currentScenarioScale})`;
+                    selectionBox.style.transformOrigin = 'top left';
                     selectionBox.style.width = `${Math.abs(width)}px`;
                     selectionBox.style.height = `${Math.abs(height)}px`;
-                    selectionBox.style.left = `${width < 0 ? currentX : startX}px`;
-                    selectionBox.style.top = `${height < 0 ? currentY : startY}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
                 };
 
                 const onMouseUpMarquee = () => {
@@ -720,10 +734,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
                     selectedTokens.clear();
 
-                    const boxRect = selectionBox.getBoundingClientRect();
+                    const worldContainer = document.getElementById('theater-world-container');
+                    const worldRect = worldContainer.getBoundingClientRect();
+                    const boxLeft = (parseFloat(selectionBox.style.left) - worldRect.left);
+                    const boxTop = (parseFloat(selectionBox.style.top) - worldRect.top);
+                    const boxWidth = parseFloat(selectionBox.style.width);
+                    const boxHeight = parseFloat(selectionBox.style.height);
+
                     document.querySelectorAll('.theater-token').forEach(token => {
                         const tokenRect = token.getBoundingClientRect();
-                        const isIntersecting = !(tokenRect.right < boxRect.left || tokenRect.left > boxRect.right || tokenRect.bottom < boxRect.top || tokenRect.top > boxRect.bottom);
+                         // We need to compare in the same coordinate space (screen space works)
+                        const boxScreenRect = selectionBox.getBoundingClientRect();
+                        const isIntersecting = !(tokenRect.right < boxScreenRect.left || tokenRect.left > boxScreenRect.right || tokenRect.bottom < boxScreenRect.top || tokenRect.top > boxScreenRect.bottom);
+
                         if (isIntersecting) {
                             token.classList.add('selected');
                             selectedTokens.add(token.id);
@@ -740,20 +763,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const draggedToken = e.target;
                 
-                // Group Dragging Logic
                 const isGroupDrag = selectedTokens.has(draggedToken.id);
                 const tokensToDrag = isGroupDrag ? Array.from(selectedTokens) : [draggedToken.id];
                 const startPositions = {};
                 
                 tokensToDrag.forEach(tokenId => {
                     const tokenEl = document.getElementById(tokenId);
-                    startPositions[tokenId] = { x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
+                    if(tokenEl) {
+                       startPositions[tokenId] = { x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
+                    }
                 });
 
                 const startMouseX = e.clientX;
                 const startMouseY = e.clientY;
 
-                // Single-selection logic
                 if (!isGroupDrag) {
                     document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
                     selectedTokens.clear();
@@ -762,12 +785,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 function onMouseMoveToken(moveEvent) {
+                    // Calculate delta in screen pixels, then convert to world delta by dividing by scale
                     const dx = (moveEvent.clientX - startMouseX) / currentScenarioScale;
                     const dy = (moveEvent.clientY - startMouseY) / currentScenarioScale;
 
                     tokensToDrag.forEach(tokenId => {
                         const tokenEl = document.getElementById(tokenId);
-                        if(tokenEl) {
+                        if(tokenEl && startPositions[tokenId]) {
                            tokenEl.style.left = `${startPositions[tokenId].x + dx}px`;
                            tokenEl.style.top = `${startPositions[tokenId].y + dy}px`;
                         }
@@ -785,7 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              };
                          }
                          return null;
-                    }).filter(Boolean); // remove nulls if any token disappeared
+                    }).filter(Boolean);
                     
                     if (updates.length > 0) {
                         socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
@@ -798,20 +822,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.addEventListener('mouseup', onMouseUpToken);
 
             } else if (e.target === theaterBackgroundImage || e.target === theaterBackgroundViewport) {
-                 // Logic to drag the scenario background
                 isDraggingScenario = true;
                 theaterBackgroundViewport.style.cursor = 'grabbing';
                 let lastMouseX = e.clientX;
                 let lastMouseY = e.clientY;
-                let startScrollX = theaterBackgroundViewport.scrollLeft;
-                let startScrollY = theaterBackgroundViewport.scrollTop;
 
                 const onMouseMoveScenario = (moveEvent) => {
                     if (!isDraggingScenario) return;
                     const dx = moveEvent.clientX - lastMouseX;
                     const dy = moveEvent.clientY - lastMouseY;
-                    theaterBackgroundViewport.scrollLeft = startScrollX - dx;
-                    theaterBackgroundViewport.scrollTop = startScrollY - dy;
+                    theaterBackgroundViewport.scrollLeft -= dx;
+                    theaterBackgroundViewport.scrollTop -= dy;
+                    lastMouseX = moveEvent.clientX;
+                    lastMouseY = moveEvent.clientY;
                 };
 
                 const onMouseUpScenario = () => {
@@ -827,9 +850,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
-            if (currentGameState.mode !== 'theater') return;
-            
-            // GM-only action: resize token(s)
+            if (!currentGameState || currentGameState.mode !== 'theater') return;
+
+            // Token resizing is a GM-only action
             if (isGm && e.target.classList.contains('theater-token')) {
                 e.preventDefault();
                 const currentToken = e.target;
@@ -846,12 +869,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         socket.emit('playerAction', { type: 'updateToken', token: { id: tokenToResize.id, scale: newScale }});
                     }
                 });
-            } else { // Global action: zoom scenario (for GM and Spectators)
-                e.preventDefault();
-                const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
-                currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
-                updateTheaterZoom();
+                return; // Prevent scenario zoom while resizing a token
             }
+
+            // Scenario zooming is available to everyone and is independent of GM status
+            e.preventDefault();
+            const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+            currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
+            updateTheaterZoom();
+
         }, { passive: false });
     }
 
@@ -861,6 +887,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (dataToRender.scenario) {
             theaterBackgroundImage.src = `images/${dataToRender.scenario}`;
+            // Ensure the container matches the image size for consistent coordinates
+            theaterBackgroundImage.onload = () => {
+                theaterTokenContainer.style.width = `${theaterBackgroundImage.naturalWidth}px`;
+                theaterTokenContainer.style.height = `${theaterBackgroundImage.naturalHeight}px`;
+            };
         }
         
         const theaterScreenEl = document.getElementById('theater-screen'); 
@@ -873,9 +904,14 @@ document.addEventListener('DOMContentLoaded', () => {
             theaterScreenEl.classList.add('panel-hidden'); 
         }
         
-        theaterBackgroundViewport.appendChild(theaterTokenContainer);
-        theaterTokenContainer.style.width = `${theaterBackgroundImage.offsetWidth}px`;
-        theaterTokenContainer.style.height = `${theaterBackgroundImage.offsetHeight}px`;
+        // This structure is now managed by updateTheaterZoom to avoid being wiped
+        if (!document.getElementById('theater-world-container')) {
+            const worldContainer = document.createElement('div');
+            worldContainer.id = 'theater-world-container';
+            worldContainer.appendChild(theaterBackgroundImage);
+            worldContainer.appendChild(theaterTokenContainer);
+            theaterBackgroundViewport.appendChild(worldContainer);
+        }
 
         theaterTokenContainer.innerHTML = '';
 
