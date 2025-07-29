@@ -71,20 +71,23 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
-    const DYNAMIC_CHARACTERS = [
-        { name: 'Personagem (1)', img: 'images/personagens/Personagem (1).png' },
-        { name: 'Personagem (2)', img: 'images/personagens/Personagem (2).png' },
-        { name: 'Personagem (3)', img: 'images/personagens/Personagem (3).png' },
-        { name: 'Personagem (4)', img: 'images/personagens/Personagem (4).png' },
-    ];
+    // Dynamically generate 50 characters
+    const DYNAMIC_CHARACTERS = [];
+    for (let i = 1; i <= 50; i++) {
+        DYNAMIC_CHARACTERS.push({
+            name: `Personagem (${i})`,
+            img: `images/personagens/Personagem (${i}).png`
+        });
+    }
     
+    // Expand scenario counts to 50
     const THEATER_SCENARIOS = {
-        "cenarios externos": { baseName: "externo", count: 10 },
-        "cenarios internos": { baseName: "interno", count: 10 },
-        "cenas": { baseName: "cena", count: 10 },
-        "fichas": { baseName: "ficha", count: 10 },
-        "objetos": { baseName: "objeto", count: 10 },
-        "outros": { baseName: "outro", count: 10 }
+        "cenarios externos": { baseName: "externo", count: 50 },
+        "cenarios internos": { baseName: "interno", count: 50 },
+        "cenas": { baseName: "cena", count: 50 },
+        "fichas": { baseName: "ficha", count: 50 },
+        "objetos": { baseName: "objeto", count: 50 },
+        "outros": { baseName: "outro", count: 50 }
     };
 
     let linkInitialized = false; // Flag unificada para links
@@ -824,9 +827,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
-            if (currentGameState.mode !== 'theater' || !isGm) return;
+            if (currentGameState.mode !== 'theater') return;
             
-            if (e.target.classList.contains('theater-token')) {
+            // GM-only action: resize token(s)
+            if (isGm && e.target.classList.contains('theater-token')) {
                 e.preventDefault();
                 const currentToken = e.target;
                 const isGroupResize = selectedTokens.has(currentToken.id);
@@ -842,9 +846,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         socket.emit('playerAction', { type: 'updateToken', token: { id: tokenToResize.id, scale: newScale }});
                     }
                 });
-
-            } else {
-                 e.preventDefault();
+            } else { // Global action: zoom scenario (for GM and Spectators)
+                e.preventDefault();
                 const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
                 currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
                 updateTheaterZoom();
