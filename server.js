@@ -410,6 +410,8 @@ function isActionValid(state, action) {
     const { type, playerKey, gmSocketId } = action;
     const isGm = gmSocketId === state.gmId;
 
+    if (type === 'gm_switch_mode' && isGm) return true;
+
     if (state.mode === 'theater') {
         return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage' || type === 'updateGlobalScale') && isGm;
     }
@@ -656,6 +658,55 @@ io.on('connection', (socket) => {
 
         const playerKey = action.playerKey;
         switch (action.type) {
+             // NEW MODE SWITCHING ACTION
+            case 'gm_switch_mode':
+                const { targetMode, scenario } = action;
+                let newState;
+                let newPlayers = [];
+                let newSpectators = [];
+
+                const allUserIds = [...room.players.map(p => p.id), ...room.spectators.filter(id => id !== action.gmSocketId), action.gmSocketId ];
+                const uniqueUserIds = [...new Set(allUserIds)]; // Ensure no duplicates
+                
+                if (targetMode === 'theater') {
+                    newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
+                    newState.gmId = action.gmSocketId;
+                    newSpectators = uniqueUserIds.filter(id => id !== action.gmSocketId);
+                } else { // classic or arena
+                    newState = createNewGameState();
+                    newState.mode = targetMode;
+                    newState.gmId = action.gmSocketId;
+                    newState.scenario = scenario || 'Ringue.png';
+                    
+                    if (targetMode === 'classic') {
+                        newState.phase = 'p1_special_moves_selection';
+                        logMessage(newState, 'GM iniciou o modo Clássico. Aguardando configuração do P1...');
+                        newPlayers.push({ id: action.gmSocketId, playerKey: 'player1' });
+                        newSpectators = uniqueUserIds.filter(id => id !== action.gmSocketId);
+                    } else if (targetMode === 'arena') {
+                        newState.phase = 'arena_lobby';
+                        newState.hostId = action.gmSocketId;
+                        logMessage(newState, 'GM iniciou o modo Arena. Aguardando jogadores se conectarem...');
+                        newSpectators = uniqueUserIds.filter(id => id !== action.gmSocketId);
+                    }
+                }
+
+                room.state = newState;
+                room.players = newPlayers;
+                room.spectators = newSpectators;
+                
+                // Reassign roles to all clients in the room
+                io.to(action.gmSocketId).emit('assignPlayer', { playerKey: newState.hostId ? 'host' : (newState.mode === 'classic' ? 'player1' : 'gm'), isGm: true });
+                newSpectators.forEach(id => {
+                    io.to(id).emit('assignPlayer', { playerKey: 'spectator', isGm: false });
+                });
+
+                if (targetMode === 'arena') {
+                    io.to(action.gmSocketId).emit('arenaRoomCreated', roomId);
+                } else if (targetMode === 'classic') {
+                     io.to(action.gmSocketId).emit('roomCreated', roomId);
+                }
+                break;
             // THEATER MODE ACTIONS
             case 'updateGlobalScale':
                 state.globalTokenScale = action.scale;
@@ -1006,7 +1057,6 @@ io.on('connection', (socket) => {
                                 logMessage(state, `INCRÍVEL! Ambos se levantam e a luta continua!`, 'log-crit');
                                 [state.fighters.player1, state.fighters.player2].forEach(f => { f.res--; const newHp = f.res * 5; f.hp = newHp; f.hpMax = newHp; });
                                 state.phase = 'turn'; state.doubleKnockdownInfo = null;
-                                gameOver = true;
                             } else if ( (p1Up && p2Status === 'fail_tko') || (p1Up && !p2Up && isFinalAttempt) ) {
                                 state.phase = 'gameover'; state.winner = 'player1'; state.reason = `${state.fighters.player1.nome} se levantou, mas ${state.fighters.player2.nome} não! Vitória por Nocaute!`;
                                 gameOver = true;
@@ -1043,17 +1093,31 @@ io.on('connection', (socket) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId]) return;
         const room = games[roomId];
-        if (socket.id === room.hostId || socket.id === room.gmId) {
-            io.to(roomId).emit('opponentDisconnected', { message: 'O Anfitrião encerrou a partida.' });
+        // If the GM (creator of the room) disconnects, end the game for everyone.
+        if (socket.id === room.state.gmId) {
+            io.to(roomId).emit('opponentDisconnected', { message: 'O Mestre da Sala encerrou a sessão.' });
             delete games[roomId];
             return;
         }
+        // Handle player disconnection
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex > -1) {
-            io.to(roomId).emit('opponentDisconnected', { message: 'Um jogador se desconectou.' });
-            delete games[roomId];
+            const disconnectedPlayer = room.players[playerIndex];
+            logMessage(room.state, `Jogador (${disconnectedPlayer.playerKey}) desconectou-se.`);
+            room.players.splice(playerIndex, 1);
+            // In a battle, a player disconnecting could be a forfeit.
+            if (room.state.mode !== 'theater' && (room.state.phase !== 'gameover' && room.state.phase !== 'arena_lobby')) {
+                room.state.phase = 'gameover';
+                room.state.winner = disconnectedPlayer.playerKey === 'player1' ? 'player2' : 'player1';
+                room.state.reason = `Oponente desconectou.`;
+                io.to(roomId).emit('gameUpdate', room.state);
+                dispatchAction(room);
+            } else {
+                 io.to(roomId).emit('gameUpdate', room.state);
+            }
             return;
         } 
+        // Handle spectator disconnection
         const spectatorIndex = room.spectators.indexOf(socket.id);
         if (spectatorIndex > -1) {
             room.spectators.splice(spectatorIndex, 1);

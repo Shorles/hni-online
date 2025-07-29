@@ -11,6 +11,7 @@
 <div id="game-wrapper">
 
     <button id="help-btn" class="help-btn" title="Guia de Golpes">?</button>
+    <button id="gm-mode-switch-btn" class="gm-mode-switch-btn hidden" title="Mudar Modo de Jogo">🔄</button>
 
     <div id="dice-cheat-indicator" class="cheat-indicator hidden"></div>
 
@@ -66,8 +67,10 @@
     <!-- TELA DO MODO TEATRO -->
     <div id="theater-screen" class="screen">
         <div id="theater-background-viewport">
-            <img id="theater-background-image" src="" alt="Cenário do Teatro">
-            <div id="theater-token-container"></div>
+            <div id="theater-world-container">
+                <img id="theater-background-image" src="" alt="Cenário do Teatro">
+                <div id="theater-token-container"></div>
+            </div>
             <div id="selection-box" class="hidden"></div>
         </div>
 

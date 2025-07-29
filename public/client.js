@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
     const exitGameBtn = document.getElementById('exit-game-btn');
     const helpBtn = document.getElementById('help-btn');
+    const gmModeSwitchBtn = document.getElementById('gm-mode-switch-btn');
 
     const theaterScreen = document.getElementById('theater-screen');
     const theaterBackgroundViewport = document.getElementById('theater-background-viewport');
@@ -138,16 +139,16 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = urlParams.get('room');
         const arenaPlayerKey = urlParams.get('player');
         const isSpectator = urlParams.get('spectate') === 'true';
-        const isTheater = urlParams.get('theater') === 'true';
+        // Note: isTheater is removed, as spectators now follow the GM's mode
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
-        if (isTheater && currentRoomId) { showScreen(theaterScreen); socket.emit('spectateGame', currentRoomId);
-        } else if (arenaPlayerKey && currentRoomId) {
+        if (arenaPlayerKey && currentRoomId) {
             myPlayerKey = arenaPlayerKey; socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen); selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : 2}: Selecione seu Lutador`; confirmBtn.innerText = 'Confirmar Personagem';
             renderCharacterSelection('p2', false);
-        } else if (isSpectator && currentRoomId) { showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`; socket.emit('spectateGame', currentRoomId);
+        } else if (isSpectator && currentRoomId) { 
+            showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`; socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
             showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador'; confirmBtn.innerText = 'Entrar na Luta';
             renderCharacterSelection('p2', false);
@@ -172,6 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
         helpBtn.addEventListener('click', showHelpModal);
+        gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
         document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) { showForfeitConfirmation(); } };
         
         initializeTheaterMode();
@@ -278,6 +280,33 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+    
+    function showModeSwitchModal() {
+        if (!isGm) return;
+        const modalContentHtml = `
+            <p>Para qual modo de jogo deseja alternar?</p>
+            <p style="font-size: 0.9em; color: #ccc;">Todos na sala (jogadores e espectadores) serão movidos para o novo modo.</p>
+            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+                <button id="switch-to-classic" class="mode-btn">Clássico</button>
+                <button id="switch-to-arena" class="mode-btn">Arena</button>
+                <button id="switch-to-theater" class="mode-btn">Cenários</button>
+            </div>
+        `;
+        showInfoModal("Mudar Modo de Jogo", modalContentHtml);
+
+        document.getElementById('switch-to-classic').onclick = () => {
+            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'classic', scenario: 'Ringue.png' });
+            modal.classList.add('hidden');
+        };
+        document.getElementById('switch-to-arena').onclick = () => {
+            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'arena', scenario: 'Ringue2.png' });
+            modal.classList.add('hidden');
+        };
+        document.getElementById('switch-to-theater').onclick = () => {
+            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'theater', scenario: 'mapas/cenarios internos/interno (1).png' });
+            modal.classList.add('hidden');
+        };
+    }
 
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
@@ -334,19 +363,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => {
-        const oldState = currentGameState; currentGameState = gameState;
-        if (gameState.mode === 'theater') {
-            if (!oldState || oldState.mode !== 'theater') { showScreen(theaterScreen); helpBtn.classList.add('hidden'); }
-            if (isGm && !linkInitialized && currentRoomId) {
-                const specUrl = `${window.location.origin}?room=${currentRoomId}&theater=true`;
-                copyTheaterSpectatorLinkBtn.disabled = false;
-                copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
-                linkInitialized = true;
-            }
-            renderTheaterMode(gameState); return;
+        const oldState = currentGameState;
+        currentGameState = gameState;
+        
+        const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
+        
+        // Logic for spectator screen transition
+        if (myPlayerKey === 'spectator' && oldState && oldState.mode === 'theater' && gameState.mode !== 'theater' && PRE_GAME_PHASES.includes(gameState.phase)) {
+            // GM is setting up a new fight. Spectator keeps seeing the theater screen for now.
+            // We just update the internal state but don't re-render the whole screen.
+            console.log("GM is setting up a new mode. Spectator view is paused on Theater.");
+            return;
         }
 
-        if (gameState.mode === 'classic' && myPlayerKey === 'player1' && !linkInitialized && currentRoomId) {
+        const oldMode = oldState ? oldState.mode : null;
+        if (gameState.mode !== oldMode) {
+             linkInitialized = false; // Reset link sharing status on mode change
+        }
+        
+        // Show the correct screen based on the new game state
+        switch(gameState.mode) {
+            case 'theater':
+                showScreen(theaterScreen);
+                if (isGm && !linkInitialized && currentRoomId) {
+                    const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
+                    copyTheaterSpectatorLinkBtn.disabled = false;
+                    copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
+                    linkInitialized = true;
+                }
+                renderTheaterMode(gameState);
+                break;
+            case 'classic':
+            case 'arena':
+                if (PRE_GAME_PHASES.includes(gameState.phase)) {
+                    if (gameState.mode === 'arena') showScreen(arenaLobbyScreen);
+                    else showScreen(lobbyScreen);
+                } else {
+                    showScreen(fightScreen);
+                }
+                break;
+        }
+
+        if (gameState.mode === 'classic' && (myPlayerKey === 'player1' || isGm) && !linkInitialized && currentRoomId) {
             const p2Url = `${window.location.origin}?room=${currentRoomId}`;
             const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
             const shareLinkP2 = document.getElementById('share-link-p2');
@@ -356,16 +414,18 @@ document.addEventListener('DOMContentLoaded', () => {
             shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
             linkInitialized = true;
         }
+
         const oldPhase = oldState ? oldState.phase : null;
-        const wasPaused = oldPhase === 'paused'; const isNowPaused = currentGameState.phase === 'paused';
-        const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
-        if (isNowPaused && !wasPaused) { showCheatsModal(); } else if (!isNowPaused && wasPaused) { modal.classList.add('hidden'); }
+        const wasPaused = oldPhase === 'paused';
+        const isNowPaused = currentGameState.phase === 'paused';
+        
+        if (isNowPaused && !wasPaused) { showCheatsModal(); } 
+        else if (!isNowPaused && wasPaused) { modal.classList.add('hidden'); }
+        
         updateUI(currentGameState);
-        if (currentGameState.mode === 'classic') { gameWrapper.classList.add('mode-classic'); gameWrapper.classList.remove('mode-arena'); } 
-        else if (currentGameState.mode === 'arena') { gameWrapper.classList.add('mode-arena'); gameWrapper.classList.remove('mode-classic'); }
-        const wasInPreGame = !oldState || PRE_GAME_PHASES.includes(oldPhase);
-        const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); helpBtn.classList.remove('hidden'); }
+
+        gameWrapper.classList.toggle('mode-classic', currentGameState.mode === 'classic');
+        gameWrapper.classList.toggle('mode-arena', currentGameState.mode === 'arena');
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -377,6 +437,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
+
+        // Show/hide GM-only buttons
+        gmModeSwitchBtn.classList.toggle('hidden', !isGm);
+        if (state.mode === 'theater') {
+            helpBtn.classList.add('hidden');
+        } else {
+            helpBtn.classList.remove('hidden');
+        }
+
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         if (isGm && state.mode !== 'theater') {
              document.getElementById('gm-cheats-panel').classList.remove('hidden');
@@ -420,8 +489,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state.phase === 'gameover') roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
         else if (state.phase === 'double_knockdown') roundInfoEl.innerHTML = `<span class="turn-highlight">QUEDA DUPLA!</span>`;
         else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
-        else if (state.phase.startsWith('arena_')) roundInfoEl.innerHTML = `Aguardando início...`;
-        else {
+        else if (state.phase && state.phase.startsWith('arena_')) roundInfoEl.innerHTML = `Aguardando início...`;
+        else if (state.mode !== 'theater') {
             const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome.replace(/-SD$/, '') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
             if (state.reactionState) {
@@ -432,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('player1-area').classList.toggle('active-turn', state.whoseTurn === 'player1' && state.phase !== 'paused');
         document.getElementById('player2-area').classList.toggle('active-turn', state.whoseTurn === 'player2' && state.phase !== 'paused');
         const isPlayer = myPlayerKey === 'player1' || myPlayerKey === 'player2';
-        document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer);
+        document.getElementById('action-buttons-wrapper').classList.toggle('hidden', !isPlayer || state.mode === 'theater');
         p1Controls.classList.toggle('hidden', myPlayerKey !== 'player1');
         p2Controls.classList.toggle('hidden', myPlayerKey !== 'player2');
         document.querySelectorAll('.white-fang-ready').forEach(btn => { btn.classList.remove('white-fang-ready'); const extraText = btn.querySelector('.white-fang-extra'); if (extraText) extraText.remove(); });
@@ -512,8 +581,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const worldContainer = document.getElementById('theater-world-container');
         if (worldContainer) {
-           worldContainer.style.transformOrigin = '0 0';
            worldContainer.style.transform = `scale(${currentScenarioScale})`;
+        }
+        
+        const selectionBox = document.getElementById('selection-box');
+        if (selectionBox) {
+            selectionBox.style.transformOrigin = 'top left';
+            selectionBox.style.transform = `scale(${1 / currentScenarioScale})`;
         }
 
         document.querySelectorAll('.theater-token').forEach(token => {
@@ -628,10 +702,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!dataString) return;
                 const data = JSON.parse(dataString);
                 const containerRect = theaterBackgroundViewport.getBoundingClientRect();
+                const worldContainer = document.getElementById('theater-world-container');
+                
                 const worldX = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
                 const worldY = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+                
+                const tokenWidth = 200; // default width
+                const tokenHeight = 200; // estimate
 
-                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: worldX - (100 / currentScenarioScale), y: worldY - (100 / currentScenarioScale), scale: 1, isFlipped: false };
+                const newToken = { 
+                    id: `token-${Date.now()}`, 
+                    charName: data.charName, 
+                    img: data.img, 
+                    x: worldX - (tokenWidth / 2), 
+                    y: worldY - (tokenHeight / 2), 
+                    scale: 1, 
+                    isFlipped: false 
+                };
                 socket.emit('playerAction', { type: 'updateToken', token: newToken });
             } catch (error) { console.error("Erro ao processar o drop:", error); }
         });
@@ -695,40 +782,58 @@ document.addEventListener('DOMContentLoaded', () => {
     
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             const isToken = e.target.classList.contains('theater-token');
+            const worldContainer = document.getElementById('theater-world-container');
 
-            if (isGm && isGroupSelectMode) {
+            if (isGm && isGroupSelectMode && !isToken) {
                 e.preventDefault();
-                const containerRect = theaterBackgroundViewport.getBoundingClientRect();
-                const startX = e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
-                const startY = e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
+                const containerRect = worldContainer.getBoundingClientRect();
+                const startX = e.clientX - containerRect.left;
+                const startY = e.clientY - containerRect.top;
                 
-                selectionBox.style.left = `${startX / currentScenarioScale}px`;
-                selectionBox.style.top = `${startY / currentScenarioScale}px`;
+                selectionBox.style.left = `${startX}px`;
+                selectionBox.style.top = `${startY}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = moveEvent.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
-                    const currentY = moveEvent.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
+                    const currentX = moveEvent.clientX - containerRect.left;
+                    const currentY = moveEvent.clientY - containerRect.top;
                     const width = currentX - startX;
                     const height = currentY - startY;
 
-                    selectionBox.style.width = `${Math.abs(width) / currentScenarioScale}px`;
-                    selectionBox.style.height = `${Math.abs(height) / currentScenarioScale}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX) / currentScenarioScale}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY) / currentScenarioScale}px`;
+                    selectionBox.style.width = `${Math.abs(width)}px`;
+                    selectionBox.style.height = `${Math.abs(height)}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
                 };
 
                 const onMouseUpMarquee = () => {
                     selectionBox.classList.add('hidden');
-                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
-                    selectedTokens.clear();
+                    if (!e.ctrlKey) {
+                        document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                        selectedTokens.clear();
+                    }
 
-                    const boxRect = selectionBox.getBoundingClientRect();
+                    const boxRectScaled = {
+                        left: parseFloat(selectionBox.style.left) * currentScenarioScale,
+                        top: parseFloat(selectionBox.style.top) * currentScenarioScale,
+                        right: (parseFloat(selectionBox.style.left) + parseFloat(selectionBox.style.width)) * currentScenarioScale,
+                        bottom: (parseFloat(selectionBox.style.top) + parseFloat(selectionBox.style.height)) * currentScenarioScale
+                    };
+
                     document.querySelectorAll('.theater-token').forEach(token => {
                         const tokenRect = token.getBoundingClientRect();
-                        const isIntersecting = !(tokenRect.right < boxRect.left || tokenRect.left > boxRect.right || tokenRect.bottom < boxRect.top || tokenRect.top > boxRect.bottom);
+                        const worldContainerRect = worldContainer.getBoundingClientRect();
+
+                        const tokenRectRelativeToWorld = {
+                            left: tokenRect.left - worldContainerRect.left,
+                            top: tokenRect.top - worldContainerRect.top,
+                            right: tokenRect.right - worldContainerRect.left,
+                            bottom: tokenRect.bottom - worldContainerRect.top,
+                        };
+                        
+                        const isIntersecting = !(tokenRectRelativeToWorld.right < boxRectScaled.left || tokenRectRelativeToWorld.left > boxRectScaled.right || tokenRectRelativeToWorld.bottom < boxRectScaled.top || tokenRectRelativeToWorld.top > boxRectScaled.bottom);
 
                         if (isIntersecting) {
                             token.classList.add('selected');
@@ -760,8 +865,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const startMouseY = e.clientY;
 
                 if (!isGroupDrag) {
-                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
-                    selectedTokens.clear();
+                    if (!e.ctrlKey) {
+                        document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                        selectedTokens.clear();
+                    }
                     draggedToken.classList.add('selected');
                     selectedTokens.add(draggedToken.id);
                 }
@@ -864,13 +971,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (dataToRender.scenario) {
             theaterBackgroundImage.src = `images/${dataToRender.scenario}`;
+            const worldContainer = document.getElementById('theater-world-container');
+            
             theaterBackgroundImage.onload = () => {
-                const worldContainer = document.getElementById('theater-world-container');
                 if (worldContainer) {
                     worldContainer.style.width = `${theaterBackgroundImage.naturalWidth}px`;
                     worldContainer.style.height = `${theaterBackgroundImage.naturalHeight}px`;
                 }
             };
+            if (worldContainer) {
+                worldContainer.style.width = `${theaterBackgroundImage.naturalWidth}px`;
+                worldContainer.style.height = `${theaterBackgroundImage.naturalHeight}px`;
+            }
         }
         
         const theaterScreenEl = document.getElementById('theater-screen'); 
@@ -887,15 +999,8 @@ document.addEventListener('DOMContentLoaded', () => {
             theaterScreenEl.classList.add('panel-hidden'); 
         }
         
-        if (!document.getElementById('theater-world-container')) {
-            const worldContainer = document.createElement('div');
-            worldContainer.id = 'theater-world-container';
-            worldContainer.appendChild(theaterBackgroundImage);
-            worldContainer.appendChild(theaterTokenContainer);
-            theaterBackgroundViewport.insertBefore(worldContainer, theaterBackgroundViewport.firstChild);
-        }
-
         theaterTokenContainer.innerHTML = '';
+        const fragment = document.createDocumentFragment();
 
         dataToRender.tokenOrder.forEach((tokenId, index) => {
             const tokenData = dataToRender.tokens[tokenId];
@@ -919,8 +1024,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && selectedTokens.has(tokenId)) {
                 tokenEl.classList.add('selected');
             }
-            theaterTokenContainer.appendChild(tokenEl);
+            fragment.appendChild(tokenEl);
         });
+        theaterTokenContainer.appendChild(fragment);
         
         updateTheaterZoom();
     }
@@ -929,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
-    socket.on('assignPlayer', (data) => { myPlayerKey = data.playerKey; isGm = data.isGm; if (myPlayerKey === 'host') exitGameBtn.classList.remove('hidden'); });
+    socket.on('assignPlayer', (data) => { myPlayerKey = data.playerKey; isGm = data.isGm; if (myPlayerKey === 'host' || isGm) exitGameBtn.classList.remove('hidden'); });
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
         let btn = document.getElementById(`${targetPlayerKey}-roll-btn`); const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
         const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); btn = newBtn;
