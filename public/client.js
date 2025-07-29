@@ -70,20 +70,21 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
-    const DYNAMIC_CHARACTERS = [
-        { name: 'Personagem (1)', img: 'images/personagens/Personagem (1).png' },
-        { name: 'Personagem (2)', img: 'images/personagens/Personagem (2).png' },
-        { name: 'Personagem (3)', img: 'images/personagens/Personagem (3).png' },
-        { name: 'Personagem (4)', img: 'images/personagens/Personagem (4).png' },
-    ];
+    const DYNAMIC_CHARACTERS = [];
+    for (let i = 1; i <= 20; i++) {
+        DYNAMIC_CHARACTERS.push({
+            name: `Personagem (${i})`,
+            img: `images/personagens/Personagem (${i}).png`
+        });
+    }
     
     const THEATER_SCENARIOS = {
-        "cenarios externos": { baseName: "externo", count: 10 },
-        "cenarios internos": { baseName: "interno", count: 10 },
-        "cenas": { baseName: "cena", count: 10 },
-        "fichas": { baseName: "ficha", count: 10 },
-        "objetos": { baseName: "objeto", count: 10 },
-        "outros": { baseName: "outro", count: 10 }
+        "cenarios externos": { baseName: "externo", count: 20 },
+        "cenarios internos": { baseName: "interno", count: 20 },
+        "cenas": { baseName: "cena", count: 20 },
+        "fichas": { baseName: "ficha", count: 20 },
+        "objetos": { baseName: "objeto", count: 20 },
+        "outros": { baseName: "outro", count: 20 }
     };
 
     let linkInitialized = false; // Flag unificada para links
@@ -500,6 +501,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeToken = null;
     let activeTokenId = null; 
     let currentScenarioScale = 1.0;
+    let isDraggingScenario = false;
+    let lastMouseX, lastMouseY;
 
     function updateTheaterZoom() {
         const globalTokenScale = isGm ? parseFloat(theaterGlobalScale.value) : 1;
@@ -521,7 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('keydown', (e) => {
             if (!isGm) return;
             
-            // Cheats para modo de luta
             if (currentGameState && currentGameState.mode !== 'theater') {
                 if (e.key.toLowerCase() === 'c') {
                     e.preventDefault();
@@ -538,7 +540,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Cheats para modo teatro
             if (activeToken) {
                  if (e.key === 'Delete') {
                     e.preventDefault();
@@ -688,20 +689,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.addEventListener('mousemove', onMouseMoveToken);
                 window.addEventListener('mouseup', onMouseUpToken);
             } else if (e.target === theaterBackgroundImage || e.target === theaterBackgroundViewport) {
-                 // Lógica de arrastar cenário
                 isDraggingScenario = true;
                 theaterBackgroundViewport.style.cursor = 'grabbing';
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
-                startScrollX = theaterBackgroundViewport.scrollLeft;
-                startScrollY = theaterBackgroundViewport.scrollTop;
 
                 const onMouseMoveScenario = (moveEvent) => {
                     if (!isDraggingScenario) return;
                     const dx = moveEvent.clientX - lastMouseX;
                     const dy = moveEvent.clientY - lastMouseY;
-                    theaterBackgroundViewport.scrollLeft = startScrollX - dx;
-                    theaterBackgroundViewport.scrollTop = startScrollY - dy;
+                    theaterBackgroundViewport.scrollLeft -= dx;
+                    theaterBackgroundViewport.scrollTop -= dy;
+                    lastMouseX = moveEvent.clientX;
+                    lastMouseY = moveEvent.clientY;
                 };
 
                 const onMouseUpScenario = () => {
@@ -715,7 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.addEventListener('mouseup', onMouseUpScenario);
             }
         });
-    
+        
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
             if (currentGameState.mode !== 'theater') return;
             
