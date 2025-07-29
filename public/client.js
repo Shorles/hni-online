@@ -43,7 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const charSelectBackBtn = document.getElementById('char-select-back-btn');
     const specialMovesBackBtn = document.getElementById('special-moves-back-btn');
     const lobbyBackBtn = document.getElementById('lobby-back-btn');
-    const exitGameBtn = document.getElementById('exit-game-btn');
+    const arenaExitBtn = document.getElementById('exit-game-btn');
+    const fightBackBtn = document.getElementById('fight-back-btn');
+    const theaterBackBtn = document.getElementById('theater-back-btn');
     const helpBtn = document.getElementById('help-btn');
 
     const theaterScreen = document.getElementById('theater-screen');
@@ -55,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterGlobalScale = document.getElementById('theater-global-scale');
     const theaterChangeScenarioBtn = document.getElementById('theater-change-scenario-btn');
     const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
-    const theaterBackBtn = document.getElementById('theater-back-btn');
     const theaterPublishBtn = document.getElementById('theater-publish-btn');
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
@@ -140,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSpectator = urlParams.get('spectate') === 'true';
         const isTheater = urlParams.get('theater') === 'true';
 
-        [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
+        [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, arenaExitBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn, fightBackBtn].forEach(btn => btn.classList.add('hidden'));
         
         if (isTheater && currentRoomId) { showScreen(theaterScreen); socket.emit('spectateGame', currentRoomId);
         } else if (arenaPlayerKey && currentRoomId) {
@@ -155,20 +156,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         confirmBtn.addEventListener('click', onConfirmSelection);
         
-        modeClassicBtn.onclick = () => { myPlayerKey = 'player1'; showScreen(scenarioScreen); renderScenarioSelection('classic'); charSelectBackBtn.classList.remove('hidden'); specialMovesBackBtn.classList.remove('hidden'); lobbyBackBtn.classList.remove('hidden'); copySpectatorLinkInGameBtn.classList.remove('hidden'); };
-        modeArenaBtn.onclick = () => { myPlayerKey = 'host'; exitGameBtn.classList.remove('hidden'); showScreen(scenarioScreen); renderScenarioSelection('arena'); };
-        modeTheaterBtn.onclick = () => { myPlayerKey = 'gm'; theaterBackBtn.classList.remove('hidden'); copyTheaterSpectatorLinkBtn.classList.remove('hidden'); showScreen(scenarioScreen); selectionTitle.innerText = 'Selecione o Cenário Inicial'; renderScenarioSelection('theater'); };
+        modeClassicBtn.onclick = () => { myPlayerKey = 'player1'; showScreen(scenarioScreen); renderScenarioSelection('classic'); };
+        modeArenaBtn.onclick = () => { myPlayerKey = 'host'; showScreen(scenarioScreen); renderScenarioSelection('arena'); };
+        modeTheaterBtn.onclick = () => { myPlayerKey = 'gm'; showScreen(scenarioScreen); renderScenarioSelection('theater'); };
 
         charSelectBackBtn.addEventListener('click', () => showScreen(scenarioScreen));
-        specialMovesBackBtn.addEventListener('click', () => { alert('A partida já foi criada no servidor. Para alterar o personagem, a página será recarregada.'); location.reload(); });
+        specialMovesBackBtn.addEventListener('click', () => { showScreen(selectionScreen); });
         lobbyBackBtn.addEventListener('click', () => { specialMovesModal.classList.remove('hidden'); });
         
-        const exitAndReload = () => {
-            showInfoModal("Sair da Partida", `<p>Tem certeza que deseja voltar ao menu principal? A sessão atual será encerrada.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-exit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Sair</button><button id="cancel-exit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Ficar</button></div>`);
-            document.getElementById('confirm-exit-btn').onclick = () => { socket.disconnect(); window.location.href = '/'; }; document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
+        const gmExitHandler = () => {
+             showInfoModal("Voltar ao Menu", `<p>Tem certeza que deseja voltar ao menu de seleção de modo?</p><p>A sala atual será encerrada e todos os jogadores/espectadores irão com você para a próxima.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-exit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Voltar</button><button id="cancel-exit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Ficar</button></div>`);
+            document.getElementById('confirm-exit-btn').onclick = () => { socket.emit('gmGoBackToMenu', { roomId: currentRoomId }); modal.classList.add('hidden'); showScreen(modeSelectionScreen); }; document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         };
-        exitGameBtn.addEventListener('click', exitAndReload);
-        theaterBackBtn.addEventListener('click', exitAndReload);
+        arenaExitBtn.addEventListener('click', gmExitHandler);
+        theaterBackBtn.addEventListener('click', gmExitHandler);
+        fightBackBtn.addEventListener('click', gmExitHandler);
+
         p1Controls.addEventListener('click', handlePlayerControlClick);
         p2Controls.addEventListener('click', handlePlayerControlClick);
         helpBtn.addEventListener('click', showHelpModal);
@@ -219,8 +222,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const tabsContainer = document.getElementById('scenario-category-tabs');
         tabsContainer.innerHTML = '';
         scenarioListContainer.innerHTML = '';
+        document.getElementById('scenario-title').innerText = 'Selecione o Cenário';
 
         if (mode === 'theater') {
+            document.getElementById('scenario-title').innerText = 'Selecione o Cenário Inicial';
             tabsContainer.style.display = 'flex';
             const categories = Object.keys(THEATER_SCENARIOS);
 
@@ -289,7 +294,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
             specialMovesModal.classList.add('hidden');
             showScreen(lobbyScreen);
-            lobbyBackBtn.classList.remove('hidden');
             lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
         };
     });
@@ -333,16 +337,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
+    socket.on('gmLeftForMenu', () => {
+        myPlayerKey = 'spectator';
+        isGm = false;
+        currentRoomId = null;
+        showScreen(lobbyScreen);
+        lobbyContent.innerHTML = `<p>O anfitrião voltou ao menu. Aguardando a próxima atividade...</p>`;
+        shareContainer.classList.add('hidden');
+    });
+
     socket.on('gameUpdate', (gameState) => {
         const oldState = currentGameState; currentGameState = gameState;
         if (gameState.mode === 'theater') {
-            if (!oldState || oldState.mode !== 'theater') { showScreen(theaterScreen); helpBtn.classList.add('hidden'); }
+            if (!fightScreen.classList.contains('active') && !arenaLobbyScreen.classList.contains('active')) {
+                showScreen(theaterScreen);
+            }
             if (isGm && !linkInitialized && currentRoomId) {
                 const specUrl = `${window.location.origin}?room=${currentRoomId}&theater=true`;
                 copyTheaterSpectatorLinkBtn.disabled = false;
                 copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
                 linkInitialized = true;
             }
+             [arenaExitBtn, fightBackBtn].forEach(btn => btn.classList.add('hidden'));
+            theaterBackBtn.classList.toggle('hidden', !isGm);
             renderTheaterMode(gameState); return;
         }
 
@@ -352,8 +369,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const shareLinkP2 = document.getElementById('share-link-p2');
             shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
             lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
-            const shareLinkSpectator = document.getElementById('share-link-spectator');
-            shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
             linkInitialized = true;
         }
         const oldPhase = oldState ? oldState.phase : null;
@@ -365,7 +380,18 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (currentGameState.mode === 'arena') { gameWrapper.classList.add('mode-arena'); gameWrapper.classList.remove('mode-classic'); }
         const wasInPreGame = !oldState || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
-        if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); helpBtn.classList.remove('hidden'); }
+        
+        if (wasInPreGame && isNowInGame) { 
+            showScreen(fightScreen);
+            theaterBackBtn.classList.add('hidden');
+            arenaExitBtn.classList.add('hidden');
+            fightBackBtn.classList.toggle('hidden', !isGm);
+        } else if (currentGameState.phase === 'arena_lobby') {
+            showScreen(arenaLobbyScreen);
+            theaterBackBtn.classList.add('hidden');
+            fightBackBtn.classList.add('hidden');
+            arenaExitBtn.classList.toggle('hidden', !isGm);
+        }
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -741,6 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 window.addEventListener('mousemove', onMouseMoveMarquee);
                 window.addEventListener('mouseup', onMouseUpMarquee);
+
             } else if (isGm && isToken) {
                 e.preventDefault();
                 const draggedToken = e.target;
@@ -801,6 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 window.addEventListener('mousemove', onMouseMoveToken);
                 window.addEventListener('mouseup', onMouseUpToken);
+
             } else if (!isToken && !(isGm && isGroupSelectMode)) {
                 isDraggingScenario = true;
                 theaterBackgroundViewport.style.cursor = 'grabbing';
@@ -929,7 +957,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
-    socket.on('assignPlayer', (data) => { myPlayerKey = data.playerKey; isGm = data.isGm; if (myPlayerKey === 'host') exitGameBtn.classList.remove('hidden'); });
+    socket.on('assignPlayer', (data) => { myPlayerKey = data.playerKey; isGm = data.isGm; if (myPlayerKey === 'host') arenaExitBtn.classList.remove('hidden'); });
     socket.on('promptRoll', ({ targetPlayerKey, text, action }) => {
         let btn = document.getElementById(`${targetPlayerKey}-roll-btn`); const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
         const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); btn = newBtn;

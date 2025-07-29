@@ -53,7 +53,7 @@
                 <p>Aguardando conexão...</p>
             </div>
         </div>
-        <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
+        <button id="exit-game-btn" class="back-btn" title="Voltar ao Menu Principal">⌂</button>
     </div>
 
     <!-- TELA DE SELEÇÃO DE CENÁRIO (REUTILIZADA) -->
@@ -66,8 +66,10 @@
     <!-- TELA DO MODO TEATRO -->
     <div id="theater-screen" class="screen">
         <div id="theater-background-viewport">
-            <img id="theater-background-image" src="" alt="Cenário do Teatro">
-            <div id="theater-token-container"></div>
+            <div id="theater-world-container">
+                <img id="theater-background-image" src="" alt="Cenário do Teatro">
+                <div id="theater-token-container"></div>
+            </div>
             <div id="selection-box" class="hidden"></div>
         </div>
 
@@ -95,7 +97,7 @@
                 <p><b>Delete:</b> Excluir</p>
             </div>
         </div>
-        <button id="theater-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
+        <button id="theater-back-btn" class="back-btn" title="Voltar ao Menu Principal">⌂</button>
     </div>
 
 
@@ -107,9 +109,9 @@
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
 
-    <!-- TELA DE LOBBY (MODO CLÁSSICO) -->
+    <!-- TELA DE LOBBY (MODO CLÁSSICO / ESPERA) -->
     <div id="lobby-screen" class="screen">
-        <button id="lobby-back-btn" class="back-btn" title="Voltar para Golpes">←</button>
+        <button id="lobby-back-btn" class="back-btn hidden" title="Voltar para Golpes">←</button>
         <h1>Hajime no Ippo: Batalha Online</h1>
         <div id="lobby-content">
             <p>Aguardando conexão...</p>
@@ -125,6 +127,7 @@
 
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
+        <button id="fight-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
         <div id="gm-cheats-panel" class="hidden">
             <h4>Atalhos GM</h4>
             <p><b>C:</b> Pausar / Cheats</p>
