@@ -139,7 +139,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = urlParams.get('room');
         const arenaPlayerKey = urlParams.get('player');
         const isSpectator = urlParams.get('spectate') === 'true';
-        // Note: isTheater is removed, as spectators now follow the GM's mode
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
@@ -183,6 +182,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function onConfirmSelection() {
         const selectedCard = document.querySelector('.char-card.selected'); if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
+        
+        if (currentGameState && currentGameState.phase === 'gm_classic_setup') {
+            playerData.agi = selectedCard.querySelector('.agi-input').value; 
+            playerData.res = selectedCard.querySelector('.res-input').value;
+            confirmBtn.disabled = true;
+            socket.emit('playerAction', { type: 'gm_confirm_p1_setup', player1Data: playerData });
+            return;
+        }
+
         if (myPlayerKey === 'player1' && !currentRoomId) {
             playerData.agi = selectedCard.querySelector('.agi-input').value; playerData.res = selectedCard.querySelector('.res-input').value;
             confirmBtn.disabled = true; socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
@@ -366,22 +374,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldState = currentGameState;
         currentGameState = gameState;
         
-        const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
+        const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup'];
         
-        // Logic for spectator screen transition
         if (myPlayerKey === 'spectator' && oldState && oldState.mode === 'theater' && gameState.mode !== 'theater' && PRE_GAME_PHASES.includes(gameState.phase)) {
-            // GM is setting up a new fight. Spectator keeps seeing the theater screen for now.
-            // We just update the internal state but don't re-render the whole screen.
             console.log("GM is setting up a new mode. Spectator view is paused on Theater.");
             return;
         }
 
         const oldMode = oldState ? oldState.mode : null;
         if (gameState.mode !== oldMode) {
-             linkInitialized = false; // Reset link sharing status on mode change
+             linkInitialized = false;
         }
         
-        // Show the correct screen based on the new game state
         switch(gameState.mode) {
             case 'theater':
                 showScreen(theaterScreen);
@@ -394,10 +398,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTheaterMode(gameState);
                 break;
             case 'classic':
+                 if (gameState.phase === 'gm_classic_setup' && isGm) {
+                    showScreen(selectionScreen);
+                    selectionTitle.innerText = 'GM (P1): Selecione seu Lutador';
+                    confirmBtn.innerText = 'Confirmar para Iniciar';
+                    confirmBtn.disabled = false;
+                    renderCharacterSelection('p1', true);
+                } else if (PRE_GAME_PHASES.includes(gameState.phase)) {
+                    showScreen(lobbyScreen);
+                } else {
+                    showScreen(fightScreen);
+                }
+                break;
             case 'arena':
                 if (PRE_GAME_PHASES.includes(gameState.phase)) {
-                    if (gameState.mode === 'arena') showScreen(arenaLobbyScreen);
-                    else showScreen(lobbyScreen);
+                    showScreen(arenaLobbyScreen);
                 } else {
                     showScreen(fightScreen);
                 }
@@ -438,20 +453,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
 
-        // Show/hide GM-only buttons
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
-        if (state.mode === 'theater') {
-            helpBtn.classList.add('hidden');
-        } else {
-            helpBtn.classList.remove('hidden');
-        }
+        helpBtn.classList.toggle('hidden', state.mode === 'theater');
 
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
-        if (isGm && state.mode !== 'theater') {
-             document.getElementById('gm-cheats-panel').classList.remove('hidden');
-        } else {
-            document.getElementById('gm-cheats-panel').classList.add('hidden');
-        }
+        document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
 
         if(isGm) {
             const cheatIndicator = document.getElementById('dice-cheat-indicator'); let cheatText = '';
@@ -489,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state.phase === 'gameover') roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
         else if (state.phase === 'double_knockdown') roundInfoEl.innerHTML = `<span class="turn-highlight">QUEDA DUPLA!</span>`;
         else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
-        else if (state.phase && state.phase.startsWith('arena_')) roundInfoEl.innerHTML = `Aguardando início...`;
+        else if (state.phase && (state.phase.startsWith('arena_') || state.phase === 'gm_classic_setup')) roundInfoEl.innerHTML = `Aguardando início...`;
         else if (state.mode !== 'theater') {
             const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome.replace(/-SD$/, '') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
@@ -790,8 +796,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const startX = e.clientX - containerRect.left;
                 const startY = e.clientY - containerRect.top;
                 
-                selectionBox.style.left = `${startX}px`;
-                selectionBox.style.top = `${startY}px`;
+                selectionBox.style.left = `${startX / currentScenarioScale}px`;
+                selectionBox.style.top = `${startY / currentScenarioScale}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
@@ -802,10 +808,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const width = currentX - startX;
                     const height = currentY - startY;
 
-                    selectionBox.style.width = `${Math.abs(width)}px`;
-                    selectionBox.style.height = `${Math.abs(height)}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
+                    selectionBox.style.width = `${Math.abs(width) / currentScenarioScale}px`;
+                    selectionBox.style.height = `${Math.abs(height) / currentScenarioScale}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX) / currentScenarioScale}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY) / currentScenarioScale}px`;
                 };
 
                 const onMouseUpMarquee = () => {
@@ -814,26 +820,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
                         selectedTokens.clear();
                     }
-
-                    const boxRectScaled = {
-                        left: parseFloat(selectionBox.style.left) * currentScenarioScale,
-                        top: parseFloat(selectionBox.style.top) * currentScenarioScale,
-                        right: (parseFloat(selectionBox.style.left) + parseFloat(selectionBox.style.width)) * currentScenarioScale,
-                        bottom: (parseFloat(selectionBox.style.top) + parseFloat(selectionBox.style.height)) * currentScenarioScale
-                    };
-
+                    
+                    const boxRect = selectionBox.getBoundingClientRect();
+                    
                     document.querySelectorAll('.theater-token').forEach(token => {
                         const tokenRect = token.getBoundingClientRect();
-                        const worldContainerRect = worldContainer.getBoundingClientRect();
-
-                        const tokenRectRelativeToWorld = {
-                            left: tokenRect.left - worldContainerRect.left,
-                            top: tokenRect.top - worldContainerRect.top,
-                            right: tokenRect.right - worldContainerRect.left,
-                            bottom: tokenRect.bottom - worldContainerRect.top,
-                        };
                         
-                        const isIntersecting = !(tokenRectRelativeToWorld.right < boxRectScaled.left || tokenRectRelativeToWorld.left > boxRectScaled.right || tokenRectRelativeToWorld.bottom < boxRectScaled.top || tokenRectRelativeToWorld.top > boxRectScaled.bottom);
+                        const isIntersecting = !(tokenRect.right < boxRect.left || tokenRect.left > boxRect.right || tokenRect.bottom < boxRect.top || tokenRect.top > boxRect.bottom);
 
                         if (isIntersecting) {
                             token.classList.add('selected');

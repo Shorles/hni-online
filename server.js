@@ -436,6 +436,7 @@ function isActionValid(state, action) {
         return reactor.pa >= move.cost;
     }
     switch (state.phase) {
+        case 'gm_classic_setup': return type === 'gm_confirm_p1_setup' && isGm;
         case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
         case 'p2_stat_assignment': return type === 'set_p2_stats' && playerKey === 'player1';
         case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
@@ -658,7 +659,6 @@ io.on('connection', (socket) => {
 
         const playerKey = action.playerKey;
         switch (action.type) {
-             // NEW MODE SWITCHING ACTION
             case 'gm_switch_mode':
                 const { targetMode, scenario } = action;
                 let newState;
@@ -666,21 +666,21 @@ io.on('connection', (socket) => {
                 let newSpectators = [];
 
                 const allUserIds = [...room.players.map(p => p.id), ...room.spectators.filter(id => id !== action.gmSocketId), action.gmSocketId ];
-                const uniqueUserIds = [...new Set(allUserIds)]; // Ensure no duplicates
+                const uniqueUserIds = [...new Set(allUserIds)];
                 
                 if (targetMode === 'theater') {
                     newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
                     newState.gmId = action.gmSocketId;
                     newSpectators = uniqueUserIds.filter(id => id !== action.gmSocketId);
-                } else { // classic or arena
+                } else {
                     newState = createNewGameState();
                     newState.mode = targetMode;
                     newState.gmId = action.gmSocketId;
                     newState.scenario = scenario || 'Ringue.png';
                     
                     if (targetMode === 'classic') {
-                        newState.phase = 'p1_special_moves_selection';
-                        logMessage(newState, 'GM iniciou o modo Clássico. Aguardando configuração do P1...');
+                        newState.phase = 'gm_classic_setup';
+                        logMessage(newState, 'GM iniciou o modo Clássico. Aguardando GM (P1) escolher personagem...');
                         newPlayers.push({ id: action.gmSocketId, playerKey: 'player1' });
                         newSpectators = uniqueUserIds.filter(id => id !== action.gmSocketId);
                     } else if (targetMode === 'arena') {
@@ -695,7 +695,6 @@ io.on('connection', (socket) => {
                 room.players = newPlayers;
                 room.spectators = newSpectators;
                 
-                // Reassign roles to all clients in the room
                 io.to(action.gmSocketId).emit('assignPlayer', { playerKey: newState.hostId ? 'host' : (newState.mode === 'classic' ? 'player1' : 'gm'), isGm: true });
                 newSpectators.forEach(id => {
                     io.to(id).emit('assignPlayer', { playerKey: 'spectator', isGm: false });
@@ -703,10 +702,17 @@ io.on('connection', (socket) => {
 
                 if (targetMode === 'arena') {
                     io.to(action.gmSocketId).emit('arenaRoomCreated', roomId);
-                } else if (targetMode === 'classic') {
+                } else if (targetMode === 'classic' && newState.phase === 'gm_classic_setup') {
                      io.to(action.gmSocketId).emit('roomCreated', roomId);
                 }
                 break;
+            
+            case 'gm_confirm_p1_setup':
+                state.fighters.player1 = createNewFighterState(action.player1Data);
+                logMessage(state, `GM definiu ${action.player1Data.nome} como Jogador 1.`);
+                state.phase = 'p1_special_moves_selection';
+                break;
+
             // THEATER MODE ACTIONS
             case 'updateGlobalScale':
                 state.globalTokenScale = action.scale;
@@ -1050,8 +1056,6 @@ io.on('connection', (socket) => {
                             
                             const p1Up = p1Status === 'success';
                             const p2Up = p2Status === 'success';
-
-                            let gameOver = false;
                             
                             if (p1Up && p2Up) {
                                 logMessage(state, `INCRÍVEL! Ambos se levantam e a luta continua!`, 'log-crit');
@@ -1059,16 +1063,11 @@ io.on('connection', (socket) => {
                                 state.phase = 'turn'; state.doubleKnockdownInfo = null;
                             } else if ( (p1Up && p2Status === 'fail_tko') || (p1Up && !p2Up && isFinalAttempt) ) {
                                 state.phase = 'gameover'; state.winner = 'player1'; state.reason = `${state.fighters.player1.nome} se levantou, mas ${state.fighters.player2.nome} não! Vitória por Nocaute!`;
-                                gameOver = true;
                             } else if ( (p2Up && p1Status === 'fail_tko') || (p2Up && !p1Up && isFinalAttempt) ) {
                                 state.phase = 'gameover'; state.winner = 'player2'; state.reason = `${state.fighters.player2.nome} se levantou, mas ${state.fighters.player1.nome} não! Vitória por Nocaute!`;
-                                gameOver = true;
                             } else if (isFinalAttempt) {
                                 state.phase = 'gameover'; state.winner = 'draw'; state.reason = `Nenhum dos lutadores conseguiu se levantar. A luta termina em empate!`;
-                                gameOver = true;
-                            }
-                            
-                            if (!gameOver) {
+                            } else {
                                 logMessage(state, `A contagem continua...`, 'log-miss');
                                 dki.readyStatus = {
                                     player1: dki.getUpStatus.player1 === 'success' || dki.getUpStatus.player1 === 'fail_tko',
