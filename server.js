@@ -85,11 +85,13 @@ function createNewTheaterState(scenario) {
         mode: 'theater',
         gmId: null,
         log: [{ text: "Modo Teatro iniciado."}],
+        // Staging state for GM
         scenario: scenario,
         tokens: {},
         tokenOrder: [],
         globalTokenScale: 1.0,
         isStaging: false,
+        // Public state for Spectators
         publicState: {
             scenario: scenario,
             tokens: {},
@@ -530,25 +532,6 @@ function dispatchAction(room) {
         default: io.to(roomId).emit('hideModal'); return;
     }
 }
-
-// Helper function to bring followers to a new room
-function bringFollowersToNewRoom(socket, newRoomId) {
-    if (socket.followers && socket.followers.length > 0) {
-        const room = games[newRoomId];
-        socket.followers.forEach(followerId => {
-            const followerSocket = io.sockets.sockets.get(followerId);
-            if (followerSocket) {
-                followerSocket.join(newRoomId);
-                followerSocket.currentRoomId = newRoomId;
-                room.spectators.push(followerSocket.id);
-                followerSocket.emit('assignPlayer', { playerKey: 'spectator', isGm: false });
-                followerSocket.emit('gameUpdate', room.state);
-            }
-        });
-        delete socket.followers;
-    }
-}
-
 io.on('connection', (socket) => {
     socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);
@@ -560,10 +543,7 @@ io.on('connection', (socket) => {
         newState.gmId = socket.id;
         newState.fighters.player1 = createNewFighterState(player1Data);
         newState.phase = 'p1_special_moves_selection';
-        games[newRoomId] = { id: newRoomId, hostId: socket.id, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
-        
-        bringFollowersToNewRoom(socket, newRoomId);
-
+        games[newRoomId] = { id: newRoomId, hostId: null, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
         socket.emit('assignPlayer', {playerKey: 'player1', isGm: true});
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
@@ -576,34 +556,14 @@ io.on('connection', (socket) => {
         const newState = createNewTheaterState(scenario);
         newState.gmId = socket.id;
         newState.publicState.scenario = newState.scenario;
+        newState.publicState.tokens = JSON.parse(JSON.stringify(newState.tokens));
+        newState.publicState.tokenOrder = [...newState.tokenOrder];
         
-        games[newRoomId] = { id: newRoomId, hostId: socket.id, players: [], spectators: [], state: newState };
-
-        bringFollowersToNewRoom(socket, newRoomId);
-        
+        games[newRoomId] = { id: newRoomId, hostId: null, players: [], spectators: [], state: newState };
         socket.emit('assignPlayer', { playerKey: 'gm', isGm: true });
         socket.emit('roomCreated', newRoomId);
         io.to(socket.id).emit('gameUpdate', newState);
-    });
-
-    socket.on('createArenaGame', ({ scenario }) => {
-        const newRoomId = uuidv4().substring(0, 6);
-        socket.join(newRoomId);
-        socket.currentRoomId = newRoomId;
-        const newState = createNewGameState();
-        newState.scenario = scenario;
-        newState.mode = 'arena';
-        newState.hostId = socket.id;
-        newState.gmId = socket.id;
-        newState.phase = 'arena_lobby';
-        logMessage(newState, "Lobby da Arena criado. Aguardando jogadores...");
-        games[newRoomId] = { id: newRoomId, hostId: socket.id, players: [], spectators: [], state: newState };
-        
-        bringFollowersToNewRoom(socket, newRoomId);
-        
-        socket.emit('assignPlayer', {playerKey: 'host', isGm: true});
-        socket.emit('arenaRoomCreated', newRoomId);
-        io.to(socket.id).emit('gameUpdate', newState);
+        dispatchAction(games[newRoomId]);
     });
 
     socket.on('joinGame', ({ roomId, player2Data }) => {
@@ -620,7 +580,22 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('gameUpdate', state);
         dispatchAction(room);
     });
-    
+    socket.on('createArenaGame', ({ scenario }) => {
+        const newRoomId = uuidv4().substring(0, 6);
+        socket.join(newRoomId);
+        socket.currentRoomId = newRoomId;
+        const newState = createNewGameState();
+        newState.scenario = scenario;
+        newState.mode = 'arena';
+        newState.hostId = socket.id;
+        newState.gmId = socket.id;
+        newState.phase = 'arena_lobby';
+        logMessage(newState, "Lobby da Arena criado. Aguardando jogadores...");
+        games[newRoomId] = { id: newRoomId, hostId: socket.id, players: [], spectators: [], state: newState };
+        socket.emit('assignPlayer', {playerKey: 'host', isGm: true});
+        socket.emit('arenaRoomCreated', newRoomId);
+        io.to(socket.id).emit('gameUpdate', newState);
+    });
     socket.on('joinArenaGame', ({ roomId, playerKey }) => {
         const room = games[roomId];
         if (!room || room.state.mode !== 'arena') { socket.emit('error', { message: 'Sala de arena não encontrada.' }); return; }
@@ -1064,30 +1039,6 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('gameUpdate', room.state);
         dispatchAction(room);
     });
-
-    socket.on('gmGoBackToMenu', ({ roomId }) => {
-        const room = games[roomId];
-        if (!room || socket.id !== room.hostId) return;
-
-        socket.followers = [];
-        room.players.forEach(p => {
-            if (p.id !== socket.id) socket.followers.push(p.id);
-        });
-        room.spectators.forEach(sId => {
-            if (sId !== socket.id) socket.followers.push(sId);
-        });
-
-        socket.followers.forEach(followerId => {
-            const followerSocket = io.sockets.sockets.get(followerId);
-            if (followerSocket) {
-                followerSocket.emit('gmLeftForMenu');
-                followerSocket.leave(roomId);
-            }
-        });
-
-        delete games[roomId];
-    });
-
     socket.on('disconnect', () => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId]) return;
