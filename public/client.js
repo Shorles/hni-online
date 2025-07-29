@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
     const DYNAMIC_CHARACTERS = [];
-    for (let i = 1; i <= 20; i++) {
+    for (let i = 1; i <= 50; i++) {
         DYNAMIC_CHARACTERS.push({
             name: `Personagem (${i})`,
             img: `images/personagens/Personagem (${i}).png`
@@ -79,12 +79,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     const THEATER_SCENARIOS = {
-        "cenarios externos": { baseName: "externo", count: 20 },
-        "cenarios internos": { baseName: "interno", count: 20 },
-        "cenas": { baseName: "cena", count: 20 },
-        "fichas": { baseName: "ficha", count: 20 },
-        "objetos": { baseName: "objeto", count: 20 },
-        "outros": { baseName: "outro", count: 20 }
+        "cenarios externos": { baseName: "externo", count: 30 },
+        "cenarios internos": { baseName: "interno", count: 30 },
+        "cenas": { baseName: "cena", count: 30 },
+        "fichas": { baseName: "ficha", count: 30 },
+        "objetos": { baseName: "objeto", count: 30 },
+        "outros": { baseName: "outro", count: 30 }
     };
 
     let linkInitialized = false; // Flag unificada para links
