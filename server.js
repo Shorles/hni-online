@@ -81,17 +81,21 @@ function createNewGameState() {
 }
 
 function createNewTheaterState(scenario) {
-    const baseScene = {
-        scenario: scenario,
-        tokens: {}, 
-        tokenOrder: [],
-    };
     return {
         mode: 'theater',
         gmId: null,
         log: [{ text: "Modo Teatro iniciado."}],
-        gmState: JSON.parse(JSON.stringify(baseScene)),         // O que o GM vê
-        spectatorState: JSON.parse(JSON.stringify(baseScene))  // O que os espectadores veem
+        // Staging state for GM
+        scenario: scenario,
+        tokens: {}, // Ex: { tokenId: { charName, img, x, y, scale, isFlipped } }
+        tokenOrder: [], // Controla a ordem de renderização (z-index)
+        isStaging: false, // true when GM changes scenario but hasn't published
+        // Public state for Spectators
+        publicState: {
+            scenario: scenario,
+            tokens: {},
+            tokenOrder: []
+        }
     };
 }
 
@@ -405,7 +409,7 @@ function isActionValid(state, action) {
     const isGm = gmSocketId === state.gmId;
 
     if (state.mode === 'theater') {
-        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publishScene') && isGm;
+        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage') && isGm;
     }
 
     const move = state.moves[action.move];
@@ -549,10 +553,15 @@ io.on('connection', (socket) => {
         socket.currentRoomId = newRoomId;
         const newState = createNewTheaterState(scenario);
         newState.gmId = socket.id;
+        // The first "publish" to set the initial state for spectators
+        newState.publicState.scenario = newState.scenario;
+        newState.publicState.tokens = JSON.parse(JSON.stringify(newState.tokens));
+        newState.publicState.tokenOrder = [...newState.tokenOrder];
+        
         games[newRoomId] = { id: newRoomId, hostId: null, players: [], spectators: [], state: newState };
         socket.emit('assignPlayer', { playerKey: 'gm', isGm: true });
         socket.emit('roomCreated', newRoomId);
-        io.to(socket.id).emit('gameUpdate', { mode: 'theater', scene: newState.gmState });
+        io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
     });
 
@@ -622,17 +631,9 @@ io.on('connection', (socket) => {
         room.spectators.push(socket.id);
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', {playerKey: 'spectator', isGm: false});
-        
-        let gameStateToSend = room.state;
-        if (room.state.mode === 'theater') {
-            gameStateToSend = { mode: 'theater', scene: room.state.spectatorState };
-        }
-        socket.emit('gameUpdate', gameStateToSend);
-
-        if (room.state.log) {
-            logMessage(room.state, 'Um espectador entrou na sala.');
-            io.to(roomId).emit('gameUpdate', room.state);
-        }
+        socket.emit('gameUpdate', room.state); // Send the full state, client will handle what to show
+        logMessage(room.state, 'Um espectador entrou na sala.');
+        io.to(roomId).emit('gameUpdate', room.state);
     });
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
@@ -653,50 +654,74 @@ io.on('connection', (socket) => {
         }
 
         const playerKey = action.playerKey;
-        
-        // Handle Theater mode actions
-        if (state.mode === 'theater') {
-            const gmScene = state.gmState;
-            switch(action.type) {
-                case 'updateToken':
-                    if (action.token.remove) {
-                        delete gmScene.tokens[action.token.id];
-                        gmScene.tokenOrder = gmScene.tokenOrder.filter(id => id !== action.token.id);
-                    } else {
-                        if (!gmScene.tokens[action.token.id]) {
-                            gmScene.tokens[action.token.id] = { isFlipped: false };
-                            gmScene.tokenOrder.push(action.token.id);
-                        }
-                        Object.assign(gmScene.tokens[action.token.id], action.token);
-                    }
-                    break;
-                case 'changeTokenOrder':
-                    const { tokenId, direction } = action;
-                    const order = gmScene.tokenOrder;
-                    const currentIndex = order.indexOf(tokenId);
-                    if (currentIndex === -1) break;
-
-                    if (direction === 'forward' && currentIndex < order.length - 1) {
-                        [order[currentIndex], order[currentIndex + 1]] = [order[currentIndex + 1], order[currentIndex]];
-                    } else if (direction === 'backward' && currentIndex > 0) {
-                        [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
-                    }
-                    break;
-                case 'changeScenario':
-                    gmScene.scenario = action.scenario;
-                    break;
-                case 'publishScene':
-                    state.spectatorState = JSON.parse(JSON.stringify(state.gmState));
-                    io.to(roomId).emit('gameUpdate', { mode: 'theater', scene: state.spectatorState });
-                    return; // Retorna para não enviar o update do GM
-            }
-            // Send update only to GM
-            io.to(state.gmId).emit('gameUpdate', { mode: 'theater', scene: state.gmState });
-            return; // Impede o fluxo normal de update
-        }
-
-        // Handle Fight mode actions
         switch (action.type) {
+            // THEATER MODE ACTIONS
+            case 'publish_stage':
+                // Deep copy the staging state to the public state
+                state.publicState.scenario = state.scenario;
+                state.publicState.tokens = JSON.parse(JSON.stringify(state.tokens)); // Deep copy
+                state.publicState.tokenOrder = [...state.tokenOrder]; // Shallow copy is fine
+                state.isStaging = false;
+                logMessage(state, 'GM publicou a nova cena para os espectadores.');
+                break;
+            case 'updateToken':
+                if (action.token.remove) {
+                    if (Array.isArray(action.token.ids)) { // Handle group deletion
+                        action.token.ids.forEach(idToRemove => {
+                            delete state.tokens[idToRemove];
+                            state.tokenOrder = state.tokenOrder.filter(id => id !== idToRemove);
+                        });
+                    } else { // Handle single deletion
+                        delete state.tokens[action.token.id];
+                        state.tokenOrder = state.tokenOrder.filter(id => id !== action.token.id);
+                    }
+                } else if (action.token.updates) { // Handle group updates (e.g., movement)
+                     action.token.updates.forEach(update => {
+                        if (state.tokens[update.id]) {
+                            Object.assign(state.tokens[update.id], update);
+                        }
+                    });
+                }
+                else { // Handle single creation/update
+                    if (!state.tokens[action.token.id]) {
+                        state.tokens[action.token.id] = { isFlipped: false };
+                        state.tokenOrder.push(action.token.id);
+                    }
+                    Object.assign(state.tokens[action.token.id], action.token);
+                }
+                // If not in staging, update public state in real-time
+                if (!state.isStaging) {
+                    state.publicState.tokens = JSON.parse(JSON.stringify(state.tokens));
+                    state.publicState.tokenOrder = [...state.tokenOrder];
+                }
+                break;
+            case 'changeTokenOrder':
+                const { tokenId, direction } = action;
+                const order = state.tokenOrder;
+                const currentIndex = order.indexOf(tokenId);
+                if (currentIndex === -1) break;
+
+                if (direction === 'forward' && currentIndex < order.length - 1) {
+                    [order[currentIndex], order[currentIndex + 1]] = [order[currentIndex + 1], order[currentIndex]];
+                } else if (direction === 'backward' && currentIndex > 0) {
+                    [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
+                }
+                // If not in staging, update public state in real-time
+                if (!state.isStaging) {
+                    state.publicState.tokenOrder = [...state.tokenOrder];
+                }
+                break;
+            case 'changeScenario':
+                state.scenario = action.scenario;
+                // Clear tokens for the new scene for the GM
+                state.tokens = {};
+                state.tokenOrder = [];
+                // Set the staging flag. Spectators will still see the old publicState.
+                state.isStaging = true; 
+                logMessage(state, `GM está preparando um novo cenário: ${action.scenario}`);
+                break;
+
+            // BATTLE MODE ACTIONS
             case 'toggle_dice_cheat':
                 if (state.diceCheat === action.cheat) {
                     state.diceCheat = null;

@@ -65,11 +65,10 @@
     
     <!-- TELA DO MODO TEATRO -->
     <div id="theater-screen" class="screen">
-        <div id="selection-mode-indicator" class="hidden">Modo de Seleção (G)</div>
         <div id="theater-background-viewport">
             <img id="theater-background-image" src="" alt="Cenário do Teatro">
-            <div id="selection-box" class="hidden"></div>
             <div id="theater-token-container"></div>
+            <div id="selection-box" class="hidden"></div>
         </div>
 
         <button id="copy-theater-spectator-link" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
@@ -86,15 +85,14 @@
                 <label for="theater-global-scale">Escala Global:</label>
                 <input type="range" id="theater-global-scale" min="0.2" max="3" step="0.1" value="1">
                 <button id="theater-change-scenario-btn">Mudar Cenário</button>
-                <button id="publish-scene-btn">Publicar Cena</button>
+                <button id="theater-publish-btn" class="hidden">Publicar Cena</button>
             </div>
-            <div id="gm-command-legend" class="panel-section">
-                <h4>Atalhos</h4>
+             <div class="panel-section" id="theater-gm-legend">
+                <h4>Atalhos (GM)</h4>
                 <p><b>G:</b> Seleção em Grupo</p>
-                <p><b>Shift + Arrastar:</b> Adicionar</p>
-                <p><b>F:</b> Virar Token</p>
-                <p><b>Delete:</b> Excluir Token</p>
-                <p><b>↑ / ↓:</b> Mover Camada</p>
+                <p><b>F:</b> Virar Personagem</p>
+                <p><b>Setas ↑↓:</b> Mudar Camada</p>
+                <p><b>Delete:</b> Excluir</p>
             </div>
         </div>
         <button id="theater-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>

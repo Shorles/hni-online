@@ -56,11 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterChangeScenarioBtn = document.getElementById('theater-change-scenario-btn');
     const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
     const theaterBackBtn = document.getElementById('theater-back-btn');
-    const selectionBox = document.getElementById('selection-box');
-    const selectionModeIndicator = document.getElementById('selection-mode-indicator');
-    const publishSceneBtn = document.getElementById('publish-scene-btn');
-    const gmCommandLegend = document.getElementById('gm-command-legend');
-
+    const theaterPublishBtn = document.getElementById('theater-publish-btn');
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
@@ -75,21 +71,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
-    const DYNAMIC_CHARACTERS = [];
-    for (let i = 1; i <= 50; i++) {
-        DYNAMIC_CHARACTERS.push({
-            name: `Personagem (${i})`,
-            img: `images/personagens/Personagem (${i}).png`
-        });
-    }
+    const DYNAMIC_CHARACTERS = [
+        { name: 'Personagem (1)', img: 'images/personagens/Personagem (1).png' },
+        { name: 'Personagem (2)', img: 'images/personagens/Personagem (2).png' },
+        { name: 'Personagem (3)', img: 'images/personagens/Personagem (3).png' },
+        { name: 'Personagem (4)', img: 'images/personagens/Personagem (4).png' },
+    ];
     
     const THEATER_SCENARIOS = {
-        "cenarios externos": { baseName: "externo", count: 30 },
-        "cenarios internos": { baseName: "interno", count: 30 },
-        "cenas": { baseName: "cena", count: 30 },
-        "fichas": { baseName: "ficha", count: 30 },
-        "objetos": { baseName: "objeto", count: 30 },
-        "outros": { baseName: "outro", count: 30 }
+        "cenarios externos": { baseName: "externo", count: 10 },
+        "cenarios internos": { baseName: "interno", count: 10 },
+        "cenas": { baseName: "cena", count: 10 },
+        "fichas": { baseName: "ficha", count: 10 },
+        "objetos": { baseName: "objeto", count: 10 },
+        "outros": { baseName: "outro", count: 10 }
     };
 
     let linkInitialized = false; // Flag unificada para links
@@ -338,32 +333,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => {
+        const oldState = currentGameState; currentGameState = gameState;
         if (gameState.mode === 'theater') {
-            const wasTheaterBefore = currentGameState && currentGameState.mode === 'theater';
-            currentGameState = { ...gameState, scene: gameState.scene }; // Unifica a estrutura
-            if (!wasTheaterBefore) {
-                showScreen(theaterScreen);
-                helpBtn.classList.add('hidden');
-            }
+            if (!oldState || oldState.mode !== 'theater') { showScreen(theaterScreen); helpBtn.classList.add('hidden'); }
             if (isGm && !linkInitialized && currentRoomId) {
                 const specUrl = `${window.location.origin}?room=${currentRoomId}&theater=true`;
                 copyTheaterSpectatorLinkBtn.disabled = false;
                 copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
                 linkInitialized = true;
             }
-            renderTheaterMode(currentGameState.scene);
-            return;
+            renderTheaterMode(gameState); return;
         }
 
-        currentGameState = gameState;
-        const oldPhase = currentGameState ? currentGameState.phase : null;
+        if (gameState.mode === 'classic' && myPlayerKey === 'player1' && !linkInitialized && currentRoomId) {
+            const p2Url = `${window.location.origin}?room=${currentRoomId}`;
+            const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
+            const shareLinkP2 = document.getElementById('share-link-p2');
+            shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+            lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
+            const shareLinkSpectator = document.getElementById('share-link-spectator');
+            shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+            linkInitialized = true;
+        }
+        const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused'; const isNowPaused = currentGameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
         if (isNowPaused && !wasPaused) { showCheatsModal(); } else if (!isNowPaused && wasPaused) { modal.classList.add('hidden'); }
         updateUI(currentGameState);
         if (currentGameState.mode === 'classic') { gameWrapper.classList.add('mode-classic'); gameWrapper.classList.remove('mode-arena'); } 
         else if (currentGameState.mode === 'arena') { gameWrapper.classList.add('mode-arena'); gameWrapper.classList.remove('mode-classic'); }
-        const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
+        const wasInPreGame = !oldState || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); helpBtn.classList.remove('hidden'); }
     });
@@ -498,6 +497,412 @@ document.addEventListener('DOMContentLoaded', () => {
         diceOverlay.addEventListener('click', hideAndResolve, { once: true }); setTimeout(hideAndResolve, 2000); 
     }
     
+    // #region LÓGICA DO MODO TEATRO
+    let currentScenarioScale = 1.0;
+    let isGroupSelectMode = false;
+    let selectedTokens = new Set();
+    let isDraggingScenario = false;
+
+    function updateTheaterZoom() {
+        const globalTokenScale = isGm ? parseFloat(theaterGlobalScale.value) : 1;
+        
+        theaterBackgroundImage.style.transformOrigin = '0 0';
+        theaterTokenContainer.style.transformOrigin = '0 0';
+
+        theaterBackgroundImage.style.transform = `scale(${currentScenarioScale})`;
+        theaterTokenContainer.style.transform = `scale(${currentScenarioScale})`;
+
+        document.querySelectorAll('.theater-token').forEach(token => {
+            const baseScale = parseFloat(token.dataset.scale) || 1;
+            const isFlipped = token.dataset.flipped === 'true';
+            token.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
+        });
+    }
+
+    function initializeGlobalKeyListeners() {
+        window.addEventListener('keydown', (e) => {
+            if (!isGm) return;
+            
+            // Cheats para modo de luta
+            if (currentGameState && currentGameState.mode !== 'theater') {
+                if (e.key.toLowerCase() === 'c') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_pause' });
+                } else if (e.key.toLowerCase() === 't') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' });
+                } else if (e.key.toLowerCase() === 'r') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
+                } else if (e.key.toLowerCase() === 'i') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
+                }
+            }
+
+            // Atalhos para modo teatro
+            if (currentGameState && currentGameState.mode === 'theater') {
+                if (e.key.toLowerCase() === 'g') {
+                    e.preventDefault();
+                    isGroupSelectMode = !isGroupSelectMode;
+                    theaterBackgroundViewport.classList.toggle('group-select-mode', isGroupSelectMode);
+                    if (!isGroupSelectMode) {
+                        selectedTokens.clear();
+                        document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                    }
+                }
+
+                const currentSelectedTokens = document.querySelectorAll('.theater-token.selected');
+                if (currentSelectedTokens.length > 0) {
+                     if (e.key === 'Delete') {
+                        e.preventDefault();
+                        const idsToRemove = Array.from(selectedTokens);
+                        socket.emit('playerAction', { type: 'updateToken', token: { remove: true, ids: idsToRemove }});
+                        selectedTokens.clear();
+                     } else if (e.key.toLowerCase() === 'f') {
+                        e.preventDefault();
+                        currentSelectedTokens.forEach(token => {
+                            const currentTokenState = currentGameState.tokens[token.id];
+                            if (currentTokenState) {
+                                socket.emit('playerAction', { type: 'updateToken', token: { id: token.id, isFlipped: !currentTokenState.isFlipped }});
+                            }
+                        });
+                     } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        currentSelectedTokens.forEach(token => {
+                            socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'forward' });
+                        });
+                     } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        currentSelectedTokens.forEach(token => {
+                            socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'backward' });
+                        });
+                     }
+                }
+            }
+        });
+    }
+
+    function initializeTheaterMode() {
+        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
+        const theaterScreenEl = document.getElementById('theater-screen');
+        const selectionBox = document.getElementById('selection-box');
+        
+        toggleGmPanelBtn.addEventListener('click', () => { 
+            theaterScreenEl.classList.toggle('panel-hidden');
+        });
+        
+        theaterCharList.innerHTML = '';
+        Object.keys(THEATER_CHARACTERS).forEach(charName => {
+            const charImg = `images/${charName}.png`; const mini = document.createElement('div');
+            mini.className = 'theater-char-mini';
+            mini.style.backgroundImage = `url("${charImg}")`;
+            mini.title = charName; mini.draggable = true;
+            mini.addEventListener('dragstart', (e) => {
+                if (!isGm) return;
+                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: charImg }));
+            });
+            theaterCharList.appendChild(mini);
+        });
+
+        DYNAMIC_CHARACTERS.forEach(char => {
+            const mini = document.createElement('div');
+            mini.className = 'theater-char-mini';
+            mini.style.backgroundImage = `url("${char.img}")`;
+            mini.title = char.name; mini.draggable = true;
+            mini.addEventListener('dragstart', (e) => {
+                if (!isGm) return;
+                e.dataTransfer.setData('application/json', JSON.stringify({ charName: char.name, img: char.img }));
+            });
+            theaterCharList.appendChild(mini);
+        });
+    
+        theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
+    
+        theaterBackgroundViewport.addEventListener('drop', (e) => {
+            e.preventDefault(); if (!isGm) return;
+            try {
+                const dataString = e.dataTransfer.getData('application/json');
+                if (!dataString) return;
+                const data = JSON.parse(dataString);
+                const containerRect = theaterBackgroundViewport.getBoundingClientRect();
+                const x = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
+                const y = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: x - (100 / currentScenarioScale), y: y - (100 / currentScenarioScale), scale: 1, isFlipped: false };
+                socket.emit('playerAction', { type: 'updateToken', token: newToken });
+            } catch (error) { console.error("Erro ao processar o drop:", error); }
+        });
+    
+        theaterGlobalScale.addEventListener('input', updateTheaterZoom);
+        
+        theaterPublishBtn.addEventListener('click', () => {
+            showInfoModal("Publicar Cena", `<p>Deseja mostrar a cena atual para os espectadores?</p><p>Eles verão o cenário e os personagens como você os arrumou.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-publish-btn" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Publicar</button><button id="cancel-publish-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Ainda Não</button></div>`);
+            document.getElementById('confirm-publish-btn').onclick = () => { socket.emit('playerAction', { type: 'publish_stage' }); modal.classList.add('hidden'); }; document.getElementById('cancel-publish-btn').onclick = () => modal.classList.add('hidden');
+        });
+
+        theaterChangeScenarioBtn.onclick = () => {
+            const modalHtml = `
+                <div id="modal-tabs-container" style="display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; flex-wrap: wrap;"></div>
+                <div id="modal-scenarios-container" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; max-height: 400px; overflow-y: auto;"></div>
+            `;
+            showInfoModal("Mudar Cenário", modalHtml);
+
+            const tabsContainer = document.getElementById('modal-tabs-container');
+            const scenariosContainer = document.getElementById('modal-scenarios-container');
+
+            const renderCategory = (categoryName) => {
+                scenariosContainer.innerHTML = '';
+                const category = THEATER_SCENARIOS[categoryName];
+                for (let i = 1; i <= category.count; i++) {
+                    const name = `${category.baseName} (${i})`;
+                    const fileName = `mapas/${categoryName}/${name}.png`;
+                    const card = document.createElement('div');
+                    card.className = 'scenario-card';
+                    card.style.width = '200px';
+                    card.innerHTML = `<img src="images/${fileName}" alt="${name}" style="height: 100px;"><div class="scenario-name" style="font-size: 1.1em; padding: 5px;">${name}</div>`;
+                    card.onclick = () => {
+                        socket.emit('playerAction', { type: 'changeScenario', scenario: fileName });
+                        modal.classList.add('hidden');
+                    };
+                    scenariosContainer.appendChild(card);
+                }
+            };
+
+            Object.keys(THEATER_SCENARIOS).forEach((categoryName, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'category-tab-btn';
+                btn.textContent = categoryName.replace(/_/g, ' ').toUpperCase();
+                btn.onclick = (e) => {
+                    tabsContainer.querySelectorAll('.category-tab-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    renderCategory(categoryName);
+                };
+                if (index === 0) {
+                    btn.classList.add('active');
+                }
+                tabsContainer.appendChild(btn);
+            });
+            
+            renderCategory(Object.keys(THEATER_SCENARIOS)[0]);
+        };
+    
+        theaterBackgroundViewport.addEventListener('mousedown', (e) => {
+            if (!isGm) return;
+            const isToken = e.target.classList.contains('theater-token');
+
+            if (isGroupSelectMode) {
+                e.preventDefault();
+                const startX = (e.clientX - theaterBackgroundViewport.getBoundingClientRect().left + theaterBackgroundViewport.scrollLeft);
+                const startY = (e.clientY - theaterBackgroundViewport.getBoundingClientRect().top + theaterBackgroundViewport.scrollTop);
+                selectionBox.style.left = `${startX}px`;
+                selectionBox.style.top = `${startY}px`;
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.classList.remove('hidden');
+
+                const onMouseMoveMarquee = (moveEvent) => {
+                    const currentX = (moveEvent.clientX - theaterBackgroundViewport.getBoundingClientRect().left + theaterBackgroundViewport.scrollLeft);
+                    const currentY = (moveEvent.clientY - theaterBackgroundViewport.getBoundingClientRect().top + theaterBackgroundViewport.scrollTop);
+                    const width = currentX - startX;
+                    const height = currentY - startY;
+                    selectionBox.style.width = `${Math.abs(width)}px`;
+                    selectionBox.style.height = `${Math.abs(height)}px`;
+                    selectionBox.style.left = `${width < 0 ? currentX : startX}px`;
+                    selectionBox.style.top = `${height < 0 ? currentY : startY}px`;
+                };
+
+                const onMouseUpMarquee = () => {
+                    selectionBox.classList.add('hidden');
+                    
+                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                    selectedTokens.clear();
+
+                    const boxRect = selectionBox.getBoundingClientRect();
+                    document.querySelectorAll('.theater-token').forEach(token => {
+                        const tokenRect = token.getBoundingClientRect();
+                        const isIntersecting = !(tokenRect.right < boxRect.left || tokenRect.left > boxRect.right || tokenRect.bottom < boxRect.top || tokenRect.top > boxRect.bottom);
+                        if (isIntersecting) {
+                            token.classList.add('selected');
+                            selectedTokens.add(token.id);
+                        }
+                    });
+
+                    window.removeEventListener('mousemove', onMouseMoveMarquee);
+                    window.removeEventListener('mouseup', onMouseUpMarquee);
+                };
+                window.addEventListener('mousemove', onMouseMoveMarquee);
+                window.addEventListener('mouseup', onMouseUpMarquee);
+
+            } else if (isToken) {
+                e.preventDefault();
+                const draggedToken = e.target;
+                
+                // Group Dragging Logic
+                const isGroupDrag = selectedTokens.has(draggedToken.id);
+                const tokensToDrag = isGroupDrag ? Array.from(selectedTokens) : [draggedToken.id];
+                const startPositions = {};
+                
+                tokensToDrag.forEach(tokenId => {
+                    const tokenEl = document.getElementById(tokenId);
+                    startPositions[tokenId] = { x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
+                });
+
+                const startMouseX = e.clientX;
+                const startMouseY = e.clientY;
+
+                // Single-selection logic
+                if (!isGroupDrag) {
+                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                    selectedTokens.clear();
+                    draggedToken.classList.add('selected');
+                    selectedTokens.add(draggedToken.id);
+                }
+
+                function onMouseMoveToken(moveEvent) {
+                    const dx = (moveEvent.clientX - startMouseX) / currentScenarioScale;
+                    const dy = (moveEvent.clientY - startMouseY) / currentScenarioScale;
+
+                    tokensToDrag.forEach(tokenId => {
+                        const tokenEl = document.getElementById(tokenId);
+                        if(tokenEl) {
+                           tokenEl.style.left = `${startPositions[tokenId].x + dx}px`;
+                           tokenEl.style.top = `${startPositions[tokenId].y + dy}px`;
+                        }
+                    });
+                }
+
+                function onMouseUpToken() {
+                    const updates = tokensToDrag.map(tokenId => {
+                         const tokenEl = document.getElementById(tokenId);
+                         if (tokenEl) {
+                             return {
+                                 id: tokenId,
+                                 x: parseFloat(tokenEl.style.left),
+                                 y: parseFloat(tokenEl.style.top)
+                             };
+                         }
+                         return null;
+                    }).filter(Boolean); // remove nulls if any token disappeared
+                    
+                    if (updates.length > 0) {
+                        socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
+                    }
+                     
+                    window.removeEventListener('mousemove', onMouseMoveToken);
+                    window.removeEventListener('mouseup', onMouseUpToken);
+                }
+                window.addEventListener('mousemove', onMouseMoveToken);
+                window.addEventListener('mouseup', onMouseUpToken);
+
+            } else if (e.target === theaterBackgroundImage || e.target === theaterBackgroundViewport) {
+                 // Logic to drag the scenario background
+                isDraggingScenario = true;
+                theaterBackgroundViewport.style.cursor = 'grabbing';
+                let lastMouseX = e.clientX;
+                let lastMouseY = e.clientY;
+                let startScrollX = theaterBackgroundViewport.scrollLeft;
+                let startScrollY = theaterBackgroundViewport.scrollTop;
+
+                const onMouseMoveScenario = (moveEvent) => {
+                    if (!isDraggingScenario) return;
+                    const dx = moveEvent.clientX - lastMouseX;
+                    const dy = moveEvent.clientY - lastMouseY;
+                    theaterBackgroundViewport.scrollLeft = startScrollX - dx;
+                    theaterBackgroundViewport.scrollTop = startScrollY - dy;
+                };
+
+                const onMouseUpScenario = () => {
+                    isDraggingScenario = false;
+                    theaterBackgroundViewport.style.cursor = 'grab';
+                    window.removeEventListener('mousemove', onMouseMoveScenario);
+                    window.removeEventListener('mouseup', onMouseUpScenario);
+                };
+
+                window.addEventListener('mousemove', onMouseMoveScenario);
+                window.addEventListener('mouseup', onMouseUpScenario);
+            }
+        });
+    
+        theaterBackgroundViewport.addEventListener('wheel', (e) => {
+            if (currentGameState.mode !== 'theater' || !isGm) return;
+            
+            if (e.target.classList.contains('theater-token')) {
+                e.preventDefault();
+                const currentToken = e.target;
+                const isGroupResize = selectedTokens.has(currentToken.id);
+                const tokensToResize = isGroupResize ? Array.from(selectedTokens).map(id => document.getElementById(id)) : [currentToken];
+                
+                const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+
+                tokensToResize.forEach(tokenToResize => {
+                    if (tokenToResize) {
+                        const currentScale = parseFloat(tokenToResize.dataset.scale) || 1;
+                        const newScale = Math.max(0.1, currentScale + scaleAmount);
+                        tokenToResize.dataset.scale = newScale;
+                        socket.emit('playerAction', { type: 'updateToken', token: { id: tokenToResize.id, scale: newScale }});
+                    }
+                });
+
+            } else {
+                 e.preventDefault();
+                const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+                currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
+                updateTheaterZoom();
+            }
+        }, { passive: false });
+    }
+
+    function renderTheaterMode(state) {
+        // Decide which state to render from: GM sees staging, spectator sees public
+        const dataToRender = (myPlayerKey === 'spectator' && state.publicState) ? state.publicState : state;
+
+        if (dataToRender.scenario) {
+            theaterBackgroundImage.src = `images/${dataToRender.scenario}`;
+        }
+        
+        const theaterScreenEl = document.getElementById('theater-screen'); 
+        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
+        theaterGmPanel.classList.toggle('hidden', !isGm); 
+        toggleGmPanelBtn.classList.toggle('hidden', !isGm);
+        theaterPublishBtn.classList.toggle('hidden', !isGm || !state.isStaging);
+
+        if (!isGm) { 
+            theaterScreenEl.classList.add('panel-hidden'); 
+        }
+        
+        theaterBackgroundViewport.appendChild(theaterTokenContainer);
+        theaterTokenContainer.style.width = `${theaterBackgroundImage.offsetWidth}px`;
+        theaterTokenContainer.style.height = `${theaterBackgroundImage.offsetHeight}px`;
+
+        theaterTokenContainer.innerHTML = '';
+
+        dataToRender.tokenOrder.forEach((tokenId, index) => {
+            const tokenData = dataToRender.tokens[tokenId];
+            if (!tokenData) return;
+
+            const tokenEl = document.createElement('img');
+            tokenEl.id = tokenId;
+            tokenEl.className = 'theater-token';
+            tokenEl.src = tokenData.img;
+            tokenEl.style.left = `${tokenData.x}px`;
+            tokenEl.style.top = `${tokenData.y}px`;
+            tokenEl.style.zIndex = index;
+            
+            const scale = tokenData.scale || 1;
+            const isFlipped = tokenData.isFlipped;
+            tokenEl.dataset.scale = scale;
+            tokenEl.dataset.flipped = String(isFlipped);
+            tokenEl.title = tokenData.charName;
+            tokenEl.draggable = false;
+            
+            if (isGm && selectedTokens.has(tokenId)) {
+                tokenEl.classList.add('selected');
+            }
+            theaterTokenContainer.appendChild(tokenEl);
+        });
+        
+        updateTheaterZoom();
+    }
     // #endregion
 
     socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });
