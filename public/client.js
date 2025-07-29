@@ -71,7 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
     
-    // Dynamically generate 50 characters
     const DYNAMIC_CHARACTERS = [];
     for (let i = 1; i <= 50; i++) {
         DYNAMIC_CHARACTERS.push({
@@ -80,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Expand scenario counts to 50
     const THEATER_SCENARIOS = {
         "cenarios externos": { baseName: "externo", count: 50 },
         "cenarios internos": { baseName: "interno", count: 50 },
@@ -90,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "outros": { baseName: "outro", count: 50 }
     };
 
-    let linkInitialized = false; // Flag unificada para links
+    let linkInitialized = false;
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
@@ -512,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const globalTokenScale = dataToRender.globalTokenScale || 1.0;
         
-        // This container holds both the image and tokens, and it's what gets scaled for zooming.
         const worldContainer = document.getElementById('theater-world-container');
         if (worldContainer) {
            worldContainer.style.transformOrigin = '0 0';
@@ -522,7 +519,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
             const isFlipped = token.dataset.flipped === 'true';
-            // Final scale is a combination of individual scale (from state) and global scale (from state)
             token.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
         });
     }
@@ -531,7 +527,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('keydown', (e) => {
             if (!isGm) return;
             
-            // Cheats para modo de luta
             if (currentGameState && currentGameState.mode !== 'theater') {
                 if (e.key.toLowerCase() === 'c') {
                     e.preventDefault();
@@ -548,7 +543,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Atalhos para modo teatro
             if (currentGameState && currentGameState.mode === 'theater') {
                 if (e.key.toLowerCase() === 'g') {
                     e.preventDefault();
@@ -702,121 +696,112 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             const isToken = e.target.classList.contains('theater-token');
 
-            // GM-only actions
-            if (isGm) {
-                if (isGroupSelectMode) {
-                    e.preventDefault();
-                    const containerRect = theaterBackgroundViewport.getBoundingClientRect();
-                    const startX = e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
-                    const startY = e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
-                    
-                    selectionBox.style.left = `${startX}px`;
-                    selectionBox.style.top = `${startY}px`;
-                    selectionBox.style.width = '0px';
-                    selectionBox.style.height = '0px';
-                    selectionBox.classList.remove('hidden');
-    
-                    const onMouseMoveMarquee = (moveEvent) => {
-                        const currentX = moveEvent.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
-                        const currentY = moveEvent.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
-                        const width = currentX - startX;
-                        const height = currentY - startY;
-    
-                        selectionBox.style.transform = `scale(${1 / currentScenarioScale})`;
-                        selectionBox.style.transformOrigin = 'top left';
-                        selectionBox.style.width = `${Math.abs(width)}px`;
-                        selectionBox.style.height = `${Math.abs(height)}px`;
-                        selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
-                        selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
-                    };
-    
-                    const onMouseUpMarquee = () => {
-                        selectionBox.classList.add('hidden');
-                        document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
-                        selectedTokens.clear();
-    
-                        const boxScreenRect = selectionBox.getBoundingClientRect();
-                        document.querySelectorAll('.theater-token').forEach(token => {
-                            const tokenRect = token.getBoundingClientRect();
-                            const isIntersecting = !(tokenRect.right < boxScreenRect.left || tokenRect.left > boxScreenRect.right || tokenRect.bottom < boxScreenRect.top || tokenRect.top > boxScreenRect.bottom);
-    
-                            if (isIntersecting) {
-                                token.classList.add('selected');
-                                selectedTokens.add(token.id);
-                            }
-                        });
-    
-                        window.removeEventListener('mousemove', onMouseMoveMarquee);
-                        window.removeEventListener('mouseup', onMouseUpMarquee);
-                    };
-                    window.addEventListener('mousemove', onMouseMoveMarquee);
-                    window.addEventListener('mouseup', onMouseUpMarquee);
-    
-                } else if (isToken) {
-                    e.preventDefault();
-                    const draggedToken = e.target;
-                    
-                    const isGroupDrag = selectedTokens.has(draggedToken.id);
-                    const tokensToDrag = isGroupDrag ? Array.from(selectedTokens) : [draggedToken.id];
-                    const startPositions = {};
-                    
-                    tokensToDrag.forEach(tokenId => {
-                        const tokenEl = document.getElementById(tokenId);
-                        if(tokenEl) {
-                           startPositions[tokenId] = { x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
+            if (isGm && isGroupSelectMode) {
+                e.preventDefault();
+                const containerRect = theaterBackgroundViewport.getBoundingClientRect();
+                const startX = e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
+                const startY = e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
+                
+                selectionBox.style.left = `${startX / currentScenarioScale}px`;
+                selectionBox.style.top = `${startY / currentScenarioScale}px`;
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.classList.remove('hidden');
+
+                const onMouseMoveMarquee = (moveEvent) => {
+                    const currentX = moveEvent.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
+                    const currentY = moveEvent.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
+                    const width = currentX - startX;
+                    const height = currentY - startY;
+
+                    selectionBox.style.width = `${Math.abs(width) / currentScenarioScale}px`;
+                    selectionBox.style.height = `${Math.abs(height) / currentScenarioScale}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX) / currentScenarioScale}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY) / currentScenarioScale}px`;
+                };
+
+                const onMouseUpMarquee = () => {
+                    selectionBox.classList.add('hidden');
+                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                    selectedTokens.clear();
+
+                    const boxRect = selectionBox.getBoundingClientRect();
+                    document.querySelectorAll('.theater-token').forEach(token => {
+                        const tokenRect = token.getBoundingClientRect();
+                        const isIntersecting = !(tokenRect.right < boxRect.left || tokenRect.left > boxRect.right || tokenRect.bottom < boxRect.top || tokenRect.top > boxRect.bottom);
+
+                        if (isIntersecting) {
+                            token.classList.add('selected');
+                            selectedTokens.add(token.id);
                         }
                     });
-    
-                    const startMouseX = e.clientX;
-                    const startMouseY = e.clientY;
-    
-                    if (!isGroupDrag) {
-                        document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
-                        selectedTokens.clear();
-                        draggedToken.classList.add('selected');
-                        selectedTokens.add(draggedToken.id);
+
+                    window.removeEventListener('mousemove', onMouseMoveMarquee);
+                    window.removeEventListener('mouseup', onMouseUpMarquee);
+                };
+                window.addEventListener('mousemove', onMouseMoveMarquee);
+                window.addEventListener('mouseup', onMouseUpMarquee);
+            } else if (isGm && isToken) {
+                e.preventDefault();
+                const draggedToken = e.target;
+                
+                const isGroupDrag = selectedTokens.has(draggedToken.id);
+                const tokensToDrag = isGroupDrag ? Array.from(selectedTokens) : [draggedToken.id];
+                const startPositions = {};
+                
+                tokensToDrag.forEach(tokenId => {
+                    const tokenEl = document.getElementById(tokenId);
+                    if(tokenEl) {
+                       startPositions[tokenId] = { x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
                     }
-    
-                    function onMouseMoveToken(moveEvent) {
-                        const dx = (moveEvent.clientX - startMouseX) / currentScenarioScale;
-                        const dy = (moveEvent.clientY - startMouseY) / currentScenarioScale;
-    
-                        tokensToDrag.forEach(tokenId => {
-                            const tokenEl = document.getElementById(tokenId);
-                            if(tokenEl && startPositions[tokenId]) {
-                               tokenEl.style.left = `${startPositions[tokenId].x + dx}px`;
-                               tokenEl.style.top = `${startPositions[tokenId].y + dy}px`;
-                            }
-                        });
-                    }
-    
-                    function onMouseUpToken() {
-                        const updates = tokensToDrag.map(tokenId => {
-                             const tokenEl = document.getElementById(tokenId);
-                             if (tokenEl) {
-                                 return {
-                                     id: tokenId,
-                                     x: parseFloat(tokenEl.style.left),
-                                     y: parseFloat(tokenEl.style.top)
-                                 };
-                             }
-                             return null;
-                        }).filter(Boolean);
-                        
-                        if (updates.length > 0) {
-                            socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
-                        }
-                         
-                        window.removeEventListener('mousemove', onMouseMoveToken);
-                        window.removeEventListener('mouseup', onMouseUpToken);
-                    }
-                    window.addEventListener('mousemove', onMouseMoveToken);
-                    window.addEventListener('mouseup', onMouseUpToken);
+                });
+
+                const startMouseX = e.clientX;
+                const startMouseY = e.clientY;
+
+                if (!isGroupDrag) {
+                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                    selectedTokens.clear();
+                    draggedToken.classList.add('selected');
+                    selectedTokens.add(draggedToken.id);
                 }
-            }
-            
-            // Panning logic is for everyone (GM and Spectators)
-            if (!isToken && !isGroupSelectMode) {
+
+                function onMouseMoveToken(moveEvent) {
+                    const dx = (moveEvent.clientX - startMouseX) / currentScenarioScale;
+                    const dy = (moveEvent.clientY - startMouseY) / currentScenarioScale;
+
+                    tokensToDrag.forEach(tokenId => {
+                        const tokenEl = document.getElementById(tokenId);
+                        if(tokenEl && startPositions[tokenId]) {
+                           tokenEl.style.left = `${startPositions[tokenId].x + dx}px`;
+                           tokenEl.style.top = `${startPositions[tokenId].y + dy}px`;
+                        }
+                    });
+                }
+
+                function onMouseUpToken() {
+                    const updates = tokensToDrag.map(tokenId => {
+                         const tokenEl = document.getElementById(tokenId);
+                         if (tokenEl) {
+                             return {
+                                 id: tokenId,
+                                 x: parseFloat(tokenEl.style.left),
+                                 y: parseFloat(tokenEl.style.top)
+                             };
+                         }
+                         return null;
+                    }).filter(Boolean);
+                    
+                    if (updates.length > 0) {
+                        socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
+                    }
+                     
+                    window.removeEventListener('mousemove', onMouseMoveToken);
+                    window.removeEventListener('mouseup', onMouseUpToken);
+                }
+                window.addEventListener('mousemove', onMouseMoveToken);
+                window.addEventListener('mouseup', onMouseUpToken);
+            } else if (!isToken && !(isGm && isGroupSelectMode)) {
                 isDraggingScenario = true;
                 theaterBackgroundViewport.style.cursor = 'grabbing';
                 let lastMouseX = e.clientX;
@@ -907,7 +892,6 @@ document.addEventListener('DOMContentLoaded', () => {
             worldContainer.id = 'theater-world-container';
             worldContainer.appendChild(theaterBackgroundImage);
             worldContainer.appendChild(theaterTokenContainer);
-            // Prepend to ensure selectionBox is on top if it exists
             theaterBackgroundViewport.insertBefore(worldContainer, theaterBackgroundViewport.firstChild);
         }
 

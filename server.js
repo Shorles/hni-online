@@ -87,14 +87,16 @@ function createNewTheaterState(scenario) {
         log: [{ text: "Modo Teatro iniciado."}],
         // Staging state for GM
         scenario: scenario,
-        tokens: {}, // Ex: { tokenId: { charName, img, x, y, scale, isFlipped } }
-        tokenOrder: [], // Controla a ordem de renderização (z-index)
-        isStaging: false, // true when GM changes scenario but hasn't published
+        tokens: {},
+        tokenOrder: [],
+        globalTokenScale: 1.0,
+        isStaging: false,
         // Public state for Spectators
         publicState: {
             scenario: scenario,
             tokens: {},
-            tokenOrder: []
+            tokenOrder: [],
+            globalTokenScale: 1.0
         }
     };
 }
@@ -409,7 +411,7 @@ function isActionValid(state, action) {
     const isGm = gmSocketId === state.gmId;
 
     if (state.mode === 'theater') {
-        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage') && isGm;
+        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage' || type === 'updateGlobalScale') && isGm;
     }
 
     const move = state.moves[action.move];
@@ -553,7 +555,6 @@ io.on('connection', (socket) => {
         socket.currentRoomId = newRoomId;
         const newState = createNewTheaterState(scenario);
         newState.gmId = socket.id;
-        // The first "publish" to set the initial state for spectators
         newState.publicState.scenario = newState.scenario;
         newState.publicState.tokens = JSON.parse(JSON.stringify(newState.tokens));
         newState.publicState.tokenOrder = [...newState.tokenOrder];
@@ -631,7 +632,7 @@ io.on('connection', (socket) => {
         room.spectators.push(socket.id);
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', {playerKey: 'spectator', isGm: false});
-        socket.emit('gameUpdate', room.state); // Send the full state, client will handle what to show
+        socket.emit('gameUpdate', room.state);
         logMessage(room.state, 'Um espectador entrou na sala.');
         io.to(roomId).emit('gameUpdate', room.state);
     });
@@ -656,40 +657,45 @@ io.on('connection', (socket) => {
         const playerKey = action.playerKey;
         switch (action.type) {
             // THEATER MODE ACTIONS
+            case 'updateGlobalScale':
+                state.globalTokenScale = action.scale;
+                if (!state.isStaging) {
+                    state.publicState.globalTokenScale = action.scale;
+                }
+                break;
             case 'publish_stage':
-                // Deep copy the staging state to the public state
                 state.publicState.scenario = state.scenario;
-                state.publicState.tokens = JSON.parse(JSON.stringify(state.tokens)); // Deep copy
-                state.publicState.tokenOrder = [...state.tokenOrder]; // Shallow copy is fine
+                state.publicState.tokens = JSON.parse(JSON.stringify(state.tokens));
+                state.publicState.tokenOrder = [...state.tokenOrder];
+                state.publicState.globalTokenScale = state.globalTokenScale;
                 state.isStaging = false;
                 logMessage(state, 'GM publicou a nova cena para os espectadores.');
                 break;
             case 'updateToken':
                 if (action.token.remove) {
-                    if (Array.isArray(action.token.ids)) { // Handle group deletion
+                    if (Array.isArray(action.token.ids)) {
                         action.token.ids.forEach(idToRemove => {
                             delete state.tokens[idToRemove];
                             state.tokenOrder = state.tokenOrder.filter(id => id !== idToRemove);
                         });
-                    } else { // Handle single deletion
+                    } else {
                         delete state.tokens[action.token.id];
                         state.tokenOrder = state.tokenOrder.filter(id => id !== action.token.id);
                     }
-                } else if (action.token.updates) { // Handle group updates (e.g., movement)
+                } else if (action.token.updates) {
                      action.token.updates.forEach(update => {
                         if (state.tokens[update.id]) {
                             Object.assign(state.tokens[update.id], update);
                         }
                     });
                 }
-                else { // Handle single creation/update
+                else {
                     if (!state.tokens[action.token.id]) {
                         state.tokens[action.token.id] = { isFlipped: false };
                         state.tokenOrder.push(action.token.id);
                     }
                     Object.assign(state.tokens[action.token.id], action.token);
                 }
-                // If not in staging, update public state in real-time
                 if (!state.isStaging) {
                     state.publicState.tokens = JSON.parse(JSON.stringify(state.tokens));
                     state.publicState.tokenOrder = [...state.tokenOrder];
@@ -706,17 +712,14 @@ io.on('connection', (socket) => {
                 } else if (direction === 'backward' && currentIndex > 0) {
                     [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
                 }
-                // If not in staging, update public state in real-time
                 if (!state.isStaging) {
                     state.publicState.tokenOrder = [...state.tokenOrder];
                 }
                 break;
             case 'changeScenario':
                 state.scenario = action.scenario;
-                // Clear tokens for the new scene for the GM
                 state.tokens = {};
                 state.tokenOrder = [];
-                // Set the staging flag. Spectators will still see the old publicState.
                 state.isStaging = true; 
                 logMessage(state, `GM está preparando um novo cenário: ${action.scenario}`);
                 break;
