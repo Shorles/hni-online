@@ -215,7 +215,11 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                     logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
                 }
                 if (moveName === 'Liver Blow') { if (Math.random() < 0.3 && defender.pa > 0) { defender.pa--; logMessage(state, `O golpe no fígado faz ${defender.nome} perder 1 PA!`, 'log-crit'); }
-                } else if (moveName === 'Clinch') { defender.pa = Math.max(0, defender.pa - 2); logMessage(state, `${attacker.nome} acerta o Clinch! ${defender.nome} perde 2 PA.`, 'log-hit');}
+                } else if (moveName === 'Clinch') { 
+                    const paToRemove = crit ? 4 : 2;
+                    defender.pa = Math.max(0, defender.pa - paToRemove); 
+                    logMessage(state, `${attacker.nome} acerta o Clinch! ${defender.nome} perde ${paToRemove} PA.`, 'log-hit');
+                }
             } else { soundToPlay = 'Esquiva.mp3'; }
         
             const isActuallyIllegal = (state.illegalCheat === 'always' && move.damage > 0) || (state.illegalCheat === 'normal' && moveName === 'Golpe Ilegal');

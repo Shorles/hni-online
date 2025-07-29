@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
-        const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum'};
+        const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum'};
         const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Esquiva'];
         let playerSpecialMoves = [];
         if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
@@ -173,6 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) { showForfeitConfirmation(); } };
         
         initializeTheaterMode();
+        initializeGlobalKeyListeners();
     }
 
     function onConfirmSelection() {
@@ -375,6 +376,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
+        if (isGm && state.mode !== 'theater') {
+             document.getElementById('gm-cheats-panel').classList.remove('hidden');
+        } else {
+            document.getElementById('gm-cheats-panel').classList.add('hidden');
+        }
+
         if(isGm) {
             const cheatIndicator = document.getElementById('dice-cheat-indicator'); let cheatText = '';
             if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; if (state.diceCheat === 'fumble') cheatText += 'Erros (R) ';
@@ -386,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
             if (fighter) {
-                document.getElementById(`${key}-fight-name`).innerText = fighter.nome;
+                document.getElementById(`${key}-fight-name`).innerText = fighter.nome.replace(/-SD$/, '');
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
                 if (fighter.hpMax !== undefined) {
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`; document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
@@ -413,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
         else if (state.phase.startsWith('arena_')) roundInfoEl.innerHTML = `Aguardando início...`;
         else {
-            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome : '...';
+            const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome.replace(/-SD$/, '') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
             if (state.reactionState) {
                 const reactionUserKey = state.reactionState.playerKey; const reactionMoveName = state.moves[state.reactionState.move].displayName || state.reactionState.move;
@@ -493,8 +500,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeToken = null;
     let activeTokenId = null; 
     let currentScenarioScale = 1.0;
-    let isDraggingScenario = false;
-    let lastMouseX, lastMouseY, startScrollX, startScrollY;
 
     function updateTheaterZoom() {
         const globalTokenScale = isGm ? parseFloat(theaterGlobalScale.value) : 1;
@@ -509,6 +514,51 @@ document.addEventListener('DOMContentLoaded', () => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
             const isFlipped = token.dataset.flipped === 'true';
             token.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
+        });
+    }
+
+    function initializeGlobalKeyListeners() {
+        window.addEventListener('keydown', (e) => {
+            if (!isGm) return;
+            
+            // Cheats para modo de luta
+            if (currentGameState && currentGameState.mode !== 'theater') {
+                if (e.key.toLowerCase() === 'c') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_pause' });
+                } else if (e.key.toLowerCase() === 't') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' });
+                } else if (e.key.toLowerCase() === 'r') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
+                } else if (e.key.toLowerCase() === 'i') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
+                }
+            }
+
+            // Cheats para modo teatro
+            if (activeToken) {
+                 if (e.key === 'Delete') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
+                    activeToken = null;
+                    activeTokenId = null;
+                 } else if (e.key.toLowerCase() === 'f') {
+                    e.preventDefault();
+                    const currentTokenState = currentGameState.tokens[activeToken.id];
+                    if (currentTokenState) {
+                        socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, isFlipped: !currentTokenState.isFlipped }});
+                    }
+                 } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'forward' });
+                 } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'backward' });
+                 }
+            }
         });
     }
 
@@ -608,7 +658,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             if (isGm && e.target.classList.contains('theater-token')) {
-                // Lógica de arrastar token
                 e.preventDefault();
                 if (activeToken) activeToken.classList.remove('selected');
                 activeToken = e.target;
@@ -665,29 +714,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.addEventListener('mousemove', onMouseMoveScenario);
                 window.addEventListener('mouseup', onMouseUpScenario);
             }
-        });
-    
-        window.addEventListener('keydown', (e) => {
-             if (isGm && activeToken) {
-                 if (e.key === 'Delete') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
-                    activeToken = null;
-                    activeTokenId = null;
-                 } else if (e.key.toLowerCase() === 'f') {
-                    e.preventDefault();
-                    const currentTokenState = currentGameState.tokens[activeToken.id];
-                    if (currentTokenState) {
-                        socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, isFlipped: !currentTokenState.isFlipped }});
-                    }
-                 } else if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'forward' });
-                 } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'backward' });
-                 }
-             }
         });
     
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
