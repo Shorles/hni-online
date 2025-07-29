@@ -56,6 +56,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterChangeScenarioBtn = document.getElementById('theater-change-scenario-btn');
     const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
     const theaterBackBtn = document.getElementById('theater-back-btn');
+    const selectionBox = document.getElementById('selection-box');
+    const selectionModeIndicator = document.getElementById('selection-mode-indicator');
+    const publishSceneBtn = document.getElementById('publish-scene-btn');
+    const gmCommandLegend = document.getElementById('gm-command-legend');
+
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
@@ -333,36 +338,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => {
-        const oldState = currentGameState; currentGameState = gameState;
         if (gameState.mode === 'theater') {
-            if (!oldState || oldState.mode !== 'theater') { showScreen(theaterScreen); helpBtn.classList.add('hidden'); }
+            const wasTheaterBefore = currentGameState && currentGameState.mode === 'theater';
+            currentGameState = { ...gameState, scene: gameState.scene }; // Unifica a estrutura
+            if (!wasTheaterBefore) {
+                showScreen(theaterScreen);
+                helpBtn.classList.add('hidden');
+            }
             if (isGm && !linkInitialized && currentRoomId) {
                 const specUrl = `${window.location.origin}?room=${currentRoomId}&theater=true`;
                 copyTheaterSpectatorLinkBtn.disabled = false;
                 copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
                 linkInitialized = true;
             }
-            renderTheaterMode(gameState); return;
+            renderTheaterMode(currentGameState.scene);
+            return;
         }
 
-        if (gameState.mode === 'classic' && myPlayerKey === 'player1' && !linkInitialized && currentRoomId) {
-            const p2Url = `${window.location.origin}?room=${currentRoomId}`;
-            const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
-            const shareLinkP2 = document.getElementById('share-link-p2');
-            shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
-            lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
-            const shareLinkSpectator = document.getElementById('share-link-spectator');
-            shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-            linkInitialized = true;
-        }
-        const oldPhase = oldState ? oldState.phase : null;
+        currentGameState = gameState;
+        const oldPhase = currentGameState ? currentGameState.phase : null;
         const wasPaused = oldPhase === 'paused'; const isNowPaused = currentGameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
         if (isNowPaused && !wasPaused) { showCheatsModal(); } else if (!isNowPaused && wasPaused) { modal.classList.add('hidden'); }
         updateUI(currentGameState);
         if (currentGameState.mode === 'classic') { gameWrapper.classList.add('mode-classic'); gameWrapper.classList.remove('mode-arena'); } 
         else if (currentGameState.mode === 'arena') { gameWrapper.classList.add('mode-arena'); gameWrapper.classList.remove('mode-classic'); }
-        const wasInPreGame = !oldState || PRE_GAME_PHASES.includes(oldPhase);
+        const wasInPreGame = !oldPhase || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
         if (wasInPreGame && isNowInGame && !fightScreen.classList.contains('active')) { showScreen(fightScreen); helpBtn.classList.remove('hidden'); }
     });
@@ -497,290 +498,6 @@ document.addEventListener('DOMContentLoaded', () => {
         diceOverlay.addEventListener('click', hideAndResolve, { once: true }); setTimeout(hideAndResolve, 2000); 
     }
     
-    // #region LÓGICA DO MODO TEATRO
-    let activeToken = null;
-    let activeTokenId = null; 
-    let currentScenarioScale = 1.0;
-    let isDraggingScenario = false;
-    let lastMouseX, lastMouseY;
-
-    function updateTheaterZoom() {
-        const globalTokenScale = isGm ? parseFloat(theaterGlobalScale.value) : 1;
-        
-        theaterBackgroundImage.style.transformOrigin = '0 0';
-        theaterTokenContainer.style.transformOrigin = '0 0';
-
-        theaterBackgroundImage.style.transform = `scale(${currentScenarioScale})`;
-        theaterTokenContainer.style.transform = `scale(${currentScenarioScale})`;
-
-        document.querySelectorAll('.theater-token').forEach(token => {
-            const baseScale = parseFloat(token.dataset.scale) || 1;
-            const isFlipped = token.dataset.flipped === 'true';
-            token.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
-        });
-    }
-
-    function initializeGlobalKeyListeners() {
-        window.addEventListener('keydown', (e) => {
-            if (!isGm) return;
-            
-            if (currentGameState && currentGameState.mode !== 'theater') {
-                if (e.key.toLowerCase() === 'c') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_pause' });
-                } else if (e.key.toLowerCase() === 't') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' });
-                } else if (e.key.toLowerCase() === 'r') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
-                } else if (e.key.toLowerCase() === 'i') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
-                }
-            }
-
-            if (activeToken) {
-                 if (e.key === 'Delete') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, remove: true }});
-                    activeToken = null;
-                    activeTokenId = null;
-                 } else if (e.key.toLowerCase() === 'f') {
-                    e.preventDefault();
-                    const currentTokenState = currentGameState.tokens[activeToken.id];
-                    if (currentTokenState) {
-                        socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, isFlipped: !currentTokenState.isFlipped }});
-                    }
-                 } else if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'forward' });
-                 } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: activeToken.id, direction: 'backward' });
-                 }
-            }
-        });
-    }
-
-    function initializeTheaterMode() {
-        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
-        const theaterScreenEl = document.getElementById('theater-screen');
-        toggleGmPanelBtn.addEventListener('click', () => { theaterScreenEl.classList.toggle('panel-hidden'); });
-        
-        theaterCharList.innerHTML = '';
-        Object.keys(THEATER_CHARACTERS).forEach(charName => {
-            const charImg = `images/${charName}.png`; const mini = document.createElement('div');
-            mini.className = 'theater-char-mini';
-            mini.style.backgroundImage = `url("${charImg}")`;
-            mini.title = charName; mini.draggable = true;
-            mini.addEventListener('dragstart', (e) => {
-                if (!isGm) return;
-                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: charImg }));
-            });
-            theaterCharList.appendChild(mini);
-        });
-
-        DYNAMIC_CHARACTERS.forEach(char => {
-            const mini = document.createElement('div');
-            mini.className = 'theater-char-mini';
-            mini.style.backgroundImage = `url("${char.img}")`;
-            mini.title = char.name; mini.draggable = true;
-            mini.addEventListener('dragstart', (e) => {
-                if (!isGm) return;
-                e.dataTransfer.setData('application/json', JSON.stringify({ charName: char.name, img: char.img }));
-            });
-            theaterCharList.appendChild(mini);
-        });
-    
-        theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
-    
-        theaterBackgroundViewport.addEventListener('drop', (e) => {
-            e.preventDefault(); if (!isGm) return;
-            try {
-                const dataString = e.dataTransfer.getData('application/json');
-                if (!dataString) return;
-                const data = JSON.parse(dataString);
-                const containerRect = theaterBackgroundViewport.getBoundingClientRect();
-                const x = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
-                const y = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
-                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: x - (100 / currentScenarioScale), y: y - (100 / currentScenarioScale), scale: 1, isFlipped: false };
-                socket.emit('playerAction', { type: 'updateToken', token: newToken });
-            } catch (error) { console.error("Erro ao processar o drop:", error); }
-        });
-    
-        theaterGlobalScale.addEventListener('input', updateTheaterZoom);
-
-        theaterChangeScenarioBtn.onclick = () => {
-            const modalHtml = `
-                <div id="modal-tabs-container" style="display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; flex-wrap: wrap;"></div>
-                <div id="modal-scenarios-container" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; max-height: 400px; overflow-y: auto;"></div>
-            `;
-            showInfoModal("Mudar Cenário", modalHtml);
-
-            const tabsContainer = document.getElementById('modal-tabs-container');
-            const scenariosContainer = document.getElementById('modal-scenarios-container');
-
-            const renderCategory = (categoryName) => {
-                scenariosContainer.innerHTML = '';
-                const category = THEATER_SCENARIOS[categoryName];
-                for (let i = 1; i <= category.count; i++) {
-                    const name = `${category.baseName} (${i})`;
-                    const fileName = `mapas/${categoryName}/${name}.png`;
-                    const card = document.createElement('div');
-                    card.className = 'scenario-card';
-                    card.style.width = '200px';
-                    card.innerHTML = `<img src="images/${fileName}" alt="${name}" style="height: 100px;"><div class="scenario-name" style="font-size: 1.1em; padding: 5px;">${name}</div>`;
-                    card.onclick = () => {
-                        socket.emit('playerAction', { type: 'changeScenario', scenario: fileName });
-                        modal.classList.add('hidden');
-                    };
-                    scenariosContainer.appendChild(card);
-                }
-            };
-
-            Object.keys(THEATER_SCENARIOS).forEach((categoryName, index) => {
-                const btn = document.createElement('button');
-                btn.className = 'category-tab-btn';
-                btn.textContent = categoryName.replace(/_/g, ' ').toUpperCase();
-                btn.onclick = (e) => {
-                    tabsContainer.querySelectorAll('.category-tab-btn').forEach(b => b.classList.remove('active'));
-                    e.target.classList.add('active');
-                    renderCategory(categoryName);
-                };
-                if (index === 0) {
-                    btn.classList.add('active');
-                }
-                tabsContainer.appendChild(btn);
-            });
-            
-            renderCategory(Object.keys(THEATER_SCENARIOS)[0]);
-        };
-    
-        theaterBackgroundViewport.addEventListener('mousedown', (e) => {
-            if (isGm && e.target.classList.contains('theater-token')) {
-                e.preventDefault();
-                if (activeToken) activeToken.classList.remove('selected');
-                activeToken = e.target;
-                activeTokenId = activeToken.id;
-                activeToken.classList.add('selected');
-                
-                const startTokenX = parseFloat(activeToken.style.left);
-                const startTokenY = parseFloat(activeToken.style.top);
-                const startMouseX = e.clientX;
-                const startMouseY = e.clientY;
-
-                function onMouseMoveToken(moveEvent) { 
-                    if (!activeToken) return;
-                    const dx = (moveEvent.clientX - startMouseX) / currentScenarioScale;
-                    const dy = (moveEvent.clientY - startMouseY) / currentScenarioScale;
-                    activeToken.style.left = `${startTokenX + dx}px`;
-                    activeToken.style.top = `${startTokenY + dy}px`;
-                }
-
-                function onMouseUpToken() { 
-                    if (!activeToken) return; 
-                    const finalX = parseFloat(activeToken.style.left); 
-                    const finalY = parseFloat(activeToken.style.top); 
-                    socket.emit('playerAction', { type: 'updateToken', token: { id: activeToken.id, x: finalX, y: finalY }}); 
-                    window.removeEventListener('mousemove', onMouseMoveToken); 
-                    window.removeEventListener('mouseup', onMouseUpToken); 
-                }
-                window.addEventListener('mousemove', onMouseMoveToken);
-                window.addEventListener('mouseup', onMouseUpToken);
-            } else if (e.target === theaterBackgroundImage || e.target === theaterBackgroundViewport) {
-                isDraggingScenario = true;
-                theaterBackgroundViewport.style.cursor = 'grabbing';
-                lastMouseX = e.clientX;
-                lastMouseY = e.clientY;
-
-                const onMouseMoveScenario = (moveEvent) => {
-                    if (!isDraggingScenario) return;
-                    const dx = moveEvent.clientX - lastMouseX;
-                    const dy = moveEvent.clientY - lastMouseY;
-                    theaterBackgroundViewport.scrollLeft -= dx;
-                    theaterBackgroundViewport.scrollTop -= dy;
-                    lastMouseX = moveEvent.clientX;
-                    lastMouseY = moveEvent.clientY;
-                };
-
-                const onMouseUpScenario = () => {
-                    isDraggingScenario = false;
-                    theaterBackgroundViewport.style.cursor = 'grab';
-                    window.removeEventListener('mousemove', onMouseMoveScenario);
-                    window.removeEventListener('mouseup', onMouseUpScenario);
-                };
-
-                window.addEventListener('mousemove', onMouseMoveScenario);
-                window.addEventListener('mouseup', onMouseUpScenario);
-            }
-        });
-        
-        theaterBackgroundViewport.addEventListener('wheel', (e) => {
-            if (currentGameState.mode !== 'theater') return;
-            
-            if (isGm && e.target.classList.contains('theater-token')) {
-                e.preventDefault();
-                const currentToken = e.target;
-                const currentScale = parseFloat(currentToken.dataset.scale) || 1;
-                const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
-                const newScale = Math.max(0.1, currentScale + scaleAmount);
-                currentToken.dataset.scale = newScale;
-                socket.emit('playerAction', { type: 'updateToken', token: { id: currentToken.id, scale: newScale }});
-            } else {
-                 e.preventDefault();
-                const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
-                currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
-                updateTheaterZoom();
-            }
-        }, { passive: false });
-    }
-
-    function renderTheaterMode(state) {
-        if (state.scenario) {
-            theaterBackgroundImage.src = `images/${state.scenario}`;
-        }
-        const theaterScreenEl = document.getElementById('theater-screen'); const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
-        theaterGmPanel.classList.toggle('hidden', !isGm); toggleGmPanelBtn.classList.toggle('hidden', !isGm);
-        if (!isGm) { theaterScreenEl.classList.add('panel-hidden'); }
-        
-        theaterBackgroundViewport.appendChild(theaterTokenContainer);
-        theaterTokenContainer.style.width = `${theaterBackgroundImage.offsetWidth}px`;
-        theaterTokenContainer.style.height = `${theaterBackgroundImage.offsetHeight}px`;
-
-        theaterTokenContainer.innerHTML = '';
-        activeToken = null;
-
-        state.tokenOrder.forEach((tokenId, index) => {
-            const tokenData = state.tokens[tokenId];
-            if (!tokenData) return;
-
-            const tokenEl = document.createElement('img');
-            tokenEl.id = tokenId;
-            tokenEl.className = 'theater-token';
-            tokenEl.src = tokenData.img;
-            tokenEl.style.left = `${tokenData.x}px`;
-            tokenEl.style.top = `${tokenData.y}px`;
-            tokenEl.style.zIndex = index;
-            
-            const scale = tokenData.scale || 1;
-            const isFlipped = tokenData.isFlipped;
-            tokenEl.dataset.scale = scale;
-            tokenEl.dataset.flipped = String(isFlipped);
-
-            tokenEl.title = tokenData.charName;
-            tokenEl.draggable = false;
-            
-            if (tokenId === activeTokenId) {
-                tokenEl.classList.add('selected');
-                activeToken = tokenEl;
-            }
-
-            theaterTokenContainer.appendChild(tokenEl);
-        });
-        
-        updateTheaterZoom();
-    }
     // #endregion
 
     socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });

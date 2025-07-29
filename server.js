@@ -81,13 +81,17 @@ function createNewGameState() {
 }
 
 function createNewTheaterState(scenario) {
+    const baseScene = {
+        scenario: scenario,
+        tokens: {}, 
+        tokenOrder: [],
+    };
     return {
         mode: 'theater',
-        scenario: scenario,
-        tokens: {}, // Ex: { tokenId: { charName, img, x, y, scale, isFlipped } }
-        tokenOrder: [], // Controla a ordem de renderização (z-index)
         gmId: null,
-        log: [{ text: "Modo Teatro iniciado."}]
+        log: [{ text: "Modo Teatro iniciado."}],
+        gmState: JSON.parse(JSON.stringify(baseScene)),         // O que o GM vê
+        spectatorState: JSON.parse(JSON.stringify(baseScene))  // O que os espectadores veem
     };
 }
 
@@ -401,7 +405,7 @@ function isActionValid(state, action) {
     const isGm = gmSocketId === state.gmId;
 
     if (state.mode === 'theater') {
-        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder') && isGm;
+        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publishScene') && isGm;
     }
 
     const move = state.moves[action.move];
@@ -548,7 +552,7 @@ io.on('connection', (socket) => {
         games[newRoomId] = { id: newRoomId, hostId: null, players: [], spectators: [], state: newState };
         socket.emit('assignPlayer', { playerKey: 'gm', isGm: true });
         socket.emit('roomCreated', newRoomId);
-        io.to(socket.id).emit('gameUpdate', newState);
+        io.to(socket.id).emit('gameUpdate', { mode: 'theater', scene: newState.gmState });
         dispatchAction(games[newRoomId]);
     });
 
@@ -618,9 +622,17 @@ io.on('connection', (socket) => {
         room.spectators.push(socket.id);
         socket.currentRoomId = roomId;
         socket.emit('assignPlayer', {playerKey: 'spectator', isGm: false});
-        socket.emit('gameUpdate', room.state);
-        logMessage(room.state, 'Um espectador entrou na sala.');
-        io.to(roomId).emit('gameUpdate', room.state);
+        
+        let gameStateToSend = room.state;
+        if (room.state.mode === 'theater') {
+            gameStateToSend = { mode: 'theater', scene: room.state.spectatorState };
+        }
+        socket.emit('gameUpdate', gameStateToSend);
+
+        if (room.state.log) {
+            logMessage(room.state, 'Um espectador entrou na sala.');
+            io.to(roomId).emit('gameUpdate', room.state);
+        }
     });
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
@@ -641,37 +653,50 @@ io.on('connection', (socket) => {
         }
 
         const playerKey = action.playerKey;
-        switch (action.type) {
-            case 'updateToken':
-                if (action.token.remove) {
-                    delete state.tokens[action.token.id];
-                    state.tokenOrder = state.tokenOrder.filter(id => id !== action.token.id);
-                } else {
-                    if (!state.tokens[action.token.id]) {
-                        state.tokens[action.token.id] = { isFlipped: false };
-                        state.tokenOrder.push(action.token.id);
+        
+        // Handle Theater mode actions
+        if (state.mode === 'theater') {
+            const gmScene = state.gmState;
+            switch(action.type) {
+                case 'updateToken':
+                    if (action.token.remove) {
+                        delete gmScene.tokens[action.token.id];
+                        gmScene.tokenOrder = gmScene.tokenOrder.filter(id => id !== action.token.id);
+                    } else {
+                        if (!gmScene.tokens[action.token.id]) {
+                            gmScene.tokens[action.token.id] = { isFlipped: false };
+                            gmScene.tokenOrder.push(action.token.id);
+                        }
+                        Object.assign(gmScene.tokens[action.token.id], action.token);
                     }
-                    Object.assign(state.tokens[action.token.id], action.token);
-                }
-                break;
-            case 'changeTokenOrder':
-                const { tokenId, direction } = action;
-                const order = state.tokenOrder;
-                const currentIndex = order.indexOf(tokenId);
-                if (currentIndex === -1) break;
+                    break;
+                case 'changeTokenOrder':
+                    const { tokenId, direction } = action;
+                    const order = gmScene.tokenOrder;
+                    const currentIndex = order.indexOf(tokenId);
+                    if (currentIndex === -1) break;
 
-                if (direction === 'forward' && currentIndex < order.length - 1) {
-                    // Swap with the element in front (higher index)
-                    [order[currentIndex], order[currentIndex + 1]] = [order[currentIndex + 1], order[currentIndex]];
-                } else if (direction === 'backward' && currentIndex > 0) {
-                    // Swap with the element behind (lower index)
-                    [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
-                }
-                break;
-            case 'changeScenario':
-                state.scenario = action.scenario;
-                break;
+                    if (direction === 'forward' && currentIndex < order.length - 1) {
+                        [order[currentIndex], order[currentIndex + 1]] = [order[currentIndex + 1], order[currentIndex]];
+                    } else if (direction === 'backward' && currentIndex > 0) {
+                        [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
+                    }
+                    break;
+                case 'changeScenario':
+                    gmScene.scenario = action.scenario;
+                    break;
+                case 'publishScene':
+                    state.spectatorState = JSON.parse(JSON.stringify(state.gmState));
+                    io.to(roomId).emit('gameUpdate', { mode: 'theater', scene: state.spectatorState });
+                    return; // Retorna para não enviar o update do GM
+            }
+            // Send update only to GM
+            io.to(state.gmId).emit('gameUpdate', { mode: 'theater', scene: state.gmState });
+            return; // Impede o fluxo normal de update
+        }
 
+        // Handle Fight mode actions
+        switch (action.type) {
             case 'toggle_dice_cheat':
                 if (state.diceCheat === action.cheat) {
                     state.diceCheat = null;
