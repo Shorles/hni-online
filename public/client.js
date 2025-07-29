@@ -166,7 +166,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const gmExitHandler = () => {
              showInfoModal("Voltar ao Menu", `<p>Tem certeza que deseja voltar ao menu de seleção de modo?</p><p>A sala atual será encerrada e todos os jogadores/espectadores irão com você para a próxima.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-exit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Voltar</button><button id="cancel-exit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Ficar</button></div>`);
-            document.getElementById('confirm-exit-btn').onclick = () => { socket.emit('gmGoBackToMenu', { roomId: currentRoomId }); modal.classList.add('hidden'); showScreen(modeSelectionScreen); }; document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
+            document.getElementById('confirm-exit-btn').onclick = () => { 
+                socket.emit('gmGoBackToMenu', { roomId: currentRoomId }); 
+                modal.classList.add('hidden'); 
+                showScreen(modeSelectionScreen);
+                linkInitialized = false; // Reset link generation for the new session
+            }; 
+            document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
         };
         arenaExitBtn.addEventListener('click', gmExitHandler);
         theaterBackBtn.addEventListener('click', gmExitHandler);
@@ -184,16 +190,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function onConfirmSelection() {
         const selectedCard = document.querySelector('.char-card.selected'); if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
+        
         if (myPlayerKey === 'player1' && !currentRoomId) {
             playerData.agi = selectedCard.querySelector('.agi-input').value; playerData.res = selectedCard.querySelector('.res-input').value;
-            confirmBtn.disabled = true; socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
-        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
+            confirmBtn.disabled = true; 
+            socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
+            return; // IMPORTANT: Prevent fall-through to the next condition
+        } 
+        
+        if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
              confirmBtn.disabled = true; socket.emit('selectArenaCharacter', { character: playerData });
              showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
-        } else {
-            confirmBtn.disabled = true; showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
-            socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
-        }
+             return;
+        } 
+        
+        // This handles Player 2 in Classic mode
+        confirmBtn.disabled = true; showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
+        socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
     }
 
     function renderCharacterSelection(playerType, showStatsInputs = false) {
@@ -287,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
@@ -347,13 +360,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => {
-        const oldState = currentGameState; currentGameState = gameState;
+        const oldState = currentGameState; 
+        currentGameState = gameState;
+        currentRoomId = gameState.id; // Update room ID in case we were transitioned
+
         if (gameState.mode === 'theater') {
             if (!fightScreen.classList.contains('active') && !arenaLobbyScreen.classList.contains('active')) {
                 showScreen(theaterScreen);
             }
             if (isGm && !linkInitialized && currentRoomId) {
-                const specUrl = `${window.location.origin}?room=${currentRoomId}&theater=true`;
+                const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`; // Use spectate link for theater
                 copyTheaterSpectatorLinkBtn.disabled = false;
                 copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
                 linkInitialized = true;
@@ -363,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTheaterMode(gameState); return;
         }
 
-        if (gameState.mode === 'classic' && myPlayerKey === 'player1' && !linkInitialized && currentRoomId) {
+        if (gameState.mode === 'classic' && (myPlayerKey === 'player1' || myPlayerKey === 'host') && !linkInitialized && currentRoomId) {
             const p2Url = `${window.location.origin}?room=${currentRoomId}`;
             const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
             const shareLinkP2 = document.getElementById('share-link-p2');
@@ -371,6 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
             linkInitialized = true;
         }
+
         const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused'; const isNowPaused = currentGameState.phase === 'paused';
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring'];
@@ -381,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const wasInPreGame = !oldState || PRE_GAME_PHASES.includes(oldPhase);
         const isNowInGame = !PRE_GAME_PHASES.includes(currentGameState.phase);
         
-        if (wasInPreGame && isNowInGame) { 
+        if (isNowInGame) { 
             showScreen(fightScreen);
             theaterBackBtn.classList.add('hidden');
             arenaExitBtn.classList.add('hidden');
@@ -728,8 +745,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const startX = e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft;
                 const startY = e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop;
                 
-                selectionBox.style.left = `${startX / currentScenarioScale}px`;
-                selectionBox.style.top = `${startY / currentScenarioScale}px`;
+                selectionBox.style.left = `${startX}px`;
+                selectionBox.style.top = `${startY}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
@@ -740,10 +757,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const width = currentX - startX;
                     const height = currentY - startY;
 
-                    selectionBox.style.width = `${Math.abs(width) / currentScenarioScale}px`;
-                    selectionBox.style.height = `${Math.abs(height) / currentScenarioScale}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX) / currentScenarioScale}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY) / currentScenarioScale}px`;
+                    selectionBox.style.width = `${Math.abs(width)}px`;
+                    selectionBox.style.height = `${Math.abs(height)}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
                 };
 
                 const onMouseUpMarquee = () => {
