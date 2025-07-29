@@ -225,6 +225,10 @@ body {
     -webkit-user-drag: none;
     pointer-events: all;
     transform-origin: center center;
+    transition: opacity 0.3s ease-in-out; /* Added for off-stage effect */
+}
+.theater-token.off-stage {
+    opacity: 0.5; /* For GM to see which tokens are hidden */
 }
 .theater-token:active {
     cursor: grabbing;

@@ -85,13 +85,13 @@ function createNewTheaterState(scenario) {
         mode: 'theater',
         gmId: null,
         log: [{ text: "Modo Teatro iniciado."}],
-        // Staging state for GM
         scenario: scenario,
+        scenarioWidth: null, // NEW
+        scenarioHeight: null, // NEW
         tokens: {},
         tokenOrder: [],
         globalTokenScale: 1.0,
         isStaging: false,
-        // Public state for Spectators
         publicState: {
             scenario: scenario,
             tokens: {},
@@ -120,6 +120,38 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { if(state && state.log) { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); } }
 
+// NEW HELPER FUNCTION
+function filterVisibleTokens(state) {
+    if (!state.scenarioWidth || !state.scenarioHeight) {
+        // If dimensions aren't set, show all tokens to be safe
+        return {
+            visibleTokens: { ...state.tokens },
+            visibleTokenOrder: [...state.tokenOrder]
+        };
+    }
+
+    const visibleTokenIds = new Set();
+    const visibleTokens = {};
+
+    for (const tokenId of state.tokenOrder) {
+        const token = state.tokens[tokenId];
+        if (!token) continue;
+        
+        // Check if the center of the token is on screen
+        const tokenCenterX = token.x + (200 * (token.scale || 1) / 2);
+        const tokenCenterY = token.y + (200 * (token.scale || 1) / 2); // Assuming tokens are roughly square
+
+        if (tokenCenterX >= 0 && tokenCenterX <= state.scenarioWidth &&
+            tokenCenterY >= 0 && tokenCenterY <= state.scenarioHeight) {
+            visibleTokenIds.add(tokenId);
+            visibleTokens[tokenId] = token;
+        }
+    }
+
+    const visibleTokenOrder = state.tokenOrder.filter(id => visibleTokenIds.has(id));
+    
+    return { visibleTokens, visibleTokenOrder };
+}
 
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
@@ -413,7 +445,7 @@ function isActionValid(state, action) {
     if (type === 'gm_switch_mode' && isGm) return true;
 
     if (state.mode === 'theater') {
-        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage' || type === 'updateGlobalScale') && isGm;
+        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage' || type === 'updateGlobalScale' || type === 'update_scenario_dims') && isGm;
     }
 
     const move = state.moves[action.move];
@@ -714,16 +746,24 @@ io.on('connection', (socket) => {
                 break;
 
             // THEATER MODE ACTIONS
+            case 'update_scenario_dims':
+                state.scenarioWidth = action.width;
+                state.scenarioHeight = action.height;
+                break;
             case 'updateGlobalScale':
                 state.globalTokenScale = action.scale;
                 if (!state.isStaging) {
+                    const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(state);
+                    state.publicState.tokens = visibleTokens;
+                    state.publicState.tokenOrder = visibleTokenOrder;
                     state.publicState.globalTokenScale = action.scale;
                 }
                 break;
             case 'publish_stage':
                 state.publicState.scenario = state.scenario;
-                state.publicState.tokens = JSON.parse(JSON.stringify(state.tokens));
-                state.publicState.tokenOrder = [...state.tokenOrder];
+                const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(state);
+                state.publicState.tokens = visibleTokens;
+                state.publicState.tokenOrder = visibleTokenOrder;
                 state.publicState.globalTokenScale = state.globalTokenScale;
                 state.isStaging = false;
                 logMessage(state, 'GM publicou a nova cena para os espectadores.');
@@ -754,8 +794,9 @@ io.on('connection', (socket) => {
                     Object.assign(state.tokens[action.token.id], action.token);
                 }
                 if (!state.isStaging) {
-                    state.publicState.tokens = JSON.parse(JSON.stringify(state.tokens));
-                    state.publicState.tokenOrder = [...state.tokenOrder];
+                    const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(state);
+                    state.publicState.tokens = visibleTokens;
+                    state.publicState.tokenOrder = visibleTokenOrder;
                 }
                 break;
             case 'changeTokenOrder':
@@ -770,13 +811,16 @@ io.on('connection', (socket) => {
                     [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
                 }
                 if (!state.isStaging) {
-                    state.publicState.tokenOrder = [...state.tokenOrder];
+                    const { visibleTokenOrder } = filterVisibleTokens(state); // Only need to update order
+                    state.publicState.tokenOrder = visibleTokenOrder;
                 }
                 break;
             case 'changeScenario':
                 state.scenario = action.scenario;
                 state.tokens = {};
                 state.tokenOrder = [];
+                state.scenarioWidth = null;
+                state.scenarioHeight = null;
                 state.isStaging = true; 
                 logMessage(state, `GM está preparando um novo cenário: ${action.scenario}`);
                 break;

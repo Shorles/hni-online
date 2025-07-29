@@ -319,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableSpecialMoves);
+        renderSpecialMoveSelection(specialMovesList, availableMoves);
         specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
@@ -961,21 +961,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTheaterMode(state) {
         const dataToRender = (myPlayerKey === 'spectator' && state.publicState) ? state.publicState : state;
+        const gmData = isGm ? state : null;
 
         if (dataToRender.scenario) {
-            theaterBackgroundImage.src = `images/${dataToRender.scenario}`;
             const worldContainer = document.getElementById('theater-world-container');
             
-            theaterBackgroundImage.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                theaterBackgroundImage.src = img.src;
                 if (worldContainer) {
-                    worldContainer.style.width = `${theaterBackgroundImage.naturalWidth}px`;
-                    worldContainer.style.height = `${theaterBackgroundImage.naturalHeight}px`;
+                    worldContainer.style.width = `${img.naturalWidth}px`;
+                    worldContainer.style.height = `${img.naturalHeight}px`;
+                }
+                if (isGm && (state.scenarioWidth !== img.naturalWidth || state.scenarioHeight !== img.naturalHeight)) {
+                    socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
                 }
             };
-            if (worldContainer) {
-                worldContainer.style.width = `${theaterBackgroundImage.naturalWidth}px`;
-                worldContainer.style.height = `${theaterBackgroundImage.naturalHeight}px`;
-            }
+            img.src = `images/${dataToRender.scenario}`;
         }
         
         const theaterScreenEl = document.getElementById('theater-screen'); 
@@ -994,9 +996,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         theaterTokenContainer.innerHTML = '';
         const fragment = document.createDocumentFragment();
+        
+        const tokensToRender = isGm ? gmData.tokens : dataToRender.tokens;
+        const tokenOrderToRender = isGm ? gmData.tokenOrder : dataToRender.tokenOrder;
 
-        dataToRender.tokenOrder.forEach((tokenId, index) => {
-            const tokenData = dataToRender.tokens[tokenId];
+        tokenOrderToRender.forEach((tokenId, index) => {
+            const tokenData = tokensToRender[tokenId];
             if (!tokenData) return;
 
             const tokenEl = document.createElement('img');
@@ -1014,8 +1019,15 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.title = tokenData.charName;
             tokenEl.draggable = false;
             
-            if (isGm && selectedTokens.has(tokenId)) {
-                tokenEl.classList.add('selected');
+            if (isGm) {
+                if (selectedTokens.has(tokenId)) {
+                    tokenEl.classList.add('selected');
+                }
+                const tokenCenterX = tokenData.x + (200 * scale / 2);
+                const tokenCenterY = tokenData.y + (200 * scale / 2);
+                if (gmData.scenarioWidth && (tokenCenterX < 0 || tokenCenterX > gmData.scenarioWidth || tokenCenterY < 0 || tokenCenterY > gmData.scenarioHeight)) {
+                    tokenEl.classList.add('off-stage');
+                }
             }
             fragment.appendChild(tokenEl);
         });
