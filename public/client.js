@@ -114,13 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showInfoModal("Guia de Golpes e Efeitos", tableHtml);
     }
 
-    function showScreen(screenToShow) {
-        allScreens.forEach(screen => {
-            screen.classList.toggle('active', screen.id === screenToShow.id);
-        });
-        // *** CORREÇÃO: Chamar a função de escala toda vez que a tela muda. ***
-        scaleGame();
-    }
+    function showScreen(screenToShow) { allScreens.forEach(screen => { screen.classList.toggle('active', screen.id === screenToShow.id); }); }
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
@@ -677,11 +671,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         const theaterScreenEl = document.getElementById('theater-screen');
         const selectionBox = document.getElementById('selection-box');
-        const worldContainer = document.getElementById('theater-world-container');
-
-        if (selectionBox.parentElement !== worldContainer) {
-            worldContainer.appendChild(selectionBox);
-        }
         
         toggleGmPanelBtn.addEventListener('click', () => { 
             theaterScreenEl.classList.toggle('panel-hidden');
@@ -805,40 +794,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
                 
-                const startX = (e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
-                const startY = (e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+                // Posição inicial do mouse relativa ao viewport
+                const startX = e.clientX - viewportRect.left;
+                const startY = e.clientY - viewportRect.top;
 
-                selectionBox.style.left = `${startX}px`;
-                selectionBox.style.top = `${startY}px`;
+                selectionBox.style.left = `${startX + theaterBackgroundViewport.scrollLeft}px`;
+                selectionBox.style.top = `${startY + theaterBackgroundViewport.scrollTop}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = (moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
-                    const currentY = (moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+                    const currentX = moveEvent.clientX - viewportRect.left;
+                    const currentY = moveEvent.clientY - viewportRect.top;
                     
                     const width = currentX - startX;
                     const height = currentY - startY;
 
                     selectionBox.style.width = `${Math.abs(width)}px`;
                     selectionBox.style.height = `${Math.abs(height)}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX) + theaterBackgroundViewport.scrollLeft}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY) + theaterBackgroundViewport.scrollTop}px`;
                 };
 
                 const onMouseUpMarquee = () => {
-                    const boxLeft = parseFloat(selectionBox.style.left);
-                    const boxTop = parseFloat(selectionBox.style.top);
-                    const boxWidth = parseFloat(selectionBox.style.width);
-                    const boxHeight = parseFloat(selectionBox.style.height);
-                    const selectionRect = {
-                        left: boxLeft,
-                        top: boxTop,
-                        right: boxLeft + boxWidth,
-                        bottom: boxTop + boxHeight
-                    };
-
+                    // *** CORREÇÃO: Usar getBoundingClientRect para comparar posições visuais ***
+                    const boxRect = selectionBox.getBoundingClientRect();
                     selectionBox.classList.add('hidden');
                     
                     if (!e.ctrlKey) {
@@ -847,22 +828,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     document.querySelectorAll('.theater-token').forEach(token => {
-                        const tokenLeft = parseFloat(token.style.left);
-                        const tokenTop = parseFloat(token.style.top);
-                        const tokenWidth = token.clientWidth / currentScenarioScale;
-                        const tokenHeight = token.clientHeight / currentScenarioScale;
-                        const tokenRect = {
-                           left: tokenLeft,
-                           top: tokenTop,
-                           right: tokenLeft + tokenWidth,
-                           bottom: tokenTop + tokenHeight
-                        };
-                        
-                        const isIntersecting = !(tokenRect.right < selectionRect.left || 
-                                                 tokenRect.left > selectionRect.right || 
-                                                 tokenRect.bottom < selectionRect.top || 
-                                                 tokenRect.top > selectionRect.bottom);
-
+                        const tokenRect = token.getBoundingClientRect();
+                        const isIntersecting = !(tokenRect.right < boxRect.left || 
+                                                 tokenRect.left > boxRect.right || 
+                                                 tokenRect.bottom < boxRect.top || 
+                                                 tokenRect.top > boxRect.bottom);
 
                         if (isIntersecting) {
                             token.classList.add('selected');
@@ -1130,30 +1100,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initialize();
     
-    // *** CORREÇÃO: Função de escala agora é condicional. ***
-    const scaleGame = () => {
-        const fightScreenEl = document.getElementById('fight-screen');
-        const gameWrapperEl = document.getElementById('game-wrapper');
-
-        if (fightScreenEl.classList.contains('active')) {
-            // Se a tela de luta estiver ativa, aplica a escala.
-            if (window.innerWidth > 800) {
-                const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-                gameWrapperEl.style.transform = `scale(${s})`;
-                gameWrapperEl.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`;
-                gameWrapperEl.style.top = `${(window.innerHeight - (720 * s)) / 2}px`;
-            } else {
-                gameWrapperEl.style.transform = 'none';
-                gameWrapperEl.style.left = '0';
-                gameWrapperEl.style.top = '0';
-            }
-        } else {
-            // Para todas as outras telas (menus, etc.), remove a escala.
-            gameWrapperEl.style.transform = 'none';
-            gameWrapperEl.style.left = '0';
-            gameWrapperEl.style.top = '0';
-        }
-    };
+    // *** A lógica de escala original foi restaurada para corrigir o bug do menu inicial. ***
+    const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
     
     scaleGame();
     window.addEventListener('resize', scaleGame);
