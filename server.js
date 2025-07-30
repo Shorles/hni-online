@@ -86,8 +86,8 @@ function createNewTheaterState(scenario) {
         gmId: null,
         log: [{ text: "Modo Teatro iniciado."}],
         scenario: scenario,
-        scenarioWidth: null, // NEW
-        scenarioHeight: null, // NEW
+        scenarioWidth: null,
+        scenarioHeight: null,
         tokens: {},
         tokenOrder: [],
         globalTokenScale: 1.0,
@@ -120,10 +120,8 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { if(state && state.log) { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); } }
 
-// NEW HELPER FUNCTION
 function filterVisibleTokens(state) {
     if (!state.scenarioWidth || !state.scenarioHeight) {
-        // If dimensions aren't set, show all tokens to be safe
         return {
             visibleTokens: { ...state.tokens },
             visibleTokenOrder: [...state.tokenOrder]
@@ -137,9 +135,8 @@ function filterVisibleTokens(state) {
         const token = state.tokens[tokenId];
         if (!token) continue;
         
-        // Check if the center of the token is on screen
         const tokenCenterX = token.x + (200 * (token.scale || 1) / 2);
-        const tokenCenterY = token.y + (200 * (token.scale || 1) / 2); // Assuming tokens are roughly square
+        const tokenCenterY = token.y + (200 * (token.scale || 1) / 2); 
 
         if (tokenCenterX >= 0 && tokenCenterX <= state.scenarioWidth &&
             tokenCenterY >= 0 && tokenCenterY <= state.scenarioHeight) {
@@ -794,9 +791,9 @@ io.on('connection', (socket) => {
                     Object.assign(state.tokens[action.token.id], action.token);
                 }
                 if (!state.isStaging) {
-                    const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(state);
-                    state.publicState.tokens = visibleTokens;
-                    state.publicState.tokenOrder = visibleTokenOrder;
+                    const { visibleTokens: vTokens, visibleTokenOrder: vOrder } = filterVisibleTokens(state);
+                    state.publicState.tokens = vTokens;
+                    state.publicState.tokenOrder = vOrder;
                 }
                 break;
             case 'changeTokenOrder':
@@ -811,8 +808,8 @@ io.on('connection', (socket) => {
                     [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
                 }
                 if (!state.isStaging) {
-                    const { visibleTokenOrder } = filterVisibleTokens(state); // Only need to update order
-                    state.publicState.tokenOrder = visibleTokenOrder;
+                    const { visibleTokenOrder: vOrder } = filterVisibleTokens(state);
+                    state.publicState.tokenOrder = vOrder;
                 }
                 break;
             case 'changeScenario':
@@ -1148,16 +1145,15 @@ io.on('connection', (socket) => {
             const disconnectedPlayer = room.players[playerIndex];
             logMessage(room.state, `Jogador (${disconnectedPlayer.playerKey}) desconectou-se.`);
             room.players.splice(playerIndex, 1);
-            // In a battle, a player disconnecting could be a forfeit.
-            if (room.state.mode !== 'theater' && (room.state.phase !== 'gameover' && room.state.phase !== 'arena_lobby')) {
+            if (room.state.mode === 'arena' && room.state.phase === 'arena_lobby') {
+                io.to(room.hostId).emit('updateArenaLobby', { playerKey: disconnectedPlayer.playerKey, status: 'disconnected' });
+            } else if (room.state.mode !== 'theater' && (room.state.phase !== 'gameover')) {
                 room.state.phase = 'gameover';
                 room.state.winner = disconnectedPlayer.playerKey === 'player1' ? 'player2' : 'player1';
                 room.state.reason = `Oponente desconectou.`;
-                io.to(roomId).emit('gameUpdate', room.state);
-                dispatchAction(room);
-            } else {
-                 io.to(roomId).emit('gameUpdate', room.state);
             }
+            io.to(roomId).emit('gameUpdate', room.state);
+            dispatchAction(room);
             return;
         } 
         // Handle spectator disconnection

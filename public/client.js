@@ -788,30 +788,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             const isToken = e.target.classList.contains('theater-token');
-            const worldContainer = document.getElementById('theater-world-container');
-
+            
             if (isGm && isGroupSelectMode && !isToken) {
                 e.preventDefault();
-                const containerRect = worldContainer.getBoundingClientRect();
-                const startX = e.clientX - containerRect.left;
-                const startY = e.clientY - containerRect.top;
-                
-                selectionBox.style.left = `${startX / currentScenarioScale}px`;
-                selectionBox.style.top = `${startY / currentScenarioScale}px`;
+                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
+                const startX = (e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft);
+                const startY = (e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop);
+
+                selectionBox.style.left = `${startX}px`;
+                selectionBox.style.top = `${startY}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = moveEvent.clientX - containerRect.left;
-                    const currentY = moveEvent.clientY - containerRect.top;
+                    const currentX = (moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft);
+                    const currentY = (moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop);
+                    
                     const width = currentX - startX;
                     const height = currentY - startY;
 
-                    selectionBox.style.width = `${Math.abs(width) / currentScenarioScale}px`;
-                    selectionBox.style.height = `${Math.abs(height) / currentScenarioScale}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX) / currentScenarioScale}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY) / currentScenarioScale}px`;
+                    selectionBox.style.width = `${Math.abs(width)}px`;
+                    selectionBox.style.height = `${Math.abs(height)}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
                 };
 
                 const onMouseUpMarquee = () => {
@@ -825,7 +825,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     document.querySelectorAll('.theater-token').forEach(token => {
                         const tokenRect = token.getBoundingClientRect();
-                        
                         const isIntersecting = !(tokenRect.right < boxRect.left || tokenRect.left > boxRect.right || tokenRect.bottom < boxRect.top || tokenRect.top > boxRect.bottom);
 
                         if (isIntersecting) {
