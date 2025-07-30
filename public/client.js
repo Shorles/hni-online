@@ -720,7 +720,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const worldX = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
                 const worldY = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
                 
-                // *** CORREÇÃO: Remover o deslocamento de centralização para alinhar o token com o cursor. ***
                 const newToken = { 
                     id: `token-${Date.now()}`, 
                     charName: data.charName, 
@@ -822,7 +821,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 const onMouseUpMarquee = () => {
-                    // *** CORREÇÃO: Usar getBoundingClientRect para comparar posições visuais ***
                     const boxRect = selectionBox.getBoundingClientRect();
                     selectionBox.classList.add('hidden');
                     
