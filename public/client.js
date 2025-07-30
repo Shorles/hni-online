@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmBtn.disabled = true; socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
         } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
              confirmBtn.disabled = true; socket.emit('selectArenaCharacter', { character: playerData });
-             showScreen(arenaLobbyScreen); lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
+             showScreen(arenaLobbyScreen);
         } else {
             confirmBtn.disabled = true; showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
@@ -411,17 +411,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'arena':
-                if (gameState.phase === 'arena_lobby') {
-                    if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-                         if (!selectionScreen.classList.contains('active')) {
-                            showScreen(selectionScreen);
-                        }
-                    } else { // Host or Spectator
+                 if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
+                    const amIReady = gameState.playersReady[myPlayerKey];
+                    if (!amIReady && PRE_GAME_PHASES.includes(gameState.phase)) {
+                        showScreen(selectionScreen);
+                    } else {
                         showScreen(arenaLobbyScreen);
                     }
-                } else if (PRE_GAME_PHASES.includes(gameState.phase)) {
-                    showScreen(arenaLobbyScreen); 
-                } else {
+                } else { // Host or Spectator
+                    showScreen(arenaLobbyScreen);
+                }
+                if (!PRE_GAME_PHASES.includes(gameState.phase)) {
                     showScreen(fightScreen);
                 }
                 break;
@@ -799,27 +799,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && isGroupSelectMode && !isToken) {
                 e.preventDefault();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                // Start coordinates relative to the viewport, including scroll
-                const startX = e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft;
-                const startY = e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop;
+                const startX = e.clientX - viewportRect.left;
+                const startY = e.clientY - viewportRect.top;
 
-                selectionBox.style.left = `${startX}px`;
-                selectionBox.style.top = `${startY}px`;
+                selectionBox.style.left = `${startX + theaterBackgroundViewport.scrollLeft}px`;
+                selectionBox.style.top = `${startY + theaterBackgroundViewport.scrollTop}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft;
-                    const currentY = moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop;
+                    const currentX = moveEvent.clientX - viewportRect.left;
+                    const currentY = moveEvent.clientY - viewportRect.top;
                     
                     const width = currentX - startX;
                     const height = currentY - startY;
 
                     selectionBox.style.width = `${Math.abs(width)}px`;
                     selectionBox.style.height = `${Math.abs(height)}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX) + theaterBackgroundViewport.scrollLeft}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY) + theaterBackgroundViewport.scrollTop}px`;
                 };
 
                 const onMouseUpMarquee = () => {
