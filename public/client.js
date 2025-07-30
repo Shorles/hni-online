@@ -598,11 +598,12 @@ document.addEventListener('DOMContentLoaded', () => {
            worldContainer.style.transform = `scale(${currentScenarioScale})`;
         }
         
-        const selectionBox = document.getElementById('selection-box');
-        if (selectionBox) {
-            selectionBox.style.transformOrigin = 'top left';
-            selectionBox.style.transform = `scale(${1 / currentScenarioScale})`;
-        }
+        // This scaling is no longer needed as the selection-box is a child of the scaled container
+        // const selectionBox = document.getElementById('selection-box');
+        // if (selectionBox) {
+        //     selectionBox.style.transformOrigin = 'top left';
+        //     selectionBox.style.transform = `scale(${1 / currentScenarioScale})`;
+        // }
 
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
@@ -833,7 +834,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const onMouseUpMarquee = () => {
                     // *** CORREÇÃO: Obter as dimensões ANTES de esconder a caixa ***
-                    const boxRect = selectionBox.getBoundingClientRect();
+                    // E usar as coordenadas do mundo para a caixa de seleção
+                    const boxLeft = parseFloat(selectionBox.style.left);
+                    const boxTop = parseFloat(selectionBox.style.top);
+                    const boxWidth = parseFloat(selectionBox.style.width);
+                    const boxHeight = parseFloat(selectionBox.style.height);
+                    const selectionRect = {
+                        left: boxLeft,
+                        top: boxTop,
+                        right: boxLeft + boxWidth,
+                        bottom: boxTop + boxHeight
+                    };
+
                     selectionBox.classList.add('hidden');
                     
                     // Se não estiver segurando Ctrl, limpa a seleção anterior
@@ -843,9 +855,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     document.querySelectorAll('.theater-token').forEach(token => {
-                        const tokenRect = token.getBoundingClientRect();
-                        // Lógica de intersecção, agora funciona porque ambas as getBoundingClientRects estão corretas
-                        const isIntersecting = !(tokenRect.right < boxRect.left || tokenRect.left > boxRect.right || tokenRect.bottom < boxRect.top || tokenRect.top > boxRect.bottom);
+                         // *** CORREÇÃO: Comparar as coordenadas do mundo do token com as coordenadas do mundo da caixa de seleção ***
+                        const tokenLeft = parseFloat(token.style.left);
+                        const tokenTop = parseFloat(token.style.top);
+                        const tokenRect = {
+                           left: tokenLeft,
+                           top: tokenTop,
+                           right: tokenLeft + token.clientWidth,
+                           bottom: tokenTop + token.clientHeight
+                        };
+                        
+                        const isIntersecting = !(tokenRect.right < selectionRect.left || 
+                                                 tokenRect.left > selectionRect.right || 
+                                                 tokenRect.bottom < selectionRect.top || 
+                                                 tokenRect.top > selectionRect.bottom);
+
 
                         if (isIntersecting) {
                             token.classList.add('selected');
@@ -1018,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fragment = document.createDocumentFragment();
         
         const tokensToRender = isGm ? gmData.tokens : dataToRender.tokens;
-        const tokenOrderToRender = isGm ? gmData.tokenOrder : dataToRender.tokenOrder;
+        const tokenOrderToRender = isGm ? gm.tokenOrder : dataToRender.tokenOrder;
 
         tokenOrderToRender.forEach((tokenId, index) => {
             const tokenData = tokensToRender[tokenId];
@@ -1096,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('doubleKnockdownResults', (results) => {
         modal.classList.add('hidden');
         ['player1', 'player2'].forEach(pKey => {
-            const resultData = results[pKey]; if (resultData) { const overlay = document.getElementById(`${pKey}-dk-result`); overlay.innerHTML = `<h4>${currentGameState.fighters[pKey].nome}</h4><p>Rolagem: ${resultData.total}</p>`; overlay.className = 'dk-result-overlay'; overlay.classList.add(resultData.success ? 'success' : 'fail'); overlay.classList.remove('hidden'); }
+            const resultData = results[pKey]; if (resultData) { const overlay = document.getElementById(`${pKey}-dk-result`); overlay.innerHTML = `<h4>${currentGameState.fighters[pKey].nome}</h4><p>Rolagem: ${resultData.total}</p>`; overlay.className = 'dk-result-overlay'; overlay.classList.add(resultData.success ? 'fail'); overlay.classList.remove('hidden'); }
         });
         setTimeout(() => { document.getElementById('player1-dk-result').classList.add('hidden'); document.getElementById('player2-dk-result').classList.add('hidden'); }, 3000);
     });
