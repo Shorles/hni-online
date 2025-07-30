@@ -386,47 +386,41 @@ document.addEventListener('DOMContentLoaded', () => {
              linkInitialized = false;
         }
         
-        switch(gameState.mode) {
-            case 'theater':
-                showScreen(theaterScreen);
-                if (isGm && !linkInitialized && currentRoomId) {
-                    const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
-                    copyTheaterSpectatorLinkBtn.disabled = false;
-                    copyTheaterSpectatorLinkBtn.onclick = () => copyToClipboard(specUrl, copyTheaterSpectatorLinkBtn);
-                    linkInitialized = true;
-                }
-                renderTheaterMode(gameState);
-                break;
-            case 'classic':
-                 if (gameState.phase === 'gm_classic_setup' && isGm) {
-                    showScreen(selectionScreen);
-                    selectionTitle.innerText = 'GM (P1): Selecione seu Lutador';
-                    confirmBtn.innerText = 'Confirmar para Iniciar';
-                    confirmBtn.disabled = false;
-                    renderCharacterSelection('p1', true);
-                } else if (PRE_GAME_PHASES.includes(gameState.phase)) {
-                    showScreen(lobbyScreen);
-                } else {
-                    showScreen(fightScreen);
-                }
-                break;
-            case 'arena':
-                 if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-                    const amIReady = gameState.playersReady[myPlayerKey];
-                    if (!amIReady && PRE_GAME_PHASES.includes(gameState.phase)) {
+        // Screen switching logic
+        if (gameState.mode === 'theater') {
+            showScreen(theaterScreen);
+            renderTheaterMode(gameState);
+        } else if (gameState.mode === 'classic') {
+             if (gameState.phase === 'gm_classic_setup' && isGm) {
+                showScreen(selectionScreen);
+                selectionTitle.innerText = 'GM (P1): Selecione seu Lutador';
+                confirmBtn.innerText = 'Confirmar para Iniciar';
+                confirmBtn.disabled = false;
+                renderCharacterSelection('p1', true);
+            } else if (PRE_GAME_PHASES.includes(gameState.phase)) {
+                showScreen(lobbyScreen);
+            } else {
+                showScreen(fightScreen);
+            }
+        } else if (gameState.mode === 'arena') {
+            if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
+                const amIReady = gameState.playersReady[myPlayerKey];
+                if (!amIReady && PRE_GAME_PHASES.includes(gameState.phase)) {
+                    if (!selectionScreen.classList.contains('active')) {
                         showScreen(selectionScreen);
-                    } else {
-                        showScreen(arenaLobbyScreen);
                     }
-                } else { // Host or Spectator
-                    showScreen(arenaLobbyScreen);
+                } else {
+                     showScreen(arenaLobbyScreen);
                 }
-                if (!PRE_GAME_PHASES.includes(gameState.phase)) {
-                    showScreen(fightScreen);
-                }
-                break;
+            } else { // Host or Spectator
+                showScreen(arenaLobbyScreen);
+            }
+            if (!PRE_GAME_PHASES.includes(gameState.phase)) {
+                showScreen(fightScreen);
+            }
         }
 
+        // Link sharing logic
         if (gameState.mode === 'classic' && (myPlayerKey === 'player1' || isGm) && !linkInitialized && currentRoomId) {
             const p2Url = `${window.location.origin}?room=${currentRoomId}`;
             const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
@@ -795,30 +789,32 @@ document.addEventListener('DOMContentLoaded', () => {
     
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             const isToken = e.target.classList.contains('theater-token');
-            
+            const worldContainer = document.getElementById('theater-world-container');
+
             if (isGm && isGroupSelectMode && !isToken) {
                 e.preventDefault();
-                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                const startX = e.clientX - viewportRect.left;
-                const startY = e.clientY - viewportRect.top;
+                const worldRect = worldContainer.getBoundingClientRect();
+                
+                const startX = (e.clientX - worldRect.left) / currentScenarioScale;
+                const startY = (e.clientY - worldRect.top) / currentScenarioScale;
 
-                selectionBox.style.left = `${startX + theaterBackgroundViewport.scrollLeft}px`;
-                selectionBox.style.top = `${startY + theaterBackgroundViewport.scrollTop}px`;
+                selectionBox.style.left = `${startX}px`;
+                selectionBox.style.top = `${startY}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = moveEvent.clientX - viewportRect.left;
-                    const currentY = moveEvent.clientY - viewportRect.top;
+                    const currentX = (moveEvent.clientX - worldRect.left) / currentScenarioScale;
+                    const currentY = (moveEvent.clientY - worldRect.top) / currentScenarioScale;
                     
                     const width = currentX - startX;
                     const height = currentY - startY;
 
                     selectionBox.style.width = `${Math.abs(width)}px`;
                     selectionBox.style.height = `${Math.abs(height)}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX) + theaterBackgroundViewport.scrollLeft}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY) + theaterBackgroundViewport.scrollTop}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
                 };
 
                 const onMouseUpMarquee = () => {
