@@ -598,6 +598,12 @@ document.addEventListener('DOMContentLoaded', () => {
            worldContainer.style.transform = `scale(${currentScenarioScale})`;
         }
         
+        const selectionBox = document.getElementById('selection-box');
+        if (selectionBox) {
+            selectionBox.style.transformOrigin = 'top left';
+            selectionBox.style.transform = `scale(${1 / currentScenarioScale})`;
+        }
+
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
             const isFlipped = token.dataset.flipped === 'true';
@@ -714,15 +720,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const worldX = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
                 const worldY = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
                 
-                const tokenWidth = 200; // default width
-                const tokenHeight = 200; // estimate
-
+                // *** CORREÇÃO: Remover o deslocamento de centralização para alinhar o token com o cursor. ***
                 const newToken = { 
                     id: `token-${Date.now()}`, 
                     charName: data.charName, 
                     img: data.img, 
-                    x: worldX - (tokenWidth / 2), 
-                    y: worldY - (tokenHeight / 2), 
+                    x: worldX, 
+                    y: worldY, 
                     scale: 1, 
                     isFlipped: false 
                 };
@@ -794,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
                 
-                // Posição inicial do mouse relativa ao viewport
+                // *** CORREÇÃO: Coordenadas iniciais do mouse relativas ao viewport ***
                 const startX = e.clientX - viewportRect.left;
                 const startY = e.clientY - viewportRect.top;
 
@@ -1099,10 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); });
 
     initialize();
-    
-    // *** A lógica de escala original foi restaurada para corrigir o bug do menu inicial. ***
     const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
-    
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
