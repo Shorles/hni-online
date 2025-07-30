@@ -114,7 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
         showInfoModal("Guia de Golpes e Efeitos", tableHtml);
     }
 
-    function showScreen(screenToShow) { allScreens.forEach(screen => { screen.classList.toggle('active', screen.id === screenToShow.id); }); }
+    function showScreen(screenToShow) {
+        allScreens.forEach(screen => {
+            screen.classList.toggle('active', screen.id === screenToShow.id);
+        });
+        // *** CORREÇÃO: Chamar a função de escala toda vez que a tela muda. ***
+        scaleGame();
+    }
 
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
@@ -598,13 +604,6 @@ document.addEventListener('DOMContentLoaded', () => {
            worldContainer.style.transform = `scale(${currentScenarioScale})`;
         }
         
-        // This scaling is no longer needed as the selection-box is a child of the scaled container
-        // const selectionBox = document.getElementById('selection-box');
-        // if (selectionBox) {
-        //     selectionBox.style.transformOrigin = 'top left';
-        //     selectionBox.style.transform = `scale(${1 / currentScenarioScale})`;
-        // }
-
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
             const isFlipped = token.dataset.flipped === 'true';
@@ -680,7 +679,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectionBox = document.getElementById('selection-box');
         const worldContainer = document.getElementById('theater-world-container');
 
-        // *** CORREÇÃO: Mover a caixa de seleção para dentro do contêiner do mundo para que ela seja afetada pela escala. ***
         if (selectionBox.parentElement !== worldContainer) {
             worldContainer.appendChild(selectionBox);
         }
@@ -807,7 +805,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
                 
-                // *** CORREÇÃO: Calcular coordenadas iniciais no "mundo" levando em conta a escala ***
                 const startX = (e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
                 const startY = (e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
 
@@ -818,14 +815,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    // *** CORREÇÃO: Calcular coordenadas atuais no "mundo" levando em conta a escala ***
                     const currentX = (moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
                     const currentY = (moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
                     
                     const width = currentX - startX;
                     const height = currentY - startY;
 
-                    // Lógica para desenhar o retângulo independentemente da direção do mouse
                     selectionBox.style.width = `${Math.abs(width)}px`;
                     selectionBox.style.height = `${Math.abs(height)}px`;
                     selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
@@ -833,8 +828,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 const onMouseUpMarquee = () => {
-                    // *** CORREÇÃO: Obter as dimensões ANTES de esconder a caixa ***
-                    // E usar as coordenadas do mundo para a caixa de seleção
                     const boxLeft = parseFloat(selectionBox.style.left);
                     const boxTop = parseFloat(selectionBox.style.top);
                     const boxWidth = parseFloat(selectionBox.style.width);
@@ -848,21 +841,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     selectionBox.classList.add('hidden');
                     
-                    // Se não estiver segurando Ctrl, limpa a seleção anterior
                     if (!e.ctrlKey) {
                         document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
                         selectedTokens.clear();
                     }
                     
                     document.querySelectorAll('.theater-token').forEach(token => {
-                         // *** CORREÇÃO: Comparar as coordenadas do mundo do token com as coordenadas do mundo da caixa de seleção ***
                         const tokenLeft = parseFloat(token.style.left);
                         const tokenTop = parseFloat(token.style.top);
+                        const tokenWidth = token.clientWidth / currentScenarioScale;
+                        const tokenHeight = token.clientHeight / currentScenarioScale;
                         const tokenRect = {
                            left: tokenLeft,
                            top: tokenTop,
-                           right: tokenLeft + token.clientWidth,
-                           bottom: tokenTop + token.clientHeight
+                           right: tokenLeft + tokenWidth,
+                           bottom: tokenTop + tokenHeight
                         };
                         
                         const isIntersecting = !(tokenRect.right < selectionRect.left || 
@@ -1042,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fragment = document.createDocumentFragment();
         
         const tokensToRender = isGm ? gmData.tokens : dataToRender.tokens;
-        const tokenOrderToRender = isGm ? gm.tokenOrder : dataToRender.tokenOrder;
+        const tokenOrderToRender = isGm ? gmData.tokenOrder : dataToRender.tokenOrder;
 
         tokenOrderToRender.forEach((tokenId, index) => {
             const tokenData = tokensToRender[tokenId];
@@ -1120,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('doubleKnockdownResults', (results) => {
         modal.classList.add('hidden');
         ['player1', 'player2'].forEach(pKey => {
-            const resultData = results[pKey]; if (resultData) { const overlay = document.getElementById(`${pKey}-dk-result`); overlay.innerHTML = `<h4>${currentGameState.fighters[pKey].nome}</h4><p>Rolagem: ${resultData.total}</p>`; overlay.className = 'dk-result-overlay'; overlay.classList.add(resultData.success ? 'fail'); overlay.classList.remove('hidden'); }
+            const resultData = results[pKey]; if (resultData) { const overlay = document.getElementById(`${pKey}-dk-result`); overlay.innerHTML = `<h4>${currentGameState.fighters[pKey].nome}</h4><p>Rolagem: ${resultData.total}</p>`; overlay.className = 'dk-result-overlay'; overlay.classList.add(resultData.success ? 'success' : 'fail'); overlay.classList.remove('hidden'); }
         });
         setTimeout(() => { document.getElementById('player1-dk-result').classList.add('hidden'); document.getElementById('player2-dk-result').classList.add('hidden'); }, 3000);
     });
@@ -1136,7 +1129,32 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); });
 
     initialize();
-    const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
+    
+    // *** CORREÇÃO: Função de escala agora é condicional. ***
+    const scaleGame = () => {
+        const fightScreenEl = document.getElementById('fight-screen');
+        const gameWrapperEl = document.getElementById('game-wrapper');
+
+        if (fightScreenEl.classList.contains('active')) {
+            // Se a tela de luta estiver ativa, aplica a escala.
+            if (window.innerWidth > 800) {
+                const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+                gameWrapperEl.style.transform = `scale(${s})`;
+                gameWrapperEl.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`;
+                gameWrapperEl.style.top = `${(window.innerHeight - (720 * s)) / 2}px`;
+            } else {
+                gameWrapperEl.style.transform = 'none';
+                gameWrapperEl.style.left = '0';
+                gameWrapperEl.style.top = '0';
+            }
+        } else {
+            // Para todas as outras telas (menus, etc.), remove a escala.
+            gameWrapperEl.style.transform = 'none';
+            gameWrapperEl.style.left = '0';
+            gameWrapperEl.style.top = '0';
+        }
+    };
+    
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
