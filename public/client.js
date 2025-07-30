@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmBtn.disabled = true; socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
         } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
              confirmBtn.disabled = true; socket.emit('selectArenaCharacter', { character: playerData });
-             showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
+             showScreen(arenaLobbyScreen); lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
         } else {
             confirmBtn.disabled = true; showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
@@ -411,8 +411,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'arena':
-                if (PRE_GAME_PHASES.includes(gameState.phase)) {
-                    showScreen(arenaLobbyScreen);
+                if (gameState.phase === 'arena_lobby') {
+                    if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
+                         if (!selectionScreen.classList.contains('active')) {
+                            showScreen(selectionScreen);
+                        }
+                    } else { // Host or Spectator
+                        showScreen(arenaLobbyScreen);
+                    }
+                } else if (PRE_GAME_PHASES.includes(gameState.phase)) {
+                    showScreen(arenaLobbyScreen); 
                 } else {
                     showScreen(fightScreen);
                 }
@@ -708,7 +716,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!dataString) return;
                 const data = JSON.parse(dataString);
                 const containerRect = theaterBackgroundViewport.getBoundingClientRect();
-                const worldContainer = document.getElementById('theater-world-container');
                 
                 const worldX = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
                 const worldY = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
@@ -792,8 +799,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && isGroupSelectMode && !isToken) {
                 e.preventDefault();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                const startX = (e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft);
-                const startY = (e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop);
+                // Start coordinates relative to the viewport, including scroll
+                const startX = e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft;
+                const startY = e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop;
 
                 selectionBox.style.left = `${startX}px`;
                 selectionBox.style.top = `${startY}px`;
@@ -802,8 +810,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = (moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft);
-                    const currentY = (moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop);
+                    const currentX = moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft;
+                    const currentY = moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop;
                     
                     const width = currentX - startX;
                     const height = currentY - startY;
