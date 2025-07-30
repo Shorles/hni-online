@@ -724,7 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     id: `token-${Date.now()}`, 
                     charName: data.charName, 
                     img: data.img, 
-                    x: worldX, 
+                    x: worldX,
                     y: worldY, 
                     scale: 1, 
                     isFlipped: false 
@@ -797,31 +797,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
                 
-                // *** CORREÇÃO: Coordenadas iniciais do mouse relativas ao viewport ***
-                const startX = e.clientX - viewportRect.left;
-                const startY = e.clientY - viewportRect.top;
+                const startX = (e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
+                const startY = (e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
 
-                selectionBox.style.left = `${startX + theaterBackgroundViewport.scrollLeft}px`;
-                selectionBox.style.top = `${startY + theaterBackgroundViewport.scrollTop}px`;
+                selectionBox.style.left = `${startX}px`;
+                selectionBox.style.top = `${startY}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = moveEvent.clientX - viewportRect.left;
-                    const currentY = moveEvent.clientY - viewportRect.top;
+                    const currentX = (moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
+                    const currentY = (moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
                     
                     const width = currentX - startX;
                     const height = currentY - startY;
 
                     selectionBox.style.width = `${Math.abs(width)}px`;
                     selectionBox.style.height = `${Math.abs(height)}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX) + theaterBackgroundViewport.scrollLeft}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY) + theaterBackgroundViewport.scrollTop}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
                 };
 
                 const onMouseUpMarquee = () => {
-                    const boxRect = selectionBox.getBoundingClientRect();
+                    const boxLeft = parseFloat(selectionBox.style.left);
+                    const boxTop = parseFloat(selectionBox.style.top);
+                    const boxWidth = parseFloat(selectionBox.style.width);
+                    const boxHeight = parseFloat(selectionBox.style.height);
+                    const selectionRect = {
+                        left: boxLeft,
+                        top: boxTop,
+                        right: boxLeft + boxWidth,
+                        bottom: boxTop + boxHeight
+                    };
+
                     selectionBox.classList.add('hidden');
                     
                     if (!e.ctrlKey) {
@@ -830,11 +839,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     document.querySelectorAll('.theater-token').forEach(token => {
-                        const tokenRect = token.getBoundingClientRect();
-                        const isIntersecting = !(tokenRect.right < boxRect.left || 
-                                                 tokenRect.left > boxRect.right || 
-                                                 tokenRect.bottom < boxRect.top || 
-                                                 tokenRect.top > boxRect.bottom);
+                        const tokenLeft = parseFloat(token.style.left);
+                        const tokenTop = parseFloat(token.style.top);
+                        const tokenWidth = token.clientWidth / currentScenarioScale; 
+                        const tokenHeight = token.clientHeight / currentScenarioScale;
+                        const tokenRect = {
+                           left: tokenLeft,
+                           top: tokenTop,
+                           right: tokenLeft + tokenWidth,
+                           bottom: tokenTop + tokenHeight
+                        };
+                        
+                        const isIntersecting = !(tokenRect.right < selectionRect.left || 
+                                                 tokenRect.left > selectionRect.right || 
+                                                 tokenRect.bottom < selectionRect.top || 
+                                                 tokenRect.top > selectionRect.bottom);
+
 
                         if (isIntersecting) {
                             token.classList.add('selected');

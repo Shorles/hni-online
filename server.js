@@ -157,7 +157,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     const move = state.moves[moveName];
     const displayName = move.displayName || moveName;
 
-    let counterProcessed = false; // MODIFICADO: Nova flag
+    let counterProcessed = false; 
 
     const triggerKnockdown = (downedPlayer) => {
         setTimeout(() => {
@@ -175,8 +175,30 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         }, 3000);
     };
 
+    const processIllegalMove = (player) => {
+        player.illegalMoveUses++;
+        if (player.pointDeductions > 0) {
+            const dqChance = Math.min(1, 0.1 * Math.pow(2, player.illegalMoveUses - 2));
+            if (Math.random() < dqChance) {
+                state.phase = 'gm_disqualification_ack';
+                const opponentKey = (player === attacker ? defenderKey : attackerKey);
+                state.winner = opponentKey;
+                state.reason = `${player.nome} foi desqualificado por uso repetido de golpes ilegais.`;
+                io.to(roomId).emit('showGameAlert', `INACREDITÁVEL!<br>${player.nome} foi desqualificado!`);
+                logMessage(state, `INACREDITÁVEL! ${state.reason}`, 'log-crit');
+                return true; // Disqualified
+            }
+        }
+        if (Math.random() < 0.5) {
+            player.pointDeductions++;
+            io.to(roomId).emit('showGameAlert', `O juíz viu o golpe ilegal!<br>${player.nome} perde 1 ponto!`);
+            logMessage(state, `O juíz viu o golpe ilegal! ${player.nome} perde 1 ponto na decisão!`, 'log-crit');
+        }
+        return false; // Not disqualified
+    };
+
     if (state.reactionState && state.reactionState.playerKey === defenderKey && state.reactionState.move === 'Counter') {
-        counterProcessed = true; // MODIFICADO: Marca que o counter foi processado
+        counterProcessed = true;
         const incomingAttackCost = move.cost;
         if (defender.pa >= incomingAttackCost) {
             defender.pa -= incomingAttackCost;
@@ -202,6 +224,12 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 defender.hp = Math.max(0, defender.hp - damageToDeal);
                 defender.totalDamageTaken += hpBeforeHit - defender.hp;
                 io.to(roomId).emit('triggerHitAnimation', { defenderKey });
+                
+                // *** CORREÇÃO: Verificar se o golpe original era ilegal. ***
+                const isActuallyIllegal = (state.illegalCheat === 'always' && move.damage > 0) || (state.illegalCheat === 'normal' && moveName === 'Golpe Ilegal');
+                if (isActuallyIllegal) {
+                    if (processIllegalMove(attacker)) return;
+                }
             } else {
                 logMessage(state, `Empate! Ambos são atingidos no fogo cruzado e recebem ${damageToDeal} de dano!`, 'log-crit');
                 let hpBeforeHit;
@@ -219,11 +247,10 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         } else {
             logMessage(state, `${defender.nome} tenta o Contra-Ataque, mas não tem ${incomingAttackCost} PA para interceptar o golpe!`, 'log-miss');
             state.reactionState = null;
-            counterProcessed = false; // MODIFICADO: Se o counter não teve PA, o ataque normal deve prosseguir
+            counterProcessed = false; 
         }
     }
     
-    // MODIFICADO: A lógica de ataque padrão SÓ executa se um Counter não foi processado.
     if (!counterProcessed && state.phase !== 'knockdown' && state.phase !== 'double_knockdown') {
         logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
         const roll = rollAttackD6(state);
@@ -259,28 +286,12 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 defender.pa = Math.max(0, defender.pa - paToRemove); 
                 logMessage(state, `${attacker.nome} acerta o Clinch! ${defender.nome} perde ${paToRemove} PA.`, 'log-hit');
             }
+            const isActuallyIllegal = (state.illegalCheat === 'always' && move.damage > 0) || (state.illegalCheat === 'normal' && moveName === 'Golpe Ilegal');
+            if (isActuallyIllegal) {
+                if (processIllegalMove(attacker)) return;
+            }
         } else { soundToPlay = 'Esquiva.mp3'; }
     
-        const isActuallyIllegal = (state.illegalCheat === 'always' && move.damage > 0) || (state.illegalCheat === 'normal' && moveName === 'Golpe Ilegal');
-        if (isActuallyIllegal) {
-            attacker.illegalMoveUses++;
-            if (attacker.pointDeductions > 0) {
-                const dqChance = Math.min(1, 0.1 * Math.pow(2, attacker.illegalMoveUses - 2));
-                if (Math.random() < dqChance) {
-                    state.phase = 'gm_disqualification_ack';
-                    state.winner = defenderKey;
-                    state.reason = `${attacker.nome} foi desqualificado por uso repetido de golpes ilegais.`;
-                    io.to(roomId).emit('showGameAlert', `INACREDITÁVEL!<br>${attacker.nome} foi desqualificado!`);
-                    logMessage(state, `INACREDITÁVEL! ${state.reason}`, 'log-crit');
-                    return; // Retorna aqui para evitar checagem de knockdown
-                }
-            }
-            if (Math.random() < 0.5) {
-                attacker.pointDeductions++;
-                io.to(roomId).emit('showGameAlert', `O juíz viu o golpe ilegal!<br>${attacker.nome} perde 1 ponto!`);
-                logMessage(state, `O juíz viu o golpe ilegal! ${attacker.nome} perde 1 ponto na decisão!`, 'log-crit');
-            }
-        }
         if (soundToPlay) { io.to(roomId).emit('playSound', soundToPlay); }
     }
 
