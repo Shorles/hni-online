@@ -183,6 +183,7 @@ body {
 #theater-background-viewport::-webkit-scrollbar { display: none; }
 #theater-background-viewport { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* *** NOVA REGRA PARA O CURSOR *** */
 #theater-background-viewport.group-select-mode {
     cursor: crosshair;
 }

@@ -703,25 +703,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
         theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
     
-        // *** CORREÇÃO DEFINITIVA DO DROP E DA SELEÇÃO ***
-
         const getGameScale = () => {
             const transform = window.getComputedStyle(gameWrapper).transform;
             if (transform === 'none') return 1;
             const matrix = new DOMMatrix(transform);
-            return matrix.a; // 'a' is the scaleX value
+            return matrix.a; 
         };
 
         const screenToWorldCoords = (e) => {
             const gameScale = getGameScale();
             const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-
             const mouseXOnViewport = e.clientX - viewportRect.left;
             const mouseYOnViewport = e.clientY - viewportRect.top;
-
             const worldX = (mouseXOnViewport / gameScale + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
             const worldY = (mouseYOnViewport / gameScale + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
-            
             return { worldX, worldY };
         };
 
@@ -732,12 +727,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dataString = e.dataTransfer.getData('application/json');
                 if (!dataString) return;
                 const data = JSON.parse(dataString);
-                
                 const { worldX, worldY } = screenToWorldCoords(e);
-                
                 const tokenBaseWidth = 200;
                 const tokenScale = 1.0; 
-
                 const newToken = { 
                     id: `token-${Date.now()}`, 
                     charName: data.charName, 
@@ -813,7 +805,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (isGm && isGroupSelectMode && !isToken) {
                 e.preventDefault();
-                
                 const { worldX: worldStartX, worldY: worldStartY } = screenToWorldCoords(e);
 
                 selectionBox.style.left = `${worldStartX}px`;
@@ -824,7 +815,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const onMouseMoveMarquee = (moveEvent) => {
                     const { worldX: worldCurrentX, worldY: worldCurrentY } = screenToWorldCoords(moveEvent);
-                    
                     const width = worldCurrentX - worldStartX;
                     const height = worldCurrentY - worldStartY;
 
@@ -836,12 +826,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const onMouseUpMarquee = () => {
                     selectionBox.classList.add('hidden');
-                    
                     if (!e.ctrlKey) {
                         document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
                         selectedTokens.clear();
                     }
-                    
                     const worldBox = {
                         left: parseFloat(selectionBox.style.left),
                         top: parseFloat(selectionBox.style.top),
@@ -968,28 +956,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     
+        // *** CORREÇÃO DO SCROLL PARA REDIMENSIONAR ***
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
-            if (!currentGameState || currentGameState.mode !== 'theater') return;
+            if (!currentGameState || currentGameState.mode !== 'theater' || !isGm) return;
 
-            if (isGm && e.target.classList.contains('theater-token')) {
+            // Se há tokens selecionados, redimensione-os.
+            if (selectedTokens.size > 0) {
                 e.preventDefault();
-                const currentToken = e.target;
-                const isGroupResize = selectedTokens.has(currentToken.id);
-                const tokensToResize = isGroupResize ? Array.from(selectedTokens).map(id => document.getElementById(id)) : [currentToken];
-                
                 const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+                const updates = [];
 
-                tokensToResize.forEach(tokenToResize => {
-                    if (tokenToResize) {
-                        const currentScale = parseFloat(tokenToResize.dataset.scale) || 1;
+                selectedTokens.forEach(tokenId => {
+                    const tokenData = currentGameState.tokens[tokenId];
+                    if (tokenData) {
+                        const currentScale = tokenData.scale || 1;
                         const newScale = Math.max(0.1, currentScale + scaleAmount);
-                        tokenToResize.dataset.scale = newScale;
-                        socket.emit('playerAction', { type: 'updateToken', token: { id: tokenToResize.id, scale: newScale }});
+                        updates.push({ id: tokenId, scale: newScale });
                     }
                 });
-                return;
+                
+                if (updates.length > 0) {
+                    // Envia um único evento com todas as atualizações
+                    socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
+                }
+                return; // Impede que o zoom do cenário seja ativado
             }
 
+            // Se não houver tokens selecionados, aplique zoom no cenário.
             e.preventDefault();
             const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
             currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
