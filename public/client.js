@@ -598,12 +598,6 @@ document.addEventListener('DOMContentLoaded', () => {
            worldContainer.style.transform = `scale(${currentScenarioScale})`;
         }
         
-        const selectionBox = document.getElementById('selection-box');
-        if (selectionBox) {
-            selectionBox.style.transformOrigin = 'top left';
-            selectionBox.style.transform = `scale(${1 / currentScenarioScale})`;
-        }
-
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
             const isFlipped = token.dataset.flipped === 'true';
@@ -710,23 +704,27 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
     
         theaterBackgroundViewport.addEventListener('drop', (e) => {
-            e.preventDefault(); if (!isGm) return;
+            e.preventDefault();
+            if (!isGm || !currentGameState) return;
             try {
                 const dataString = e.dataTransfer.getData('application/json');
                 if (!dataString) return;
                 const data = JSON.parse(dataString);
                 const containerRect = theaterBackgroundViewport.getBoundingClientRect();
-                
+
                 const worldX = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
                 const worldY = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
                 
+                const tokenBaseWidth = 200;
+                const tokenScale = 1.0;
+
                 const newToken = { 
                     id: `token-${Date.now()}`, 
                     charName: data.charName, 
                     img: data.img, 
-                    x: worldX,
-                    y: worldY, 
-                    scale: 1, 
+                    x: worldX - ((tokenBaseWidth * tokenScale) / 2), 
+                    y: worldY - ((tokenBaseWidth * tokenScale) / 2), 
+                    scale: tokenScale, 
                     isFlipped: false 
                 };
                 socket.emit('playerAction', { type: 'updateToken', token: newToken });
@@ -797,40 +795,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
                 
-                const startX = (e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
-                const startY = (e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+                const startX = e.clientX - viewportRect.left;
+                const startY = e.clientY - viewportRect.top;
 
-                selectionBox.style.left = `${startX}px`;
-                selectionBox.style.top = `${startY}px`;
+                selectionBox.style.left = `${startX + theaterBackgroundViewport.scrollLeft}px`;
+                selectionBox.style.top = `${startY + theaterBackgroundViewport.scrollTop}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = (moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
-                    const currentY = (moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+                    const currentX = moveEvent.clientX - viewportRect.left;
+                    const currentY = moveEvent.clientY - viewportRect.top;
                     
                     const width = currentX - startX;
                     const height = currentY - startY;
 
                     selectionBox.style.width = `${Math.abs(width)}px`;
                     selectionBox.style.height = `${Math.abs(height)}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX)}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY)}px`;
+                    selectionBox.style.left = `${(width < 0 ? currentX : startX) + theaterBackgroundViewport.scrollLeft}px`;
+                    selectionBox.style.top = `${(height < 0 ? currentY : startY) + theaterBackgroundViewport.scrollTop}px`;
                 };
 
                 const onMouseUpMarquee = () => {
-                    const boxLeft = parseFloat(selectionBox.style.left);
-                    const boxTop = parseFloat(selectionBox.style.top);
-                    const boxWidth = parseFloat(selectionBox.style.width);
-                    const boxHeight = parseFloat(selectionBox.style.height);
-                    const selectionRect = {
-                        left: boxLeft,
-                        top: boxTop,
-                        right: boxLeft + boxWidth,
-                        bottom: boxTop + boxHeight
-                    };
-
                     selectionBox.classList.add('hidden');
                     
                     if (!e.ctrlKey) {
@@ -838,27 +825,46 @@ document.addEventListener('DOMContentLoaded', () => {
                         selectedTokens.clear();
                     }
                     
-                    document.querySelectorAll('.theater-token').forEach(token => {
-                        const tokenLeft = parseFloat(token.style.left);
-                        const tokenTop = parseFloat(token.style.top);
-                        const tokenWidth = token.clientWidth / currentScenarioScale; 
-                        const tokenHeight = token.clientHeight / currentScenarioScale;
-                        const tokenRect = {
-                           left: tokenLeft,
-                           top: tokenTop,
-                           right: tokenLeft + tokenWidth,
-                           bottom: tokenTop + tokenHeight
-                        };
-                        
-                        const isIntersecting = !(tokenRect.right < selectionRect.left || 
-                                                 tokenRect.left > selectionRect.right || 
-                                                 tokenRect.bottom < selectionRect.top || 
-                                                 tokenRect.top > selectionRect.bottom);
+                    const boxRect = {
+                        left: parseFloat(selectionBox.style.left),
+                        top: parseFloat(selectionBox.style.top),
+                        width: parseFloat(selectionBox.style.width),
+                        height: parseFloat(selectionBox.style.height)
+                    };
+                    boxRect.right = boxRect.left + boxRect.width;
+                    boxRect.bottom = boxRect.top + boxRect.height;
+                    
+                    const worldBox = {
+                        left: boxRect.left / currentScenarioScale,
+                        top: boxRect.top / currentScenarioScale,
+                        right: boxRect.right / currentScenarioScale,
+                        bottom: boxRect.bottom / currentScenarioScale,
+                    };
 
+                    Object.values(currentGameState.tokens).forEach(tokenData => {
+                        const tokenEl = document.getElementById(tokenData.id);
+                        if (!tokenEl) return;
+                        
+                        const globalTokenScale = currentGameState.globalTokenScale || 1.0;
+                        const tokenScale = (parseFloat(tokenEl.dataset.scale) || 1) * globalTokenScale;
+                        const tokenWidth = 200 * tokenScale;
+                        const tokenHeight = 200 * tokenScale;
+                        
+                        const tokenWorldRect = {
+                            left: tokenData.x,
+                            top: tokenData.y,
+                            right: tokenData.x + tokenWidth,
+                            bottom: tokenData.y + tokenHeight
+                        };
+
+                        const isIntersecting = !(tokenWorldRect.right < worldBox.left || 
+                                                 tokenWorldRect.left > worldBox.right || 
+                                                 tokenWorldRect.bottom < worldBox.top || 
+                                                 tokenWorldRect.top > worldBox.bottom);
 
                         if (isIntersecting) {
-                            token.classList.add('selected');
-                            selectedTokens.add(token.id);
+                            tokenEl.classList.add('selected');
+                            selectedTokens.add(tokenData.id);
                         }
                     });
 
@@ -1121,7 +1127,9 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); });
 
     initialize();
+    
     const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
+    
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
