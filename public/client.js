@@ -325,11 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
             specialMovesModal.classList.add('hidden');
-            showScreen(lobbyScreen);
-            lobbyBackBtn.classList.remove('hidden');
-            lobbyContent.classList.remove('hidden');
-            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
-            shareContainer.classList.add('hidden');
+            // *** CORREÇÃO AQUI: A manipulação da UI foi removida daqui. ***
+            // O cliente agora vai esperar o 'roomCreated' para mostrar os links.
         };
     });
 
