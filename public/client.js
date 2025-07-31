@@ -415,7 +415,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'arena':
-                // *** INÍCIO DA CORREÇÃO ***
                 // Se a luta já acabou, mostre a tela de luta para ver os resultados finais e o modal.
                 if (gameState.phase === 'gameover') {
                     showScreen(fightScreen);
@@ -440,7 +439,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Qualquer outra fase (initiative, turn, etc.) significa que a luta começou.
                     showScreen(fightScreen);
                 }
-                // *** FIM DA CORREÇÃO ***
                 break;
         }
         
@@ -483,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
         
-        // *** CORREÇÃO AQUI: Lógica simplificada e corrigida para os botões do GM/Host ***
+        // Lógica dos botões GM/Host
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
         const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
         const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover'].includes(state.phase);
@@ -1196,7 +1194,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initialize();
     
-    const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
+    // *** INÍCIO DA CORREÇÃO ***
+    const scaleGame = () => {
+        const w = document.getElementById('game-wrapper');
+        // Calcula o fator de escala para que o game-wrapper se ajuste à janela,
+        // garantindo que ele nunca exceda seu tamanho original de 1280x720.
+        const scaleFactor = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+
+        // Aplica a escala e centraliza o game-wrapper.
+        // Isso funciona tanto para telas grandes (onde scaleFactor pode ser 1.0 ou menos)
+        // quanto para telas pequenas (onde scaleFactor será < 1.0).
+        w.style.transform = `scale(${scaleFactor})`;
+        w.style.left = `${(window.innerWidth - (1280 * scaleFactor)) / 2}px`;
+        w.style.top = `${(window.innerHeight - (720 * scaleFactor)) / 2}px`;
+    };
+    // *** FIM DA CORREÇÃO ***
     
     scaleGame();
     window.addEventListener('resize', scaleGame);
