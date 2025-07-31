@@ -577,6 +577,9 @@ io.on('connection', (socket) => {
         newState.fighters.player1 = createNewFighterState(player1Data);
         newState.phase = 'p1_special_moves_selection';
         games[newRoomId] = { id: newRoomId, hostId: null, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
+        
+        // *** CORREÇÃO AQUI: Envia o ID da sala imediatamente ***
+        socket.emit('roomCreated', newRoomId);
         socket.emit('assignPlayer', {playerKey: 'player1', isGm: true});
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
@@ -905,7 +908,7 @@ io.on('connection', (socket) => {
                 state.fighters.player1.specialMoves = action.moves;
                 logMessage(state, `${state.fighters.player1.nome} definiu seus golpes especiais.`);
                 state.phase = 'waiting';
-                socket.emit('roomCreated', roomId);
+                // *** CORREÇÃO AQUI: A emissão de 'roomCreated' foi removida daqui ***
                 break;
             case 'set_p2_stats':
                 const p2Data = state.pendingP2Choice;

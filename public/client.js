@@ -316,6 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // *** CORREÇÃO DO BUG DO MODO CLÁSSICO ***
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
@@ -327,7 +328,21 @@ document.addEventListener('DOMContentLoaded', () => {
             specialMovesModal.classList.add('hidden');
             showScreen(lobbyScreen);
             lobbyBackBtn.classList.remove('hidden');
-            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
+
+            // Lógica para mostrar os links movida para cá
+            if (myPlayerKey === 'player1' && currentRoomId && !linkInitialized) {
+                const p2Url = `${window.location.origin}?room=${currentRoomId}`;
+                const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
+                const shareLinkP2 = document.getElementById('share-link-p2');
+                shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+                const shareLinkSpectator = document.getElementById('share-link-spectator');
+                shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+                lobbyContent.classList.add('hidden'); 
+                shareContainer.classList.remove('hidden');
+                linkInitialized = true;
+            } else {
+                 lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
+            }
         };
     });
 
@@ -427,21 +442,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
         }
         
-        // *** CORREÇÃO DO BUG DO MODO CLÁSSICO ***
-        if (gameState.mode === 'classic' && myPlayerKey === 'player1' && !linkInitialized && currentRoomId) {
-            // Verifica se o jogo está na fase de espera do oponente
-            if (gameState.phase === 'waiting' || gameState.phase === 'p2_stat_assignment') {
-                const p2Url = `${window.location.origin}?room=${currentRoomId}`;
-                const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
-                const shareLinkP2 = document.getElementById('share-link-p2');
-                shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
-                lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
-                const shareLinkSpectator = document.getElementById('share-link-spectator');
-                shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-                linkInitialized = true;
-            }
-        }
-
         const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused';
         const isNowPaused = currentGameState.phase === 'paused';
@@ -640,7 +640,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 
-                // *** CORREÇÃO DO RESET DE TAMANHO (TECLA 'O') ***
                 if (e.key.toLowerCase() === 'o') {
                     e.preventDefault();
                     const hoveredToken = document.querySelector(".theater-token:hover");
