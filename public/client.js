@@ -319,14 +319,12 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, availableMoves);
+        renderSpecialMoveSelection(specialMovesList, data.availableMoves); // *** CORREÇÃO AQUI ***
         specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
             socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
             specialMovesModal.classList.add('hidden');
-            // *** CORREÇÃO AQUI: A manipulação da UI foi removida daqui. ***
-            // O cliente agora vai esperar o 'roomCreated' para mostrar os links.
         };
     });
 
