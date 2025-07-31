@@ -316,7 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // *** CORREÇÃO DO BUG DO MODO CLÁSSICO ***
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
@@ -328,21 +327,9 @@ document.addEventListener('DOMContentLoaded', () => {
             specialMovesModal.classList.add('hidden');
             showScreen(lobbyScreen);
             lobbyBackBtn.classList.remove('hidden');
-
-            // Lógica para mostrar os links movida para cá
-            if (myPlayerKey === 'player1' && currentRoomId && !linkInitialized) {
-                const p2Url = `${window.location.origin}?room=${currentRoomId}`;
-                const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
-                const shareLinkP2 = document.getElementById('share-link-p2');
-                shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
-                const shareLinkSpectator = document.getElementById('share-link-spectator');
-                shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-                lobbyContent.classList.add('hidden'); 
-                shareContainer.classList.remove('hidden');
-                linkInitialized = true;
-            } else {
-                 lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
-            }
+            lobbyContent.classList.remove('hidden');
+            lobbyContent.innerHTML = `<p>Aguardando oponente se conectar...</p>`;
+            shareContainer.classList.add('hidden');
         };
     });
 
