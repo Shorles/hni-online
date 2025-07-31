@@ -703,27 +703,28 @@ document.addEventListener('DOMContentLoaded', () => {
     
         theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
     
+        // *** CORREÇÃO DO DROP DO PERSONAGEM ***
         theaterBackgroundViewport.addEventListener('drop', (e) => {
             e.preventDefault();
-            if (!isGm || !currentGameState) return;
+            if (!isGm) return;
             try {
                 const dataString = e.dataTransfer.getData('application/json');
                 if (!dataString) return;
                 const data = JSON.parse(dataString);
                 const containerRect = theaterBackgroundViewport.getBoundingClientRect();
-
+                
                 const worldX = (e.clientX - containerRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
                 const worldY = (e.clientY - containerRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
                 
                 const tokenBaseWidth = 200;
-                const tokenScale = 1.0;
+                const tokenScale = 1.0; 
 
                 const newToken = { 
                     id: `token-${Date.now()}`, 
                     charName: data.charName, 
                     img: data.img, 
-                    x: worldX - ((tokenBaseWidth * tokenScale) / 2), 
-                    y: worldY - ((tokenBaseWidth * tokenScale) / 2), 
+                    x: worldX - (tokenBaseWidth * tokenScale / 2), 
+                    y: worldY - (tokenBaseWidth * tokenScale / 2), 
                     scale: tokenScale, 
                     isFlipped: false 
                 };
@@ -788,33 +789,36 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCategory(Object.keys(THEATER_SCENARIOS)[0]);
         };
     
+        // *** CORREÇÃO DA SELEÇÃO EM GRUPO ***
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             const isToken = e.target.classList.contains('theater-token');
             
             if (isGm && isGroupSelectMode && !isToken) {
                 e.preventDefault();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                
-                const startX = e.clientX - viewportRect.left;
-                const startY = e.clientY - viewportRect.top;
 
-                selectionBox.style.left = `${startX + theaterBackgroundViewport.scrollLeft}px`;
-                selectionBox.style.top = `${startY + theaterBackgroundViewport.scrollTop}px`;
+                // Posição inicial do mouse em coordenadas do MUNDO
+                const worldStartX = (e.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
+                const worldStartY = (e.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
+
+                selectionBox.style.left = `${worldStartX}px`;
+                selectionBox.style.top = `${worldStartY}px`;
                 selectionBox.style.width = '0px';
                 selectionBox.style.height = '0px';
                 selectionBox.classList.remove('hidden');
 
                 const onMouseMoveMarquee = (moveEvent) => {
-                    const currentX = moveEvent.clientX - viewportRect.left;
-                    const currentY = moveEvent.clientY - viewportRect.top;
+                    // Posição atual do mouse em coordenadas do MUNDO
+                    const worldCurrentX = (moveEvent.clientX - viewportRect.left + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
+                    const worldCurrentY = (moveEvent.clientY - viewportRect.top + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
                     
-                    const width = currentX - startX;
-                    const height = currentY - startY;
+                    const width = worldCurrentX - worldStartX;
+                    const height = worldCurrentY - worldStartY;
 
                     selectionBox.style.width = `${Math.abs(width)}px`;
                     selectionBox.style.height = `${Math.abs(height)}px`;
-                    selectionBox.style.left = `${(width < 0 ? currentX : startX) + theaterBackgroundViewport.scrollLeft}px`;
-                    selectionBox.style.top = `${(height < 0 ? currentY : startY) + theaterBackgroundViewport.scrollTop}px`;
+                    selectionBox.style.left = `${(width < 0 ? worldCurrentX : worldStartX)}px`;
+                    selectionBox.style.top = `${(height < 0 ? worldCurrentY : worldStartY)}px`;
                 };
 
                 const onMouseUpMarquee = () => {
@@ -825,42 +829,30 @@ document.addEventListener('DOMContentLoaded', () => {
                         selectedTokens.clear();
                     }
                     
-                    const boxRect = {
+                    // Cria o retângulo de seleção em coordenadas do MUNDO
+                    const worldBox = {
                         left: parseFloat(selectionBox.style.left),
                         top: parseFloat(selectionBox.style.top),
-                        width: parseFloat(selectionBox.style.width),
-                        height: parseFloat(selectionBox.style.height)
-                    };
-                    boxRect.right = boxRect.left + boxRect.width;
-                    boxRect.bottom = boxRect.top + boxRect.height;
-                    
-                    const worldBox = {
-                        left: boxRect.left / currentScenarioScale,
-                        top: boxRect.top / currentScenarioScale,
-                        right: boxRect.right / currentScenarioScale,
-                        bottom: boxRect.bottom / currentScenarioScale,
+                        right: parseFloat(selectionBox.style.left) + parseFloat(selectionBox.style.width),
+                        bottom: parseFloat(selectionBox.style.top) + parseFloat(selectionBox.style.height)
                     };
 
                     Object.values(currentGameState.tokens).forEach(tokenData => {
                         const tokenEl = document.getElementById(tokenData.id);
                         if (!tokenEl) return;
                         
-                        const globalTokenScale = currentGameState.globalTokenScale || 1.0;
-                        const tokenScale = (parseFloat(tokenEl.dataset.scale) || 1) * globalTokenScale;
-                        const tokenWidth = 200 * tokenScale;
-                        const tokenHeight = 200 * tokenScale;
-                        
-                        const tokenWorldRect = {
+                        // Cria o retângulo do token em coordenadas do MUNDO
+                        const tokenRect = {
                             left: tokenData.x,
                             top: tokenData.y,
-                            right: tokenData.x + tokenWidth,
-                            bottom: tokenData.y + tokenHeight
+                            right: tokenData.x + (200 * (tokenData.scale || 1)),
+                            bottom: tokenData.y + (200 * (tokenData.scale || 1))
                         };
 
-                        const isIntersecting = !(tokenWorldRect.right < worldBox.left || 
-                                                 tokenWorldRect.left > worldBox.right || 
-                                                 tokenWorldRect.bottom < worldBox.top || 
-                                                 tokenWorldRect.top > worldBox.bottom);
+                        const isIntersecting = !(tokenRect.right < worldBox.left || 
+                                                 tokenRect.left > worldBox.right || 
+                                                 tokenRect.bottom < worldBox.top || 
+                                                 tokenRect.top > worldBox.bottom);
 
                         if (isIntersecting) {
                             tokenEl.classList.add('selected');
