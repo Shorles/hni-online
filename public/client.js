@@ -426,16 +426,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
         }
-
-        if (gameState.mode === 'classic' && (myPlayerKey === 'player1' || isGm) && !linkInitialized && currentRoomId) {
-            const p2Url = `${window.location.origin}?room=${currentRoomId}`;
-            const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
-            const shareLinkP2 = document.getElementById('share-link-p2');
-            shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
-            lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
-            const shareLinkSpectator = document.getElementById('share-link-spectator');
-            shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
-            linkInitialized = true;
+        
+        // *** CORREÇÃO DO BUG DO MODO CLÁSSICO ***
+        if (gameState.mode === 'classic' && myPlayerKey === 'player1' && !linkInitialized && currentRoomId) {
+            // Verifica se o jogo está na fase de espera do oponente
+            if (gameState.phase === 'waiting' || gameState.phase === 'p2_stat_assignment') {
+                const p2Url = `${window.location.origin}?room=${currentRoomId}`;
+                const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
+                const shareLinkP2 = document.getElementById('share-link-p2');
+                shareLinkP2.textContent = p2Url; shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+                lobbyContent.classList.add('hidden'); shareContainer.classList.remove('hidden');
+                const shareLinkSpectator = document.getElementById('share-link-spectator');
+                shareLinkSpectator.textContent = specUrl; shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+                linkInitialized = true;
+            }
         }
 
         const oldPhase = oldState ? oldState.phase : null;
@@ -633,6 +637,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!isGroupSelectMode) {
                         selectedTokens.clear();
                         document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                    }
+                }
+                
+                // *** CORREÇÃO DO RESET DE TAMANHO (TECLA 'O') ***
+                if (e.key.toLowerCase() === 'o') {
+                    e.preventDefault();
+                    const hoveredToken = document.querySelector(".theater-token:hover");
+                    if (hoveredToken) {
+                         socket.emit('playerAction', { type: 'updateToken', token: { id: hoveredToken.id, scale: 1.0 }});
                     }
                 }
 
@@ -956,16 +969,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     
-        // *** CORREÇÃO DO SCROLL PARA REDIMENSIONAR ***
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
             if (!currentGameState || currentGameState.mode !== 'theater' || !isGm) return;
 
-            // Se há tokens selecionados, redimensione-os.
             if (selectedTokens.size > 0) {
                 e.preventDefault();
                 const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
                 const updates = [];
-
                 selectedTokens.forEach(tokenId => {
                     const tokenData = currentGameState.tokens[tokenId];
                     if (tokenData) {
@@ -974,15 +984,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         updates.push({ id: tokenId, scale: newScale });
                     }
                 });
-                
                 if (updates.length > 0) {
-                    // Envia um único evento com todas as atualizações
                     socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
                 }
-                return; // Impede que o zoom do cenário seja ativado
+                return;
             }
 
-            // Se não houver tokens selecionados, aplique zoom no cenário.
             e.preventDefault();
             const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
             currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
