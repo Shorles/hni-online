@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         modeClassicBtn.onclick = () => { myPlayerKey = 'player1'; showScreen(scenarioScreen); renderScenarioSelection('classic'); charSelectBackBtn.classList.remove('hidden'); specialMovesBackBtn.classList.remove('hidden'); lobbyBackBtn.classList.remove('hidden'); copySpectatorLinkInGameBtn.classList.remove('hidden'); };
         modeArenaBtn.onclick = () => { myPlayerKey = 'host'; exitGameBtn.classList.remove('hidden'); showScreen(scenarioScreen); renderScenarioSelection('arena'); };
-        modeTheaterBtn.onclick = () => { myPlayerKey = 'gm'; theaterBackBtn.classList.remove('hidden'); copyTheaterSpectatorLinkBtn.classList.remove('hidden'); showScreen(scenarioScreen); selectionTitle.innerText = 'Selecione o Cenário Inicial'; renderScenarioSelection('theater'); };
+        modeTheaterBtn.onclick = () => { myPlayerKey = 'gm'; theaterBackBtn.classList.remove('hidden'); showScreen(scenarioScreen); selectionTitle.innerText = 'Selecione o Cenário Inicial'; renderScenarioSelection('theater'); };
 
         charSelectBackBtn.addEventListener('click', () => showScreen(scenarioScreen));
         specialMovesBackBtn.addEventListener('click', () => { alert('A partida já foi criada no servidor. Para alterar o personagem, a página será recarregada.'); location.reload(); });
@@ -319,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
-        renderSpecialMoveSelection(specialMovesList, data.availableMoves); // *** CORREÇÃO AQUI ***
+        renderSpecialMoveSelection(specialMovesList, data.availableMoves);
         specialMovesModal.classList.remove('hidden');
         confirmSpecialMovesBtn.onclick = () => {
             const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
@@ -369,6 +369,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('gameUpdate', (gameState) => {
         const oldState = currentGameState;
+        
+        // *** CORREÇÃO AQUI: Força o fechamento de modais ao trocar de modo de jogo ***
+        if (oldState && oldState.mode !== gameState.mode) {
+            modal.classList.add('hidden');
+            specialMovesModal.classList.add('hidden');
+        }
+
         currentGameState = gameState;
         
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup'];
@@ -466,6 +473,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
         helpBtn.classList.toggle('hidden', state.mode === 'theater');
+        // *** CORREÇÃO AQUI: Garante que o botão de link do espectador apareça e desapareça corretamente ***
+        copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
+
 
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
