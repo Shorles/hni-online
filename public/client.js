@@ -173,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
         p2Controls.addEventListener('click', handlePlayerControlClick);
         helpBtn.addEventListener('click', showHelpModal);
         gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
-        document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) { showForfeitConfirmation(); } };
         
         copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
@@ -471,11 +470,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
 
-        gmModeSwitchBtn.classList.toggle('hidden', !isGm);
+        const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover'].includes(state.phase);
+        const isCombatMaster = isGm && (state.mode === 'classic' || state.mode === 'arena');
+
+        gmModeSwitchBtn.classList.toggle('hidden', !(isCombatMaster && isCombatPhase));
+        copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isCombatMaster && isCombatPhase));
+        
         helpBtn.classList.toggle('hidden', state.mode === 'theater');
         copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
-        const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover'].includes(state.phase);
-        copySpectatorLinkInGameBtn.classList.toggle('hidden', !(myPlayerKey === 'player1' && state.mode === 'classic' && isCombatPhase));
+
 
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
@@ -914,16 +917,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 const startMouseY = e.clientY;
                 let hasDragged = false;
                 
-                const startPositions = {};
-                const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
-                tokensToDrag.forEach(tokenId => {
-                    const tokenEl = document.getElementById(tokenId);
-                    if (tokenEl) {
-                       startPositions[tokenId] = { x: tokenEl.offsetLeft, y: tokenEl.offsetTop };
+                const onMouseUpToken = (upEvent) => {
+                    window.removeEventListener('mousemove', onMouseMoveToken);
+                    window.removeEventListener('mouseup', onMouseUpToken);
+                    
+                    if (hasDragged) {
+                        const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                        const updates = tokensToDrag.map(tokenId => {
+                             const tokenEl = document.getElementById(tokenId);
+                             if (tokenEl) {
+                                 delete tokenEl.dataset.startX;
+                                 delete tokenEl.dataset.startY;
+                                 return { id: tokenId, x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
+                             }
+                             return null;
+                        }).filter(Boolean);
+                        
+                        if (updates.length > 0) {
+                            socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
+                        }
+                    } else { // It was a click
+                        if (!upEvent.ctrlKey) {
+                            document.querySelectorAll('.theater-token.selected').forEach(t => {
+                                if (t.id !== draggedToken.id) t.classList.remove('selected');
+                            });
+                            selectedTokens.clear();
+                        }
+                        draggedToken.classList.toggle('selected');
+                        if (draggedToken.classList.contains('selected')) {
+                            selectedTokens.add(draggedToken.id);
+                        } else {
+                            selectedTokens.delete(draggedToken.id);
+                        }
                     }
-                });
-
-                function onMouseMoveToken(moveEvent) {
+                };
+                
+                const onMouseMoveToken = (moveEvent) => {
                     const dx = moveEvent.clientX - startMouseX;
                     const dy = moveEvent.clientY - startMouseY;
                     
@@ -945,46 +974,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     const worldDx = dx / gameScale / currentScenarioScale;
                     const worldDy = dy / gameScale / currentScenarioScale;
 
+                    const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                    
                     tokensToDrag.forEach(tokenId => {
                         const tokenEl = document.getElementById(tokenId);
-                        if (tokenEl && startPositions[tokenId]) {
-                           tokenEl.style.left = `${startPositions[tokenId].x + worldDx}px`;
-                           tokenEl.style.top = `${startPositions[tokenId].y + worldDy}px`;
+                        if(tokenEl && !tokenEl.dataset.startX) tokenEl.dataset.startX = tokenEl.offsetLeft;
+                        if(tokenEl && !tokenEl.dataset.startY) tokenEl.dataset.startY = tokenEl.offsetTop;
+
+                        const startX = parseFloat(tokenEl.dataset.startX);
+                        const startY = parseFloat(tokenEl.dataset.startY);
+                       
+                        if (tokenEl) {
+                           tokenEl.style.left = `${startX + worldDx}px`;
+                           tokenEl.style.top = `${startY + worldDy}px`;
                         }
                     });
-                }
-
-                function onMouseUpToken() {
-                    window.removeEventListener('mousemove', onMouseMoveToken);
-                    window.removeEventListener('mouseup', onMouseUpToken);
-                    
-                    if (hasDragged) {
-                        const updates = tokensToDrag.map(tokenId => {
-                             const tokenEl = document.getElementById(tokenId);
-                             if (tokenEl) {
-                                 return { id: tokenId, x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
-                             }
-                             return null;
-                        }).filter(Boolean);
-                        
-                        if (updates.length > 0) {
-                            socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
-                        }
-                    } else { // It was a click
-                        if (!e.ctrlKey) {
-                            document.querySelectorAll('.theater-token.selected').forEach(t => {
-                                if (t.id !== draggedToken.id) t.classList.remove('selected');
-                            });
-                            selectedTokens.clear();
-                        }
-                        draggedToken.classList.toggle('selected');
-                        if (draggedToken.classList.contains('selected')) {
-                            selectedTokens.add(draggedToken.id);
-                        } else {
-                            selectedTokens.delete(draggedToken.id);
-                        }
-                    }
-                }
+                };
+                
                 window.addEventListener('mousemove', onMouseMoveToken);
                 window.addEventListener('mouseup', onMouseUpToken);
 

@@ -578,7 +578,6 @@ io.on('connection', (socket) => {
         newState.phase = 'p1_special_moves_selection';
         games[newRoomId] = { id: newRoomId, hostId: null, players: [{ id: socket.id, playerKey: 'player1' }], spectators: [], state: newState };
         
-        // A emissão de 'roomCreated' foi movida para depois da seleção de golpes para corrigir o fluxo.
         socket.emit('assignPlayer', {playerKey: 'player1', isGm: true});
         io.to(socket.id).emit('gameUpdate', newState);
         dispatchAction(games[newRoomId]);
@@ -653,6 +652,8 @@ io.on('connection', (socket) => {
         io.to(room.hostId).emit('updateArenaLobby', { playerKey: player.playerKey, status: 'character_selected', character });
         if (room.state.playersReady.player1 && room.state.playersReady.player2) {
             room.state.phase = 'arena_configuring';
+            // *** CORREÇÃO AQUI: Envia a atualização de estado para todos os clientes ANTES de pedir a configuração ***
+            io.to(roomId).emit('gameUpdate', room.state);
             io.to(room.hostId).emit('promptArenaConfiguration', {
                 p1: room.state.fighters.player1,
                 p2: room.state.fighters.player2,
