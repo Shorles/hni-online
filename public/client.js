@@ -415,19 +415,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'arena':
-                if (gameState.phase === 'arena_lobby') {
+                // *** INÍCIO DA CORREÇÃO ***
+                // Se a luta já acabou, mostre a tela de luta para ver os resultados finais e o modal.
+                if (gameState.phase === 'gameover') {
+                    showScreen(fightScreen);
+                    break;
+                }
+                
+                // Se estamos nas fases de pré-luta (lobby, seleção, configuração)
+                if (gameState.phase === 'arena_lobby' || gameState.phase === 'arena_configuring') {
                     if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-                         if (!selectionScreen.classList.contains('active')) {
+                        // Se o jogador ainda não escolheu seu personagem, mostre a tela de seleção.
+                        if (!gameState.fighters[myPlayerKey]) {
                             showScreen(selectionScreen);
+                        } else {
+                            // Se o jogador já escolheu, mostre a tela de lobby enquanto aguarda.
+                            showScreen(arenaLobbyScreen);
                         }
-                    } else { // Host or Spectator
+                    } else {
+                        // O Host e os espectadores sempre veem a tela de lobby nessas fases.
                         showScreen(arenaLobbyScreen);
                     }
-                } else if (PRE_GAME_PHASES.includes(gameState.phase)) {
-                    showScreen(arenaLobbyScreen); 
                 } else {
+                    // Qualquer outra fase (initiative, turn, etc.) significa que a luta começou.
                     showScreen(fightScreen);
                 }
+                // *** FIM DA CORREÇÃO ***
                 break;
         }
         

@@ -647,13 +647,27 @@ io.on('connection', (socket) => {
         if (!room) return;
         const player = room.players.find(p => p.id === socket.id);
         if (!player) return;
+
+        // Atualiza o estado com a seleção do personagem e marca o jogador como pronto
         room.state.fighters[player.playerKey] = { nome: character.nome, img: character.img };
         room.state.playersReady[player.playerKey] = true;
+
+        // Notifica o Host sobre a seleção para atualizar o lobby visualmente
         io.to(room.hostId).emit('updateArenaLobby', { playerKey: player.playerKey, status: 'character_selected', character });
+
+        // AQUI ESTÁ A CORREÇÃO: Envia um 'gameUpdate' para todos os clientes.
+        // Isso garante que o estado de todos (especialmente do Host e do outro jogador)
+        // seja atualizado com os dados do personagem que acabou de ser escolhido.
+        io.to(roomId).emit('gameUpdate', room.state);
+
+        // Verifica se ambos os jogadores estão prontos para avançar para a configuração
         if (room.state.playersReady.player1 && room.state.playersReady.player2) {
             room.state.phase = 'arena_configuring';
-            // *** CORREÇÃO AQUI: Envia a atualização de estado para todos os clientes ANTES de pedir a configuração ***
+            
+            // Envia mais uma atualização de estado para notificar a mudança de fase
             io.to(roomId).emit('gameUpdate', room.state);
+            
+            // Emite o evento para o Host/GM abrir o modal de configuração
             io.to(room.hostId).emit('promptArenaConfiguration', {
                 p1: room.state.fighters.player1,
                 p2: room.state.fighters.player2,
