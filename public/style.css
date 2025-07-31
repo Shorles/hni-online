@@ -3,15 +3,15 @@ body {
     color: #fff;
     margin: 0;
     background-color: #000;
-    overflow: hidden;
+    overflow: hidden; /* Mantém o overflow oculto para evitar barras de rolagem indesejadas no corpo */
     height: 100vh;
 }
 
 #game-wrapper {
-    width: 1280px;
-    height: 720px;
+    width: 1280px; /* Tamanho base fixo para o conteúdo do jogo */
+    height: 720px; /* Tamanho base fixo para o conteúdo do jogo */
     position: absolute;
-    overflow: hidden;
+    overflow: hidden; /* Oculta qualquer conteúdo que exceda os 1280x720px */
     background-image: url('images/Ringue.png');
     background-size: cover;
     background-position: center;
@@ -642,12 +642,23 @@ body {
 .dk-result-overlay.fail { border: 3px solid #dc3545; color: #dc3545; }
 
 /* RESPONSIVIDADE */
+/* *** INÍCIO DA CORREÇÃO NO STYLE.CSS *** */
+/* Removendo regras conflitantes para game-wrapper em telas pequenas */
 @media screen and (max-width: 800px) {
-    body { overflow: auto; }
+    body { overflow: auto; } /* Permite rolar o corpo se algo vazar, mas o game-wrapper deve sempre caber */
     #game-wrapper {
-        transform: none !important; width: 100% !important; height: 100% !important; left: 0 !important;
-        top: 0 !important; position: relative; overflow-y: auto; overflow-x: hidden;
+        /* As propriedades de transform e posicionamento são agora controladas EXCLUSIVAMENTE pelo JavaScript. */
+        /* Removido: transform: none !important; */
+        /* Removido: width: 100% !important; */
+        /* Removido: height: 100% !important; */
+        /* Removido: left: 0 !important; */
+        /* Removido: top: 0 !important; */
+        position: absolute; /* Mantenha como absolute para o JS posicionar */
+        overflow-y: hidden; /* Oculta barras de rolagem internas no game-wrapper, o escalonamento garante que o conteúdo caiba */
+        overflow-x: hidden;
     }
+    
+    /* Outras regras mobile específicas que você já tinha, ajustadas conforme necessário */
     #fight-screen, #theater-screen { height: auto; min-height: 100%; padding-bottom: 20px; }
     .fighter-img {
         position: relative; width: 120px; height: 120px; bottom: auto; left: auto; right: auto;
@@ -688,3 +699,4 @@ body {
         border-top: 2px solid #555;
     }
 }
+/* *** FIM DA CORREÇÃO NO STYLE.CSS *** */

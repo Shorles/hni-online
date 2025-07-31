@@ -364,6 +364,11 @@ document.addEventListener('DOMContentLoaded', () => {
         modalButton.onclick = () => {
             const p1_config = { agi: document.getElementById('arena-p1-agi').value, res: document.getElementById('arena-p1-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p1-moves .selected')).map(c => c.dataset.name) };
             const p2_config = { agi: document.getElementById('arena-p2-agi').value, res: document.getElementById('arena-p2-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p2-moves .selected')).map(c => c.dataset.name) };
+            if (!p1_config.agi || !p1_config.res || isNaN(p1_config.agi) || isNaN(p1_config.res) || p1_config.agi < 1 || p1_config.res < 1 ||
+                !p2_config.agi || !p2_config.res || isNaN(p2_config.agi) || isNaN(p2_config.res) || p2_config.agi < 1 || p2_config.res < 1) {
+                alert("Valores inválidos para AGI/RES dos lutadores. Certifique-se de que são números e maiores ou iguais a 1.");
+                return;
+            }
             socket.emit('playerAction', { type: 'configure_and_start_arena', playerKey: 'host', p1_config, p2_config }); modal.classList.add('hidden');
         };
     });
@@ -481,7 +486,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
         
-        // Lógica dos botões GM/Host
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
         const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
         const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover'].includes(state.phase);
@@ -1194,22 +1198,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initialize();
     
-    // *** INÍCIO DA CORREÇÃO ***
+    // *** INÍCIO DA CORREÇÃO NO CLIENT.JS ***
     const scaleGame = () => {
         const w = document.getElementById('game-wrapper');
-        // Calcula o fator de escala para que o game-wrapper se ajuste à janela,
-        // garantindo que ele nunca exceda seu tamanho original de 1280x720.
+        // Calcula o fator de escala para que o jogo caiba na menor dimensão da janela
         const scaleFactor = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-
-        // Aplica a escala e centraliza o game-wrapper.
-        // Isso funciona tanto para telas grandes (onde scaleFactor pode ser 1.0 ou menos)
-        // quanto para telas pequenas (onde scaleFactor será < 1.0).
+        
+        // Aplica o fator de escala e centraliza o game-wrapper
         w.style.transform = `scale(${scaleFactor})`;
         w.style.left = `${(window.innerWidth - (1280 * scaleFactor)) / 2}px`;
         w.style.top = `${(window.innerHeight - (720 * scaleFactor)) / 2}px`;
     };
-    // *** FIM DA CORREÇÃO ***
-    
+    // *** FIM DA CORREÇÃO NO CLIENT.JS ***
+
     scaleGame();
     window.addEventListener('resize', scaleGame);
 });
