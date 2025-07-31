@@ -175,6 +175,9 @@ document.addEventListener('DOMContentLoaded', () => {
         gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
         document.getElementById('forfeit-btn').onclick = () => { if (myPlayerKey && myPlayerKey !== 'spectator' && myPlayerKey !== 'host' && currentGameState && (currentGameState.phase === 'turn' || currentGameState.phase === 'white_fang_follow_up') && currentGameState.whoseTurn === myPlayerKey) { showForfeitConfirmation(); } };
         
+        // *** CORREÇÃO AQUI: Atribui o onclick ao botão flutuante de espectador em jogo ***
+        copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
+
         initializeTheaterMode();
         initializeGlobalKeyListeners();
     }
@@ -557,9 +560,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function showInfoModal(title, text) {
         modalTitle.innerText = title; modalText.innerHTML = text;
-        const newButton = modalButton.cloneNode(true); // *** CORREÇÃO AQUI ***
-        modalButton.parentNode.replaceChild(newButton, modalButton); // *** CORREÇÃO AQUI ***
-        modalButton = newButton; // *** CORREÇÃO AQUI ***
+        const newButton = modalButton.cloneNode(true);
+        modalButton.parentNode.replaceChild(newButton, modalButton);
+        modalButton = newButton;
 
         const tempDiv = document.createElement('div'); tempDiv.innerHTML = text;
         const hasCustomButtons = tempDiv.querySelector('button');
@@ -844,64 +847,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const isToken = e.target.classList.contains('theater-token');
             
             if (isGm && isGroupSelectMode && !isToken) {
-                // ... (código de seleção em grupo, sem alterações)
+                // Marquee selection logic... (no changes needed here)
             } else if (isGm && isToken) {
                 e.preventDefault();
                 const draggedToken = e.target;
                 const startMouseX = e.clientX;
                 const startMouseY = e.clientY;
-                let hasDragged = false; // *** CORREÇÃO AQUI: Flag para diferenciar clique de arrasto ***
+                let hasDragged = false;
 
-                if (!selectedTokens.has(draggedToken.id) && !e.ctrlKey) {
-                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
-                    selectedTokens.clear();
-                }
-                draggedToken.classList.toggle('selected', !e.ctrlKey || !selectedTokens.has(draggedToken.id));
-                if (draggedToken.classList.contains('selected')) {
-                    selectedTokens.add(draggedToken.id);
-                } else {
-                    selectedTokens.delete(draggedToken.id);
-                }
-
-                const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
-                const startPositions = {};
-                tokensToDrag.forEach(tokenId => {
-                    const tokenEl = document.getElementById(tokenId);
-                    if (tokenEl) {
-                       startPositions[tokenId] = { x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
-                    }
-                });
-
-                function onMouseMoveToken(moveEvent) {
-                    const dx = moveEvent.clientX - startMouseX;
-                    const dy = moveEvent.clientY - startMouseY;
-                    
-                    // *** CORREÇÃO AQUI: Limiar de 5 pixels para iniciar o arrasto ***
-                    if (!hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
-                        hasDragged = true;
-                    }
-
-                    if (!hasDragged) return;
-
-                    const gameScale = getGameScale();
-                    const worldDx = dx / gameScale / currentScenarioScale;
-                    const worldDy = dy / gameScale / currentScenarioScale;
-
-                    tokensToDrag.forEach(tokenId => {
-                        const tokenEl = document.getElementById(tokenId);
-                        if (tokenEl && startPositions[tokenId]) {
-                           tokenEl.style.left = `${startPositions[tokenId].x + worldDx}px`;
-                           tokenEl.style.top = `${startPositions[tokenId].y + worldDy}px`;
-                        }
-                    });
-                }
-
-                function onMouseUpToken() {
+                const onMouseUpToken = () => {
                     window.removeEventListener('mousemove', onMouseMoveToken);
                     window.removeEventListener('mouseup', onMouseUpToken);
                     
-                    // *** CORREÇÃO AQUI: Só envia atualização se o token foi realmente arrastado ***
-                    if (hasDragged) {
+                    if (!hasDragged) { // This was a click, not a drag
+                        if (!e.ctrlKey && !selectedTokens.has(draggedToken.id)) {
+                             document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                             selectedTokens.clear();
+                        }
+                        draggedToken.classList.toggle('selected');
+                        if (draggedToken.classList.contains('selected')) {
+                            selectedTokens.add(draggedToken.id);
+                        } else {
+                            selectedTokens.delete(draggedToken.id);
+                        }
+                    } else { // This was a drag
+                        const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
                         const updates = tokensToDrag.map(tokenId => {
                              const tokenEl = document.getElementById(tokenId);
                              if (tokenEl) {
@@ -914,12 +884,53 @@ document.addEventListener('DOMContentLoaded', () => {
                             socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
                         }
                     }
-                }
+                };
+                
+                const onMouseMoveToken = (moveEvent) => {
+                    const dx = moveEvent.clientX - startMouseX;
+                    const dy = moveEvent.clientY - startMouseY;
+                    
+                    if (!hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
+                        hasDragged = true;
+                        if (!e.ctrlKey && !selectedTokens.has(draggedToken.id)) {
+                             document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                             selectedTokens.clear();
+                             draggedToken.classList.add('selected');
+                             selectedTokens.add(draggedToken.id);
+                        }
+                    }
+
+                    if (!hasDragged) return;
+
+                    const gameScale = getGameScale();
+                    const worldDx = dx / gameScale / currentScenarioScale;
+                    const worldDy = dy / gameScale / currentScenarioScale;
+
+                    const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                     const startPositions = {};
+                     tokensToDrag.forEach(tokenId => {
+                        const tokenEl = document.getElementById(tokenId);
+                        if (tokenEl) {
+                           startPositions[tokenId] = { x: parseFloat(tokenEl.dataset.startX || tokenEl.style.left), y: parseFloat(tokenEl.dataset.startY || tokenEl.style.top) };
+                           if(!tokenEl.dataset.startX) tokenEl.dataset.startX = tokenEl.style.left;
+                           if(!tokenEl.dataset.startY) tokenEl.dataset.startY = tokenEl.style.top;
+                        }
+                     });
+
+                    tokensToDrag.forEach(tokenId => {
+                        const tokenEl = document.getElementById(tokenId);
+                        if (tokenEl && startPositions[tokenId]) {
+                           tokenEl.style.left = `${startPositions[tokenId].x + worldDx}px`;
+                           tokenEl.style.top = `${startPositions[tokenId].y + worldDy}px`;
+                        }
+                    });
+                };
+                
                 window.addEventListener('mousemove', onMouseMoveToken);
                 window.addEventListener('mouseup', onMouseUpToken);
 
             } else if (!isToken && !(isGm && isGroupSelectMode)) {
-                // ... (código de arrastar cenário, sem alterações)
+                // Panning logic... (no changes needed here)
             }
         });
     
@@ -927,7 +938,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentGameState || currentGameState.mode !== 'theater') return;
             e.preventDefault();
 
-            // *** CORREÇÃO AQUI: Lógica de zoom de token apenas para o GM ***
             if (isGm && selectedTokens.size > 0) {
                 const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
                 const updates = [];
@@ -945,7 +955,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // *** CORREÇÃO AQUI: Lógica de zoom do cenário para todos (GM e espectadores) ***
             const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
             currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
             updateTheaterZoom();
