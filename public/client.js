@@ -469,16 +469,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
-
+        
+        // *** CORREÇÃO AQUI: Lógica simplificada e corrigida para os botões do GM/Host ***
+        gmModeSwitchBtn.classList.toggle('hidden', !isGm);
+        const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
         const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover'].includes(state.phase);
-        const isCombatMaster = isGm && (state.mode === 'classic' || state.mode === 'arena');
-
-        gmModeSwitchBtn.classList.toggle('hidden', !(isCombatMaster && isCombatPhase));
-        copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isCombatMaster && isCombatPhase));
+        copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater');
         copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
-
 
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
