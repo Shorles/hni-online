@@ -444,6 +444,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
+        if (currentGameState && currentGameState.mode === 'classic' && myPlayerKey === 'player1') {
+            const baseUrl = window.location.origin;
+            const p2Url = `${baseUrl}?room=${roomId}`;
+            const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
+
+            const shareLinkP2 = document.getElementById('share-link-p2');
+            const shareLinkSpectator = document.getElementById('share-link-spectator');
+
+            shareLinkP2.textContent = p2Url;
+            shareLinkSpectator.textContent = specUrl;
+
+            shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
+            shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+            
+            lobbyContent.classList.add('hidden');
+            shareContainer.classList.remove('hidden');
+        }
     });
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent || '🔗'; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
@@ -926,7 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.removeEventListener('mouseup', onMouseUpToken);
                 }
                 window.addEventListener('mousemove', onMouseMoveToken);
-                window.addEventListener('mouseup', onMouseUpToken);
+                window.removeEventListener('mouseup', onMouseUpToken);
             } else if (!isToken && !(isGm && isGroupSelectMode)) {
                 isDraggingScenario = true;
                 theaterBackgroundViewport.style.cursor = 'grabbing';
