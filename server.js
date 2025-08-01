@@ -10,16 +10,18 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-// --- INÍCIO DA NOVA LÓGICA DE CARREGAMENTO DE LUTADORES ---
+// --- INÍCIO DA CORREÇÃO: Lógica de carregamento de lutadores ---
 const DEFAULT_FIGHTER_STATS = { agi: 1, res: 1 };
 let LUTA_CHARACTERS = {};
 
 try {
     const lutadoresData = fs.readFileSync('lutadores.json', 'utf8');
-    // Corrigindo o JSON para um array de strings válido antes de fazer o parse
-    const correctedJsonString = `[${lutadoresData.replace(/]\s*\[/g, ',').replace(/""/g, '","').replace(/"\s*"/g, '","').replace(/\s+/g, ' ').trim().replace(/(\w)"\s*"/, '$1", "').replace(/"\s+(\w)/g, '", "$1')}]`;
-    const lutadoresNomes = JSON.parse(correctedJsonString);
-    
+    // Método mais robusto para extrair nomes de um JSON potencialmente malformado.
+    const lutadoresNomes = lutadoresData
+        .replace(/[\[\]",]/g, ' ') // Substitui colchetes, aspas e vírgulas por espaços
+        .split(/\s+/)             // Divide a string por um ou mais espaços/quebras de linha
+        .filter(name => name.trim() !== ''); // Remove quaisquer entradas vazias
+
     lutadoresNomes.forEach(nome => {
         LUTA_CHARACTERS[nome] = { ...DEFAULT_FIGHTER_STATS };
     });
@@ -28,7 +30,7 @@ try {
     console.error('Erro ao carregar lutadores.json:', error);
     console.error('Verifique se o arquivo existe na raíz do projeto e se o formato está correto (um array de nomes em JSON).');
 }
-// --- FIM DA NOVA LÓGICA ---
+// --- FIM DA CORREÇÃO ---
 
 
 const games = {};
@@ -603,12 +605,12 @@ function dispatchAction(room) {
     }
 }
 io.on('connection', (socket) => {
-    // --- INÍCIO DA MODIFICAÇÃO: Enviar lista de lutadores ao cliente ---
+    // --- INÍCIO DA CORREÇÃO: Enviar lista de lutadores ao cliente ---
     socket.emit('availableFighters', {
         p1: LUTA_CHARACTERS,
         theater: LUTA_CHARACTERS
     });
-    // --- FIM DA MODIFICAÇÃO ---
+    // --- FIM DA CORREÇÃO ---
 
     socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);

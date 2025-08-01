@@ -8,10 +8,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let player1SetupData = { scenario: null };
     let availableSpecialMoves = {};
     
-    // --- INÍCIO DA MODIFICAÇÃO: Variáveis para lutadores dinâmicos ---
+    // --- INÍCIO DA CORREÇÃO: Variáveis para lutadores dinâmicos (apenas P1 e Teatro) ---
     let AVAILABLE_FIGHTERS_P1 = {};
     let AVAILABLE_THEATER_CHARS = {};
-    // --- FIM DA MODIFICAÇÃO ---
+    // --- FIM DA CORREÇÃO ---
 
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
@@ -66,9 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
-    // --- INÍCIO DA MODIFICAÇÃO: Remoção dos lutadores fixos ---
-    // CHARACTERS_P1, CHARACTERS_P2 e THEATER_CHARACTERS foram removidos.
-    // --- FIM DA MODIFICAÇÃO ---
+    // --- INÍCIO DA CORREÇÃO: Restaurando a lista de personagens do Player 2 ---
+    const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
+    // --- FIM DA CORREÇÃO ---
     
     const DYNAMIC_CHARACTERS = [];
     for (let i = 1; i <= 50; i++) {
@@ -89,16 +89,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let linkInitialized = false;
 
-    // --- INÍCIO DA MODIFICAÇÃO: Receber a lista de lutadores do servidor ---
+    // --- INÍCIO DA CORREÇÃO: Receber a lista de lutadores do servidor ---
     socket.on('availableFighters', ({ p1, theater }) => {
         AVAILABLE_FIGHTERS_P1 = p1 || {};
-        AVAILABLE_THEATER_CHARS = theater || {};
+        AVAILABLE_THEATER_CHARS = { ...p1, ...CHARACTERS_P2 } || {}; // Modo teatro mostra todos
         // Reinicializa a lista de personagens do modo teatro se já estiver visível
         if (theaterScreen.classList.contains('active')) {
             initializeTheaterMode();
         }
     });
-    // --- FIM DA MODIFICAÇÃO ---
+    // --- FIM DA CORREÇÃO ---
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
@@ -154,12 +154,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (arenaPlayerKey && currentRoomId) {
             myPlayerKey = arenaPlayerKey; socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen); selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : 2}: Selecione seu Lutador`; confirmBtn.innerText = 'Confirmar Personagem';
-            renderCharacterSelection('p1', false); // Usar 'p1' para carregar a lista correta para ambos
+            renderCharacterSelection('p1', false); // Em Arena, ambos usam a lista principal
         } else if (isSpectator && currentRoomId) { 
             showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`; socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
             showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador'; confirmBtn.innerText = 'Entrar na Luta';
-            renderCharacterSelection('p1', false); // Usar 'p1' para carregar a lista correta
+            // --- INÍCIO DA CORREÇÃO: P2 usa sua própria lista de personagens ---
+            renderCharacterSelection('p2', false); 
+            // --- FIM DA CORREÇÃO ---
         } else { showScreen(modeSelectionScreen); }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
@@ -213,18 +215,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INÍCIO DA MODIFICAÇÃO: renderCharacterSelection agora usa a lista do servidor ---
+    // --- INÍCIO DA CORREÇÃO: A função agora diferencia P1 e P2 ---
     function renderCharacterSelection(playerType, showStatsInputs = false) {
         charListContainer.innerHTML = ''; 
-        const charData = AVAILABLE_FIGHTERS_P1; // Usar a mesma lista para todos os jogadores
+        
+        const isP1 = playerType === 'p1';
+        const charData = isP1 ? AVAILABLE_FIGHTERS_P1 : CHARACTERS_P2;
+        const imgPath = isP1 ? 'images/lutadores/' : 'images/';
+
         for (const name in charData) {
             const stats = charData[name]; 
             const card = document.createElement('div'); 
             card.className = 'char-card'; 
             card.dataset.name = name; 
-            card.dataset.img = `images/lutadores/${name}.png`; // Caminho atualizado
-            const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
-            card.innerHTML = `<img src="images/lutadores/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`; // Caminho atualizado
+            card.dataset.img = `${imgPath}${name}.png`;
+            
+            const statsHtml = showStatsInputs 
+                ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` 
+                : ``;
+
+            card.innerHTML = `<img src="${imgPath}${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
             card.addEventListener('click', () => { 
                 document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); 
                 card.classList.add('selected'); 
@@ -232,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
             charListContainer.appendChild(card);
         }
     }
-    // --- FIM DA MODIFICAÇÃO ---
+    // --- FIM DA CORREÇÃO ---
 
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
@@ -743,7 +753,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // --- INÍCIO DA MODIFICAÇÃO: A lista de personagens do modo teatro também é dinâmica ---
     function initializeTheaterMode() {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         const theaterScreenEl = document.getElementById('theater-screen');
@@ -755,22 +764,23 @@ document.addEventListener('DOMContentLoaded', () => {
         
         theaterCharList.innerHTML = '';
         
-        // Adiciona os lutadores do JSON
+        // --- INÍCIO DA CORREÇÃO: Usar a lista correta e caminhos corretos ---
         Object.keys(AVAILABLE_THEATER_CHARS).forEach(charName => {
-            const charImg = `images/lutadores/${charName}.png`;
+            // Determina o caminho da imagem baseado se o personagem é da lista P1 ou P2
+            const imgPath = AVAILABLE_FIGHTERS_P1[charName] ? `images/lutadores/${charName}.png` : `images/${charName}.png`;
             const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
-            mini.style.backgroundImage = `url("${charImg}")`;
+            mini.style.backgroundImage = `url("${imgPath}")`;
             mini.title = charName; 
             mini.draggable = true;
             mini.addEventListener('dragstart', (e) => {
                 if (!isGm) return;
-                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: charImg }));
+                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: imgPath }));
             });
             theaterCharList.appendChild(mini);
         });
+        // --- FIM DA CORREÇÃO ---
 
-        // Adiciona os personagens dinâmicos (de /personagens/)
         DYNAMIC_CHARACTERS.forEach(char => {
             const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
@@ -783,7 +793,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             theaterCharList.appendChild(mini);
         });
-    // --- FIM DA MODIFICAÇÃO ---
     
         theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
     
