@@ -68,8 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DADOS DO JOGO (CLIENT-SIDE) ---
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
-    // As listas de personagens foram removidas daqui. Elas serão recebidas do servidor.
-    
     const DYNAMIC_CHARACTERS = [];
     for (let i = 1; i <= 50; i++) {
         DYNAMIC_CHARACTERS.push({
@@ -141,16 +139,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
+        // A lógica de renderização foi movida para o listener 'receiveCharacterData'
+        // para aguardar os dados do servidor.
         if (arenaPlayerKey && currentRoomId) {
-            myPlayerKey = arenaPlayerKey; socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
-            showScreen(selectionScreen); selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : 2}: Selecione seu Lutador`; confirmBtn.innerText = 'Confirmar Personagem';
-            renderCharacterSelection('npc', false);
+            myPlayerKey = arenaPlayerKey;
+            socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
+            showScreen(selectionScreen);
+            selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : 2}: Selecione seu Lutador`;
+            confirmBtn.innerText = 'Confirmar Personagem';
         } else if (isSpectator && currentRoomId) { 
-            showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`; socket.emit('spectateGame', currentRoomId);
+            showScreen(lobbyScreen);
+            lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`;
+            socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
-            showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador'; confirmBtn.innerText = 'Entrar na Luta';
-            renderCharacterSelection('npc', false);
-        } else { showScreen(modeSelectionScreen); }
+            showScreen(selectionScreen);
+            selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador';
+            confirmBtn.innerText = 'Entrar na Luta';
+        } else {
+            showScreen(modeSelectionScreen);
+        }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
         
@@ -175,41 +182,45 @@ document.addEventListener('DOMContentLoaded', () => {
         
         copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&spectate=true`, copySpectatorLinkInGameBtn); };
 
-        initializeTheaterMode();
+        initializeTheaterModeEventListeners();
         initializeGlobalKeyListeners();
     }
 
     function onConfirmSelection() {
-        const selectedCard = document.querySelector('.char-card.selected'); if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
-        // Agora, os dados enviados são apenas o nome e a imagem. 
-        // AGI/RES são definidos/editados no servidor.
-        let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
+        const selectedCard = document.querySelector('.char-card.selected');
+        if (!selectedCard) {
+            alert('Por favor, selecione um lutador!');
+            return;
+        }
+        let playerData = {
+            nome: selectedCard.dataset.name,
+            img: selectedCard.dataset.img
+        };
         
-        if (currentGameState && currentGameState.phase === 'gm_classic_setup') {
-            // No setup do GM, ele pode editar os stats, então enviamos.
+        const isGmSetup = (myPlayerKey === 'player1' && !currentRoomId) || (currentGameState && currentGameState.phase === 'gm_classic_setup');
+        
+        if (isGmSetup) {
+            // Apenas o GM (P1) pode editar os stats na criação.
             playerData.agi = selectedCard.querySelector('.agi-input').value; 
             playerData.res = selectedCard.querySelector('.res-input').value;
             confirmBtn.disabled = true;
-            socket.emit('playerAction', { type: 'gm_confirm_p1_setup', player1Data: playerData });
+            if (currentGameState && currentGameState.phase === 'gm_classic_setup') {
+                socket.emit('playerAction', { type: 'gm_confirm_p1_setup', player1Data: playerData });
+            } else {
+                socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
+            }
             return;
         }
-
-        if (myPlayerKey === 'player1' && !currentRoomId) {
-            // Na criação do jogo, o GM pode editar os stats.
-            playerData.agi = selectedCard.querySelector('.agi-input').value;
-            playerData.res = selectedCard.querySelector('.res-input').value;
-            confirmBtn.disabled = true;
-            socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
-        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-             confirmBtn.disabled = true;
-             socket.emit('selectArenaCharacter', { character: playerData });
-             showScreen(arenaLobbyScreen);
-             lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
-        } else { // Jogador 2 entrando no modo clássico
-            confirmBtn.disabled = true;
+        
+        // Para Arena e P2 no modo Clássico
+        confirmBtn.disabled = true;
+        if (myPlayerKey === 'player1' || myPlayerKey === 'player2') { // Arena
+            socket.emit('selectArenaCharacter', { character: playerData });
+            showScreen(arenaLobbyScreen);
+            lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
+        } else { // P2 Clássico
             showScreen(lobbyScreen);
             lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
-            // Não precisa mais enviar AGI/RES, o servidor já tem esses dados para NPCs
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
         }
     }
@@ -223,15 +234,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'char-card';
             card.dataset.name = name;
-            // O caminho da imagem agora vem dos dados recebidos
-            const imgPath = stats.img || `images/${name}.png`;
-            card.dataset.img = imgPath;
+            card.dataset.img = stats.img;
 
             const statsHtml = showStatsInputs
                 ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>`
-                : ``;
+                : `<div class="char-stats-display">AGI: ${stats.agi} | RES: ${stats.res}</div>`;
 
-            card.innerHTML = `<img src="${imgPath}" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
+            card.innerHTML = `<img src="${stats.img}" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
             card.addEventListener('click', () => {
                 document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
@@ -303,7 +312,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
                         confirmBtn.innerText = 'Confirmar Personagem';
                         confirmBtn.disabled = false;
-                        renderCharacterSelection('p1', true);
+                        // Renderiza a lista se os dados já chegaram
+                        if (Object.keys(classicFightersList).length > 0) {
+                            renderCharacterSelection('p1', true);
+                        }
                     } else if (mode === 'arena') {
                         socket.emit('createArenaGame', { scenario: fileName });
                         showScreen(arenaLobbyScreen);
@@ -327,27 +339,30 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         showInfoModal("Mudar Modo de Jogo", modalContentHtml);
 
-        document.getElementById('switch-to-classic').onclick = () => {
-            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'classic', scenario: 'Ringue.png' });
-            modal.classList.add('hidden');
-        };
-        document.getElementById('switch-to-arena').onclick = () => {
-            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'arena', scenario: 'Ringue2.png' });
-            modal.classList.add('hidden');
-        };
-        document.getElementById('switch-to-theater').onclick = () => {
-            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'theater', scenario: 'mapas/cenarios internos/interno (1).png' });
-            modal.classList.add('hidden');
-        };
+        document.getElementById('switch-to-classic').onclick = () => { socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'classic', scenario: 'Ringue.png' }); modal.classList.add('hidden'); };
+        document.getElementById('switch-to-arena').onclick = () => { socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'arena', scenario: 'Ringue2.png' }); modal.classList.add('hidden'); };
+        document.getElementById('switch-to-theater').onclick = () => { socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'theater', scenario: 'mapas/cenarios internos/interno (1).png' }); modal.classList.add('hidden'); };
     }
 
     // --- SOCKET.IO LISTENERS ---
 
-    // Recebe TODAS as listas de personagens do servidor de uma vez só
     socket.on('receiveCharacterData', (data) => {
         classicFightersList = data.classicFighters || {};
         npcFightersList = data.npcFighters || {};
         theaterCharactersList = data.theaterCharacters || {};
+
+        // Se a tela de seleção estiver ativa, renderiza a lista apropriada
+        if (selectionScreen.classList.contains('active')) {
+            const title = selectionTitle.innerText;
+            if (title.includes('Jogador 1') || title.includes('GM (P1)')) {
+                renderCharacterSelection('p1', true);
+            } else {
+                renderCharacterSelection('npc', false);
+            }
+        }
+        
+        // Sempre popula a lista do modo cenário
+        initializeTheaterModeCharacterList();
     });
 
     socket.on('promptSpecialMoves', (data) => {
@@ -505,8 +520,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-// ... (O restante das funções de UI, modais, overlays e #region LÓGICA DO MODO TEATRO permanecem praticamente inalteradas) ...
-// A única alteração é em `initializeTheaterMode`
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent || '🔗'; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     
     function updateUI(state) {
@@ -692,22 +705,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isGm) return;
             
             if (currentGameState && currentGameState.mode !== 'theater') {
-                if (e.key.toLowerCase() === 'c') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_pause' });
-                } else if (e.key.toLowerCase() === 't') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' });
-                } else if (e.key.toLowerCase() === 'r') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
-                } else if (e.key.toLowerCase() === 'i') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
-                } else if (e.key.toLowerCase() === 'y') {
-                    e.preventDefault();
-                    socket.emit('playerAction', { type: 'toggle_force_dice' });
-                }
+                if (e.key.toLowerCase() === 'c') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_pause' }); }
+                else if (e.key.toLowerCase() === 't') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' }); }
+                else if (e.key.toLowerCase() === 'r') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' }); }
+                else if (e.key.toLowerCase() === 'i') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_illegal_cheat' }); }
+                else if (e.key.toLowerCase() === 'y') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_force_dice' }); }
             }
 
             if (currentGameState && currentGameState.mode === 'theater') {
@@ -746,33 +748,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                      } else if (e.key === 'ArrowDown') {
                         e.preventDefault();
-                        currentSelectedTokens.forEach(token => {
-                            socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'forward' });
-                        });
+                        currentSelectedTokens.forEach(token => { socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'forward' }); });
                      } else if (e.key === 'ArrowUp') {
                         e.preventDefault();
-                        currentSelectedTokens.forEach(token => {
-                            socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'backward' });
-                        });
+                        currentSelectedTokens.forEach(token => { socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'backward' }); });
                      }
                 }
             }
         });
     }
 
-    function initializeTheaterMode() {
-        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
-        const theaterScreenEl = document.getElementById('theater-screen');
-        const selectionBox = document.getElementById('selection-box');
-        
-        toggleGmPanelBtn.addEventListener('click', () => { 
-            theaterScreenEl.classList.toggle('panel-hidden');
-        });
-        
+    function initializeTheaterModeCharacterList() {
         theaterCharList.innerHTML = '';
-        // A lista de personagens do teatro agora usa os dados do servidor
-        Object.keys(theaterCharactersList).forEach(charName => {
-            const charData = theaterCharactersList[charName];
+        const fragment = document.createDocumentFragment();
+
+        Object.entries(theaterCharactersList).forEach(([charName, charData]) => {
             const charImg = charData.img;
             const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
@@ -783,7 +773,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isGm) return;
                 e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: charImg }));
             });
-            theaterCharList.appendChild(mini);
+            fragment.appendChild(mini);
         });
 
         DYNAMIC_CHARACTERS.forEach(char => {
@@ -795,7 +785,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isGm) return;
                 e.dataTransfer.setData('application/json', JSON.stringify({ charName: char.name, img: char.img }));
             });
-            theaterCharList.appendChild(mini);
+            fragment.appendChild(mini);
+        });
+
+        theaterCharList.appendChild(fragment);
+    }
+
+    function initializeTheaterModeEventListeners() {
+        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
+        const theaterScreenEl = document.getElementById('theater-screen');
+        const selectionBox = document.getElementById('selection-box');
+        
+        toggleGmPanelBtn.addEventListener('click', () => { 
+            theaterScreenEl.classList.toggle('panel-hidden');
         });
     
         theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });

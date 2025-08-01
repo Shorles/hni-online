@@ -12,12 +12,12 @@ app.use(express.static('public'));
 
 // --- CARREGAMENTO E ESTRUTURAÇÃO DOS DADOS DOS PERSONAGENS ---
 
-// Lutadores para o P2 ("NPCs"), agora no servidor
+// Lutadores para o P2 ("NPCs"), agora com caminho da imagem explícito
 const NPC_FIGHTERS = {
-    'Ryu': { agi: 2, res: 3 },
-    'Yobu': { agi: 2, res: 3 },
-    'Nathan': { agi: 2, res: 3 },
-    'Okami': { agi: 2, res: 3 }
+    'Ryu': { agi: 2, res: 3, img: 'images/Ryu.png' },
+    'Yobu': { agi: 2, res: 3, img: 'images/Yobu.png' },
+    'Nathan': { agi: 2, res: 3, img: 'images/Nathan.png' },
+    'Okami': { agi: 2, res: 3, img: 'images/Okami.png' }
 };
 
 // Carrega os nomes dos lutadores do modo clássico do arquivo JSON
@@ -43,8 +43,8 @@ Object.keys(CLASSIC_FIGHTERS).forEach(name => {
     THEATER_CHARACTERS[name] = { img: CLASSIC_FIGHTERS[name].img };
 });
 Object.keys(NPC_FIGHTERS).forEach(name => {
-    // No modo teatro, o nome do arquivo da imagem não tem a pasta "lutadores"
-    THEATER_CHARACTERS[name] = { img: `images/${name}.png` };
+    // Agora podemos pegar o 'img' diretamente do objeto NPC_FIGHTERS
+    THEATER_CHARACTERS[name] = { img: NPC_FIGHTERS[name].img };
 });
 
 
@@ -69,7 +69,7 @@ const SPECIAL_MOVES = {
     'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 },
     'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
-    'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
+    'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 }
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
@@ -148,8 +148,6 @@ function createNewTheaterState(scenario) {
 }
 
 function createNewFighterState(data) {
-    // A função já usa || 1, então se agi/res não forem enviados, o padrão será 1.
-    // Isso funciona perfeitamente para a nova lógica.
     const res = Math.max(1, parseInt(data.res, 10) || 1);
     const agi = parseInt(data.agi, 10) || 1;
     const hp = parseInt(data.hp, 10) || (res * 5);
@@ -166,7 +164,6 @@ function createNewFighterState(data) {
     };
 }
 
-// ... (O restante das funções de lógica do jogo como logMessage, filterVisibleTokens, executeAttack, etc., permanecem inalteradas) ...
 function logMessage(state, text, className = '') { if(state && state.log) { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); } }
 
 function filterVisibleTokens(state) {
@@ -185,7 +182,7 @@ function filterVisibleTokens(state) {
         if (!token) continue;
         
         const tokenCenterX = token.x + (200 * (token.scale || 1) / 2);
-        const tokenCenterY = token.y + (200 * (token.scale || 1) / 2); 
+        const tokenCenterY = token.y + (200 * (token.scale || 1) / 2);
 
         if (tokenCenterX >= 0 && tokenCenterX <= state.scenarioWidth &&
             tokenCenterY >= 0 && tokenCenterY <= state.scenarioHeight) {
@@ -240,7 +237,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             const attackerValue = attackerRoll + attacker.agi - move.penalty;
             logMessage(state, `Ataque de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
             const counterRoll = rollAttackD6(state);
-            const counterValue = counterRoll + defender.agi - move.penalty; 
+            const counterValue = counterRoll + defender.agi - move.penalty;
             logMessage(state, `Contra-Ataque de ${defender.nome}: D6(${counterRoll}) + ${defender.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${counterValue}</span>`, 'log-info');
             const damageToDeal = move.damage * 2;
             let soundToPlay = 'Critical.mp3';
@@ -252,8 +249,8 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
             } else if (attackerValue > counterValue) {
                 logMessage(state, `Falhou! ${defender.nome} erra o tempo e recebe ${damageToDeal} de dano!`, 'log-crit');
-                attackResult.hit = true; 
-                attackResult.counterLanded = false; 
+                attackResult.hit = true;
+                attackResult.counterLanded = false;
                 const hpBeforeHit = defender.hp;
                 defender.hp = Math.max(0, defender.hp - damageToDeal);
                 defender.totalDamageTaken += hpBeforeHit - defender.hp;
@@ -277,7 +274,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         } else {
             logMessage(state, `${defender.nome} tenta o Contra-Ataque, mas não tem ${incomingAttackCost} PA para interceptar o golpe!`, 'log-miss');
             state.reactionState = null;
-            counterProcessed = false; 
+            counterProcessed = false;
             attackResult.counterLanded = false;
         }
     }
@@ -313,9 +310,9 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
             }
             if (moveName === 'Liver Blow') { if (Math.random() < 0.3 && defender.pa > 0) { defender.pa--; logMessage(state, `O golpe no fígado faz ${defender.nome} perder 1 PA!`, 'log-crit'); }
-            } else if (moveName === 'Clinch') { 
+            } else if (moveName === 'Clinch') {
                 const paToRemove = crit ? 4 : 2;
-                defender.pa = Math.max(0, defender.pa - paToRemove); 
+                defender.pa = Math.max(0, defender.pa - paToRemove);
                 logMessage(state, `${attacker.nome} acerta o Clinch! ${defender.nome} perde ${paToRemove} PA.`, 'log-hit');
             }
             if (isActuallyIllegal) illegalMoveLanded = true;
@@ -334,7 +331,7 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 state.reason = `${attacker.nome} foi desqualificado por uso repetido de golpes ilegais.`;
                 io.to(roomId).emit('showGameAlert', `INACREDITÁVEL!<br>${attacker.nome} foi desqualificado!`);
                 logMessage(state, `INACREDITÁVEL! ${state.reason}`, 'log-crit');
-                return attackResult; 
+                return attackResult;
             }
         }
         if (Math.random() < 0.5 && state.illegalCheat !== 'never') {
@@ -405,9 +402,9 @@ function endTurn(state, io, roomId) {
     
     const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
     
-    if (lastPlayerWentFirst) { 
-        state.phase = 'turn'; 
-    } else { 
+    if (lastPlayerWentFirst) {
+        state.phase = 'turn';
+    } else {
         Object.values(state.fighters).forEach(fighter => {
             if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
                 fighter.activeEffects.esquiva.duration--;
@@ -419,7 +416,7 @@ function endTurn(state, io, roomId) {
                 }
             }
         });
-        processEndRound(state, io, roomId); 
+        processEndRound(state, io, roomId);
     }
 }
 function processEndRound(state, io, roomId) {
@@ -531,7 +528,7 @@ function isActionValid(state, action) {
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
         case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
-        case 'turn': 
+        case 'turn':
             if (playerKey !== state.whoseTurn) return false;
             return (type === 'attack' || type === 'end_turn' || type === 'forfeit');
         case 'double_knockdown':
@@ -597,11 +594,11 @@ function dispatchAction(room) {
             return;
         case 'double_knockdown':
             if (state.doubleKnockdownInfo) {
-                io.to(roomId).emit('showModal', { 
-                    modalType: 'double_knockdown', 
-                    doubleKnockdownInfo: state.doubleKnockdownInfo, 
-                    title: `QUEDA DUPLA!`, 
-                    btnText: `Tentar Levantar`, 
+                io.to(roomId).emit('showModal', {
+                    modalType: 'double_knockdown',
+                    doubleKnockdownInfo: state.doubleKnockdownInfo,
+                    title: `QUEDA DUPLA!`,
+                    btnText: `Tentar Levantar`,
                     action: { type: 'request_get_up' }
                 });
             }
@@ -615,7 +612,7 @@ function dispatchAction(room) {
             return;
         case 'gameover':
             let reason = state.reason || '';
-            if (state.winner === 'draw') { reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`; } 
+            if (state.winner === 'draw') { reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`; }
             else if (state.winner) { const winnerName = state.fighters[state.winner].nome; reason += `<br><br><strong style="color: #dc3545; font-size: 1.2em;">VITÓRIA DE ${winnerName.toUpperCase()}</strong>`; }
             else { reason = "Fim de Jogo"; }
             io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason });
@@ -669,7 +666,6 @@ io.on('connection', (socket) => {
         dispatchAction(games[newRoomId]);
     });
 
-// ... (O restante do arquivo a partir de socket.on('joinGame', ...) permanece inalterado) ...
     socket.on('joinGame', ({ roomId, player2Data }) => {
         const room = games[roomId];
         if (!room || room.players.length !== 1 || room.state.mode !== 'classic') { socket.emit('error', { message: 'Sala não encontrada, cheia, ou não é uma sala de modo clássico.' }); return; }
@@ -892,7 +888,7 @@ io.on('connection', (socket) => {
                 state.tokenOrder = [];
                 state.scenarioWidth = null;
                 state.scenarioHeight = null;
-                state.isStaging = true; 
+                state.isStaging = true;
                 logMessage(state, `GM está preparando um novo cenário: ${action.scenario}`);
                 break;
 
@@ -967,8 +963,8 @@ io.on('connection', (socket) => {
                 p2f.hpMax = p2f.res * 5;
                 break;
             case 'give_last_chance':
-                state.knockdownInfo.attempts = 3; 
-                state.knockdownInfo.isLastChance = true; 
+                state.knockdownInfo.attempts = 3;
+                state.knockdownInfo.isLastChance = true;
                 state.phase = 'knockdown';
                 break;
             case 'resolve_knockdown_loss':
@@ -1042,7 +1038,7 @@ io.on('connection', (socket) => {
                         }
                     };
                     executeFlicker();
-                    return; 
+                    return;
                 } else {
                      executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
                      if (state.phase === 'white_fang_follow_up') {
@@ -1092,7 +1088,7 @@ io.on('connection', (socket) => {
                 }
                 fighter.def = defRoll + baseStat;
                 logMessage(state, `${fighter.nome} definiu defesa: D3(${defRoll}) + ${statName}(${baseStat}) = <span class="highlight-total">${fighter.def}</span>`, 'log-info');
-                if (playerKey === 'player1') { state.phase = 'defense_p2'; } 
+                if (playerKey === 'player1') { state.phase = 'defense_p2'; }
                 else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
                 break;
             case 'end_turn':
@@ -1205,7 +1201,7 @@ io.on('connection', (socket) => {
                             io.to(roomId).emit('gameUpdate', room.state);
                             dispatchAction(room);
                         }, 3000);
-                        return; 
+                        return;
                     }
                 }
                 break;
@@ -1239,7 +1235,7 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('gameUpdate', room.state);
             dispatchAction(room);
             return;
-        } 
+        }
         const spectatorIndex = room.spectators.indexOf(socket.id);
         if (spectatorIndex > -1) {
             room.spectators.splice(spectatorIndex, 1);
