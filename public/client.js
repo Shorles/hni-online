@@ -378,6 +378,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentGameState = gameState;
         
+        // *** INÍCIO DA CORREÇÃO: Chama o scaleGame aqui para garantir que a lógica correta seja aplicada na mudança de modo ***
+        scaleGame();
+        // *** FIM DA CORREÇÃO ***
+        
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup'];
         
         if (myPlayerKey === 'spectator' && oldState && oldState.mode === 'theater' && gameState.mode !== 'theater' && PRE_GAME_PHASES.includes(gameState.phase)) {
@@ -506,7 +510,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fighter.hpMax !== undefined) {
                     document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`; document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
                     document.getElementById(`${key}-def-text`).innerText = fighter.def; document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
-                    document.getElementById(`${key}-knockdowns`).innerText = fighter.knockdowns; document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
+                    document.getElementById(`${key}-knockdowns`).innerText = fighter.knockdowns;
+                    document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
                     document.getElementById(`${key}-point-deductions`).innerText = fighter.pointDeductions; document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
                 }
                 if (fighter.specialMoves) {
@@ -1278,30 +1283,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const w = document.getElementById('game-wrapper');
         const isMobile = window.innerWidth <= 800;
 
+        // Reset styles for recalculation
+        w.style.width = '1280px';
+        w.style.height = '720px';
+
         if (isMobile) {
-            // No celular, a lógica depende do modo de jogo
             if (currentGameState && currentGameState.mode === 'theater') {
-                // Modo Cenário: Sem escala, ocupa a tela visível.
+                // Modo Cenário no Celular: Sem escala, ocupa a tela visível
                 w.style.transform = 'none';
-                w.style.height = `${window.innerHeight}px`;
                 w.style.width = '100%';
+                w.style.height = `${window.innerHeight}px`;
                 w.style.left = '0';
                 w.style.top = '0';
             } else {
-                // Modo Luta: Escala para caber na largura.
-                const scale = window.innerWidth / 1280;
+                // Modo Luta no Celular: Escala para caber na tela
+                const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
                 w.style.transform = `scale(${scale})`;
-                w.style.height = '720px'; // Mantém a proporção
-                w.style.width = '1280px';
-                w.style.left = '0';
-                w.style.top = '0';
+                const left = (window.innerWidth - (1280 * scale)) / 2;
+                const top = (window.innerHeight - (720 * scale)) / 2;
+                w.style.left = `${left}px`;
+                w.style.top = `${top}px`;
             }
         } else {
-            // No desktop, a lógica é sempre a mesma.
+            // Desktop: Lógica de escala padrão
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
             w.style.transform = `scale(${scale})`;
-            w.style.height = '720px'; // Reseta para o padrão
-            w.style.width = '1280px';
             const left = (window.innerWidth - (1280 * scale)) / 2;
             const top = (window.innerHeight - (720 * scale)) / 2;
             w.style.left = `${left}px`;
