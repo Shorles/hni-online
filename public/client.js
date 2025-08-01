@@ -1267,7 +1267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
-    socket.on('hideModal', () => modal.classList.add('hidden'));
+    socket.on('hideModal', () => modal.classList.add('hidden');
     socket.on('diceRoll', showDiceRollAnimation);
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); });
 
@@ -1275,20 +1275,24 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // *** INÍCIO DA CORREÇÃO ***
     const scaleGame = () => {
+        const w = document.getElementById('game-wrapper');
         const isMobile = window.innerWidth <= 800;
-        const gameWrapper = document.getElementById('game-wrapper');
 
         if (isMobile) {
-            gameWrapper.style.transform = 'none';
-            gameWrapper.style.left = '0';
-            gameWrapper.style.top = '0';
-            gameWrapper.style.height = `${window.innerHeight}px`; // Ajusta a altura do wrapper principal
+            w.style.transform = 'none';
+            w.style.left = '0';
+            w.style.top = '0';
+            w.style.height = `${window.innerHeight}px`;
         } else {
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-            gameWrapper.style.transform = `scale(${scale})`;
-            gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
-            gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
-            gameWrapper.style.height = '720px'; // Reseta para o valor padrão do desktop
+            const left = (window.innerWidth - (1280 * scale)) / 2;
+            const top = (window.innerHeight - (720 * scale)) / 2;
+            
+            w.style.transform = `scale(${scale})`;
+            w.style.left = `${left}px`;
+            // Garante uma margem superior mínima de 15px, mas centraliza se houver espaço.
+            w.style.top = `${Math.max(15, top)}px`;
+            w.style.height = '720px'; // Reseta para o padrão
         }
     };
     // *** FIM DA CORREÇÃO ***
