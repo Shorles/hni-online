@@ -415,28 +415,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'arena':
-                // Se a luta já acabou, mostre a tela de luta para ver os resultados finais e o modal.
                 if (gameState.phase === 'gameover') {
                     showScreen(fightScreen);
                     break;
                 }
                 
-                // Se estamos nas fases de pré-luta (lobby, seleção, configuração)
                 if (gameState.phase === 'arena_lobby' || gameState.phase === 'arena_configuring') {
                     if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-                        // Se o jogador ainda não escolheu seu personagem, mostre a tela de seleção.
                         if (!gameState.fighters[myPlayerKey]) {
                             showScreen(selectionScreen);
                         } else {
-                            // Se o jogador já escolheu, mostre a tela de lobby enquanto aguarda.
                             showScreen(arenaLobbyScreen);
                         }
                     } else {
-                        // O Host e os espectadores sempre veem a tela de lobby nessas fases.
                         showScreen(arenaLobbyScreen);
                     }
                 } else {
-                    // Qualquer outra fase (initiative, turn, etc.) significa que a luta começou.
                     showScreen(fightScreen);
                 }
                 break;
@@ -494,8 +488,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(isGm) {
             const cheatIndicator = document.getElementById('dice-cheat-indicator'); let cheatText = '';
-            if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; if (state.diceCheat === 'fumble') cheatText += 'Erros (R) ';
-            if (state.illegalCheat === 'always') cheatText += 'Sempre Ilegal (I) '; else if (state.illegalCheat === 'never') cheatText += 'Nunca Ilegal (I) ';
+            if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; 
+            if (state.diceCheat === 'fumble') cheatText += 'Erros (R) ';
+            // *** INÍCIO DA CORREÇÃO ***
+            if (typeof state.diceCheat === 'number') cheatText += `Forçar D${state.diceCheat} (Y) `;
+            // *** FIM DA CORREÇÃO ***
+            if (state.illegalCheat === 'always') cheatText += 'Sempre Ilegal (I) '; 
+            else if (state.illegalCheat === 'never') cheatText += 'Nunca Ilegal (I) ';
+            
             if (cheatText) { cheatIndicator.textContent = 'CHEAT ATIVO: ' + cheatText.trim(); cheatIndicator.classList.remove('hidden'); } 
             else { cheatIndicator.classList.add('hidden'); }
         }
@@ -668,7 +668,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (e.key.toLowerCase() === 'i') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
+                // *** INÍCIO DA CORREÇÃO ***
+                } else if (e.key.toLowerCase() === 'y') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_force_dice' });
                 }
+                // *** FIM DA CORREÇÃO ***
             }
 
             if (currentGameState && currentGameState.mode === 'theater') {
@@ -1053,7 +1058,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
-            currentScenarioScale = Math.max(0.2, Math.min(5, currentScenarioScale + scaleAmount));
+            // *** INÍCIO DA CORREÇÃO ***
+            // Define o limite mínimo de zoom com base no tamanho da tela
+            const isMobile = window.innerWidth <= 800;
+            const minZoom = isMobile ? 0.05 : 0.2;
+            currentScenarioScale = Math.max(minZoom, Math.min(5, currentScenarioScale + scaleAmount));
+            // *** FIM DA CORREÇÃO ***
             updateTheaterZoom();
 
         }, { passive: false });
@@ -1077,9 +1087,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
                 }
 
-                // *** INÍCIO DA CORREÇÃO ***
-                // Se for um espectador em uma tela pequena (móvel), calcula o zoom para caber na tela.
-                if (myPlayerKey === 'spectator' && window.innerWidth <= 800) {
+                const isMobileSpectator = myPlayerKey === 'spectator' && window.innerWidth <= 800;
+                if (isMobileSpectator) {
                     const viewport = document.getElementById('theater-background-viewport');
                     const viewportWidth = viewport.clientWidth;
                     const viewportHeight = viewport.clientHeight;
@@ -1089,12 +1098,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (scenarioWidth > 0 && scenarioHeight > 0) {
                         const scaleX = viewportWidth / scenarioWidth;
                         const scaleY = viewportHeight / scenarioHeight;
-                        // Define a escala para o menor dos dois valores para garantir que tudo caiba,
-                        // e aplica uma pequena margem (95%) para não ficar colado nas bordas.
                         currentScenarioScale = Math.min(scaleX, scaleY) * 0.95;
                     }
                 }
-                // *** FIM DA CORREÇÃO ***
+                updateTheaterZoom(); // Chama o zoom após o cálculo da escala
             };
             img.src = `images/${dataToRender.scenario}`;
         }
@@ -1152,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         theaterTokenContainer.appendChild(fragment);
         
-        updateTheaterZoom();
+        // A chamada final do zoom agora é feita no `img.onload` para garantir que a escala esteja correta
     }
     // #endregion
 

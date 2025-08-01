@@ -53,12 +53,20 @@ const MOVE_SOUNDS = {
 };
 // --- FIM DA MANUTENÇÃO ---
 
-const rollD = (s) => Math.floor(Math.random() * s) + 1;
+// *** INÍCIO DA CORREÇÃO ***
+function rollD(s, state) {
+    if (state && typeof state.diceCheat === 'number') {
+        return Math.min(state.diceCheat, s);
+    }
+    return Math.floor(Math.random() * s) + 1;
+}
 
 const ATTACK_DICE_OUTCOMES = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6];
 const rollAttackD6 = (state) => {
     if (state.diceCheat === 'crit') return 6;
     if (state.diceCheat === 'fumble') return 1;
+    if (typeof state.diceCheat === 'number') return state.diceCheat;
+    // *** FIM DA CORREÇÃO ***
     const randomIndex = Math.floor(Math.random() * ATTACK_DICE_OUTCOMES.length);
     return ATTACK_DICE_OUTCOMES[randomIndex];
 };
@@ -202,18 +210,14 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
                 io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
             } else if (attackerValue > counterValue) {
-                // *** INÍCIO DA CORREÇÃO ***
-                // O Counter foi tentado, mas o atacante venceu.
-                // Isso deve contar como um 'hit' para o Flicker Jab e NÃO deve parar o loop.
                 logMessage(state, `Falhou! ${defender.nome} erra o tempo e recebe ${damageToDeal} de dano!`, 'log-crit');
-                attackResult.hit = true; // Sinaliza que o Flicker Jab acertou.
-                attackResult.counterLanded = false; // Sinaliza para NÃO parar o loop do Flicker Jab.
+                attackResult.hit = true; 
+                attackResult.counterLanded = false; 
                 const hpBeforeHit = defender.hp;
                 defender.hp = Math.max(0, defender.hp - damageToDeal);
                 defender.totalDamageTaken += hpBeforeHit - defender.hp;
                 io.to(roomId).emit('triggerHitAnimation', { defenderKey });
                 if (isActuallyIllegal) illegalMoveLanded = true;
-                // *** FIM DA CORREÇÃO ***
             } else {
                 logMessage(state, `Empate! Ambos são atingidos no fogo cruzado e recebem ${damageToDeal} de dano!`, 'log-crit');
                 let hpBeforeHit;
@@ -461,7 +465,9 @@ function isActionValid(state, action) {
 
     const move = state.moves[action.move];
 
-    if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat' || type === 'toggle_illegal_cheat') { return isGm; }
+    // *** INÍCIO DA CORREÇÃO ***
+    if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat' || type === 'toggle_illegal_cheat' || type === 'toggle_force_dice') { return isGm; }
+    // *** FIM DA CORREÇÃO ***
     if (state.phase === 'paused') { return false; }
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
@@ -840,6 +846,18 @@ io.on('connection', (socket) => {
                 break;
 
             // BATTLE MODE ACTIONS
+            // *** INÍCIO DA CORREÇÃO ***
+            case 'toggle_force_dice':
+                let currentForce = (typeof state.diceCheat === 'number') ? state.diceCheat : 0;
+                if (currentForce === 0) {
+                    state.diceCheat = 2; // Inicia o ciclo
+                } else if (currentForce < 5) {
+                    state.diceCheat++; // Cicla 2 -> 3 -> 4 -> 5
+                } else {
+                    state.diceCheat = null; // Desativa após o 5
+                }
+                break;
+            // *** FIM DA CORREÇÃO ***
             case 'toggle_dice_cheat':
                 if (state.diceCheat === action.cheat) {
                     state.diceCheat = null;
@@ -993,7 +1011,9 @@ io.on('connection', (socket) => {
                 break;
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
-                const roll = rollD(6);
+                // *** INÍCIO DA CORREÇÃO ***
+                const roll = rollD(6, state);
+                // *** FIM DA CORREÇÃO ***
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 const agi = state.fighters[playerKey].agi;
                 state.initiativeRolls[playerKey] = roll + agi;
@@ -1012,7 +1032,9 @@ io.on('connection', (socket) => {
                 break;
             case 'roll_defense':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
-                const defRoll = rollD(3);
+                // *** INÍCIO DA CORREÇÃO ***
+                const defRoll = rollD(3, state);
+                // *** FIM DA CORREÇÃO ***
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const fighter = state.fighters[playerKey];
                 fighter.defRoll = defRoll;
@@ -1051,7 +1073,9 @@ io.on('connection', (socket) => {
                     const knockdownInfo = state.knockdownInfo;
                     if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
                     knockdownInfo.attempts++;
-                    let getUpRoll = rollD(6);
+                    // *** INÍCIO DA CORREÇÃO ***
+                    let getUpRoll = rollD(6, state);
+                    // *** FIM DA CORREÇÃO ***
                     if (state.diceCheat === 'crit') getUpRoll = 6; else if (state.diceCheat === 'fumble') getUpRoll = 1;
                     io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
                     const downedFighter = state.fighters[playerKey];
@@ -1097,7 +1121,9 @@ io.on('connection', (socket) => {
                         ['player1', 'player2'].forEach(pKey => {
                             if (dki.getUpStatus[pKey] === 'pending') {
                                 const fighter = state.fighters[pKey];
-                                const getUpRoll = rollD(6);
+                                // *** INÍCIO DA CORREÇÃO ***
+                                const getUpRoll = rollD(6, state);
+                                // *** FIM DA CORREÇÃO ***
                                 const totalRoll = getUpRoll + fighter.res;
                                 const success = totalRoll >= 7;
                                 results[pKey] = { roll: getUpRoll, total: totalRoll, success };
