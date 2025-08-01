@@ -1279,19 +1279,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMobile = window.innerWidth <= 800;
 
         if (isMobile) {
-            w.style.transform = 'none';
-            w.style.left = '0';
-            w.style.top = '0';
-            w.style.height = `${window.innerHeight}px`;
+            // No celular, a lógica depende do modo de jogo
+            if (currentGameState && currentGameState.mode === 'theater') {
+                // Modo Cenário: Sem escala, ocupa a tela visível.
+                w.style.transform = 'none';
+                w.style.height = `${window.innerHeight}px`;
+                w.style.width = '100%';
+                w.style.left = '0';
+                w.style.top = '0';
+            } else {
+                // Modo Luta: Escala para caber na largura.
+                const scale = window.innerWidth / 1280;
+                w.style.transform = `scale(${scale})`;
+                w.style.height = '720px'; // Mantém a proporção
+                w.style.width = '1280px';
+                w.style.left = '0';
+                w.style.top = '0';
+            }
         } else {
+            // No desktop, a lógica é sempre a mesma.
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+            w.style.transform = `scale(${scale})`;
+            w.style.height = '720px'; // Reseta para o padrão
+            w.style.width = '1280px';
             const left = (window.innerWidth - (1280 * scale)) / 2;
             const top = (window.innerHeight - (720 * scale)) / 2;
-            
-            w.style.transform = `scale(${scale})`;
             w.style.left = `${left}px`;
             w.style.top = `${top}px`;
-            w.style.height = '720px';
         }
     };
     // *** FIM DA CORREÇÃO ***
