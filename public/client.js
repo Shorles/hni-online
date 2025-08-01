@@ -490,9 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cheatIndicator = document.getElementById('dice-cheat-indicator'); let cheatText = '';
             if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; 
             if (state.diceCheat === 'fumble') cheatText += 'Erros (R) ';
-            // *** INÍCIO DA CORREÇÃO ***
             if (typeof state.diceCheat === 'number') cheatText += `Forçar D${state.diceCheat} (Y) `;
-            // *** FIM DA CORREÇÃO ***
             if (state.illegalCheat === 'always') cheatText += 'Sempre Ilegal (I) '; 
             else if (state.illegalCheat === 'never') cheatText += 'Nunca Ilegal (I) ';
             
@@ -668,12 +666,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (e.key.toLowerCase() === 'i') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
-                // *** INÍCIO DA CORREÇÃO ***
                 } else if (e.key.toLowerCase() === 'y') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'toggle_force_dice' });
                 }
-                // *** FIM DA CORREÇÃO ***
             }
 
             if (currentGameState && currentGameState.mode === 'theater') {
@@ -1058,15 +1054,72 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
-            // *** INÍCIO DA CORREÇÃO ***
-            // Define o limite mínimo de zoom com base no tamanho da tela
             const isMobile = window.innerWidth <= 800;
             const minZoom = isMobile ? 0.05 : 0.2;
             currentScenarioScale = Math.max(minZoom, Math.min(5, currentScenarioScale + scaleAmount));
-            // *** FIM DA CORREÇÃO ***
             updateTheaterZoom();
 
         }, { passive: false });
+
+        // *** INÍCIO DA CORREÇÃO (LÓGICA DE TOQUE) ***
+        let isPinching = false;
+        let initialPinchDistance = 0;
+        let isTouchPanning = false;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+
+        theaterBackgroundViewport.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                isPinching = true;
+                isTouchPanning = false;
+                initialPinchDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+            } else if (e.touches.length === 1) {
+                const isToken = e.target.classList.contains('theater-token');
+                if (isToken) return; // Não inicia o pan se o toque for em um token
+                isTouchPanning = true;
+                isPinching = false;
+                lastTouchX = e.touches[0].pageX;
+                lastTouchY = e.touches[0].pageY;
+            }
+        }, { passive: false });
+
+        theaterBackgroundViewport.addEventListener('touchmove', (e) => {
+            if (currentGameState.mode !== 'theater') return;
+            e.preventDefault(); // Previne o scroll da página
+
+            if (isPinching && e.touches.length === 2) {
+                const currentPinchDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                const scaleMultiplier = currentPinchDistance / initialPinchDistance;
+                const newScale = currentScenarioScale * scaleMultiplier;
+
+                const isMobile = window.innerWidth <= 800;
+                const minZoom = isMobile ? 0.05 : 0.2;
+                currentScenarioScale = Math.max(minZoom, Math.min(5, newScale));
+                
+                updateTheaterZoom();
+                initialPinchDistance = currentPinchDistance;
+
+            } else if (isTouchPanning && e.touches.length === 1) {
+                const dx = e.touches[0].pageX - lastTouchX;
+                const dy = e.touches[0].pageY - lastTouchY;
+                theaterBackgroundViewport.scrollLeft -= dx;
+                theaterBackgroundViewport.scrollTop -= dy;
+                lastTouchX = e.touches[0].pageX;
+                lastTouchY = e.touches[0].pageY;
+            }
+        }, { passive: false });
+
+        theaterBackgroundViewport.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) isPinching = false;
+            if (e.touches.length < 1) isTouchPanning = false;
+        });
+        // *** FIM DA CORREÇÃO ***
     }
 
     function renderTheaterMode(state) {
@@ -1089,19 +1142,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const isMobileSpectator = myPlayerKey === 'spectator' && window.innerWidth <= 800;
                 if (isMobileSpectator) {
-                    const viewport = document.getElementById('theater-background-viewport');
-                    const viewportWidth = viewport.clientWidth;
-                    const viewportHeight = viewport.clientHeight;
+                    const viewport = theaterBackgroundViewport;
                     const scenarioWidth = img.naturalWidth;
                     const scenarioHeight = img.naturalHeight;
 
                     if (scenarioWidth > 0 && scenarioHeight > 0) {
-                        const scaleX = viewportWidth / scenarioWidth;
-                        const scaleY = viewportHeight / scenarioHeight;
-                        currentScenarioScale = Math.min(scaleX, scaleY) * 0.95;
+                        const scaleX = viewport.clientWidth / scenarioWidth;
+                        const scaleY = viewport.clientHeight / scenarioHeight;
+                        currentScenarioScale = Math.min(scaleX, scaleY);
+                        
+                        // Centraliza a visão
+                        const scaledWidth = scenarioWidth * currentScenarioScale;
+                        const scaledHeight = scenarioHeight * currentScenarioScale;
+                        viewport.scrollLeft = (scaledWidth - viewport.clientWidth) / 2;
+                        viewport.scrollTop = (scaledHeight - viewport.clientHeight) / 2;
                     }
                 }
-                updateTheaterZoom(); // Chama o zoom após o cálculo da escala
+                updateTheaterZoom();
             };
             img.src = `images/${dataToRender.scenario}`;
         }
@@ -1159,7 +1216,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         theaterTokenContainer.appendChild(fragment);
         
-        // A chamada final do zoom agora é feita no `img.onload` para garantir que a escala esteja correta
+        updateTheaterZoom();
     }
     // #endregion
 
