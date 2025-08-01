@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let player1SetupData = { scenario: null };
     let availableSpecialMoves = {};
 
+    // --- VARIÁVEIS PARA ARMAZENAR DADOS DO SERVIDOR ---
+    let classicFightersList = {};
+    let npcFightersList = {};
+    let theaterCharactersList = {};
+
+    // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
     const modeSelectionScreen = document.getElementById('mode-selection-screen');
@@ -59,18 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterBackBtn = document.getElementById('theater-back-btn');
     const theaterPublishBtn = document.getElementById('theater-publish-btn');
 
+    // --- DADOS DO JOGO (CLIENT-SIDE) ---
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
-    const CHARACTERS_P1 = {
-        'Kureha Shoji':{agi:3,res:1},'Erik Adler':{agi:2,res:2},'Ivan Braskovich':{agi:1,res:3},'Hayato Takamura':{agi:4,res:4},'Logan Graves':{agi:3,res:2},'Daigo Kurosawa':{agi:1,res:4},'Jamal Briggs':{agi:2,res:3},'Takeshi Arada':{agi:3,res:2},'Kaito Mishima':{agi:4,res:3},'Kuga Shunji':{agi:3,res:4},'Eitan Barak':{agi:4,res:3},
-        'Rukyanu Hoo': { agi: 1, res: 1 },
-        'Shirubio Sando': { agi: 1, res: 1 },
-        'Guguro Riberatsu': { agi: 1, res: 1 },
-        'Raujiro Oka': { agi: 1, res: 1 }
-    };
-    const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
-    
-    const THEATER_CHARACTERS = { ...CHARACTERS_P1, ...CHARACTERS_P2 };
+    // As listas de personagens foram removidas daqui. Elas serão recebidas do servidor.
     
     const DYNAMIC_CHARACTERS = [];
     for (let i = 1; i <= 50; i++) {
@@ -91,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let linkInitialized = false;
 
+    // --- FUNÇÕES DE LÓGICA E RENDERIZAÇÃO ---
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
         const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum'};
@@ -145,12 +144,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (arenaPlayerKey && currentRoomId) {
             myPlayerKey = arenaPlayerKey; socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen); selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : 2}: Selecione seu Lutador`; confirmBtn.innerText = 'Confirmar Personagem';
-            renderCharacterSelection('p2', false);
+            renderCharacterSelection('npc', false);
         } else if (isSpectator && currentRoomId) { 
             showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`; socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
             showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador'; confirmBtn.innerText = 'Entrar na Luta';
-            renderCharacterSelection('p2', false);
+            renderCharacterSelection('npc', false);
         } else { showScreen(modeSelectionScreen); }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
@@ -182,9 +181,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function onConfirmSelection() {
         const selectedCard = document.querySelector('.char-card.selected'); if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
+        // Agora, os dados enviados são apenas o nome e a imagem. 
+        // AGI/RES são definidos/editados no servidor.
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         
         if (currentGameState && currentGameState.phase === 'gm_classic_setup') {
+            // No setup do GM, ele pode editar os stats, então enviamos.
             playerData.agi = selectedCard.querySelector('.agi-input').value; 
             playerData.res = selectedCard.querySelector('.res-input').value;
             confirmBtn.disabled = true;
@@ -193,25 +195,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (myPlayerKey === 'player1' && !currentRoomId) {
-            playerData.agi = selectedCard.querySelector('.agi-input').value; playerData.res = selectedCard.querySelector('.res-input').value;
-            confirmBtn.disabled = true; socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
+            // Na criação do jogo, o GM pode editar os stats.
+            playerData.agi = selectedCard.querySelector('.agi-input').value;
+            playerData.res = selectedCard.querySelector('.res-input').value;
+            confirmBtn.disabled = true;
+            socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
         } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-             confirmBtn.disabled = true; socket.emit('selectArenaCharacter', { character: playerData });
-             showScreen(arenaLobbyScreen); lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
-        } else {
-            confirmBtn.disabled = true; showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
+             confirmBtn.disabled = true;
+             socket.emit('selectArenaCharacter', { character: playerData });
+             showScreen(arenaLobbyScreen);
+             lobbyContent.innerHTML = `<p>Personagem selecionado! Aguardando o Anfitrião configurar e iniciar a partida...</p>`;
+        } else { // Jogador 2 entrando no modo clássico
+            confirmBtn.disabled = true;
+            showScreen(lobbyScreen);
+            lobbyContent.innerHTML = `<p>Aguardando o Jogador 1 definir seus atributos e golpes...</p>`;
+            // Não precisa mais enviar AGI/RES, o servidor já tem esses dados para NPCs
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
         }
     }
 
     function renderCharacterSelection(playerType, showStatsInputs = false) {
-        charListContainer.innerHTML = ''; const charData = playerType === 'p1' ? CHARACTERS_P1 : CHARACTERS_P2;
+        charListContainer.innerHTML = '';
+        const charData = (playerType === 'p1') ? classicFightersList : npcFightersList;
+
         for (const name in charData) {
-            const stats = charData[name]; const card = document.createElement('div'); card.className = 'char-card'; card.dataset.name = name; 
-            card.dataset.img = `images/${name}.png`;
-            const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
-            card.innerHTML = `<img src="images/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
-            card.addEventListener('click', () => { document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); });
+            const stats = charData[name];
+            const card = document.createElement('div');
+            card.className = 'char-card';
+            card.dataset.name = name;
+            // O caminho da imagem agora vem dos dados recebidos
+            const imgPath = stats.img || `images/${name}.png`;
+            card.dataset.img = imgPath;
+
+            const statsHtml = showStatsInputs
+                ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>`
+                : ``;
+
+            card.innerHTML = `<img src="${imgPath}" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
+            card.addEventListener('click', () => {
+                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+            });
             charListContainer.appendChild(card);
         }
     }
@@ -317,6 +341,15 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // --- SOCKET.IO LISTENERS ---
+
+    // Recebe TODAS as listas de personagens do servidor de uma vez só
+    socket.on('receiveCharacterData', (data) => {
+        classicFightersList = data.classicFighters || {};
+        npcFightersList = data.npcFighters || {};
+        theaterCharactersList = data.theaterCharacters || {};
+    });
+
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione seus Golpes Especiais';
@@ -378,9 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentGameState = gameState;
         
-        // *** INÍCIO DA CORREÇÃO: Chama o scaleGame aqui para garantir que a lógica correta seja aplicada na mudança de modo ***
         scaleGame();
-        // *** FIM DA CORREÇÃO ***
         
         const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup'];
         
@@ -474,6 +505,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+// ... (O restante das funções de UI, modais, overlays e #region LÓGICA DO MODO TEATRO permanecem praticamente inalteradas) ...
+// A única alteração é em `initializeTheaterMode`
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent || '🔗'; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     
     function updateUI(state) {
@@ -737,11 +770,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         theaterCharList.innerHTML = '';
-        Object.keys(THEATER_CHARACTERS).forEach(charName => {
-            const charImg = `images/${charName}.png`; const mini = document.createElement('div');
+        // A lista de personagens do teatro agora usa os dados do servidor
+        Object.keys(theaterCharactersList).forEach(charName => {
+            const charData = theaterCharactersList[charName];
+            const charImg = charData.img;
+            const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
             mini.style.backgroundImage = `url("${charImg}")`;
-            mini.title = charName; mini.draggable = true;
+            mini.title = charName;
+            mini.draggable = true;
             mini.addEventListener('dragstart', (e) => {
                 if (!isGm) return;
                 e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: charImg }));
@@ -1278,25 +1315,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initialize();
     
-    // *** INÍCIO DA CORREÇÃO ***
     const scaleGame = () => {
         const w = document.getElementById('game-wrapper');
         const isMobile = window.innerWidth <= 800;
 
-        // Reset styles for recalculation
         w.style.width = '1280px';
         w.style.height = '720px';
 
         if (isMobile) {
             if (currentGameState && currentGameState.mode === 'theater') {
-                // Modo Cenário no Celular: Sem escala, ocupa a tela visível
                 w.style.transform = 'none';
                 w.style.width = '100%';
                 w.style.height = `${window.innerHeight}px`;
                 w.style.left = '0';
                 w.style.top = '0';
             } else {
-                // Modo Luta no Celular: Escala para caber na tela
                 const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
                 w.style.transform = `scale(${scale})`;
                 const left = (window.innerWidth - (1280 * scale)) / 2;
@@ -1305,7 +1338,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 w.style.top = `${top}px`;
             }
         } else {
-            // Desktop: Lógica de escala padrão
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
             w.style.transform = `scale(${scale})`;
             const left = (window.innerWidth - (1280 * scale)) / 2;
@@ -1314,7 +1346,6 @@ document.addEventListener('DOMContentLoaded', () => {
             w.style.top = `${top}px`;
         }
     };
-    // *** FIM DA CORREÇÃO ***
     
     scaleGame();
     window.addEventListener('resize', scaleGame);

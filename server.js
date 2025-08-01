@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs'); // Módulo para ler arquivos
 
 const app = express();
 const server = http.createServer(app);
@@ -9,9 +10,47 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
+// --- CARREGAMENTO E ESTRUTURAÇÃO DOS DADOS DOS PERSONAGENS ---
+
+// Lutadores para o P2 ("NPCs"), agora no servidor
+const NPC_FIGHTERS = {
+    'Ryu': { agi: 2, res: 3 },
+    'Yobu': { agi: 2, res: 3 },
+    'Nathan': { agi: 2, res: 3 },
+    'Okami': { agi: 2, res: 3 }
+};
+
+// Carrega os nomes dos lutadores do modo clássico do arquivo JSON
+let CLASSIC_FIGHTERS = {};
+try {
+    const fighterNames = JSON.parse(fs.readFileSync('lutadores.json', 'utf8'));
+    fighterNames.forEach(name => {
+        // Para cada nome, cria um objeto com stats padrão e o caminho da imagem
+        CLASSIC_FIGHTERS[name] = {
+            agi: 1,
+            res: 1,
+            img: `images/lutadores/${name}.png` // Define o caminho da imagem aqui
+        };
+    });
+    console.log("Lutadores do modo clássico carregados com sucesso!");
+} catch (err) {
+    console.error("Erro ao carregar ou processar lutadores.json:", err);
+}
+
+// Combina os lutadores clássicos e os NPCs para o modo Teatro
+const THEATER_CHARACTERS = {};
+Object.keys(CLASSIC_FIGHTERS).forEach(name => {
+    THEATER_CHARACTERS[name] = { img: CLASSIC_FIGHTERS[name].img };
+});
+Object.keys(NPC_FIGHTERS).forEach(name => {
+    // No modo teatro, o nome do arquivo da imagem não tem a pasta "lutadores"
+    THEATER_CHARACTERS[name] = { img: `images/${name}.png` };
+});
+
+
+// --- DADOS DO JOGO (MOVIMENTOS, ETC) ---
 const games = {};
 
-// --- MANTIDO PARA OUTROS MODOS ---
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
@@ -51,9 +90,9 @@ const MOVE_SOUNDS = {
     'Clinch': ['Esquiva.mp3'],
     'Esquiva': ['Esquiva.mp3']
 };
-// --- FIM DA MANUTENÇÃO ---
 
-// *** INÍCIO DA CORREÇÃO ***
+// --- FUNÇÕES DE LÓGICA DO JOGO ---
+
 function rollD(s, state) {
     if (state && typeof state.diceCheat === 'number') {
         return Math.min(state.diceCheat, s);
@@ -66,7 +105,6 @@ const rollAttackD6 = (state) => {
     if (state.diceCheat === 'crit') return 6;
     if (state.diceCheat === 'fumble') return 1;
     if (typeof state.diceCheat === 'number') return state.diceCheat;
-    // *** FIM DA CORREÇÃO ***
     const randomIndex = Math.floor(Math.random() * ATTACK_DICE_OUTCOMES.length);
     return ATTACK_DICE_OUTCOMES[randomIndex];
 };
@@ -110,6 +148,8 @@ function createNewTheaterState(scenario) {
 }
 
 function createNewFighterState(data) {
+    // A função já usa || 1, então se agi/res não forem enviados, o padrão será 1.
+    // Isso funciona perfeitamente para a nova lógica.
     const res = Math.max(1, parseInt(data.res, 10) || 1);
     const agi = parseInt(data.agi, 10) || 1;
     const hp = parseInt(data.hp, 10) || (res * 5);
@@ -126,6 +166,7 @@ function createNewFighterState(data) {
     };
 }
 
+// ... (O restante das funções de lógica do jogo como logMessage, filterVisibleTokens, executeAttack, etc., permanecem inalteradas) ...
 function logMessage(state, text, className = '') { if(state && state.log) { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); } }
 
 function filterVisibleTokens(state) {
@@ -465,9 +506,7 @@ function isActionValid(state, action) {
 
     const move = state.moves[action.move];
 
-    // *** INÍCIO DA CORREÇÃO ***
     if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat' || type === 'toggle_illegal_cheat' || type === 'toggle_force_dice') { return isGm; }
-    // *** FIM DA CORREÇÃO ***
     if (state.phase === 'paused') { return false; }
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
@@ -584,7 +623,18 @@ function dispatchAction(room) {
         default: io.to(roomId).emit('hideModal'); return;
     }
 }
+
+// --- LÓGICA DE CONEXÃO E EVENTOS ---
+
 io.on('connection', (socket) => {
+    
+    // Envia os dados dos personagens para o cliente assim que ele se conecta
+    socket.emit('receiveCharacterData', {
+        classicFighters: CLASSIC_FIGHTERS,
+        npcFighters: NPC_FIGHTERS,
+        theaterCharacters: THEATER_CHARACTERS
+    });
+
     socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);
         socket.join(newRoomId);
@@ -619,6 +669,7 @@ io.on('connection', (socket) => {
         dispatchAction(games[newRoomId]);
     });
 
+// ... (O restante do arquivo a partir de socket.on('joinGame', ...) permanece inalterado) ...
     socket.on('joinGame', ({ roomId, player2Data }) => {
         const room = games[roomId];
         if (!room || room.players.length !== 1 || room.state.mode !== 'classic') { socket.emit('error', { message: 'Sala não encontrada, cheia, ou não é uma sala de modo clássico.' }); return; }
@@ -846,7 +897,6 @@ io.on('connection', (socket) => {
                 break;
 
             // BATTLE MODE ACTIONS
-            // *** INÍCIO DA CORREÇÃO ***
             case 'toggle_force_dice':
                 let currentForce = (typeof state.diceCheat === 'number') ? state.diceCheat : 0;
                 if (currentForce === 0) {
@@ -857,7 +907,6 @@ io.on('connection', (socket) => {
                     state.diceCheat = null; // Desativa após o 5
                 }
                 break;
-            // *** FIM DA CORREÇÃO ***
             case 'toggle_dice_cheat':
                 if (state.diceCheat === action.cheat) {
                     state.diceCheat = null;
@@ -1011,9 +1060,7 @@ io.on('connection', (socket) => {
                 break;
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
-                // *** INÍCIO DA CORREÇÃO ***
                 const roll = rollD(6, state);
-                // *** FIM DA CORREÇÃO ***
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 const agi = state.fighters[playerKey].agi;
                 state.initiativeRolls[playerKey] = roll + agi;
@@ -1032,9 +1079,7 @@ io.on('connection', (socket) => {
                 break;
             case 'roll_defense':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
-                // *** INÍCIO DA CORREÇÃO ***
                 const defRoll = rollD(3, state);
-                // *** FIM DA CORREÇÃO ***
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const fighter = state.fighters[playerKey];
                 fighter.defRoll = defRoll;
@@ -1073,9 +1118,7 @@ io.on('connection', (socket) => {
                     const knockdownInfo = state.knockdownInfo;
                     if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
                     knockdownInfo.attempts++;
-                    // *** INÍCIO DA CORREÇÃO ***
                     let getUpRoll = rollD(6, state);
-                    // *** FIM DA CORREÇÃO ***
                     if (state.diceCheat === 'crit') getUpRoll = 6; else if (state.diceCheat === 'fumble') getUpRoll = 1;
                     io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
                     const downedFighter = state.fighters[playerKey];
@@ -1121,9 +1164,7 @@ io.on('connection', (socket) => {
                         ['player1', 'player2'].forEach(pKey => {
                             if (dki.getUpStatus[pKey] === 'pending') {
                                 const fighter = state.fighters[pKey];
-                                // *** INÍCIO DA CORREÇÃO ***
                                 const getUpRoll = rollD(6, state);
-                                // *** FIM DA CORREÇÃO ***
                                 const totalRoll = getUpRoll + fighter.res;
                                 const success = totalRoll >= 7;
                                 results[pKey] = { roll: getUpRoll, total: totalRoll, success };
