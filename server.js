@@ -2,13 +2,34 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require('uuid');
-const fs = require('fs'); // <--- ADIÇÃO 1/2
+const fs = require('fs'); // Módulo para ler arquivos
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static('public'));
+
+// --- INÍCIO DA NOVA LÓGICA DE CARREGAMENTO DE LUTADORES ---
+const DEFAULT_FIGHTER_STATS = { agi: 1, res: 1 };
+let LUTA_CHARACTERS = {};
+
+try {
+    const lutadoresData = fs.readFileSync('lutadores.json', 'utf8');
+    // Corrigindo o JSON para um array de strings válido antes de fazer o parse
+    const correctedJsonString = `[${lutadoresData.replace(/]\s*\[/g, ',').replace(/""/g, '","').replace(/"\s*"/g, '","').replace(/\s+/g, ' ').trim().replace(/(\w)"\s*"/, '$1", "').replace(/"\s+(\w)/g, '", "$1')}]`;
+    const lutadoresNomes = JSON.parse(correctedJsonString);
+    
+    lutadoresNomes.forEach(nome => {
+        LUTA_CHARACTERS[nome] = { ...DEFAULT_FIGHTER_STATS };
+    });
+    console.log('Lutadores carregados com sucesso!');
+} catch (error) {
+    console.error('Erro ao carregar lutadores.json:', error);
+    console.error('Verifique se o arquivo existe na raíz do projeto e se o formato está correto (um array de nomes em JSON).');
+}
+// --- FIM DA NOVA LÓGICA ---
+
 
 const games = {};
 
@@ -54,7 +75,6 @@ const MOVE_SOUNDS = {
 };
 // --- FIM DA MANUTENÇÃO ---
 
-// *** INÍCIO DA CORREÇÃO ***
 function rollD(s, state) {
     if (state && typeof state.diceCheat === 'number') {
         return Math.min(state.diceCheat, s);
@@ -67,7 +87,6 @@ const rollAttackD6 = (state) => {
     if (state.diceCheat === 'crit') return 6;
     if (state.diceCheat === 'fumble') return 1;
     if (typeof state.diceCheat === 'number') return state.diceCheat;
-    // *** FIM DA CORREÇÃO ***
     const randomIndex = Math.floor(Math.random() * ATTACK_DICE_OUTCOMES.length);
     return ATTACK_DICE_OUTCOMES[randomIndex];
 };
@@ -466,9 +485,7 @@ function isActionValid(state, action) {
 
     const move = state.moves[action.move];
 
-    // *** INÍCIO DA CORREÇÃO ***
     if (type === 'toggle_pause' || type === 'apply_cheats' || type === 'toggle_dice_cheat' || type === 'toggle_illegal_cheat' || type === 'toggle_force_dice') { return isGm; }
-    // *** FIM DA CORREÇÃO ***
     if (state.phase === 'paused') { return false; }
     if (state.phase === 'white_fang_follow_up') {
         if (playerKey !== state.followUpState.playerKey) return false;
@@ -585,22 +602,13 @@ function dispatchAction(room) {
         default: io.to(roomId).emit('hideModal'); return;
     }
 }
-
 io.on('connection', (socket) => {
-
-    // <--- ADIÇÃO 2/2: Envia os lutadores para o cliente na conexão.
-    try {
-        const fighterNames = JSON.parse(fs.readFileSync('lutadores.json', 'utf8'));
-        const classicFighters = {};
-        fighterNames.forEach(name => {
-            classicFighters[name] = { agi: 1, res: 1 };
-        });
-        socket.emit('receiveClassicFighters', classicFighters);
-    } catch (err) {
-        console.error("Erro ao ler/enviar lutadores.json:", err);
-        socket.emit('receiveClassicFighters', {}); // Envia objeto vazio em caso de erro
-    }
-    // FIM DA ADIÇÃO
+    // --- INÍCIO DA MODIFICAÇÃO: Enviar lista de lutadores ao cliente ---
+    socket.emit('availableFighters', {
+        p1: LUTA_CHARACTERS,
+        theater: LUTA_CHARACTERS
+    });
+    // --- FIM DA MODIFICAÇÃO ---
 
     socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);
@@ -863,7 +871,6 @@ io.on('connection', (socket) => {
                 break;
 
             // BATTLE MODE ACTIONS
-            // *** INÍCIO DA CORREÇÃO ***
             case 'toggle_force_dice':
                 let currentForce = (typeof state.diceCheat === 'number') ? state.diceCheat : 0;
                 if (currentForce === 0) {
@@ -874,7 +881,6 @@ io.on('connection', (socket) => {
                     state.diceCheat = null; // Desativa após o 5
                 }
                 break;
-            // *** FIM DA CORREÇÃO ***
             case 'toggle_dice_cheat':
                 if (state.diceCheat === action.cheat) {
                     state.diceCheat = null;
@@ -1028,9 +1034,7 @@ io.on('connection', (socket) => {
                 break;
             case 'roll_initiative':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
-                // *** INÍCIO DA CORREÇÃO ***
                 const roll = rollD(6, state);
-                // *** FIM DA CORREÇÃO ***
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
                 const agi = state.fighters[playerKey].agi;
                 state.initiativeRolls[playerKey] = roll + agi;
@@ -1049,9 +1053,7 @@ io.on('connection', (socket) => {
                 break;
             case 'roll_defense':
                 io.to(roomId).emit('playSound', 'dice1.mp3');
-                // *** INÍCIO DA CORREÇÃO ***
                 const defRoll = rollD(3, state);
-                // *** FIM DA CORREÇÃO ***
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const fighter = state.fighters[playerKey];
                 fighter.defRoll = defRoll;
@@ -1090,9 +1092,7 @@ io.on('connection', (socket) => {
                     const knockdownInfo = state.knockdownInfo;
                     if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
                     knockdownInfo.attempts++;
-                    // *** INÍCIO DA CORREÇÃO ***
                     let getUpRoll = rollD(6, state);
-                    // *** FIM DA CORREÇÃO ***
                     if (state.diceCheat === 'crit') getUpRoll = 6; else if (state.diceCheat === 'fumble') getUpRoll = 1;
                     io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
                     const downedFighter = state.fighters[playerKey];
@@ -1138,9 +1138,7 @@ io.on('connection', (socket) => {
                         ['player1', 'player2'].forEach(pKey => {
                             if (dki.getUpStatus[pKey] === 'pending') {
                                 const fighter = state.fighters[pKey];
-                                // *** INÍCIO DA CORREÇÃO ***
                                 const getUpRoll = rollD(6, state);
-                                // *** FIM DA CORREÇÃO ***
                                 const totalRoll = getUpRoll + fighter.res;
                                 const success = totalRoll >= 7;
                                 results[pKey] = { roll: getUpRoll, total: totalRoll, success };

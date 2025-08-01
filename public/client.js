@@ -8,8 +8,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let player1SetupData = { scenario: null };
     let availableSpecialMoves = {};
     
-    // --- ALTERAÇÃO 1: Variável para guardar os dados do servidor ---
-    let classicFightersData = {};
+    // --- INÍCIO DA MODIFICAÇÃO: Variáveis para lutadores dinâmicos ---
+    let AVAILABLE_FIGHTERS_P1 = {};
+    let AVAILABLE_THEATER_CHARS = {};
+    // --- FIM DA MODIFICAÇÃO ---
 
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
@@ -64,10 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
-    // --- ALTERAÇÃO 2: A lista de P1 foi removida daqui ---
-    
-    // Lista de P2 ("NPCs") e Teatro permanecem como no seu original
-    const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
+    // --- INÍCIO DA MODIFICAÇÃO: Remoção dos lutadores fixos ---
+    // CHARACTERS_P1, CHARACTERS_P2 e THEATER_CHARACTERS foram removidos.
+    // --- FIM DA MODIFICAÇÃO ---
     
     const DYNAMIC_CHARACTERS = [];
     for (let i = 1; i <= 50; i++) {
@@ -87,6 +88,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let linkInitialized = false;
+
+    // --- INÍCIO DA MODIFICAÇÃO: Receber a lista de lutadores do servidor ---
+    socket.on('availableFighters', ({ p1, theater }) => {
+        AVAILABLE_FIGHTERS_P1 = p1 || {};
+        AVAILABLE_THEATER_CHARS = theater || {};
+        // Reinicializa a lista de personagens do modo teatro se já estiver visível
+        if (theaterScreen.classList.contains('active')) {
+            initializeTheaterMode();
+        }
+    });
+    // --- FIM DA MODIFICAÇÃO ---
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
@@ -142,12 +154,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (arenaPlayerKey && currentRoomId) {
             myPlayerKey = arenaPlayerKey; socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen); selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : 2}: Selecione seu Lutador`; confirmBtn.innerText = 'Confirmar Personagem';
-            renderCharacterSelection('p2', false);
+            renderCharacterSelection('p1', false); // Usar 'p1' para carregar a lista correta para ambos
         } else if (isSpectator && currentRoomId) { 
             showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`; socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
             showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador'; confirmBtn.innerText = 'Entrar na Luta';
-            renderCharacterSelection('p2', false);
+            renderCharacterSelection('p1', false); // Usar 'p1' para carregar a lista correta
         } else { showScreen(modeSelectionScreen); }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
@@ -181,6 +193,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedCard = document.querySelector('.char-card.selected'); if (!selectedCard) { alert('Por favor, selecione um lutador!'); return; }
         let playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         
+        if (currentGameState && currentGameState.phase === 'gm_classic_setup') {
+            playerData.agi = selectedCard.querySelector('.agi-input').value; 
+            playerData.res = selectedCard.querySelector('.res-input').value;
+            confirmBtn.disabled = true;
+            socket.emit('playerAction', { type: 'gm_confirm_p1_setup', player1Data: playerData });
+            return;
+        }
+
         if (myPlayerKey === 'player1' && !currentRoomId) {
             playerData.agi = selectedCard.querySelector('.agi-input').value; playerData.res = selectedCard.querySelector('.res-input').value;
             confirmBtn.disabled = true; socket.emit('createGame', { player1Data: playerData, scenario: player1SetupData.scenario });
@@ -192,26 +212,19 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('joinGame', { roomId: currentRoomId, player2Data: playerData });
         }
     }
-    
-    // --- ALTERAÇÃO 3: Função ajustada para usar os novos dados ---
+
+    // --- INÍCIO DA MODIFICAÇÃO: renderCharacterSelection agora usa a lista do servidor ---
     function renderCharacterSelection(playerType, showStatsInputs = false) {
         charListContainer.innerHTML = ''; 
-        const charData = playerType === 'p1' ? classicFightersData : CHARACTERS_P2;
-        
+        const charData = AVAILABLE_FIGHTERS_P1; // Usar a mesma lista para todos os jogadores
         for (const name in charData) {
             const stats = charData[name]; 
             const card = document.createElement('div'); 
             card.className = 'char-card'; 
             card.dataset.name = name; 
-            
-            const imgPath = playerType === 'p1' ? `images/lutadores/${name}.png` : `images/${name}.png`;
-            card.dataset.img = imgPath;
-            
-            const statsHtml = showStatsInputs 
-                ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` 
-                : `<div class="char-stats-display">AGI: ${stats.agi} | RES: ${stats.res}</div>`;
-
-            card.innerHTML = `<img src="${imgPath}" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
+            card.dataset.img = `images/lutadores/${name}.png`; // Caminho atualizado
+            const statsHtml = showStatsInputs ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` : ``;
+            card.innerHTML = `<img src="images/lutadores/${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`; // Caminho atualizado
             card.addEventListener('click', () => { 
                 document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); 
                 card.classList.add('selected'); 
@@ -219,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
             charListContainer.appendChild(card);
         }
     }
+    // --- FIM DA MODIFICAÇÃO ---
 
     function renderSpecialMoveSelection(container, availableMoves) {
         container.innerHTML = '';
@@ -236,7 +250,40 @@ document.addEventListener('DOMContentLoaded', () => {
         scenarioListContainer.innerHTML = '';
 
         if (mode === 'theater') {
-            // ... (código original do modo teatro)
+            tabsContainer.style.display = 'flex';
+            const categories = Object.keys(THEATER_SCENARIOS);
+
+            const renderCategory = (categoryName) => {
+                scenarioListContainer.innerHTML = '';
+                const category = THEATER_SCENARIOS[categoryName];
+                for (let i = 1; i <= category.count; i++) {
+                    const name = `${category.baseName} (${i})`;
+                    const fileName = `mapas/${categoryName}/${name}.png`;
+                    const card = document.createElement('div');
+                    card.className = 'scenario-card';
+                    card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
+                    card.onclick = () => {
+                        socket.emit('createTheaterGame', { scenario: fileName });
+                    };
+                    scenarioListContainer.appendChild(card);
+                }
+            };
+
+            categories.forEach((categoryName, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'category-tab-btn';
+                btn.textContent = categoryName.replace(/_/g, ' ').toUpperCase();
+                btn.onclick = () => {
+                    document.querySelectorAll('.category-tab-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    renderCategory(categoryName);
+                };
+                tabsContainer.appendChild(btn);
+                if (index === 0) {
+                    btn.classList.add('active');
+                    renderCategory(categoryName);
+                }
+            });
         } else {
             tabsContainer.style.display = 'none';
             Object.entries(SCENARIOS).forEach(([name, fileName]) => {
@@ -250,13 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         selectionTitle.innerText = 'Jogador 1: Selecione seu Lutador';
                         confirmBtn.innerText = 'Confirmar Personagem';
                         confirmBtn.disabled = false;
-                        
-                        // --- ALTERAÇÃO 4: Lógica para aguardar os dados ---
-                        if (Object.keys(classicFightersData).length > 0) {
-                            renderCharacterSelection('p1', true);
-                        } else {
-                            charListContainer.innerHTML = '<p style="color:white; font-size: 1.2em;">Carregando lutadores...</p>';
-                        }
+                        renderCharacterSelection('p1', true);
                     } else if (mode === 'arena') {
                         socket.emit('createArenaGame', { scenario: fileName });
                         showScreen(arenaLobbyScreen);
@@ -267,71 +308,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // ... (O resto do seu código permanece como no original, com exceção da função initializeTheaterMode e o novo listener)
-    
-    // --- ALTERAÇÃO 5: Novo listener para receber os dados ---
-    socket.on('receiveClassicFighters', (fighters) => {
-        classicFightersData = fighters;
-
-        // Se a tela de seleção já estiver aberta e esperando, renderiza a lista.
-        if (selectionScreen.classList.contains('active') && charListContainer.innerText.includes('Carregando')) {
-            renderCharacterSelection('p1', true);
-        }
-
-        // Popula a lista do modo teatro
-        if (theaterCharList.children.length === 0) {
-            initializeTheaterMode();
-        }
-    });
-
-    // --- ALTERAÇÃO 6: `initializeTheaterMode` ajustado ---
-    function initializeTheaterMode() {
-        theaterCharList.innerHTML = '';
-        
-        // Combina os lutadores clássicos com os outros para o modo teatro
-        const THEATER_CHARACTERS = { ...CHARACTERS_P2 };
-        for (const name in classicFightersData) {
-            THEATER_CHARACTERS[name] = classicFightersData[name];
-        }
-
-        Object.keys(THEATER_CHARACTERS).forEach(charName => {
-            const imgPath = classicFightersData[charName] ? `images/lutadores/${charName}.png` : `images/${charName}.png`;
-            const mini = document.createElement('div');
-            mini.className = 'theater-char-mini';
-            mini.style.backgroundImage = `url("${imgPath}")`;
-            mini.title = charName; mini.draggable = true;
-            mini.addEventListener('dragstart', (e) => {
-                if (!isGm) return;
-                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: imgPath }));
-            });
-            theaterCharList.appendChild(mini);
-        });
-
-        DYNAMIC_CHARACTERS.forEach(char => {
-            const mini = document.createElement('div');
-            mini.className = 'theater-char-mini';
-            mini.style.backgroundImage = `url("${char.img}")`;
-            mini.title = char.name; mini.draggable = true;
-            mini.addEventListener('dragstart', (e) => {
-                if (!isGm) return;
-                e.dataTransfer.setData('application/json', JSON.stringify({ charName: char.name, img: char.img }));
-            });
-            theaterCharList.appendChild(mini);
-        });
-    }
-
-    // O resto do seu arquivo client.js original pode ser colado aqui, sem alterações.
-    // ... (funções showModeSwitchModal, promptSpecialMoves, gameUpdate, updateUI, modais, etc.)
-    
-    // Apenas para garantir, aqui está o resto do código sem alterações para você colar
-    
     function showModeSwitchModal() {
         if (!isGm) return;
-        const modalContentHtml = `<p>Para qual modo de jogo deseja alternar?</p><p style="font-size: 0.9em; color: #ccc;">Todos na sala (jogadores e espectadores) serão movidos para o novo modo.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="switch-to-classic" class="mode-btn">Clássico</button><button id="switch-to-arena" class="mode-btn">Arena</button><button id="switch-to-theater" class="mode-btn">Cenários</button></div>`;
+        const modalContentHtml = `
+            <p>Para qual modo de jogo deseja alternar?</p>
+            <p style="font-size: 0.9em; color: #ccc;">Todos na sala (jogadores e espectadores) serão movidos para o novo modo.</p>
+            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+                <button id="switch-to-classic" class="mode-btn">Clássico</button>
+                <button id="switch-to-arena" class="mode-btn">Arena</button>
+                <button id="switch-to-theater" class="mode-btn">Cenários</button>
+            </div>
+        `;
         showInfoModal("Mudar Modo de Jogo", modalContentHtml);
-        document.getElementById('switch-to-classic').onclick = () => { socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'classic', scenario: 'Ringue.png' }); modal.classList.add('hidden'); };
-        document.getElementById('switch-to-arena').onclick = () => { socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'arena', scenario: 'Ringue2.png' }); modal.classList.add('hidden'); };
-        document.getElementById('switch-to-theater').onclick = () => { socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'theater', scenario: 'mapas/cenarios internos/interno (1).png' }); modal.classList.add('hidden'); };
+
+        document.getElementById('switch-to-classic').onclick = () => {
+            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'classic', scenario: 'Ringue.png' });
+            modal.classList.add('hidden');
+        };
+        document.getElementById('switch-to-arena').onclick = () => {
+            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'arena', scenario: 'Ringue2.png' });
+            modal.classList.add('hidden');
+        };
+        document.getElementById('switch-to-theater').onclick = () => {
+            socket.emit('playerAction', { type: 'gm_switch_mode', targetMode: 'theater', scenario: 'mapas/cenarios internos/interno (1).png' });
+            modal.classList.add('hidden');
+        };
     }
 
     socket.on('promptSpecialMoves', (data) => {
@@ -387,21 +388,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('gameUpdate', (gameState) => {
         const oldState = currentGameState;
+        
         if (oldState && oldState.mode !== gameState.mode) {
             modal.classList.add('hidden');
             specialMovesModal.classList.add('hidden');
         }
+
         currentGameState = gameState;
+        
         scaleGame();
-        const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover'];
+        
+        const PRE_GAME_PHASES = ['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup'];
+        
         if (myPlayerKey === 'spectator' && oldState && oldState.mode === 'theater' && gameState.mode !== 'theater' && PRE_GAME_PHASES.includes(gameState.phase)) {
             console.log("GM is setting up a new mode. Spectator view is paused on Theater.");
             return;
         }
+
         const oldMode = oldState ? oldState.mode : null;
         if (gameState.mode !== oldMode) {
              linkInitialized = false;
         }
+        
         switch(gameState.mode) {
             case 'theater':
                 showScreen(theaterScreen);
@@ -431,6 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showScreen(fightScreen);
                     break;
                 }
+                
                 if (gameState.phase === 'arena_lobby' || gameState.phase === 'arena_configuring') {
                     if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
                         if (!gameState.fighters[myPlayerKey]) {
@@ -446,12 +455,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
         }
+        
         const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused';
         const isNowPaused = currentGameState.phase === 'paused';
+        
         if (isNowPaused && !wasPaused) { showCheatsModal(); } 
         else if (!isNowPaused && wasPaused) { modal.classList.add('hidden'); }
+        
         updateUI(currentGameState);
+
         gameWrapper.classList.toggle('mode-classic', currentGameState.mode === 'classic');
         gameWrapper.classList.toggle('mode-arena', currentGameState.mode === 'arena');
     });
@@ -462,12 +475,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const baseUrl = window.location.origin;
             const p2Url = `${baseUrl}?room=${roomId}`;
             const specUrl = `${baseUrl}?room=${roomId}&spectate=true`;
+
             const shareLinkP2 = document.getElementById('share-link-p2');
             const shareLinkSpectator = document.getElementById('share-link-spectator');
+
             shareLinkP2.textContent = p2Url;
             shareLinkSpectator.textContent = specUrl;
+
             shareLinkP2.onclick = () => copyToClipboard(p2Url, shareLinkP2);
             shareLinkSpectator.onclick = () => copyToClipboard(specUrl, shareLinkSpectator);
+            
             lobbyContent.classList.add('hidden');
             shareContainer.classList.remove('hidden');
         }
@@ -482,10 +499,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
         const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover'].includes(state.phase);
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
+        
         helpBtn.classList.toggle('hidden', state.mode === 'theater');
         copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
+
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
+
         if(isGm) {
             const cheatIndicator = document.getElementById('dice-cheat-indicator'); let cheatText = '';
             if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; 
@@ -493,6 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof state.diceCheat === 'number') cheatText += `Forçar D${state.diceCheat} (Y) `;
             if (state.illegalCheat === 'always') cheatText += 'Sempre Ilegal (I) '; 
             else if (state.illegalCheat === 'never') cheatText += 'Nunca Ilegal (I) ';
+            
             if (cheatText) { cheatIndicator.textContent = 'CHEAT ATIVO: ' + cheatText.trim(); cheatIndicator.classList.remove('hidden'); } 
             else { cheatIndicator.classList.add('hidden'); }
         }
@@ -572,6 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newButton = modalButton.cloneNode(true);
         modalButton.parentNode.replaceChild(newButton, modalButton);
         modalButton = newButton;
+
         const tempDiv = document.createElement('div'); tempDiv.innerHTML = text;
         const hasCustomButtons = tempDiv.querySelector('button');
         if (hasCustomButtons) {
@@ -633,11 +655,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateTheaterZoom() {
         const dataToRender = (currentGameState && myPlayerKey === 'spectator' && currentGameState.publicState) ? currentGameState.publicState : currentGameState;
         if (!dataToRender) return;
+
         const globalTokenScale = dataToRender.globalTokenScale || 1.0;
+        
         const worldContainer = document.getElementById('theater-world-container');
         if (worldContainer) {
            worldContainer.style.transform = `scale(${currentScenarioScale})`;
         }
+        
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
             const isFlipped = token.dataset.flipped === 'true';
@@ -648,13 +673,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeGlobalKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (!isGm) return;
+            
             if (currentGameState && currentGameState.mode !== 'theater') {
-                if (e.key.toLowerCase() === 'c') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_pause' }); }
-                else if (e.key.toLowerCase() === 't') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' }); }
-                else if (e.key.toLowerCase() === 'r') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' }); }
-                else if (e.key.toLowerCase() === 'i') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_illegal_cheat' }); }
-                else if (e.key.toLowerCase() === 'y') { e.preventDefault(); socket.emit('playerAction', { type: 'toggle_force_dice' }); }
+                if (e.key.toLowerCase() === 'c') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_pause' });
+                } else if (e.key.toLowerCase() === 't') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'crit' });
+                } else if (e.key.toLowerCase() === 'r') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_dice_cheat', cheat: 'fumble' });
+                } else if (e.key.toLowerCase() === 'i') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_illegal_cheat' });
+                } else if (e.key.toLowerCase() === 'y') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'toggle_force_dice' });
+                }
             }
+
             if (currentGameState && currentGameState.mode === 'theater') {
                 if (e.key.toLowerCase() === 'g') {
                     e.preventDefault();
@@ -665,6 +703,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
                     }
                 }
+                
                 if (e.key.toLowerCase() === 'o') {
                     e.preventDefault();
                     const hoveredToken = document.querySelector(".theater-token:hover");
@@ -672,6 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
                          socket.emit('playerAction', { type: 'updateToken', token: { id: hoveredToken.id, scale: 1.0 }});
                     }
                 }
+
                 const currentSelectedTokens = document.querySelectorAll('.theater-token.selected');
                 if (currentSelectedTokens.length > 0) {
                      if (e.key === 'Delete') {
@@ -689,28 +729,71 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                      } else if (e.key === 'ArrowDown') {
                         e.preventDefault();
-                        currentSelectedTokens.forEach(token => { socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'forward' }); });
+                        currentSelectedTokens.forEach(token => {
+                            socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'forward' });
+                        });
                      } else if (e.key === 'ArrowUp') {
                         e.preventDefault();
-                        currentSelectedTokens.forEach(token => { socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'backward' }); });
+                        currentSelectedTokens.forEach(token => {
+                            socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'backward' });
+                        });
                      }
                 }
             }
         });
     }
-
-    function initializeTheaterModeEventListeners() {
+    
+    // --- INÍCIO DA MODIFICAÇÃO: A lista de personagens do modo teatro também é dinâmica ---
+    function initializeTheaterMode() {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         const theaterScreenEl = document.getElementById('theater-screen');
         const selectionBox = document.getElementById('selection-box');
-        toggleGmPanelBtn.addEventListener('click', () => { theaterScreenEl.classList.toggle('panel-hidden'); });
+        
+        toggleGmPanelBtn.addEventListener('click', () => { 
+            theaterScreenEl.classList.toggle('panel-hidden');
+        });
+        
+        theaterCharList.innerHTML = '';
+        
+        // Adiciona os lutadores do JSON
+        Object.keys(AVAILABLE_THEATER_CHARS).forEach(charName => {
+            const charImg = `images/lutadores/${charName}.png`;
+            const mini = document.createElement('div');
+            mini.className = 'theater-char-mini';
+            mini.style.backgroundImage = `url("${charImg}")`;
+            mini.title = charName; 
+            mini.draggable = true;
+            mini.addEventListener('dragstart', (e) => {
+                if (!isGm) return;
+                e.dataTransfer.setData('application/json', JSON.stringify({ charName: charName, img: charImg }));
+            });
+            theaterCharList.appendChild(mini);
+        });
+
+        // Adiciona os personagens dinâmicos (de /personagens/)
+        DYNAMIC_CHARACTERS.forEach(char => {
+            const mini = document.createElement('div');
+            mini.className = 'theater-char-mini';
+            mini.style.backgroundImage = `url("${char.img}")`;
+            mini.title = char.name; 
+            mini.draggable = true;
+            mini.addEventListener('dragstart', (e) => {
+                if (!isGm) return;
+                e.dataTransfer.setData('application/json', JSON.stringify({ charName: char.name, img: char.img }));
+            });
+            theaterCharList.appendChild(mini);
+        });
+    // --- FIM DA MODIFICAÇÃO ---
+    
         theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
+    
         const getGameScale = () => {
             const transform = window.getComputedStyle(gameWrapper).transform;
             if (transform === 'none') return 1;
             const matrix = new DOMMatrix(transform);
             return matrix.a; 
         };
+
         const screenToWorldCoords = (e) => {
             const gameScale = getGameScale();
             const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
@@ -720,6 +803,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const worldY = (mouseYOnViewport / gameScale + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
             return { worldX, worldY };
         };
+
         theaterBackgroundViewport.addEventListener('drop', (e) => {
             e.preventDefault();
             if (!isGm) return;
@@ -730,23 +814,435 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { worldX, worldY } = screenToWorldCoords(e);
                 const tokenBaseWidth = 200;
                 const tokenScale = 1.0; 
-                const newToken = { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: worldX - (tokenBaseWidth * tokenScale / 2), y: worldY - (tokenBaseWidth * tokenScale / 2), scale: tokenScale, isFlipped: false };
+                const newToken = { 
+                    id: `token-${Date.now()}`, 
+                    charName: data.charName, 
+                    img: data.img, 
+                    x: worldX - (tokenBaseWidth * tokenScale / 2), 
+                    y: worldY - (tokenBaseWidth * tokenScale / 2), 
+                    scale: tokenScale, 
+                    isFlipped: false 
+                };
                 socket.emit('playerAction', { type: 'updateToken', token: newToken });
             } catch (error) { console.error("Erro ao processar o drop:", error); }
         });
-        theaterGlobalScale.addEventListener('input', () => { if(isGm) { socket.emit('playerAction', { type: 'updateGlobalScale', scale: parseFloat(theaterGlobalScale.value) }); } });
+    
+        theaterGlobalScale.addEventListener('input', () => {
+             if(isGm) {
+                socket.emit('playerAction', { type: 'updateGlobalScale', scale: parseFloat(theaterGlobalScale.value) });
+            }
+        });
+        
         theaterPublishBtn.addEventListener('click', () => {
             showInfoModal("Publicar Cena", `<p>Deseja mostrar a cena atual para os espectadores?</p><p>Eles verão o cenário e os personagens como você os arrumou.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-publish-btn" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Publicar</button><button id="cancel-publish-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Ainda Não</button></div>`);
             document.getElementById('confirm-publish-btn').onclick = () => { socket.emit('playerAction', { type: 'publish_stage' }); modal.classList.add('hidden'); }; document.getElementById('cancel-publish-btn').onclick = () => modal.classList.add('hidden');
         });
-        theaterChangeScenarioBtn.onclick = () => { /* ... */ };
-        theaterBackgroundViewport.addEventListener('mousedown', (e) => { /* ... */ });
-        theaterBackgroundViewport.addEventListener('wheel', (e) => { /* ... */ }, { passive: false });
-        // ... (touch events)
+
+        theaterChangeScenarioBtn.onclick = () => {
+            const modalHtml = `
+                <div id="modal-tabs-container" style="display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; flex-wrap: wrap;"></div>
+                <div id="modal-scenarios-container" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; max-height: 400px; overflow-y: auto;"></div>
+            `;
+            showInfoModal("Mudar Cenário", modalHtml);
+
+            const tabsContainer = document.getElementById('modal-tabs-container');
+            const scenariosContainer = document.getElementById('modal-scenarios-container');
+
+            const renderCategory = (categoryName) => {
+                scenariosContainer.innerHTML = '';
+                const category = THEATER_SCENARIOS[categoryName];
+                for (let i = 1; i <= category.count; i++) {
+                    const name = `${category.baseName} (${i})`;
+                    const fileName = `mapas/${categoryName}/${name}.png`;
+                    const card = document.createElement('div');
+                    card.className = 'scenario-card';
+                    card.style.width = '200px';
+                    card.innerHTML = `<img src="images/${fileName}" alt="${name}" style="height: 100px;"><div class="scenario-name" style="font-size: 1.1em; padding: 5px;">${name}</div>`;
+                    card.onclick = () => {
+                        socket.emit('playerAction', { type: 'changeScenario', scenario: fileName });
+                        modal.classList.add('hidden');
+                    };
+                    scenariosContainer.appendChild(card);
+                }
+            };
+
+            Object.keys(THEATER_SCENARIOS).forEach((categoryName, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'category-tab-btn';
+                btn.textContent = categoryName.replace(/_/g, ' ').toUpperCase();
+                btn.onclick = (e) => {
+                    tabsContainer.querySelectorAll('.category-tab-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    renderCategory(categoryName);
+                };
+                if (index === 0) {
+                    btn.classList.add('active');
+                }
+                tabsContainer.appendChild(btn);
+            });
+            
+            renderCategory(Object.keys(THEATER_SCENARIOS)[0]);
+        };
+    
+        theaterBackgroundViewport.addEventListener('mousedown', (e) => {
+            const isToken = e.target.classList.contains('theater-token');
+            
+            if (isGm && isGroupSelectMode && !isToken) {
+                e.preventDefault();
+                const { worldX: worldStartX, worldY: worldStartY } = screenToWorldCoords(e);
+
+                selectionBox.style.left = `${worldStartX}px`;
+                selectionBox.style.top = `${worldStartY}px`;
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.classList.remove('hidden');
+
+                const onMouseMoveMarquee = (moveEvent) => {
+                    const { worldX: worldCurrentX, worldY: worldCurrentY } = screenToWorldCoords(moveEvent);
+                    const width = worldCurrentX - worldStartX;
+                    const height = worldCurrentY - worldStartY;
+
+                    selectionBox.style.width = `${Math.abs(width)}px`;
+                    selectionBox.style.height = `${Math.abs(height)}px`;
+                    selectionBox.style.left = `${(width < 0 ? worldCurrentX : worldStartX)}px`;
+                    selectionBox.style.top = `${(height < 0 ? worldCurrentY : worldStartY)}px`;
+                };
+
+                const onMouseUpMarquee = () => {
+                    selectionBox.classList.add('hidden');
+                    if (!e.ctrlKey) {
+                        document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                        selectedTokens.clear();
+                    }
+                    const worldBox = {
+                        left: parseFloat(selectionBox.style.left),
+                        top: parseFloat(selectionBox.style.top),
+                        right: parseFloat(selectionBox.style.left) + parseFloat(selectionBox.style.width),
+                        bottom: parseFloat(selectionBox.style.top) + parseFloat(selectionBox.style.height)
+                    };
+
+                    Object.values(currentGameState.tokens).forEach(tokenData => {
+                        const tokenEl = document.getElementById(tokenData.id);
+                        if (!tokenEl) return;
+                        
+                        const tokenRect = {
+                            left: tokenData.x,
+                            top: tokenData.y,
+                            right: tokenData.x + (200 * (tokenData.scale || 1)),
+                            bottom: tokenData.y + (200 * (tokenData.scale || 1))
+                        };
+
+                        const isIntersecting = !(tokenRect.right < worldBox.left || 
+                                                 tokenRect.left > worldBox.right || 
+                                                 tokenRect.bottom < worldBox.top || 
+                                                 tokenRect.top > worldBox.bottom);
+
+                        if (isIntersecting) {
+                            tokenEl.classList.add('selected');
+                            selectedTokens.add(tokenData.id);
+                        }
+                    });
+
+                    window.removeEventListener('mousemove', onMouseMoveMarquee);
+                    window.removeEventListener('mouseup', onMouseUpMarquee);
+                };
+                window.addEventListener('mousemove', onMouseMoveMarquee);
+                window.addEventListener('mouseup', onMouseUpMarquee);
+
+            } else if (isGm && isToken) {
+                e.preventDefault();
+                const draggedToken = e.target;
+                const startMouseX = e.clientX;
+                const startMouseY = e.clientY;
+                let hasDragged = false;
+                
+                const onMouseUpToken = (upEvent) => {
+                    window.removeEventListener('mousemove', onMouseMoveToken);
+                    window.removeEventListener('mouseup', onMouseUpToken);
+                    
+                    if (hasDragged) {
+                        const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                        const updates = tokensToDrag.map(tokenId => {
+                             const tokenEl = document.getElementById(tokenId);
+                             if (tokenEl) {
+                                 delete tokenEl.dataset.startX;
+                                 delete tokenEl.dataset.startY;
+                                 return { id: tokenId, x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
+                             }
+                             return null;
+                        }).filter(Boolean);
+                        
+                        if (updates.length > 0) {
+                            socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
+                        }
+                    } else { // It was a click
+                        if (!upEvent.ctrlKey) {
+                            document.querySelectorAll('.theater-token.selected').forEach(t => {
+                                if (t.id !== draggedToken.id) t.classList.remove('selected');
+                            });
+                            selectedTokens.clear();
+                        }
+                        draggedToken.classList.toggle('selected');
+                        if (draggedToken.classList.contains('selected')) {
+                            selectedTokens.add(draggedToken.id);
+                        } else {
+                            selectedTokens.delete(draggedToken.id);
+                        }
+                    }
+                };
+                
+                const onMouseMoveToken = (moveEvent) => {
+                    const dx = moveEvent.clientX - startMouseX;
+                    const dy = moveEvent.clientY - startMouseY;
+                    
+                    if (!hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
+                        hasDragged = true;
+                        if (!selectedTokens.has(draggedToken.id)) {
+                             if (!e.ctrlKey) {
+                                document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                                selectedTokens.clear();
+                             }
+                             draggedToken.classList.add('selected');
+                             selectedTokens.add(draggedToken.id);
+                        }
+                    }
+
+                    if (!hasDragged) return;
+
+                    const gameScale = getGameScale();
+                    const worldDx = dx / gameScale / currentScenarioScale;
+                    const worldDy = dy / gameScale / currentScenarioScale;
+
+                    const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                    
+                    tokensToDrag.forEach(tokenId => {
+                        const tokenEl = document.getElementById(tokenId);
+                        if(tokenEl && !tokenEl.dataset.startX) tokenEl.dataset.startX = tokenEl.offsetLeft;
+                        if(tokenEl && !tokenEl.dataset.startY) tokenEl.dataset.startY = tokenEl.offsetTop;
+
+                        const startX = parseFloat(tokenEl.dataset.startX);
+                        const startY = parseFloat(tokenEl.dataset.startY);
+                       
+                        if (tokenEl) {
+                           tokenEl.style.left = `${startX + worldDx}px`;
+                           tokenEl.style.top = `${startY + worldDy}px`;
+                        }
+                    });
+                };
+                
+                window.addEventListener('mousemove', onMouseMoveToken);
+                window.addEventListener('mouseup', onMouseUpToken);
+
+            } else if (!isToken && !(isGm && isGroupSelectMode)) {
+                isDraggingScenario = true;
+                theaterBackgroundViewport.style.cursor = 'grabbing';
+                let lastMouseX = e.clientX;
+                let lastMouseY = e.clientY;
+
+                const onMouseMoveScenario = (moveEvent) => {
+                    if (!isDraggingScenario) return;
+                    const dx = moveEvent.clientX - lastMouseX;
+                    const dy = moveEvent.clientY - lastMouseY;
+                    theaterBackgroundViewport.scrollLeft -= dx;
+                    theaterBackgroundViewport.scrollTop -= dy;
+                    lastMouseX = moveEvent.clientX;
+                    lastMouseY = moveEvent.clientY;
+                };
+
+                const onMouseUpScenario = () => {
+                    isDraggingScenario = false;
+                    theaterBackgroundViewport.style.cursor = 'grab';
+                    window.removeEventListener('mousemove', onMouseMoveScenario);
+                    window.removeEventListener('mouseup', onMouseUpScenario);
+                };
+
+                window.addEventListener('mousemove', onMouseMoveScenario);
+                window.addEventListener('mouseup', onMouseUpScenario);
+            }
+        });
+    
+        theaterBackgroundViewport.addEventListener('wheel', (e) => {
+            if (!currentGameState || currentGameState.mode !== 'theater') return;
+            e.preventDefault();
+
+            if (isGm && selectedTokens.size > 0) {
+                const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+                const updates = [];
+                selectedTokens.forEach(tokenId => {
+                    const tokenData = currentGameState.tokens[tokenId];
+                    if (tokenData) {
+                        const currentScale = tokenData.scale || 1;
+                        const newScale = Math.max(0.1, currentScale + scaleAmount);
+                        updates.push({ id: tokenId, scale: newScale });
+                    }
+                });
+                if (updates.length > 0) {
+                    socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
+                }
+                return;
+            }
+
+            const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
+            const isMobile = window.innerWidth <= 800;
+            const minZoom = isMobile ? 0.05 : 0.2;
+            currentScenarioScale = Math.max(minZoom, Math.min(5, currentScenarioScale + scaleAmount));
+            updateTheaterZoom();
+
+        }, { passive: false });
+
+        let isPinching = false;
+        let initialPinchDistance = 0;
+        let isTouchPanning = false;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+
+        theaterBackgroundViewport.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                isPinching = true;
+                isTouchPanning = false;
+                initialPinchDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+            } else if (e.touches.length === 1) {
+                const isToken = e.target.classList.contains('theater-token');
+                if (isToken) return;
+                isTouchPanning = true;
+                isPinching = false;
+                lastTouchX = e.touches[0].pageX;
+                lastTouchY = e.touches[0].pageY;
+            }
+        }, { passive: false });
+
+        theaterBackgroundViewport.addEventListener('touchmove', (e) => {
+            if (currentGameState.mode !== 'theater') return;
+            e.preventDefault();
+
+            if (isPinching && e.touches.length === 2) {
+                const currentPinchDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                const scaleMultiplier = currentPinchDistance / initialPinchDistance;
+                const newScale = currentScenarioScale * scaleMultiplier;
+
+                const isMobile = window.innerWidth <= 800;
+                const minZoom = isMobile ? 0.05 : 0.2;
+                currentScenarioScale = Math.max(minZoom, Math.min(5, newScale));
+                
+                updateTheaterZoom();
+                initialPinchDistance = currentPinchDistance;
+
+            } else if (isTouchPanning && e.touches.length === 1) {
+                const dx = e.touches[0].pageX - lastTouchX;
+                const dy = e.touches[0].pageY - lastTouchY;
+                theaterBackgroundViewport.scrollLeft -= dx;
+                theaterBackgroundViewport.scrollTop -= dy;
+                lastTouchX = e.touches[0].pageX;
+                lastTouchY = e.touches[0].pageY;
+            }
+        }, { passive: false });
+
+        theaterBackgroundViewport.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) isPinching = false;
+            if (e.touches.length < 1) isTouchPanning = false;
+        });
     }
 
     function renderTheaterMode(state) {
-        // ... (código original)
+        const dataToRender = (myPlayerKey === 'spectator' && state.publicState) ? state.publicState : state;
+        const gmData = isGm ? state : null;
+
+        if (dataToRender.scenario) {
+            const worldContainer = document.getElementById('theater-world-container');
+            
+            const img = new Image();
+            img.onload = () => {
+                theaterBackgroundImage.src = img.src;
+                if (worldContainer) {
+                    worldContainer.style.width = `${img.naturalWidth}px`;
+                    worldContainer.style.height = `${img.naturalHeight}px`;
+                }
+                if (isGm && (state.scenarioWidth !== img.naturalWidth || state.scenarioHeight !== img.naturalHeight)) {
+                    socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
+                }
+
+                const isMobileSpectator = myPlayerKey === 'spectator' && window.innerWidth <= 800;
+                if (isMobileSpectator) {
+                    const viewport = theaterBackgroundViewport;
+                    const scenarioWidth = img.naturalWidth;
+                    const scenarioHeight = img.naturalHeight;
+
+                    if (scenarioWidth > 0 && scenarioHeight > 0) {
+                        const scaleX = viewport.clientWidth / scenarioWidth;
+                        const scaleY = viewport.clientHeight / scenarioHeight;
+                        currentScenarioScale = Math.min(scaleX, scaleY);
+                        
+                        const scaledWidth = scenarioWidth * currentScenarioScale;
+                        const scaledHeight = scenarioHeight * currentScenarioScale;
+                        viewport.scrollLeft = (scaledWidth - viewport.clientWidth) / 2;
+                        viewport.scrollTop = (scaledHeight - viewport.clientHeight) / 2;
+                    }
+                }
+                updateTheaterZoom();
+            };
+            img.src = `images/${dataToRender.scenario}`;
+        }
+        
+        const theaterScreenEl = document.getElementById('theater-screen'); 
+        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
+        theaterGmPanel.classList.toggle('hidden', !isGm); 
+        toggleGmPanelBtn.classList.toggle('hidden', !isGm);
+        theaterPublishBtn.classList.toggle('hidden', !isGm || !state.isStaging);
+
+        if (isGm) {
+            theaterGlobalScale.value = state.globalTokenScale || 1.0;
+        }
+
+        if (!isGm) { 
+            theaterScreenEl.classList.add('panel-hidden'); 
+        }
+        
+        theaterTokenContainer.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        
+        const tokensToRender = isGm ? gmData.tokens : dataToRender.tokens;
+        const tokenOrderToRender = isGm ? gmData.tokenOrder : dataToRender.tokenOrder;
+
+        tokenOrderToRender.forEach((tokenId, index) => {
+            const tokenData = tokensToRender[tokenId];
+            if (!tokenData) return;
+
+            const tokenEl = document.createElement('img');
+            tokenEl.id = tokenId;
+            tokenEl.className = 'theater-token';
+            tokenEl.src = tokenData.img;
+            tokenEl.style.left = `${tokenData.x}px`;
+            tokenEl.style.top = `${tokenData.y}px`;
+            tokenEl.style.zIndex = index;
+            
+            const scale = tokenData.scale || 1;
+            const isFlipped = tokenData.isFlipped;
+            tokenEl.dataset.scale = scale;
+            tokenEl.dataset.flipped = String(isFlipped);
+            tokenEl.title = tokenData.charName;
+            tokenEl.draggable = false;
+            
+            if (isGm) {
+                if (selectedTokens.has(tokenId)) {
+                    tokenEl.classList.add('selected');
+                }
+                const tokenCenterX = tokenData.x + (200 * scale / 2);
+                const tokenCenterY = tokenData.y + (200 * scale / 2);
+                if (gmData.scenarioWidth && (tokenCenterX < 0 || tokenCenterX > gmData.scenarioWidth || tokenCenterY < 0 || tokenCenterY > gmData.scenarioHeight)) {
+                    tokenEl.classList.add('off-stage');
+                }
+            }
+            fragment.appendChild(tokenEl);
+        });
+        theaterTokenContainer.appendChild(fragment);
+        
+        updateTheaterZoom();
     }
     // #endregion
 
@@ -809,16 +1305,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const scaleGame = () => {
         const w = document.getElementById('game-wrapper');
         const isMobile = window.innerWidth <= 800;
+
+        // Reset styles for recalculation
         w.style.width = '1280px';
         w.style.height = '720px';
+
         if (isMobile) {
             if (currentGameState && currentGameState.mode === 'theater') {
+                // Modo Cenário no Celular: Sem escala, ocupa a tela visível
                 w.style.transform = 'none';
                 w.style.width = '100%';
                 w.style.height = `${window.innerHeight}px`;
                 w.style.left = '0';
                 w.style.top = '0';
             } else {
+                // Modo Luta no Celular: Escala para caber na tela
                 const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
                 w.style.transform = `scale(${scale})`;
                 const left = (window.innerWidth - (1280 * scale)) / 2;
@@ -827,6 +1328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 w.style.top = `${top}px`;
             }
         } else {
+            // Desktop: Lógica de escala padrão
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
             w.style.transform = `scale(${scale})`;
             const left = (window.innerWidth - (1280 * scale)) / 2;
