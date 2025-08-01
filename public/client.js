@@ -1277,25 +1277,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const scaleGame = () => {
         const isMobile = window.innerWidth <= 800;
         const gameWrapper = document.getElementById('game-wrapper');
-        const theaterViewport = document.getElementById('theater-background-viewport');
 
         if (isMobile) {
             gameWrapper.style.transform = 'none';
             gameWrapper.style.left = '0';
             gameWrapper.style.top = '0';
-            // Ajusta a altura do viewport do teatro para a altura visível da janela no celular
-            if (theaterViewport) {
-                theaterViewport.style.height = `${window.innerHeight}px`;
-            }
+            gameWrapper.style.height = `${window.innerHeight}px`; // Ajusta a altura do wrapper principal
         } else {
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
             gameWrapper.style.transform = `scale(${scale})`;
             gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
             gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
-            // Reseta a altura do viewport no desktop para o padrão do CSS
-            if (theaterViewport) {
-                theaterViewport.style.height = ''; 
-            }
+            gameWrapper.style.height = '720px'; // Reseta para o valor padrão do desktop
         }
     };
     // *** FIM DA CORREÇÃO ***
