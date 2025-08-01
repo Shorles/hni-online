@@ -1267,7 +1267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
-    socket.on('hideModal', () => modal.classList.add('hidden');
+    socket.on('hideModal', () => modal.classList.add('hidden'));
     socket.on('diceRoll', showDiceRollAnimation);
     socket.on('opponentDisconnected', ({message}) => { showInfoModal("Partida Encerrada", `${message}<br>Recarregue a página para jogar novamente.`); });
 
@@ -1290,9 +1290,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             w.style.transform = `scale(${scale})`;
             w.style.left = `${left}px`;
-            // Garante uma margem superior mínima de 15px, mas centraliza se houver espaço.
-            w.style.top = `${Math.max(15, top)}px`;
-            w.style.height = '720px'; // Reseta para o padrão
+            w.style.top = `${top}px`;
+            w.style.height = '720px';
         }
     };
     // *** FIM DA CORREÇÃO ***
