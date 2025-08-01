@@ -179,16 +179,13 @@ body {
     transition: width 0.3s ease-in-out;
     overflow: auto;
     cursor: grab;
-    /* *** INÍCIO DA CORREÇÃO *** */
     display: flex;
     align-items: center;
     justify-content: center;
-    /* *** FIM DA CORREÇÃO *** */
 }
 #theater-background-viewport::-webkit-scrollbar { display: none; }
 #theater-background-viewport { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* *** NOVA REGRA PARA O CURSOR *** */
 #theater-background-viewport.group-select-mode {
     cursor: crosshair;
 }
@@ -196,10 +193,7 @@ body {
 #theater-world-container {
     position: relative;
     transform-origin: 0 0;
-    /* *** INÍCIO DA CORREÇÃO *** */
-    /* Garante que o container não encolha quando for menor que o conteúdo flex */
     flex-shrink: 0; 
-    /* *** FIM DA CORREÇÃO *** */
 }
 
 

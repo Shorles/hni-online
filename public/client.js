@@ -1061,7 +1061,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }, { passive: false });
 
-        // *** INÍCIO DA CORREÇÃO (LÓGICA DE TOQUE) ***
         let isPinching = false;
         let initialPinchDistance = 0;
         let isTouchPanning = false;
@@ -1078,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
             } else if (e.touches.length === 1) {
                 const isToken = e.target.classList.contains('theater-token');
-                if (isToken) return; // Não inicia o pan se o toque for em um token
+                if (isToken) return;
                 isTouchPanning = true;
                 isPinching = false;
                 lastTouchX = e.touches[0].pageX;
@@ -1088,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         theaterBackgroundViewport.addEventListener('touchmove', (e) => {
             if (currentGameState.mode !== 'theater') return;
-            e.preventDefault(); // Previne o scroll da página
+            e.preventDefault();
 
             if (isPinching && e.touches.length === 2) {
                 const currentPinchDistance = Math.hypot(
@@ -1119,7 +1118,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.touches.length < 2) isPinching = false;
             if (e.touches.length < 1) isTouchPanning = false;
         });
-        // *** FIM DA CORREÇÃO ***
     }
 
     function renderTheaterMode(state) {
@@ -1151,7 +1149,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         const scaleY = viewport.clientHeight / scenarioHeight;
                         currentScenarioScale = Math.min(scaleX, scaleY);
                         
-                        // Centraliza a visão
                         const scaledWidth = scenarioWidth * currentScenarioScale;
                         const scaledHeight = scenarioHeight * currentScenarioScale;
                         viewport.scrollLeft = (scaledWidth - viewport.clientWidth) / 2;
@@ -1276,7 +1273,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initialize();
     
-    const scaleGame = () => { if (window.innerWidth > 800) { const w = document.getElementById('game-wrapper'); const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720); w.style.transform = `scale(${s})`; w.style.left = `${(window.innerWidth - (1280 * s)) / 2}px`; w.style.top = `${(window.innerHeight - (720 * s)) / 2}px`; } else { const w = document.getElementById('game-wrapper'); w.style.transform = 'none'; w.style.left = '0'; w.style.top = '0'; } };
+    // *** INÍCIO DA CORREÇÃO ***
+    const scaleGame = () => {
+        const isMobile = window.innerWidth <= 800;
+        const gameWrapper = document.getElementById('game-wrapper');
+        const theaterViewport = document.getElementById('theater-background-viewport');
+
+        if (isMobile) {
+            gameWrapper.style.transform = 'none';
+            gameWrapper.style.left = '0';
+            gameWrapper.style.top = '0';
+            // Ajusta a altura do viewport do teatro para a altura visível da janela no celular
+            if (theaterViewport) {
+                theaterViewport.style.height = `${window.innerHeight}px`;
+            }
+        } else {
+            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+            gameWrapper.style.transform = `scale(${scale})`;
+            gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+            gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+            // Reseta a altura do viewport no desktop para o padrão do CSS
+            if (theaterViewport) {
+                theaterViewport.style.height = ''; 
+            }
+        }
+    };
+    // *** FIM DA CORREÇÃO ***
     
     scaleGame();
     window.addEventListener('resize', scaleGame);
