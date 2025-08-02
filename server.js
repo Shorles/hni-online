@@ -16,11 +16,12 @@ let LUTA_CHARACTERS = {};
 
 try {
     const lutadoresData = fs.readFileSync('lutadores.json', 'utf8');
-    // Método mais robusto para extrair nomes de um JSON potencialmente malformado.
+    // Este método é mais robusto para extrair os nomes do seu arquivo JSON.
     const lutadoresNomes = lutadoresData
-        .replace(/[\[\]",]/g, ' ') // Substitui colchetes, aspas e vírgulas por espaços
-        .split(/\s+/)             // Divide a string por um ou mais espaços/quebras de linha
-        .filter(name => name.trim() !== ''); // Remove quaisquer entradas vazias
+        .replace(/[\[\]]/g, '') // Remove os colchetes de início e fim
+        .split(',')             // Separa os nomes pela vírgula
+        .map(name => name.replace(/"/g, '').trim()) // Remove as aspas e espaços extras de cada nome
+        .filter(name => name); // Remove entradas vazias que podem surgir de uma vírgula no final
 
     lutadoresNomes.forEach(nome => {
         LUTA_CHARACTERS[nome] = { ...DEFAULT_FIGHTER_STATS };
@@ -28,7 +29,7 @@ try {
     console.log('Lutadores carregados com sucesso!');
 } catch (error) {
     console.error('Erro ao carregar lutadores.json:', error);
-    console.error('Verifique se o arquivo existe na raíz do projeto e se o formato está correto (um array de nomes em JSON).');
+    console.error('Verifique se o arquivo existe na raíz do projeto e se o formato está correto.');
 }
 // --- FIM DA CORREÇÃO ---
 
@@ -605,12 +606,10 @@ function dispatchAction(room) {
     }
 }
 io.on('connection', (socket) => {
-    // --- INÍCIO DA CORREÇÃO: Enviar lista de lutadores ao cliente ---
     socket.emit('availableFighters', {
         p1: LUTA_CHARACTERS,
         theater: LUTA_CHARACTERS
     });
-    // --- FIM DA CORREÇÃO ---
 
     socket.on('createGame', ({player1Data, scenario}) => {
         const newRoomId = uuidv4().substring(0, 6);

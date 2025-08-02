@@ -8,10 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let player1SetupData = { scenario: null };
     let availableSpecialMoves = {};
     
-    // --- INÍCIO DA CORREÇÃO: Variáveis para lutadores dinâmicos (apenas P1 e Teatro) ---
     let AVAILABLE_FIGHTERS_P1 = {};
     let AVAILABLE_THEATER_CHARS = {};
-    // --- FIM DA CORREÇÃO ---
 
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
@@ -66,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
-    // --- INÍCIO DA CORREÇÃO: Restaurando a lista de personagens do Player 2 ---
+    // --- INÍCIO DA CORREÇÃO: Restaurada a lista de personagens do Player 2 ---
     const CHARACTERS_P2 = { 'Ryu':{agi:2,res:3},'Yobu':{agi:2,res:3},'Nathan':{agi:2,res:3},'Okami':{agi:2,res:3} };
     // --- FIM DA CORREÇÃO ---
     
@@ -89,16 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let linkInitialized = false;
 
-    // --- INÍCIO DA CORREÇÃO: Receber a lista de lutadores do servidor ---
     socket.on('availableFighters', ({ p1, theater }) => {
         AVAILABLE_FIGHTERS_P1 = p1 || {};
-        AVAILABLE_THEATER_CHARS = { ...p1, ...CHARACTERS_P2 } || {}; // Modo teatro mostra todos
-        // Reinicializa a lista de personagens do modo teatro se já estiver visível
+        // Para o modo teatro, combinamos os lutadores do JSON com os lutadores P2 fixos
+        AVAILABLE_THEATER_CHARS = { ...p1, ...CHARACTERS_P2 };
         if (theaterScreen.classList.contains('active')) {
             initializeTheaterMode();
         }
     });
-    // --- FIM DA CORREÇÃO ---
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
@@ -154,14 +150,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (arenaPlayerKey && currentRoomId) {
             myPlayerKey = arenaPlayerKey; socket.emit('joinArenaGame', { roomId: currentRoomId, playerKey: arenaPlayerKey });
             showScreen(selectionScreen); selectionTitle.innerText = `Jogador ${arenaPlayerKey === 'player1' ? 1 : 2}: Selecione seu Lutador`; confirmBtn.innerText = 'Confirmar Personagem';
-            renderCharacterSelection('p1', false); // Em Arena, ambos usam a lista principal
+            renderCharacterSelection('p1', false); 
         } else if (isSpectator && currentRoomId) { 
             showScreen(lobbyScreen); lobbyContent.innerHTML = `<p>Entrando como espectador...</p>`; socket.emit('spectateGame', currentRoomId);
         } else if (currentRoomId) {
             showScreen(selectionScreen); selectionTitle.innerText = 'Jogador 2: Selecione seu Lutador'; confirmBtn.innerText = 'Entrar na Luta';
-            // --- INÍCIO DA CORREÇÃO: P2 usa sua própria lista de personagens ---
             renderCharacterSelection('p2', false); 
-            // --- FIM DA CORREÇÃO ---
         } else { showScreen(modeSelectionScreen); }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
@@ -215,13 +209,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INÍCIO DA CORREÇÃO: A função agora diferencia P1 e P2 ---
+    // --- INÍCIO DA CORREÇÃO: Função renderCharacterSelection corrigida ---
     function renderCharacterSelection(playerType, showStatsInputs = false) {
         charListContainer.innerHTML = ''; 
         
-        const isP1 = playerType === 'p1';
-        const charData = isP1 ? AVAILABLE_FIGHTERS_P1 : CHARACTERS_P2;
-        const imgPath = isP1 ? 'images/lutadores/' : 'images/';
+        // Determina qual lista de personagens e qual caminho de imagem usar
+        const isP2Classic = playerType === 'p2' && !new URLSearchParams(window.location.search).get('player');
+        const charData = isP2Classic ? CHARACTERS_P2 : AVAILABLE_FIGHTERS_P1;
+        const imgPath = isP2Classic ? 'images/' : 'images/lutadores/';
 
         for (const name in charData) {
             const stats = charData[name]; 
@@ -753,6 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // --- INÍCIO DA CORREÇÃO: Função do modo teatro corrigida para usar múltiplos caminhos ---
     function initializeTheaterMode() {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         const theaterScreenEl = document.getElementById('theater-screen');
@@ -764,10 +760,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         theaterCharList.innerHTML = '';
         
-        // --- INÍCIO DA CORREÇÃO: Usar a lista correta e caminhos corretos ---
         Object.keys(AVAILABLE_THEATER_CHARS).forEach(charName => {
-            // Determina o caminho da imagem baseado se o personagem é da lista P1 ou P2
-            const imgPath = AVAILABLE_FIGHTERS_P1[charName] ? `images/lutadores/${charName}.png` : `images/${charName}.png`;
+            const isP1Char = !!AVAILABLE_FIGHTERS_P1[charName];
+            const imgPath = isP1Char ? `images/lutadores/${charName}.png` : `images/${charName}.png`;
+            
             const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
             mini.style.backgroundImage = `url("${imgPath}")`;
@@ -779,7 +775,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             theaterCharList.appendChild(mini);
         });
-        // --- FIM DA CORREÇÃO ---
 
         DYNAMIC_CHARACTERS.forEach(char => {
             const mini = document.createElement('div');
@@ -793,6 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             theaterCharList.appendChild(mini);
         });
+    // --- FIM DA CORREÇÃO ---
     
         theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
     
@@ -1294,7 +1290,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('doubleKnockdownResults', (results) => {
         modal.classList.add('hidden');
         ['player1', 'player2'].forEach(pKey => {
-            const resultData = results[pKey]; if (resultData) { const overlay = document.getElementById(`${pKey}-dk-result`); overlay.innerHTML = `<h4>${currentGameState.fighters[pKey].nome}</h4><p>Rolagem: ${resultData.total}</p>`; overlay.className = 'dk-result-overlay'; overlay.classList.add(resultData.success ? 'success' : 'fail'); overlay.classList.remove('hidden'); }
+            const resultData = results[pKey]; if (resultData) { const overlay = document.getElementById(`${pKey}-dk-result`); overlay.innerHTML = `<h4>${currentGameState.fighters[pKey].nome}</h4><p>Rolagem: ${resultData.total}</p>`; overlay.className = 'dk-result-overlay'; overlay.classList.add(resultData.success ? 'fail' : 'fail'); overlay.classList.remove('hidden'); }
         });
         setTimeout(() => { document.getElementById('player1-dk-result').classList.add('hidden'); document.getElementById('player2-dk-result').classList.add('hidden'); }, 3000);
     });
