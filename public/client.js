@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let availableSpecialMoves = {};
     
     let AVAILABLE_FIGHTERS_P1 = {};
-    let AVAILABLE_THEATER_CHARS = {};
 
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
@@ -87,10 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('availableFighters', ({ p1 }) => {
         AVAILABLE_FIGHTERS_P1 = p1 || {};
-        // Atualiza a lista de personagens do modo teatro sempre que receber os dados
-        if(myPlayerKey === 'gm' || theaterScreen.classList.contains('active')){
-            initializeTheaterMode();
-        }
     });
 
     function showHelpModal() {
@@ -412,6 +407,11 @@ document.addEventListener('DOMContentLoaded', () => {
         switch(gameState.mode) {
             case 'theater':
                 showScreen(theaterScreen);
+                // --- INÍCIO DA CORREÇÃO: Chamada para popular o painel do GM ---
+                if (isGm) {
+                    initializeTheaterMode();
+                }
+                // --- FIM DA CORREÇÃO ---
                 if (isGm && !linkInitialized && currentRoomId) {
                     const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
                     copyTheaterSpectatorLinkBtn.disabled = false;
@@ -647,7 +647,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // #region LÓGICA DO MODO TEATRO
 
-    // --- INÍCIO DA CORREÇÃO: Função para popular o painel do GM no modo Cenário ---
     function initializeTheaterMode() {
         const theaterCharList = document.getElementById('theater-char-list');
         theaterCharList.innerHTML = '';
@@ -665,22 +664,21 @@ document.addEventListener('DOMContentLoaded', () => {
             theaterCharList.appendChild(mini);
         };
 
-        // 1. Adiciona os lutadores do JSON (P1)
+        // 1. Adiciona os lutadores do JSON
         Object.keys(AVAILABLE_FIGHTERS_P1).forEach(charName => {
             createMini(charName, `images/lutadores/${charName}.png`);
         });
 
-        // 2. Adiciona os lutadores fixos (P2)
+        // 2. Adiciona os lutadores fixos do P2
         Object.keys(CHARACTERS_P2).forEach(charName => {
             createMini(charName, `images/${charName}.png`);
         });
 
-        // 3. Adiciona os personagens da pasta 'personagens'
+        // 3. Adiciona os personagens dinâmicos
         DYNAMIC_CHARACTERS.forEach(char => {
             createMini(char.name, char.img);
         });
     }
-    // --- FIM DA CORREÇÃO ---
 
     let currentScenarioScale = 1.0;
     let isGroupSelectMode = false;
