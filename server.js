@@ -101,21 +101,23 @@ function createNewGameState() {
         playersReady: { player1: false, player2: false },
         reactionState: null,
         diceCheat: null,
-        illegalCheat: 'normal'
+        illegalCheat: 'normal',
+        // --- INÍCIO DA ALTERAÇÃO 2 ---
+        // Adiciona um lugar para guardar o estado do teatro enquanto estiver em outro modo
+        theaterCache: null
+        // --- FIM DA ALTERAÇÃO 2 ---
     };
 }
 
-// --- INÍCIO DA ALTERAÇÃO 2 ---
 function createNewTheaterState(initialScenario) {
     const theaterState = {
         mode: 'theater',
         gmId: null,
         log: [{ text: "Modo Teatro iniciado."}],
         currentScenario: initialScenario,
-        scenarioStates: {}, // Armazena o estado de cada cenário
-        publicState: {} // Estado visível para espectadores
+        scenarioStates: {},
+        publicState: {}
     };
-    // Inicializa o estado para o primeiro cenário
     theaterState.scenarioStates[initialScenario] = {
         scenario: initialScenario,
         scenarioWidth: null,
@@ -125,7 +127,6 @@ function createNewTheaterState(initialScenario) {
         globalTokenScale: 1.0,
         isStaging: false,
     };
-    // Inicializa o estado público
     theaterState.publicState = {
         scenario: initialScenario,
         tokens: {},
@@ -134,7 +135,6 @@ function createNewTheaterState(initialScenario) {
     };
     return theaterState;
 }
-// --- FIM DA ALTERAÇÃO 2 ---
 
 function createNewFighterState(data) {
     const res = Math.max(1, parseInt(data.res, 10) || 1);
@@ -155,7 +155,6 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { if(state && state.log) { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); } }
 
-// --- INÍCIO DA ALTERAÇÃO 2 ---
 function filterVisibleTokens(currentScenarioState) {
     if (!currentScenarioState.scenarioWidth || !currentScenarioState.scenarioHeight) {
         return {
@@ -185,7 +184,6 @@ function filterVisibleTokens(currentScenarioState) {
     
     return { visibleTokens, visibleTokenOrder };
 }
-// --- FIM DA ALTERAÇÃO 2 ---
 
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     let attackResult = { hit: false, counterLanded: false };
@@ -739,7 +737,8 @@ io.on('connection', (socket) => {
 
         const playerKey = action.playerKey;
         switch (action.type) {
-            case 'gm_switch_mode':
+            // --- INÍCIO DA ALTERAÇÃO 2 ---
+            case 'gm_switch_mode': {
                 const { targetMode, scenario } = action;
                 let newState;
                 let newPlayers = [];
@@ -749,21 +748,22 @@ io.on('connection', (socket) => {
                 const uniqueUserIds = [...new Set(allUserIds)];
                 
                 if (targetMode === 'theater') {
-                    // --- INÍCIO DA ALTERAÇÃO 2 ---
-                    // Se já existe um estado de cenário, preserva-o
-                    newState = state.mode === 'theater' ? state : createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
-                    newState.mode = 'theater'; // Garante que o modo está correto
-                    // --- FIM DA ALTERAÇÃO 2 ---
+                    if (state.theaterCache) {
+                        newState = state.theaterCache;
+                    } else {
+                         newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
+                    }
+                    newState.mode = 'theater';
                     newState.gmId = action.gmSocketId;
                     newSpectators = uniqueUserIds.filter(id => id !== action.gmSocketId);
                 } else {
                     newState = createNewGameState();
-                    // --- INÍCIO DA ALTERAÇÃO 2 ---
-                    // Preserva os cenários do estado anterior, se houver
-                    if(state.mode === 'theater') {
-                        newState.scenarioStates = state.scenarioStates;
+                    if (state.mode === 'theater') {
+                        newState.theaterCache = state;
+                    } else {
+                        newState.theaterCache = state.theaterCache;
                     }
-                    // --- FIM DA ALTERAÇÃO 2 ---
+                    
                     newState.mode = targetMode;
                     newState.gmId = action.gmSocketId;
                     newState.scenario = scenario || 'Ringue.png';
@@ -796,6 +796,8 @@ io.on('connection', (socket) => {
                      io.to(action.gmSocketId).emit('roomCreated', roomId);
                 }
                 break;
+            }
+            // --- FIM DA ALTERAÇÃO 2 ---
             
             case 'gm_confirm_p1_setup':
                 state.fighters.player1 = createNewFighterState(action.player1Data);
@@ -895,7 +897,6 @@ io.on('connection', (socket) => {
             case 'changeScenario': {
                 const newScenarioName = action.scenario;
                 state.currentScenario = newScenarioName;
-                // Se o cenário ainda não foi visitado, cria um estado inicial para ele.
                 if (!state.scenarioStates[newScenarioName]) {
                     state.scenarioStates[newScenarioName] = {
                         scenario: newScenarioName,
@@ -904,11 +905,10 @@ io.on('connection', (socket) => {
                         tokens: {},
                         tokenOrder: [],
                         globalTokenScale: 1.0,
-                        isStaging: true, // Novo cenário começa em modo de preparação
+                        isStaging: true,
                     };
                 }
                 const newScenarioState = state.scenarioStates[newScenarioName];
-                // Publica imediatamente o estado salvo do cenário para os espectadores
                 state.publicState.scenario = newScenarioState.scenario;
                 const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(newScenarioState);
                 state.publicState.tokens = visibleTokens;
@@ -924,11 +924,11 @@ io.on('connection', (socket) => {
             case 'toggle_force_dice':
                 let currentForce = (typeof state.diceCheat === 'number') ? state.diceCheat : 0;
                 if (currentForce === 0) {
-                    state.diceCheat = 2; // Inicia o ciclo
+                    state.diceCheat = 2;
                 } else if (currentForce < 5) {
-                    state.diceCheat++; // Cicla 2 -> 3 -> 4 -> 5
+                    state.diceCheat++;
                 } else {
-                    state.diceCheat = null; // Desativa após o 5
+                    state.diceCheat = null;
                 }
                 break;
             case 'toggle_dice_cheat':
