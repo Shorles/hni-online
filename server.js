@@ -65,15 +65,14 @@ const rollAttackD6 = (state) => {
     return ATTACK_DICE_OUTCOMES[randomIndex];
 };
 
-// --- NOVA ESTRUTURA DE ESTADO ---
 function createNewLobbyState() {
     return {
         id: null,
         gmId: null,
         password: "abif13",
-        players: {}, // { socketId: { id, character, role } }
-        gameState: null, // Onde o jogo de luta ou cenário vai ficar
-        selectedCharacters: [] // Lista de nomes dos personagens P2 já escolhidos
+        players: {}, 
+        gameState: null,
+        selectedCharacters: []
     };
 }
 function createNewGameState() {
@@ -101,7 +100,6 @@ function createNewTheaterState(initialScenario) {
     };
     return theaterState;
 }
-// --- FIM DA NOVA ESTRUTURA ---
 
 function createNewFighterState(data) {
     const res = Math.max(1, parseInt(data.res, 10) || 1);
@@ -143,7 +141,6 @@ function filterVisibleTokens(currentScenarioState) {
 }
 
 // ... (as funções de combate como executeAttack, endTurn, etc. permanecem as mesmas) ...
-// (Para economizar espaço, omiti o código inalterado do combate aqui. Ele deve ser mantido no seu arquivo final.)
 // ...
 
 function isActionValid(state, action) {
@@ -154,9 +151,8 @@ function dispatchAction(room) {
     // ... (lógica de dispatch existente) ...
 }
 
-// --- NOVO FLUXO DE CONEXÃO E LOBBY ---
 io.on('connection', (socket) => {
-
+    // Ações de Lobby
     socket.on('createLobby', ({ password }) => {
         const newLobby = createNewLobbyState();
         if (password !== newLobby.password) {
@@ -174,6 +170,7 @@ io.on('connection', (socket) => {
 
         socket.emit('lobbyCreated', { roomId: newRoomId });
         socket.emit('assignRole', { role: 'gm' });
+        socket.emit('availableFighters', { p1: LUTA_CHARACTERS_P1 });
     });
 
     socket.on('joinLobby', ({ roomId }) => {
@@ -190,6 +187,12 @@ io.on('connection', (socket) => {
         socket.emit('assignRole', { role: 'player' });
         socket.emit('lobbyJoined', { selectedCharacters: lobby.selectedCharacters });
         io.to(lobby.gmId).emit('updateLobbyPlayers', lobby.players);
+
+        if (lobby.gameState) {
+            lobby.players[socket.id].role = 'spectator';
+            socket.emit('assignRole', { role: 'spectator' });
+            socket.emit('gameUpdate', lobby.gameState);
+        }
     });
 
     socket.on('selectPlayerCharacter', ({ characterName, characterImg }) => {
@@ -217,31 +220,97 @@ io.on('connection', (socket) => {
         }
         socket.emit('assignRole', { role: 'spectator' });
         io.to(lobby.gmId).emit('updateLobbyPlayers', lobby.players);
-        // Se um jogo já estiver em andamento, envia o estado atual
         if (lobby.gameState) {
             socket.emit('gameUpdate', lobby.gameState);
         }
     });
 
-    socket.on('playerAction', (action) => {
-        // ... (lógica de ações existente) ...
-        // Adicionar novas ações de GM aqui, como 'startClassicGame', etc.
+    socket.on('requestLobbyPlayersForMatch', () => {
+        const lobby = games[socket.currentRoomId];
+        if (lobby && socket.id === lobby.gmId) {
+            socket.emit('showOpponentSelection', { players: lobby.players, mode: 'classic' });
+        }
     });
 
+    // Ações de Jogo
+    socket.on('playerAction', (action) => {
+        const lobby = games[socket.currentRoomId];
+        if (!lobby || socket.id !== lobby.gmId) return; // A maioria das ações de alto nível são do GM
+
+        switch (action.type) {
+            case 'gm_select_mode':
+                if (action.mode === 'theater') {
+                    // Mover todos os jogadores para espectadores
+                    Object.values(lobby.players).forEach(p => {
+                        if (p.role === 'player') {
+                            p.role = 'spectator';
+                            io.to(p.id).emit('assignRole', { role: 'spectator' });
+                        }
+                    });
+                    
+                    if (!lobby.gameState || lobby.gameState.mode !== 'theater') {
+                        lobby.gameState = createNewTheaterState(action.scenario);
+                    }
+                    lobby.gameState.gmId = lobby.gmId;
+                }
+                io.to(lobby.id).emit('gameUpdate', lobby.gameState);
+                break;
+            
+            case 'gm_start_classic_game':
+                const newGame = createNewGameState();
+                newGame.mode = 'classic';
+                newGame.gmId = lobby.gmId;
+                
+                // Define P1 (GM)
+                newGame.fighters.player1 = createNewFighterState(action.player1Data);
+                
+                // Define P2 (Oponente Escolhido)
+                const opponentPlayer = lobby.players[action.opponentId];
+                newGame.pendingP2Choice = opponentPlayer.character;
+                
+                lobby.gameState = newGame;
+                
+                // Define os papéis de todos na sala
+                Object.values(lobby.players).forEach(p => {
+                    if (p.id === lobby.gmId) {
+                        p.role = 'player1';
+                        io.to(p.id).emit('assignRole', { role: 'player1' });
+                    } else if (p.id === action.opponentId) {
+                        p.role = 'player2';
+                        io.to(p.id).emit('assignRole', { role: 'player2' });
+                    } else {
+                        p.role = 'spectator';
+                        io.to(p.id).emit('assignRole', { role: 'spectator' });
+                    }
+                });
+
+                // Inicia o fluxo de configuração do P2 pelo GM
+                newGame.phase = 'p2_stat_assignment';
+                io.to(lobby.id).emit('gameUpdate', newGame);
+                dispatchAction({ state: newGame, id: lobby.id });
+                break;
+            
+            // ... outras ações de combate e cenário aqui ...
+        }
+
+        // Se houver um gameState, passa a ação para a lógica antiga
+        if (lobby.gameState) {
+            // ... (Aqui entra a lógica de `playerAction` que você já tinha, operando em `lobby.gameState`)
+        }
+    });
+    
     socket.on('disconnect', () => {
         const lobby = games[socket.currentRoomId];
         if (!lobby) return;
         
         const disconnectedPlayer = lobby.players[socket.id];
         if (disconnectedPlayer) {
-            // Se o GM se desconectar, a sala é encerrada
             if (disconnectedPlayer.role === 'gm') {
                 io.to(lobby.id).emit('error', { message: 'O Mestre encerrou a sala.' });
                 delete games[socket.currentRoomId];
                 return;
             }
 
-            // Se um jogador com personagem selecionado sair, libera o personagem
             if (disconnectedPlayer.character) {
                 lobby.selectedCharacters = lobby.selectedCharacters.filter(name => name !== disconnectedPlayer.character.name);
                 io.to(lobby.id).emit('updateSelectedCharacters', lobby.selectedCharacters);
@@ -251,12 +320,7 @@ io.on('connection', (socket) => {
             io.to(lobby.gmId).emit('updateLobbyPlayers', lobby.players);
         }
     });
-
 });
-// --- FIM DO NOVO FLUXO ---
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
-
-// Cole as funções de combate (executeAttack, endTurn, handleKnockdown, etc.) e as funções isActionValid/dispatchAction aqui.
-// Elas não foram incluídas para não deixar a resposta excessivamente longa, mas são essenciais.
