@@ -67,12 +67,8 @@ const rollAttackD6 = (state) => {
 
 function createNewLobbyState() {
     return {
-        id: null,
-        gmId: null,
-        password: "abif13",
-        players: {}, 
-        gameState: null,
-        selectedCharacters: []
+        id: null, gmId: null, password: "abif13", players: {}, 
+        gameState: null, selectedCharacters: []
     };
 }
 function createNewGameState() {
@@ -140,19 +136,13 @@ function filterVisibleTokens(currentScenarioState) {
     return { visibleTokens, visibleTokenOrder };
 }
 
-// ... (as funções de combate como executeAttack, endTurn, etc. permanecem as mesmas) ...
-// ...
+// ... (as funções de combate como executeAttack, endTurn, etc. permanecem aqui) ...
 
-function isActionValid(state, action) {
-    // ... (lógica de validação existente) ...
-}
-
-function dispatchAction(room) {
-    // ... (lógica de dispatch existente) ...
-}
+function isActionValid(state, action) { /* ... */ }
+function dispatchAction(room) { /* ... */ }
 
 io.on('connection', (socket) => {
-    // Ações de Lobby
+    
     socket.on('createLobby', ({ password }) => {
         const newLobby = createNewLobbyState();
         if (password !== newLobby.password) {
@@ -184,15 +174,15 @@ io.on('connection', (socket) => {
 
         lobby.players[socket.id] = { id: socket.id, role: 'player' };
         
-        socket.emit('assignRole', { role: 'player' });
-        socket.emit('lobbyJoined', { selectedCharacters: lobby.selectedCharacters });
-        io.to(lobby.gmId).emit('updateLobbyPlayers', lobby.players);
-
         if (lobby.gameState) {
             lobby.players[socket.id].role = 'spectator';
             socket.emit('assignRole', { role: 'spectator' });
             socket.emit('gameUpdate', lobby.gameState);
+        } else {
+            socket.emit('assignRole', { role: 'player' });
+            socket.emit('lobbyJoined', { selectedCharacters: lobby.selectedCharacters });
         }
+        io.to(lobby.gmId).emit('updateLobbyPlayers', lobby.players);
     });
 
     socket.on('selectPlayerCharacter', ({ characterName, characterImg }) => {
@@ -209,6 +199,21 @@ io.on('connection', (socket) => {
         socket.emit('characterConfirmed', player.character);
         io.to(lobby.id).emit('updateSelectedCharacters', lobby.selectedCharacters);
         io.to(lobby.gmId).emit('updateLobbyPlayers', lobby.players);
+    });
+
+    // --- CORREÇÃO 4: Lógica para desmarcar personagem ---
+    socket.on('deselectPlayerCharacter', () => {
+        const lobby = games[socket.currentRoomId];
+        if (!lobby) return;
+
+        const player = lobby.players[socket.id];
+        if (player && player.character) {
+            lobby.selectedCharacters = lobby.selectedCharacters.filter(name => name !== player.character.name);
+            delete player.character;
+            socket.emit('characterDeselected');
+            io.to(lobby.id).emit('updateSelectedCharacters', lobby.selectedCharacters);
+            io.to(lobby.gmId).emit('updateLobbyPlayers', lobby.players);
+        }
     });
 
     socket.on('enterAsSpectator', () => {
@@ -232,70 +237,62 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Ações de Jogo
+    // --- CORREÇÃO 5: Mover lógica de início de jogo para `playerAction` ---
     socket.on('playerAction', (action) => {
         const lobby = games[socket.currentRoomId];
-        if (!lobby || socket.id !== lobby.gmId) return; // A maioria das ações de alto nível são do GM
+        if (!lobby) return;
 
-        switch (action.type) {
-            case 'gm_select_mode':
-                if (action.mode === 'theater') {
-                    // Mover todos os jogadores para espectadores
-                    Object.values(lobby.players).forEach(p => {
-                        if (p.role === 'player') {
-                            p.role = 'spectator';
-                            io.to(p.id).emit('assignRole', { role: 'spectator' });
+        // Ações que podem ser executadas antes de um jogo começar
+        if (socket.id === lobby.gmId) {
+            switch (action.type) {
+                case 'gm_select_mode':
+                    if (action.mode === 'theater') {
+                        Object.values(lobby.players).forEach(p => {
+                            if (p.role === 'player') {
+                                p.role = 'spectator';
+                                io.to(p.id).emit('assignRole', { role: 'spectator' });
+                            }
+                        });
+                        
+                        if (!lobby.gameState || lobby.gameState.mode !== 'theater') {
+                            lobby.gameState = createNewTheaterState(action.scenario);
                         }
-                    });
+                        lobby.gameState.gmId = lobby.gmId;
+                        io.to(lobby.id).emit('gameUpdate', lobby.gameState);
+                    }
+                    return; // Interrompe para não cair na lógica de jogo abaixo
+
+                case 'gm_start_classic_game':
+                    const newGame = createNewGameState();
+                    newGame.mode = 'classic';
+                    newGame.gmId = lobby.gmId;
                     
-                    if (!lobby.gameState || lobby.gameState.mode !== 'theater') {
-                        lobby.gameState = createNewTheaterState(action.scenario);
-                    }
-                    lobby.gameState.gmId = lobby.gmId;
-                }
-                io.to(lobby.id).emit('gameUpdate', lobby.gameState);
-                break;
-            
-            case 'gm_start_classic_game':
-                const newGame = createNewGameState();
-                newGame.mode = 'classic';
-                newGame.gmId = lobby.gmId;
-                
-                // Define P1 (GM)
-                newGame.fighters.player1 = createNewFighterState(action.player1Data);
-                
-                // Define P2 (Oponente Escolhido)
-                const opponentPlayer = lobby.players[action.opponentId];
-                newGame.pendingP2Choice = opponentPlayer.character;
-                
-                lobby.gameState = newGame;
-                
-                // Define os papéis de todos na sala
-                Object.values(lobby.players).forEach(p => {
-                    if (p.id === lobby.gmId) {
-                        p.role = 'player1';
-                        io.to(p.id).emit('assignRole', { role: 'player1' });
-                    } else if (p.id === action.opponentId) {
-                        p.role = 'player2';
-                        io.to(p.id).emit('assignRole', { role: 'player2' });
-                    } else {
-                        p.role = 'spectator';
-                        io.to(p.id).emit('assignRole', { role: 'spectator' });
-                    }
-                });
+                    newGame.fighters.player1 = createNewFighterState(action.player1Data);
+                    const opponentPlayer = lobby.players[action.opponentId];
+                    newGame.pendingP2Choice = opponentPlayer.character;
+                    
+                    lobby.gameState = newGame;
+                    
+                    Object.values(lobby.players).forEach(p => {
+                        let newRole = 'spectator';
+                        if (p.id === lobby.gmId) newRole = 'player1';
+                        else if (p.id === action.opponentId) newRole = 'player2';
+                        p.role = newRole;
+                        io.to(p.id).emit('assignRole', { role: newRole });
+                    });
 
-                // Inicia o fluxo de configuração do P2 pelo GM
-                newGame.phase = 'p2_stat_assignment';
-                io.to(lobby.id).emit('gameUpdate', newGame);
-                dispatchAction({ state: newGame, id: lobby.id });
-                break;
-            
-            // ... outras ações de combate e cenário aqui ...
+                    newGame.phase = 'p2_stat_assignment';
+                    io.to(lobby.id).emit('gameUpdate', newGame);
+                    //dispatchAction({ state: newGame, id: lobby.id }); // A lógica de dispatch vai aqui
+                    return;
+            }
         }
-
-        // Se houver um gameState, passa a ação para a lógica antiga
+        
+        // Se um jogo já existe, passa a ação para a lógica de jogo
         if (lobby.gameState) {
-            // ... (Aqui entra a lógica de `playerAction` que você já tinha, operando em `lobby.gameState`)
+            const state = lobby.gameState;
+            action.gmSocketId = socket.id;
+            // ... (Aqui entra o 'switch' da sua lógica de `playerAction` original, operando em `state`)
         }
     });
     

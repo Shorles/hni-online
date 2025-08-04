@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showScreen(screenToShow) {
         allScreens.forEach(screen => screen.classList.toggle('active', screen.id === screenToShow.id));
+        scaleGame(); // Correção 1: Chamar a escala sempre que a tela mudar
     }
 
     function initialize() {
@@ -64,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(passwordScreen);
         }
         
-        // --- LISTENERS DE EVENTOS DE UI ---
         passwordSubmitBtn.addEventListener('click', () => {
             passwordError.classList.add('hidden');
             socket.emit('createLobby', { password: passwordInput.value });
@@ -88,8 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         modeArenaBtn.onclick = () => {
-             // A lógica completa da Arena pode ser adicionada aqui mais tarde
-            alert("Modo Arena ainda em desenvolvimento.");
+             alert("Modo Arena ainda em desenvolvimento.");
         };
         
         modeTheaterBtn.onclick = () => {
@@ -109,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGlobalKeyListeners();
     }
 
-    // --- CORREÇÃO 5: Lógica para o GM selecionar seu personagem ---
+    // Correção 5: Lógica para o GM selecionar seu personagem
     function handleGmClassicSelection() {
         const selectedCard = document.querySelector('#selection-screen .char-card.selected');
         if (!selectedCard) {
@@ -152,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPlayerCharacterSelection();
             if (role === 'spectator') {
                  playerSelectionStatus.textContent = "Você está como espectador. Aguardando o início do jogo...";
+                 spectateBtn.disabled = true;
             }
         }
     });
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('updateSelectedCharacters', (selectedCharacters) => {
-        if (myRole === 'player') {
+        if (myRole === 'player' && !myCharacter) { // Só atualiza se o jogador ainda não escolheu
             updatePlayerCharacterList(selectedCharacters);
         }
     });
@@ -194,24 +194,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('characterConfirmed', (character) => {
         myCharacter = character;
-        playerSelectionStatus.textContent = `Você selecionou ${character.name}!`;
-        // Correção 4: Adicionar botão de voltar
+        playerSelectionStatus.innerHTML = `<span>Você selecionou ${character.name}!</span>`;
+        
         const backButton = document.createElement('button');
         backButton.textContent = 'Voltar';
         backButton.className = 'back-selection-btn';
-        backButton.onclick = () => {
-            socket.emit('deselectPlayerCharacter');
-        };
+        backButton.onclick = () => socket.emit('deselectPlayerCharacter');
         playerSelectionStatus.appendChild(backButton);
 
         playerCharListContainer.querySelectorAll('.char-card').forEach(card => card.style.pointerEvents = 'none');
         spectateBtn.style.display = 'none';
     });
     
-    // Correção 4: Lógica para quando o personagem é liberado
     socket.on('characterDeselected', () => {
         myCharacter = null;
-        playerSelectionStatus.innerHTML = ''; // Limpa a mensagem
+        playerSelectionStatus.innerHTML = '';
         playerCharListContainer.querySelectorAll('.char-card').forEach(card => card.style.pointerEvents = 'auto');
         spectateBtn.style.display = 'block';
     });
@@ -250,8 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ... (socket.on('gameUpdate') e outras funções de UI/jogo permanecem aqui) ...
-    // O resto do código (funções de combate, etc.) permanece o mesmo.
-
+    
     // --- FUNÇÕES DE RENDERIZAÇÃO ---
     function renderPlayerCharacterSelection() {
         playerCharListContainer.innerHTML = '';
@@ -277,13 +273,12 @@ document.addEventListener('DOMContentLoaded', () => {
             playerSelectionStatus.textContent = "Todos os personagens foram selecionados. Você só pode entrar como espectador.";
         }
     }
-
+    
     // --- CORREÇÃO 1: Lógica de escala da tela ---
     const scaleGame = () => {
         const w = document.getElementById('game-wrapper');
         const isMobile = window.innerWidth <= 800;
     
-        // Só aplica a escala se a tela ativa for de luta ou cenário
         const activeScreen = document.querySelector('.screen.active');
         if (activeScreen && (activeScreen.id === 'fight-screen' || activeScreen.id === 'theater-screen')) {
              w.style.width = '1280px';
@@ -308,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 w.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
             }
         } else {
-            // Para as telas de lobby/seleção, reseta a escala e deixa o CSS cuidar
             w.style.transform = 'none';
             w.style.width = '100%';
             w.style.height = '100%';
@@ -323,3 +317,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
     window.addEventListener('resize', scaleGame);
 });
+
+// Cole aqui todas as outras funções que foram omitidas para brevidade
+// (showHelpModal, renderSpecialMoveSelection, renderCharacterSelection (GM), updateUI, etc.)

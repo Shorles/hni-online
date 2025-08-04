@@ -18,12 +18,13 @@ body {
     transform-origin: top left;
 }
 
-/* --- INÍCIO DA CORREÇÃO 1: Fundo preto em todas as telas --- */
+/* --- INÍCIO DA CORREÇÃO 1: Fundo da tela --- */
 .screen { 
     display: none; 
     width: 100%; 
     height: 100%; 
-    background-color: rgba(0, 0, 0, 0.9); /* Garante o fundo em todas as telas */
+    /* Garante que telas de menu tenham fundo preto */
+    background-color: rgba(0, 0, 0, 0.95); 
 }
 .screen.active { 
     display: flex; 
@@ -31,7 +32,7 @@ body {
     justify-content: center; 
     align-items: center; 
 }
-/* O fundo da tela de luta e cenário é controlado por JS, então removemos o fundo preto delas */
+/* Apenas as telas de jogo em si terão fundo transparente para ver o cenário */
 #fight-screen, #theater-screen {
     background-color: transparent;
 }
@@ -154,7 +155,15 @@ body {
 }
 #player-selection-status {
     font-size: 1.2em;
-    min-height: 25px;
+    min-height: 45px; /* Aumenta espaço para o botão de voltar */
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.back-selection-btn {
+    padding: 5px 10px;
+    font-size: 0.9em;
+    cursor: pointer;
 }
 .spectate-button {
     margin-top: 20px;
@@ -189,6 +198,7 @@ body {
     border: 2px solid #dc3545;
 }
 
+
 /* --- TELA DE SELEÇÃO DE MODO --- */
 #mode-selection-screen {
     gap: 30px;
@@ -208,7 +218,7 @@ body {
 }
 .mode-btn:hover { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
 
-/* --- TELA DE LOBBY DA ARENA (LEGADO) --- */
+/* TELA DE LOBBY DA ARENA (LEGADO) */
 #arena-lobby-screen { gap: 20px; text-align: center; padding-top: 50px; box-sizing: border-box; }
 #arena-lobby-screen h1 { font-size: 3em; color: #ffeb3b; }
 .arena-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap;}
@@ -223,7 +233,7 @@ body {
 }
 
 
-/* --- TELA DE SELEÇÃO DE CENÁRIO --- */
+/* TELA DE SELEÇÃO DE CENÁRIO */
 #scenario-screen {
     gap: 20px;
     padding: 20px 0;
