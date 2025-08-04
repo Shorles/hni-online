@@ -49,7 +49,140 @@ body {
     line-height: 50px;
 }
 
-/* --- TELA DE SELEÇÃO DE MODO --- */
+/* --- NOVOS ESTILOS --- */
+
+/* TELA DE SENHA */
+#password-screen {
+    background-color: rgba(0, 0, 0, 0.9);
+    gap: 20px;
+}
+#password-screen h1 {
+    font-size: 3em;
+    color: #ffeb3b;
+}
+#password-input {
+    padding: 10px;
+    font-size: 1.2em;
+    width: 300px;
+    text-align: center;
+}
+#password-submit-btn {
+    padding: 10px 20px;
+    font-size: 1.2em;
+    cursor: pointer;
+}
+#password-error {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+/* LOBBY DO GM */
+#gm-lobby-screen {
+    background-color: #1a1a1a;
+    gap: 20px;
+    padding: 40px;
+    box-sizing: border-box;
+}
+.gm-lobby-main-container {
+    display: flex;
+    gap: 40px;
+    width: 90%;
+    height: 70%;
+}
+.gm-lobby-links, .gm-lobby-players {
+    background-color: rgba(0,0,0,0.3);
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.gm-lobby-links {
+    flex: 2;
+    justify-content: center;
+}
+.gm-lobby-players {
+    flex: 1;
+}
+#connected-players-list {
+    overflow-y: auto;
+    flex-grow: 1;
+    text-align: left;
+    padding: 10px;
+    background-color: rgba(255,255,255,0.05);
+    border-radius: 5px;
+}
+.player-lobby-item {
+    padding: 8px;
+    border-bottom: 1px solid #444;
+}
+.player-lobby-item.spectator {
+    color: #aaa;
+    font-style: italic;
+}
+#proceed-to-mode-selection-btn {
+    padding: 15px 30px;
+    font-size: 1.3em;
+    cursor: pointer;
+    margin-top: 20px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+}
+
+/* TELA DE SELEÇÃO INICIAL DO JOGADOR */
+#player-initial-selection-screen {
+    background-color: rgba(0, 0, 0, 0.9);
+    gap: 20px;
+}
+#player-character-list-container {
+    display: flex;
+    gap: 30px;
+    justify-content: center;
+}
+#player-selection-status {
+    font-size: 1.2em;
+    min-height: 25px;
+}
+.spectate-button {
+    margin-top: 20px;
+    padding: 20px 40px;
+    font-size: 1.5em;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+}
+.spectate-button:hover {
+    background-color: #0056b3;
+}
+.char-card.taken {
+    filter: grayscale(100%);
+    cursor: not-allowed;
+}
+.char-card.taken::after {
+    content: 'SELECIONADO';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    color: #dc3545;
+    font-size: 1.5em;
+    font-weight: bold;
+    background-color: rgba(0,0,0,0.7);
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 2px solid #dc3545;
+}
+
+
+/* --- FIM DOS NOVOS ESTILOS --- */
+
+
+/* TELA DE SELEÇÃO DE MODO */
 #mode-selection-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 30px;
@@ -69,7 +202,7 @@ body {
 }
 .mode-btn:hover { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
 
-/* --- TELA DE LOBBY DA ARENA --- */
+/* TELA DE LOBBY DA ARENA */
 #arena-lobby-screen { background-color: #1a1a1a; gap: 20px; text-align: center; padding-top: 50px; box-sizing: border-box; }
 #arena-lobby-screen h1 { font-size: 3em; color: #ffeb3b; }
 .arena-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap;}
@@ -84,7 +217,7 @@ body {
 }
 
 
-/* --- TELA DE SELEÇÃO DE CENÁRIO --- */
+/* TELA DE SELEÇÃO DE CENÁRIO */
 #scenario-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
@@ -366,7 +499,7 @@ body {
     right: 0;
 }
 
-/* --- TELA DE SELEÇÃO DE PERSONAGENS --- */
+/* TELA DE SELEÇÃO DE PERSONAGENS */
 #selection-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
@@ -398,6 +531,7 @@ body {
     cursor: pointer;
     transition: all 0.2s ease-in-out;
     width: 150px;
+    position: relative;
 }
 .char-card:hover { border-color: #aaa; }
 .char-card.selected { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; transform: scale(1.05); }
@@ -409,14 +543,14 @@ body {
 #confirm-selection-btn { padding: 15px 30px; font-size: 1.5em; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 8px; flex-shrink: 0; }
 #confirm-selection-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-/* --- TELA DE LOBBY --- */
+/* TELA DE LOBBY */
 #lobby-screen { background-color: #1a1a1a; gap: 20px; }
 #lobby-screen h1 { font-size: 3em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; }
 #lobby-content { background-color: #333; padding: 30px; border-radius: 10px; font-size: 1.5em; text-align: center; }
 #share-container { text-align: center; background-color: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 8px; }
 .share-link { background-color: #fff; color: #000; padding: 10px 20px; font-family: monospace; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 10px; border: 2px dashed #ffeb3b; display: inline-block; }
 
-/* --- TELA DE LUTA --- */
+/* TELA DE LUTA */
 #fight-screen { justify-content: flex-end; padding: 0; box-sizing: border-box; position: relative; overflow: hidden; }
 #fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
 .copy-link-button { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 1.5em; background-color: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid #fff; border-radius: 50%; cursor: pointer; z-index: 100; }
@@ -542,7 +676,6 @@ body {
 .pa-dots-container { display: flex; flex-wrap: wrap; gap: 5px; flex-grow: 1; max-width: 150px; }
 .pa-dot { width: 15px; height: 15px; background-color: #007bff; border-radius: 50%; box-shadow: 0 0 5px #007bff; }
 
-/* --- INÍCIO DA ALTERAÇÃO 1: Estilos para AGI/DEF/RES --- */
 .defense-display { display: flex; justify-content: center; align-items: center; width: 100%; gap: 15px; }
 .def-shield { position: relative; display: flex; justify-content: center; align-items: center; }
 .def-shield img { width: 40px; height: 40px; }
@@ -550,7 +683,6 @@ body {
 .stat-text { font-size: 1em; font-weight: bold; margin: 0; }
 #player1-agi-text, #player2-agi-text { color: #87ceeb; } /* Azul claro para AGI */
 #player1-res-text, #player2-res-text { color: #90ee90; } /* Verde claro para RES */
-/* --- FIM DA ALTERAÇÃO 1 --- */
 
 #fight-log-container { flex-basis: 40%; height: 220px; background-color: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
 #round-info { text-align: center; margin-top: 0; border-bottom: 1px solid #fff; padding-bottom: 10px; }
