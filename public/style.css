@@ -541,9 +541,17 @@ body {
 .pa-display { display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center; }
 .pa-dots-container { display: flex; flex-wrap: wrap; gap: 5px; flex-grow: 1; max-width: 150px; }
 .pa-dot { width: 15px; height: 15px; background-color: #007bff; border-radius: 50%; box-shadow: 0 0 5px #007bff; }
-.defense-display { position: relative; display: flex; justify-content: center; align-items: center; }
-.defense-display img { width: 40px; height: 40px; }
+
+/* --- INÍCIO DA ALTERAÇÃO 1: Estilos para AGI/DEF/RES --- */
+.defense-display { display: flex; justify-content: center; align-items: center; width: 100%; gap: 15px; }
+.def-shield { position: relative; display: flex; justify-content: center; align-items: center; }
+.def-shield img { width: 40px; height: 40px; }
 .defense-text { position: absolute; font-size: 1.2em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
+.stat-text { font-size: 1em; font-weight: bold; margin: 0; }
+#player1-agi-text, #player2-agi-text { color: #87ceeb; } /* Azul claro para AGI */
+#player1-res-text, #player2-res-text { color: #90ee90; } /* Verde claro para RES */
+/* --- FIM DA ALTERAÇÃO 1 --- */
+
 #fight-log-container { flex-basis: 40%; height: 220px; background-color: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
 #round-info { text-align: center; margin-top: 0; border-bottom: 1px solid #fff; padding-bottom: 10px; }
 #fight-log { overflow-y: auto; flex-grow: 1; }
@@ -644,7 +652,6 @@ body {
 @media screen and (max-width: 800px) {
     body { overflow: auto; }
     #game-wrapper {
-        /* *** INÍCIO DA CORREÇÃO: Apenas a altura é controlada por JS, o resto é CSS *** */
         position: relative;
         left: 0 !important;
         top: 0 !important;

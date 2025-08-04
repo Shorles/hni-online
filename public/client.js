@@ -86,6 +86,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('availableFighters', ({ p1 }) => {
         AVAILABLE_FIGHTERS_P1 = p1 || {};
+        if(myPlayerKey === 'gm' || theaterScreen.classList.contains('active')){
+            initializeTheaterMode();
+        }
     });
 
     function showHelpModal() {
@@ -407,11 +410,9 @@ document.addEventListener('DOMContentLoaded', () => {
         switch(gameState.mode) {
             case 'theater':
                 showScreen(theaterScreen);
-                // --- INÍCIO DA CORREÇÃO: Chamada para popular o painel do GM ---
                 if (isGm) {
                     initializeTheaterMode();
                 }
-                // --- FIM DA CORREÇÃO ---
                 if (isGm && !linkInitialized && currentRoomId) {
                     const specUrl = `${window.location.origin}?room=${currentRoomId}&spectate=true`;
                     copyTheaterSpectatorLinkBtn.disabled = false;
@@ -491,6 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent || '🔗'; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     
+    // --- INÍCIO DA ALTERAÇÃO 1: Atualização da UI ---
     function updateUI(state) {
         if (!state || !myPlayerKey) return;
         
@@ -523,8 +525,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById(`${key}-fight-name`).innerText = fighter.nome.replace(/-SD$/, '');
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
                 if (fighter.hpMax !== undefined) {
-                    document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`; document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
-                    document.getElementById(`${key}-def-text`).innerText = fighter.def; document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
+                    document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`; 
+                    document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
+                    document.getElementById(`${key}-def-text`).innerText = fighter.def; 
+                    document.getElementById(`${key}-agi-text`).innerText = `AGI: ${fighter.agi}`;
+                    document.getElementById(`${key}-res-text`).innerText = `RES: ${fighter.res}`;
+                    document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
                     document.getElementById(`${key}-knockdowns`).innerText = fighter.knockdowns;
                     document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
                     document.getElementById(`${key}-point-deductions`).innerText = fighter.pointDeductions; document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
@@ -586,6 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const logBox = document.getElementById('fight-log'); logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
         logBox.scrollTop = logBox.scrollHeight;
     }
+    // --- FIM DA ALTERAÇÃO 1 ---
     
     function showInfoModal(title, text) {
         modalTitle.innerText = title; modalText.innerHTML = text;
@@ -646,7 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // #region LÓGICA DO MODO TEATRO
-
+    
     function initializeTheaterMode() {
         const theaterCharList = document.getElementById('theater-char-list');
         theaterCharList.innerHTML = '';
@@ -664,17 +671,12 @@ document.addEventListener('DOMContentLoaded', () => {
             theaterCharList.appendChild(mini);
         };
 
-        // 1. Adiciona os lutadores do JSON
         Object.keys(AVAILABLE_FIGHTERS_P1).forEach(charName => {
             createMini(charName, `images/lutadores/${charName}.png`);
         });
-
-        // 2. Adiciona os lutadores fixos do P2
         Object.keys(CHARACTERS_P2).forEach(charName => {
             createMini(charName, `images/${charName}.png`);
         });
-
-        // 3. Adiciona os personagens dinâmicos
         DYNAMIC_CHARACTERS.forEach(char => {
             createMini(char.name, char.img);
         });
@@ -686,8 +688,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDraggingScenario = false;
 
     function updateTheaterZoom() {
-        const dataToRender = (currentGameState && myPlayerKey === 'spectator' && currentGameState.publicState) ? currentGameState.publicState : currentGameState;
+        // --- INÍCIO DA ALTERAÇÃO 2 ---
+        const scenarioState = currentGameState?.scenarioStates?.[currentGameState.currentScenario];
+        const publicScenarioState = currentGameState?.publicState;
+        const dataToRender = (myPlayerKey === 'spectator' && publicScenarioState) ? publicScenarioState : scenarioState;
         if (!dataToRender) return;
+        // --- FIM DA ALTERAÇÃO 2 ---
 
         const globalTokenScale = dataToRender.globalTokenScale || 1.0;
         
@@ -754,8 +760,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         selectedTokens.clear();
                      } else if (e.key.toLowerCase() === 'f') {
                         e.preventDefault();
+                        const scenarioState = currentGameState.scenarioStates[currentGameState.currentScenario];
+                        if(!scenarioState) return;
+
                         currentSelectedTokens.forEach(token => {
-                            const currentTokenState = currentGameState.tokens[token.id];
+                            const currentTokenState = scenarioState.tokens[token.id];
                             if (currentTokenState) {
                                 socket.emit('playerAction', { type: 'updateToken', token: { id: token.id, isFlipped: !currentTokenState.isFlipped }});
                             }
@@ -921,7 +930,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         bottom: parseFloat(selectionBox.style.top) + parseFloat(selectionBox.style.height)
                     };
 
-                    Object.values(currentGameState.tokens).forEach(tokenData => {
+                    const scenarioState = currentGameState.scenarioStates[currentGameState.currentScenario];
+                    if(!scenarioState) return;
+
+                    Object.values(scenarioState.tokens).forEach(tokenData => {
                         const tokenEl = document.getElementById(tokenData.id);
                         if (!tokenEl) return;
                         
@@ -1069,7 +1081,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const scaleAmount = e.deltaY > 0 ? -0.1 : 0.1;
                 const updates = [];
                 selectedTokens.forEach(tokenId => {
-                    const tokenData = currentGameState.tokens[tokenId];
+                    const scenarioState = currentGameState.scenarioStates[currentGameState.currentScenario];
+                    if(!scenarioState) return;
+                    const tokenData = scenarioState.tokens[tokenId];
                     if (tokenData) {
                         const currentScale = tokenData.scale || 1;
                         const newScale = Math.max(0.1, currentScale + scaleAmount);
@@ -1149,54 +1163,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- INÍCIO DA ALTERAÇÃO 2: Renderização do modo cenário ---
     function renderTheaterMode(state) {
-        const dataToRender = (myPlayerKey === 'spectator' && state.publicState) ? state.publicState : state;
-        const gmData = isGm ? state : null;
+        const currentScenarioState = state.scenarioStates[state.currentScenario];
+        const dataToRender = (myPlayerKey === 'spectator' && state.publicState) ? state.publicState : currentScenarioState;
+        
+        if (!dataToRender || !dataToRender.scenario) return;
 
-        if (dataToRender.scenario) {
+        const img = new Image();
+        img.onload = () => {
+            theaterBackgroundImage.src = img.src;
             const worldContainer = document.getElementById('theater-world-container');
-            
-            const img = new Image();
-            img.onload = () => {
-                theaterBackgroundImage.src = img.src;
-                if (worldContainer) {
-                    worldContainer.style.width = `${img.naturalWidth}px`;
-                    worldContainer.style.height = `${img.naturalHeight}px`;
-                }
-                if (isGm && (state.scenarioWidth !== img.naturalWidth || state.scenarioHeight !== img.naturalHeight)) {
-                    socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
-                }
+            if (worldContainer) {
+                worldContainer.style.width = `${img.naturalWidth}px`;
+                worldContainer.style.height = `${img.naturalHeight}px`;
+            }
+            if (isGm && (currentScenarioState.scenarioWidth !== img.naturalWidth || currentScenarioState.scenarioHeight !== img.naturalHeight)) {
+                socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
+            }
 
-                const isMobileSpectator = myPlayerKey === 'spectator' && window.innerWidth <= 800;
-                if (isMobileSpectator) {
-                    const viewport = theaterBackgroundViewport;
-                    const scenarioWidth = img.naturalWidth;
-                    const scenarioHeight = img.naturalHeight;
+            const isMobileSpectator = myPlayerKey === 'spectator' && window.innerWidth <= 800;
+            if (isMobileSpectator) {
+                const viewport = theaterBackgroundViewport;
+                const scenarioWidth = img.naturalWidth;
+                const scenarioHeight = img.naturalHeight;
 
-                    if (scenarioWidth > 0 && scenarioHeight > 0) {
-                        const scaleX = viewport.clientWidth / scenarioWidth;
-                        const scaleY = viewport.clientHeight / scenarioHeight;
-                        currentScenarioScale = Math.min(scaleX, scaleY);
-                        
-                        const scaledWidth = scenarioWidth * currentScenarioScale;
-                        const scaledHeight = scenarioHeight * currentScenarioScale;
-                        viewport.scrollLeft = (scaledWidth - viewport.clientWidth) / 2;
-                        viewport.scrollTop = (scaledHeight - viewport.clientHeight) / 2;
-                    }
+                if (scenarioWidth > 0 && scenarioHeight > 0) {
+                    const scaleX = viewport.clientWidth / scenarioWidth;
+                    const scaleY = viewport.clientHeight / scenarioHeight;
+                    currentScenarioScale = Math.min(scaleX, scaleY);
+                    
+                    const scaledWidth = scenarioWidth * currentScenarioScale;
+                    const scaledHeight = scenarioHeight * currentScenarioScale;
+                    viewport.scrollLeft = (scaledWidth - viewport.clientWidth) / 2;
+                    viewport.scrollTop = (scaledHeight - viewport.clientHeight) / 2;
                 }
-                updateTheaterZoom();
-            };
-            img.src = `images/${dataToRender.scenario}`;
-        }
+            }
+            updateTheaterZoom();
+        };
+        img.src = `images/${dataToRender.scenario}`;
         
         const theaterScreenEl = document.getElementById('theater-screen'); 
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         theaterGmPanel.classList.toggle('hidden', !isGm); 
         toggleGmPanelBtn.classList.toggle('hidden', !isGm);
-        theaterPublishBtn.classList.toggle('hidden', !isGm || !state.isStaging);
+        theaterPublishBtn.classList.toggle('hidden', !isGm || !currentScenarioState?.isStaging);
 
-        if (isGm) {
-            theaterGlobalScale.value = state.globalTokenScale || 1.0;
+        if (isGm && currentScenarioState) {
+            theaterGlobalScale.value = currentScenarioState.globalTokenScale || 1.0;
         }
 
         if (!isGm) { 
@@ -1206,8 +1220,10 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterTokenContainer.innerHTML = '';
         const fragment = document.createDocumentFragment();
         
-        const tokensToRender = isGm ? gmData.tokens : dataToRender.tokens;
-        const tokenOrderToRender = isGm ? gmData.tokenOrder : dataToRender.tokenOrder;
+        const publicScenarioState = state.publicState;
+        const gmData = isGm ? currentScenarioState : null;
+        const tokensToRender = isGm ? gmData.tokens : publicScenarioState.tokens;
+        const tokenOrderToRender = isGm ? gmData.tokenOrder : publicScenarioState.tokenOrder;
 
         tokenOrderToRender.forEach((tokenId, index) => {
             const tokenData = tokensToRender[tokenId];
@@ -1244,6 +1260,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateTheaterZoom();
     }
+    // --- FIM DA ALTERAÇÃO 2 ---
     // #endregion
 
     socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });

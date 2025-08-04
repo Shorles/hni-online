@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require('uuid');
-const fs = require('fs'); // Módulo para ler arquivos
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,18 +10,16 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-// --- INÍCIO DA CORREÇÃO: Lógica de carregamento de lutadores ---
 const DEFAULT_FIGHTER_STATS = { agi: 1, res: 1 };
 let LUTA_CHARACTERS = {};
 
 try {
     const lutadoresData = fs.readFileSync('lutadores.json', 'utf8');
-    // Este método é mais robusto para extrair os nomes do seu arquivo JSON.
     const lutadoresNomes = lutadoresData
-        .replace(/[\[\]]/g, '') // Remove os colchetes de início e fim
-        .split(',')             // Separa os nomes pela vírgula
-        .map(name => name.replace(/"/g, '').trim()) // Remove as aspas e espaços extras de cada nome
-        .filter(name => name); // Remove entradas vazias que podem surgir de uma vírgula no final
+        .replace(/[\[\]]/g, '') 
+        .split(',')             
+        .map(name => name.replace(/"/g, '').trim()) 
+        .filter(name => name); 
 
     lutadoresNomes.forEach(nome => {
         LUTA_CHARACTERS[nome] = { ...DEFAULT_FIGHTER_STATS };
@@ -29,14 +27,11 @@ try {
     console.log('Lutadores carregados com sucesso!');
 } catch (error) {
     console.error('Erro ao carregar lutadores.json:', error);
-    console.error('Verifique se o arquivo existe na raíz do projeto e se o formato está correto.');
 }
-// --- FIM DA CORREÇÃO ---
 
 
 const games = {};
 
-// --- MANTIDO PARA OUTROS MODOS ---
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
@@ -76,7 +71,6 @@ const MOVE_SOUNDS = {
     'Clinch': ['Esquiva.mp3'],
     'Esquiva': ['Esquiva.mp3']
 };
-// --- FIM DA MANUTENÇÃO ---
 
 function rollD(s, state) {
     if (state && typeof state.diceCheat === 'number') {
@@ -111,26 +105,36 @@ function createNewGameState() {
     };
 }
 
-function createNewTheaterState(scenario) {
-    return {
+// --- INÍCIO DA ALTERAÇÃO 2 ---
+function createNewTheaterState(initialScenario) {
+    const theaterState = {
         mode: 'theater',
         gmId: null,
         log: [{ text: "Modo Teatro iniciado."}],
-        scenario: scenario,
+        currentScenario: initialScenario,
+        scenarioStates: {}, // Armazena o estado de cada cenário
+        publicState: {} // Estado visível para espectadores
+    };
+    // Inicializa o estado para o primeiro cenário
+    theaterState.scenarioStates[initialScenario] = {
+        scenario: initialScenario,
         scenarioWidth: null,
         scenarioHeight: null,
         tokens: {},
         tokenOrder: [],
         globalTokenScale: 1.0,
         isStaging: false,
-        publicState: {
-            scenario: scenario,
-            tokens: {},
-            tokenOrder: [],
-            globalTokenScale: 1.0
-        }
     };
+    // Inicializa o estado público
+    theaterState.publicState = {
+        scenario: initialScenario,
+        tokens: {},
+        tokenOrder: [],
+        globalTokenScale: 1.0
+    };
+    return theaterState;
 }
+// --- FIM DA ALTERAÇÃO 2 ---
 
 function createNewFighterState(data) {
     const res = Math.max(1, parseInt(data.res, 10) || 1);
@@ -151,35 +155,37 @@ function createNewFighterState(data) {
 
 function logMessage(state, text, className = '') { if(state && state.log) { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); } }
 
-function filterVisibleTokens(state) {
-    if (!state.scenarioWidth || !state.scenarioHeight) {
+// --- INÍCIO DA ALTERAÇÃO 2 ---
+function filterVisibleTokens(currentScenarioState) {
+    if (!currentScenarioState.scenarioWidth || !currentScenarioState.scenarioHeight) {
         return {
-            visibleTokens: { ...state.tokens },
-            visibleTokenOrder: [...state.tokenOrder]
+            visibleTokens: { ...currentScenarioState.tokens },
+            visibleTokenOrder: [...currentScenarioState.tokenOrder]
         };
     }
 
     const visibleTokenIds = new Set();
     const visibleTokens = {};
 
-    for (const tokenId of state.tokenOrder) {
-        const token = state.tokens[tokenId];
+    for (const tokenId of currentScenarioState.tokenOrder) {
+        const token = currentScenarioState.tokens[tokenId];
         if (!token) continue;
         
         const tokenCenterX = token.x + (200 * (token.scale || 1) / 2);
         const tokenCenterY = token.y + (200 * (token.scale || 1) / 2); 
 
-        if (tokenCenterX >= 0 && tokenCenterX <= state.scenarioWidth &&
-            tokenCenterY >= 0 && tokenCenterY <= state.scenarioHeight) {
+        if (tokenCenterX >= 0 && tokenCenterX <= currentScenarioState.scenarioWidth &&
+            tokenCenterY >= 0 && tokenCenterY <= currentScenarioState.scenarioHeight) {
             visibleTokenIds.add(tokenId);
             visibleTokens[tokenId] = token;
         }
     }
 
-    const visibleTokenOrder = state.tokenOrder.filter(id => visibleTokenIds.has(id));
+    const visibleTokenOrder = currentScenarioState.tokenOrder.filter(id => visibleTokenIds.has(id));
     
     return { visibleTokens, visibleTokenOrder };
 }
+// --- FIM DA ALTERAÇÃO 2 ---
 
 function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
     let attackResult = { hit: false, counterLanded: false };
@@ -607,8 +613,7 @@ function dispatchAction(room) {
 }
 io.on('connection', (socket) => {
     socket.emit('availableFighters', {
-        p1: LUTA_CHARACTERS,
-        theater: LUTA_CHARACTERS
+        p1: LUTA_CHARACTERS
     });
 
     socket.on('createGame', ({player1Data, scenario}) => {
@@ -634,9 +639,6 @@ io.on('connection', (socket) => {
         socket.currentRoomId = newRoomId;
         const newState = createNewTheaterState(scenario);
         newState.gmId = socket.id;
-        newState.publicState.scenario = newState.scenario;
-        newState.publicState.tokens = JSON.parse(JSON.stringify(newState.tokens));
-        newState.publicState.tokenOrder = [...newState.tokenOrder];
         
         games[newRoomId] = { id: newRoomId, hostId: null, players: [], spectators: [], state: newState };
         socket.emit('assignPlayer', { playerKey: 'gm', isGm: true });
@@ -747,11 +749,21 @@ io.on('connection', (socket) => {
                 const uniqueUserIds = [...new Set(allUserIds)];
                 
                 if (targetMode === 'theater') {
-                    newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
+                    // --- INÍCIO DA ALTERAÇÃO 2 ---
+                    // Se já existe um estado de cenário, preserva-o
+                    newState = state.mode === 'theater' ? state : createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
+                    newState.mode = 'theater'; // Garante que o modo está correto
+                    // --- FIM DA ALTERAÇÃO 2 ---
                     newState.gmId = action.gmSocketId;
                     newSpectators = uniqueUserIds.filter(id => id !== action.gmSocketId);
                 } else {
                     newState = createNewGameState();
+                    // --- INÍCIO DA ALTERAÇÃO 2 ---
+                    // Preserva os cenários do estado anterior, se houver
+                    if(state.mode === 'theater') {
+                        newState.scenarioStates = state.scenarioStates;
+                    }
+                    // --- FIM DA ALTERAÇÃO 2 ---
                     newState.mode = targetMode;
                     newState.gmId = action.gmSocketId;
                     newState.scenario = scenario || 'Ringue.png';
@@ -791,63 +803,81 @@ io.on('connection', (socket) => {
                 state.phase = 'p1_special_moves_selection';
                 break;
 
-            // THEATER MODE ACTIONS
-            case 'update_scenario_dims':
-                state.scenarioWidth = action.width;
-                state.scenarioHeight = action.height;
-                break;
-            case 'updateGlobalScale':
-                state.globalTokenScale = action.scale;
-                if (!state.isStaging) {
-                    const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(state);
-                    state.publicState.tokens = visibleTokens;
-                    state.publicState.tokenOrder = visibleTokenOrder;
-                    state.publicState.globalTokenScale = action.scale;
+            // --- INÍCIO DA ALTERAÇÃO 2 (THEATER MODE ACTIONS) ---
+            case 'update_scenario_dims': {
+                const scenarioState = state.scenarioStates[state.currentScenario];
+                if(scenarioState) {
+                    scenarioState.scenarioWidth = action.width;
+                    scenarioState.scenarioHeight = action.height;
                 }
                 break;
-            case 'publish_stage':
-                state.publicState.scenario = state.scenario;
-                const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(state);
-                state.publicState.tokens = visibleTokens;
-                state.publicState.tokenOrder = visibleTokenOrder;
-                state.publicState.globalTokenScale = state.globalTokenScale;
-                state.isStaging = false;
-                logMessage(state, 'GM publicou a nova cena para os espectadores.');
+            }
+            case 'updateGlobalScale': {
+                const scenarioState = state.scenarioStates[state.currentScenario];
+                if(scenarioState) {
+                    scenarioState.globalTokenScale = action.scale;
+                    if (!scenarioState.isStaging) {
+                        const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(scenarioState);
+                        state.publicState.tokens = visibleTokens;
+                        state.publicState.tokenOrder = visibleTokenOrder;
+                        state.publicState.globalTokenScale = action.scale;
+                    }
+                }
                 break;
-            case 'updateToken':
+            }
+            case 'publish_stage': {
+                const scenarioState = state.scenarioStates[state.currentScenario];
+                if(scenarioState) {
+                    state.publicState.scenario = scenarioState.scenario;
+                    const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(scenarioState);
+                    state.publicState.tokens = visibleTokens;
+                    state.publicState.tokenOrder = visibleTokenOrder;
+                    state.publicState.globalTokenScale = scenarioState.globalTokenScale;
+                    scenarioState.isStaging = false;
+                    logMessage(state, 'GM publicou a nova cena para os espectadores.');
+                }
+                break;
+            }
+            case 'updateToken': {
+                const scenarioState = state.scenarioStates[state.currentScenario];
+                if(!scenarioState) break;
+
                 if (action.token.remove) {
                     if (Array.isArray(action.token.ids)) {
                         action.token.ids.forEach(idToRemove => {
-                            delete state.tokens[idToRemove];
-                            state.tokenOrder = state.tokenOrder.filter(id => id !== idToRemove);
+                            delete scenarioState.tokens[idToRemove];
+                            scenarioState.tokenOrder = scenarioState.tokenOrder.filter(id => id !== idToRemove);
                         });
                     } else {
-                        delete state.tokens[action.token.id];
-                        state.tokenOrder = state.tokenOrder.filter(id => id !== action.token.id);
+                        delete scenarioState.tokens[action.token.id];
+                        scenarioState.tokenOrder = scenarioState.tokenOrder.filter(id => id !== action.token.id);
                     }
                 } else if (action.token.updates) {
                      action.token.updates.forEach(update => {
-                        if (state.tokens[update.id]) {
-                            Object.assign(state.tokens[update.id], update);
+                        if (scenarioState.tokens[update.id]) {
+                            Object.assign(scenarioState.tokens[update.id], update);
                         }
                     });
                 }
                 else {
-                    if (!state.tokens[action.token.id]) {
-                        state.tokens[action.token.id] = { isFlipped: false };
-                        state.tokenOrder.push(action.token.id);
+                    if (!scenarioState.tokens[action.token.id]) {
+                        scenarioState.tokens[action.token.id] = { isFlipped: false };
+                        scenarioState.tokenOrder.push(action.token.id);
                     }
-                    Object.assign(state.tokens[action.token.id], action.token);
+                    Object.assign(scenarioState.tokens[action.token.id], action.token);
                 }
-                if (!state.isStaging) {
-                    const { visibleTokens: vTokens, visibleTokenOrder: vOrder } = filterVisibleTokens(state);
+                if (!scenarioState.isStaging) {
+                    const { visibleTokens: vTokens, visibleTokenOrder: vOrder } = filterVisibleTokens(scenarioState);
                     state.publicState.tokens = vTokens;
                     state.publicState.tokenOrder = vOrder;
                 }
                 break;
-            case 'changeTokenOrder':
+            }
+            case 'changeTokenOrder': {
+                const scenarioState = state.scenarioStates[state.currentScenario];
+                if(!scenarioState) break;
                 const { tokenId, direction } = action;
-                const order = state.tokenOrder;
+                const order = scenarioState.tokenOrder;
                 const currentIndex = order.indexOf(tokenId);
                 if (currentIndex === -1) break;
 
@@ -856,20 +886,39 @@ io.on('connection', (socket) => {
                 } else if (direction === 'backward' && currentIndex > 0) {
                     [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
                 }
-                if (!state.isStaging) {
-                    const { visibleTokenOrder: vOrder } = filterVisibleTokens(state);
+                if (!scenarioState.isStaging) {
+                    const { visibleTokenOrder: vOrder } = filterVisibleTokens(scenarioState);
                     state.publicState.tokenOrder = vOrder;
                 }
                 break;
-            case 'changeScenario':
-                state.scenario = action.scenario;
-                state.tokens = {};
-                state.tokenOrder = [];
-                state.scenarioWidth = null;
-                state.scenarioHeight = null;
-                state.isStaging = true; 
-                logMessage(state, `GM está preparando um novo cenário: ${action.scenario}`);
+            }
+            case 'changeScenario': {
+                const newScenarioName = action.scenario;
+                state.currentScenario = newScenarioName;
+                // Se o cenário ainda não foi visitado, cria um estado inicial para ele.
+                if (!state.scenarioStates[newScenarioName]) {
+                    state.scenarioStates[newScenarioName] = {
+                        scenario: newScenarioName,
+                        scenarioWidth: null,
+                        scenarioHeight: null,
+                        tokens: {},
+                        tokenOrder: [],
+                        globalTokenScale: 1.0,
+                        isStaging: true, // Novo cenário começa em modo de preparação
+                    };
+                }
+                const newScenarioState = state.scenarioStates[newScenarioName];
+                // Publica imediatamente o estado salvo do cenário para os espectadores
+                state.publicState.scenario = newScenarioState.scenario;
+                const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(newScenarioState);
+                state.publicState.tokens = visibleTokens;
+                state.publicState.tokenOrder = visibleTokenOrder;
+                state.publicState.globalTokenScale = newScenarioState.globalTokenScale;
+                
+                logMessage(state, `GM mudou para o cenário: ${action.scenario}`);
                 break;
+            }
+            // --- FIM DA ALTERAÇÃO 2 ---
 
             // BATTLE MODE ACTIONS
             case 'toggle_force_dice':
