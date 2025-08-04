@@ -18,26 +18,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerInitialSelectionScreen = document.getElementById('player-initial-selection-screen');
     const modeSelectionScreen = document.getElementById('mode-selection-screen');
     const scenarioScreen = document.getElementById('scenario-screen');
-    const selectionScreen = document.getElementById('selection-screen'); // Reutilizada para o GM
+    const selectionScreen = document.getElementById('selection-screen');
     const fightScreen = document.getElementById('fight-screen');
     const theaterScreen = document.getElementById('theater-screen');
     
-    // Elementos da Tela de Senha
     const passwordInput = document.getElementById('password-input');
     const passwordSubmitBtn = document.getElementById('password-submit-btn');
     const passwordError = document.getElementById('password-error');
 
-    // Elementos do Lobby do GM
     const shareLinkUniversal = document.getElementById('share-link-universal');
     const proceedToModeSelectionBtn = document.getElementById('proceed-to-mode-selection-btn');
     const connectedPlayersList = document.getElementById('connected-players-list');
     
-    // Elementos da Seleção do Jogador
     const playerCharListContainer = document.getElementById('player-character-list-container');
     const playerSelectionStatus = document.getElementById('player-selection-status');
     const spectateBtn = document.getElementById('spectate-btn');
     
-    // Outros Elementos
     const confirmBtn = document.getElementById('confirm-selection-btn');
     const charListContainer = document.getElementById('character-list-container');
     const modeClassicBtn = document.getElementById('mode-classic-btn');
@@ -55,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "objetos": { baseName: "objeto", count: 50 }, "outros": { baseName: "outro", count: 50 }
     };
 
-    // --- LÓGICA DE INICIALIZAÇÃO E FLUXO PRINCIPAL ---
+    let linkInitialized = false;
 
     function showScreen(screenToShow) {
         allScreens.forEach(screen => screen.classList.toggle('active', screen.id === screenToShow.id));
@@ -73,6 +69,12 @@ document.addEventListener('DOMContentLoaded', () => {
             passwordError.classList.add('hidden');
             socket.emit('createLobby', { password: passwordInput.value });
         });
+        // Correção 2: Adicionar listener para a tecla Enter
+        passwordInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                passwordSubmitBtn.click();
+            }
+        });
 
         proceedToModeSelectionBtn.addEventListener('click', () => showScreen(modeSelectionScreen));
         spectateBtn.addEventListener('click', handleSpectateClick);
@@ -82,11 +84,12 @@ document.addEventListener('DOMContentLoaded', () => {
             selectionTitle.innerText = 'GM (P1): Selecione seu Lutador';
             confirmBtn.innerText = 'Selecionar Oponente';
             renderCharacterSelection('p1', true);
-            confirmBtn.onclick = handleGmClassicSelection; // Reatribui o clique do botão
+            confirmBtn.onclick = handleGmClassicSelection;
         };
 
         modeArenaBtn.onclick = () => {
-            socket.emit('playerAction', { type: 'gm_select_mode', mode: 'arena' });
+             // A lógica completa da Arena pode ser adicionada aqui mais tarde
+            alert("Modo Arena ainda em desenvolvimento.");
         };
         
         modeTheaterBtn.onclick = () => {
@@ -106,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGlobalKeyListeners();
     }
 
+    // --- CORREÇÃO 5: Lógica para o GM selecionar seu personagem ---
     function handleGmClassicSelection() {
         const selectedCard = document.querySelector('#selection-screen .char-card.selected');
         if (!selectedCard) {
@@ -123,13 +127,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleSpectateClick() {
         socket.emit('enterAsSpectator');
-        playerSelectionStatus.textContent = "Você entrou como espectador. Aguardando o início do jogo...";
-        playerCharListContainer.querySelectorAll('.char-card').forEach(card => card.style.pointerEvents = 'none');
-        spectateBtn.disabled = true;
     }
 
     // --- SOCKET EVENT HANDLERS ---
-
     socket.on('passwordIncorrect', () => passwordError.classList.remove('hidden'));
 
     socket.on('lobbyCreated', ({ roomId }) => {
@@ -138,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         history.pushState({}, '', `?room=${roomId}`);
         
         shareLinkUniversal.textContent = url;
+        // Correção 3: Copiar link automaticamente
         shareLinkUniversal.onclick = () => copyToClipboard(url, shareLinkUniversal);
         
         showScreen(gmLobbyScreen);
@@ -149,6 +150,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(role === 'player' || role === 'spectator') {
             showScreen(playerInitialSelectionScreen);
             renderPlayerCharacterSelection();
+            if (role === 'spectator') {
+                 playerSelectionStatus.textContent = "Você está como espectador. Aguardando o início do jogo...";
+            }
         }
     });
 
@@ -190,16 +194,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('characterConfirmed', (character) => {
         myCharacter = character;
-        playerSelectionStatus.textContent = `Você selecionou ${character.name}! Aguarde o GM iniciar o jogo.`;
+        playerSelectionStatus.textContent = `Você selecionou ${character.name}!`;
+        // Correção 4: Adicionar botão de voltar
+        const backButton = document.createElement('button');
+        backButton.textContent = 'Voltar';
+        backButton.className = 'back-selection-btn';
+        backButton.onclick = () => {
+            socket.emit('deselectPlayerCharacter');
+        };
+        playerSelectionStatus.appendChild(backButton);
+
         playerCharListContainer.querySelectorAll('.char-card').forEach(card => card.style.pointerEvents = 'none');
         spectateBtn.style.display = 'none';
+    });
+    
+    // Correção 4: Lógica para quando o personagem é liberado
+    socket.on('characterDeselected', () => {
+        myCharacter = null;
+        playerSelectionStatus.innerHTML = ''; // Limpa a mensagem
+        playerCharListContainer.querySelectorAll('.char-card').forEach(card => card.style.pointerEvents = 'auto');
+        spectateBtn.style.display = 'block';
     });
 
     socket.on('showOpponentSelection', ({ players, mode }) => {
         const availablePlayers = Object.values(players).filter(p => p.role === 'player' && p.character);
         if (availablePlayers.length === 0) {
             alert("Nenhum jogador selecionou um personagem para a partida!");
-            showScreen(selectionScreen); // Volta para a tela de seleção do GM
+            showScreen(selectionScreen);
             return;
         }
 
@@ -229,7 +250,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ... (socket.on('gameUpdate') e outras funções de UI/jogo permanecem aqui) ...
-    
+    // O resto do código (funções de combate, etc.) permanece o mesmo.
+
     // --- FUNÇÕES DE RENDERIZAÇÃO ---
     function renderPlayerCharacterSelection() {
         playerCharListContainer.innerHTML = '';
@@ -255,9 +277,49 @@ document.addEventListener('DOMContentLoaded', () => {
             playerSelectionStatus.textContent = "Todos os personagens foram selecionados. Você só pode entrar como espectador.";
         }
     }
-    
-    // As funções restantes (showHelpModal, renderSpecialMoveSelection, etc.) permanecem as mesmas.
-    // Omitidas para brevidade. Cole-as aqui.
 
+    // --- CORREÇÃO 1: Lógica de escala da tela ---
+    const scaleGame = () => {
+        const w = document.getElementById('game-wrapper');
+        const isMobile = window.innerWidth <= 800;
+    
+        // Só aplica a escala se a tela ativa for de luta ou cenário
+        const activeScreen = document.querySelector('.screen.active');
+        if (activeScreen && (activeScreen.id === 'fight-screen' || activeScreen.id === 'theater-screen')) {
+             w.style.width = '1280px';
+             w.style.height = '720px';
+             if (isMobile) {
+                if (currentGameState && currentGameState.mode === 'theater') {
+                    w.style.transform = 'none';
+                    w.style.width = '100%';
+                    w.style.height = `${window.innerHeight}px`;
+                    w.style.left = '0';
+                    w.style.top = '0';
+                } else {
+                    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+                    w.style.transform = `scale(${scale})`;
+                    w.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+                    w.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+                }
+            } else {
+                const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+                w.style.transform = `scale(${scale})`;
+                w.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+                w.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+            }
+        } else {
+            // Para as telas de lobby/seleção, reseta a escala e deixa o CSS cuidar
+            w.style.transform = 'none';
+            w.style.width = '100%';
+            w.style.height = '100%';
+            w.style.left = '0';
+            w.style.top = '0';
+        }
+    };
+    
+    // As funções restantes (updateUI, showInfoModal, etc.) permanecem as mesmas.
+    // Cole o restante do seu código client.js aqui.
+    
     initialize();
+    window.addEventListener('resize', scaleGame);
 });
