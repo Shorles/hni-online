@@ -289,14 +289,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- CORREÇÃO DO PROBLEMA 2 ---
     function renderScenarioSelection(mode) {
+        const tabsContainer = document.getElementById('scenario-category-tabs');
         scenarioListContainer.innerHTML = '';
-        document.getElementById('scenario-category-tabs').style.display = 'none';
+        tabsContainer.innerHTML = '';
 
-        if (mode === 'theater') {
-            document.getElementById('scenario-category-tabs').style.display = 'flex';
-            const tabsContainer = document.getElementById('scenario-category-tabs');
-            tabsContainer.innerHTML = '';
+        if (mode === 'classic' || mode === 'arena') {
+            tabsContainer.style.display = 'none';
+            Object.entries(SCENARIOS).forEach(([name, fileName]) => {
+                const card = document.createElement('div');
+                card.className = 'scenario-card';
+                card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
+                card.onclick = () => {
+                    socket.emit('playerAction', { type: 'gmStartsMode', targetMode: mode, scenario: fileName });
+                };
+                scenarioListContainer.appendChild(card);
+            });
+        } else if (mode === 'theater') {
+            tabsContainer.style.display = 'flex';
             const categories = Object.keys(THEATER_SCENARIOS);
 
             const renderCategory = (categoryName) => {
@@ -330,16 +341,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderCategory(categoryName);
                 }
             });
-        } else { // classic or arena
-            Object.entries(SCENARIOS).forEach(([name, fileName]) => {
-                const card = document.createElement('div');
-                card.className = 'scenario-card';
-                card.innerHTML = `<img src="images/${fileName}" alt="${name}"><div class="scenario-name">${name}</div>`;
-                card.onclick = () => {
-                    socket.emit('playerAction', { type: 'gmStartsMode', targetMode: mode, scenario: fileName });
-                };
-                scenarioListContainer.appendChild(card);
-            });
         }
     }
     
@@ -359,13 +360,17 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptOpponentSelection', ({ availablePlayers }) => {
         if (!isGm) return;
         let playerListHtml = '<ul>';
-        availablePlayers.forEach(player => {
-            playerListHtml += `
-                <li class="opponent-selection-item" data-socket-id="${player.id}">
-                    <img src="${player.selectedCharacter.img}" alt="${player.selectedCharacter.nome}">
-                    <span>${player.selectedCharacter.nome}</span>
-                </li>`;
-        });
+        if (availablePlayers.length > 0) {
+            availablePlayers.forEach(player => {
+                playerListHtml += `
+                    <li class="opponent-selection-item" data-socket-id="${player.id}">
+                        <img src="${player.selectedCharacter.img}" alt="${player.selectedCharacter.nome}">
+                        <span>${player.selectedCharacter.nome}</span>
+                    </li>`;
+            });
+        } else {
+            playerListHtml += `<li>Nenhum jogador disponível para lutar.</li>`;
+        }
         playerListHtml += '</ul>';
 
         showInfoModal("Selecione o Oponente", playerListHtml);
@@ -474,7 +479,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isNowPaused && !wasPaused) { showCheatsModal(); } 
         else if (!isNowPaused && wasPaused) { modal.classList.add('hidden'); }
         
-        updateUI(currentGameState);
+        if (gameState.mode !== 'lobby') {
+            updateUI(gameState);
+        }
 
         gameWrapper.classList.toggle('mode-classic', currentGameState.mode === 'classic');
         gameWrapper.classList.toggle('mode-arena', currentGameState.mode === 'arena');
@@ -500,12 +507,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateGmLobbyUI(state) {
         const playerListEl = document.getElementById('gm-lobby-player-list');
         playerListEl.innerHTML = '';
-        Object.values(state.connectedPlayers).forEach(p => {
-            const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
-            const li = document.createElement('li');
-            li.innerHTML = `Jogador Conectado - Personagem: ${charName}`;
-            playerListEl.appendChild(li);
-        });
+        const connectedPlayers = Object.values(state.connectedPlayers);
+        if(connectedPlayers.length === 0) {
+            playerListEl.innerHTML = '<li>Aguardando jogadores...</li>';
+        } else {
+            connectedPlayers.forEach(p => {
+                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
+                const li = document.createElement('li');
+                li.innerHTML = `Jogador Conectado - Personagem: ${charName}`;
+                playerListEl.appendChild(li);
+            });
+        }
     }
 
 
@@ -516,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gmModeSwitchBtn.classList.toggle('hidden', !isGm || state.mode === 'lobby');
         const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
-        const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover'].includes(state.phase);
+        const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover', 'opponent_selection'].includes(state.phase);
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');
@@ -712,7 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateTheaterZoom() {
         const scenarioState = currentGameState?.scenarioStates?.[currentGameState.currentScenario];
         const publicScenarioState = currentGameState?.publicState;
-        const dataToRender = (myRole === 'spectator' && publicScenarioState) ? publicScenarioState : scenarioState;
+        const dataToRender = (myRole !== 'gm' && publicScenarioState) ? publicScenarioState : scenarioState;
         if (!dataToRender) return;
 
         const globalTokenScale = dataToRender.globalTokenScale || 1.0;
@@ -1297,7 +1309,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo, doubleKnockdownInfo }) => {
         let isMyTurnForAction = myPlayerKey === targetPlayerKey;
         if (modalType === 'disqualification' && isGm) isMyTurnForAction = true;
-        if (myRole === 'gm') isMyTurnForAction = true;
+        if (myRole === 'gm' && action) isMyTurnForAction = true;
         
         switch(modalType) {
             case 'gm_knockdown_decision': if (isGm) { const downedFighterName = currentGameState.fighters[knockdownInfo.downedPlayer]?.nome || 'O lutador'; const modalContentHtml = `<p>${downedFighterName} falhou em todas as tentativas de se levantar. O que o juíz (você) fará?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="gm-give-chance-btn" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Dar Última Chance</button><button id="gm-end-fight-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Encerrar a Luta (KO)</button></div>`; showInfoModal("Decisão do Juíz", modalContentHtml); document.getElementById('gm-give-chance-btn').onclick = () => { socket.emit('playerAction', { type: 'give_last_chance' }); modal.classList.add('hidden'); }; document.getElementById('gm-end-fight-btn').onclick = () => { socket.emit('playerAction', { type: 'resolve_knockdown_loss' }); modal.classList.add('hidden'); }; } break;
