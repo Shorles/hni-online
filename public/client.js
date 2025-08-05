@@ -481,6 +481,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const oldState = currentGameState;
         currentGameState = gameState;
         scaleGame();
+        
+        const SETUP_PHASES = ['gm_classic_setup', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring', 'p2_stat_assignment'];
 
         // GM Logic
         if (isGm) {
@@ -503,35 +505,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTheaterMode(gameState);
             }
         } 
-        // Player Logic
-        else if (myRole === 'player') {
+        // Player & Spectator Logic
+        else if (myRole === 'player' || myRole === 'spectator') {
             if (gameState.mode === 'lobby') {
-                if (gameState.connectedPlayers[socket.id] && !gameState.connectedPlayers[socket.id].selectedCharacter) {
+                if (myRole === 'player' && gameState.connectedPlayers[socket.id] && !gameState.connectedPlayers[socket.id].selectedCharacter) {
                     showScreen(selectionScreen);
                     renderPlayerCharacterSelection(gameState.unavailableCharacters);
                 } else {
                     showScreen(playerWaitingScreen);
                 }
-            } else if (gameState.mode === 'theater') {
-                showScreen(theaterScreen);
-                renderTheaterMode(gameState);
-            } else { // Battle modes
-                showScreen(fightScreen);
-            }
-        }
-        // Spectator Logic
-        else if (myRole === 'spectator') {
-            if (gameState.mode === 'lobby') {
-                showScreen(playerWaitingScreen);
-                document.getElementById('player-waiting-message').innerText = "Aguardando o GM iniciar o jogo...";
+            } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
+                if (SETUP_PHASES.includes(gameState.phase)) {
+                    showScreen(playerWaitingScreen);
+                    document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
+                } else {
+                    showScreen(fightScreen);
+                }
             } else if (gameState.mode === 'theater') {
                  showScreen(theaterScreen);
                  renderTheaterMode(gameState);
-            } else { // Battle modes
-                showScreen(fightScreen);
             }
         }
-        
+
         const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused';
         const isNowPaused = gameState.phase === 'paused';
@@ -738,18 +733,18 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const p1 = {
             nome: p1_base.nome || 'Jogador 1',
-            agi: p1_base.agi || 1,
-            res: p1_base.res || 1,
-            hp: p1_base.hp || (p1_base.res || 1) * 5,
-            pa: p1_base.pa || 3
+            agi: p1_base.agi ?? 1,
+            res: p1_base.res ?? 1,
+            hp: p1_base.hp ?? (p1_base.res || 1) * 5,
+            pa: p1_base.pa ?? 3
         };
 
         const p2 = {
             nome: p2_base.nome || 'Jogador 2',
-            agi: p2_base.agi || 1,
-            res: p2_base.res || 1,
-            hp: p2_base.hp || (p2_base.res || 1) * 5,
-            pa: p2_base.pa || 3
+            agi: p2_base.agi ?? 1,
+            res: p2_base.res ?? 1,
+            hp: p2_base.hp ?? (p2_base.res || 1) * 5,
+            pa: p2_base.pa ?? 3
         };
 
         const cheatHtml = `<div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;"><div id="cheat-p1"><h4>${p1.nome}</h4><label>AGI: <input type="number" id="cheat-p1-agi" value="${p1.agi}"></label><br><label>RES: <input type="number" id="cheat-p1-res" value="${p1.res}"></label><br><label>HP: <input type="number" id="cheat-p1-hp" value="${p1.hp}"></label><br><label>PA: <input type="number" id="cheat-p1-pa" value="${p1.pa}"></label><br></div><div id="cheat-p2"><h4>${p2.nome}</h4><label>AGI: <input type="number" id="cheat-p2-agi" value="${p2.agi}"></label><br><label>RES: <input type="number" id="cheat-p2-res" value="${p2.res}"></label><br><label>HP: <input type="number" id="cheat-p2-hp" value="${p2.hp}"></label><br><label>PA: <input type="number" id="cheat-p2-pa" value="${p2.pa}"></label><br></div></div>`;
