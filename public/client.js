@@ -293,8 +293,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderScenarioSelection(mode) {
         const tabsContainer = document.getElementById('scenario-category-tabs');
         const scenarioListContainer = document.getElementById('scenario-list-container');
-        scenarioListContainer.innerHTML = '';
+        
+        // Limpa o conteúdo anterior
         tabsContainer.innerHTML = '';
+        scenarioListContainer.innerHTML = '';
 
         if (mode === 'classic' || mode === 'arena') {
             tabsContainer.style.display = 'none';
@@ -342,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Initial render for the first category
+            // Renderiza a primeira categoria por padrão
             renderCategory(categories[0]);
         }
     }
