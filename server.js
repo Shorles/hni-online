@@ -113,7 +113,8 @@ function createNewGameState() {
         reactionState: null,
         diceCheat: null,
         illegalCheat: 'normal',
-        lobbyCache: null // Para guardar o estado do lobby ao mudar de modo
+        lobbyCache: null, 
+        theaterCache: null
     };
 }
 
@@ -751,12 +752,11 @@ io.on('connection', (socket) => {
             case 'gmStartsMode': {
                 const { targetMode, scenario } = action;
                 let newState;
-                let lobbyStateCache = { ...state }; // Salva o estado atual do lobby
+                let lobbyStateCache = { ...state };
                 
                 if (targetMode === 'theater') {
-                    newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
+                    newState = state.theaterCache || createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
                     newState.gmId = state.gmId;
-                    // Converte todos os players em espectadores
                     Object.keys(state.connectedPlayers).forEach(playerId => {
                         io.to(playerId).emit('assignRole', { role: 'spectator' });
                     });
@@ -775,18 +775,18 @@ io.on('connection', (socket) => {
                         newState.phase = 'arena_opponent_selection';
                     }
                 }
-                newState.lobbyCache = lobbyStateCache; // Armazena o lobby no novo estado
+                newState.lobbyCache = lobbyStateCache;
                 room.state = newState;
                 break;
             }
             case 'gm_switch_mode': {
                 const { targetMode } = action;
-                let lobbyState = state.lobbyCache || room.state; 
+                let lobbyState = state.lobbyCache; 
+                let currentTheaterState = state.mode === 'theater' ? state : null;
                 let newState;
 
                 if (targetMode === 'lobby') {
-                    newState = lobbyState; // Restaura o lobby
-                    // Reatribui papéis de jogador para quem tinha
+                    newState = lobbyState; 
                     Object.values(newState.connectedPlayers).forEach(p => {
                         io.to(p.id).emit('assignRole', { role: 'player' });
                     });
@@ -794,7 +794,7 @@ io.on('connection', (socket) => {
                 } else {
                      let scenario = (targetMode === 'classic' ? 'Ringue.png' : (targetMode === 'arena' ? 'Ringue2.png' : 'mapas/cenarios externos/externo (1).png'));
                      if (targetMode === 'theater') {
-                        newState = createNewTheaterState(scenario);
+                        newState = state.theaterCache || createNewTheaterState(scenario);
                         newState.gmId = state.gmId;
                         Object.keys(lobbyState.connectedPlayers).forEach(playerId => {
                             io.to(playerId).emit('assignRole', { role: 'spectator' });
@@ -816,7 +816,10 @@ io.on('connection', (socket) => {
                     }
                     newState.lobbyCache = lobbyState;
                 }
-                 room.state = newState;
+                if (currentTheaterState) {
+                    newState.theaterCache = currentTheaterState;
+                }
+                room.state = newState;
                 break;
             }
             case 'gm_confirm_p1_setup':
@@ -845,7 +848,6 @@ io.on('connection', (socket) => {
                 io.to(p1_socketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
                 io.to(p2_socketId).emit('assignRole', { role: 'player', playerKey: 'player2' });
                 
-                // --- CORREÇÃO 3 e 4: Enviar isGm: true para manter privilégios ---
                 io.to(state.gmId).emit('assignRole', { role: 'spectator', isGm: true });
                 
                 Object.keys(state.connectedPlayers).forEach(id => {
@@ -983,7 +985,6 @@ io.on('connection', (socket) => {
                         isStaging: true,
                     };
                 }
-                // --- CORREÇÃO 2: Não atualizar o publicState aqui ---
                 logMessage(state, `GM mudou para o cenário: ${action.scenario}. Use 'Publicar' para mostrar aos espectadores.`);
                 break;
             }
@@ -1324,9 +1325,9 @@ io.on('connection', (socket) => {
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex > -1) {
             const disconnectedPlayer = room.players.splice(playerIndex, 1)[0];
-            const playerInfo = state.connectedPlayers ? state.connectedPlayers[socket.id] : null;
-
-            if (state.mode === 'lobby' && playerInfo) {
+            
+            if (state.mode === 'lobby' && state.connectedPlayers[socket.id]) {
+                const playerInfo = state.connectedPlayers[socket.id];
                 if (playerInfo.selectedCharacter) {
                     state.unavailableCharacters = state.unavailableCharacters.filter(char => char !== playerInfo.selectedCharacter.nome);
                 }

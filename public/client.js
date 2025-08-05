@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         helpBtn.addEventListener('click', showHelpModal);
         gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
         
-        copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copySpectatorLinkInGameBtn); };
+        copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=player`, copySpectatorLinkInGameBtn); };
 
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
@@ -590,7 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');
-        copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
+        copyTheaterSpectatorLinkInGameBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
 
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
@@ -724,7 +724,6 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
     }
     
-    // --- CORREÇÃO 1: Tornar a função de cheats mais robusta ---
     function showCheatsModal() {
         if (!isGm) return;
         
@@ -822,7 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('keydown', (e) => {
             if (!isGm) return;
             
-            if (currentGameState && currentGameState.mode !== 'theater') {
+            if (currentGameState && currentGameState.mode !== 'theater' && currentGameState.mode !== 'lobby') {
                 if (e.key.toLowerCase() === 'c') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'toggle_pause' });
@@ -1274,7 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTheaterMode(state) {
         const currentScenarioState = state.scenarioStates[state.currentScenario];
-        const dataToRender = (myRole !== 'gm' && state.publicState) ? state.publicState : currentScenarioState;
+        const dataToRender = (myRole !== 'gm' && !isGm && state.publicState) ? state.publicState : currentScenarioState;
         
         if (!dataToRender || !dataToRender.scenario) return;
 
