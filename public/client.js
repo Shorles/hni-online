@@ -482,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scaleGame();
 
         // GM Logic
-        if (myRole === 'gm' || isGm) {
+        if (isGm) {
             if (gameState.mode === 'lobby') {
                 showScreen(gmInitialLobby);
                 updateGmLobbyUI(gameState);
@@ -505,7 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Player Logic
         else if (myRole === 'player') {
             if (gameState.mode === 'lobby') {
-                if (!gameState.connectedPlayers[socket.id]?.selectedCharacter) {
+                if (gameState.connectedPlayers[socket.id] && !gameState.connectedPlayers[socket.id].selectedCharacter) {
                     showScreen(selectionScreen);
                     renderPlayerCharacterSelection(gameState.unavailableCharacters);
                 } else {
@@ -531,11 +531,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const wasPaused = currentGameState.phase === 'paused';
+        // --- CORREÇÃO 1: Mover o showCheatsModal para fora do if/else de roles ---
+        const oldPhase = currentGameState ? currentGameState.phase : null;
+        const wasPaused = oldPhase === 'paused';
         const isNowPaused = gameState.phase === 'paused';
         
-        if (isNowPaused && !wasPaused) { showCheatsModal(); } 
-        else if (!isNowPaused && wasPaused) { modal.classList.add('hidden'); }
+        if (isGm && isNowPaused && !wasPaused) { 
+            showCheatsModal(); 
+        } else if (!isNowPaused && wasPaused) { 
+            modal.classList.add('hidden'); 
+        }
         
         if (gameState.mode !== 'lobby') {
             updateUI(gameState);
@@ -725,9 +730,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function showCheatsModal() {
-        if (!isGm || !currentGameState) return;
-        const p1 = currentGameState.fighters.player1; const p2 = currentGameState.fighters.player2;
-        if (!p1 || !p2) { console.warn("Cheats tentado antes dos lutadores estarem prontos."); socket.emit('playerAction', { type: 'toggle_pause' }); return; }
+        if (!isGm) return;
+        const p1 = currentGameState.fighters.player1 || { nome: 'Jogador 1', agi: 1, res: 1, hp: 5, pa: 3 };
+        const p2 = currentGameState.fighters.player2 || { nome: 'Jogador 2', agi: 1, res: 1, hp: 5, pa: 3 };
         const cheatHtml = `<div style="display: flex; gap: 20px; justify-content: space-around; text-align: left;"><div id="cheat-p1"><h4>${p1.nome}</h4><label>AGI: <input type="number" id="cheat-p1-agi" value="${p1.agi}"></label><br><label>RES: <input type="number" id="cheat-p1-res" value="${p1.res}"></label><br><label>HP: <input type="number" id="cheat-p1-hp" value="${p1.hp}"></label><br><label>PA: <input type="number" id="cheat-p1-pa" value="${p1.pa}"></label><br></div><div id="cheat-p2"><h4>${p2.nome}</h4><label>AGI: <input type="number" id="cheat-p2-agi" value="${p2.agi}"></label><br><label>RES: <input type="number" id="cheat-p2-res" value="${p2.res}"></label><br><label>HP: <input type="number" id="cheat-p2-hp" value="${p2.hp}"></label><br><label>PA: <input type="number" id="cheat-p2-pa" value="${p2.pa}"></label><br></div></div>`;
         showInteractiveModal("Menu de Trapaças (GM)", cheatHtml, "Aplicar e Continuar", null);
         modalButton.onclick = () => {

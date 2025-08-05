@@ -781,17 +781,17 @@ io.on('connection', (socket) => {
             }
             case 'gm_switch_mode': {
                 const { targetMode } = action;
-                let lobbyState = state.lobbyCache || room.state; // Usa o cache se existir, senão o estado atual (se for lobby)
+                let lobbyState = state.lobbyCache || room.state; 
                 let newState;
 
                 if (targetMode === 'lobby') {
-                    newState = state.lobbyCache;
+                    newState = lobbyState; // Restaura o lobby
                     // Reatribui papéis de jogador para quem tinha
                     Object.values(newState.connectedPlayers).forEach(p => {
                         io.to(p.id).emit('assignRole', { role: 'player' });
                     });
+                     io.to(newState.gmId).emit('assignRole', { role: 'gm', isGm: true });
                 } else {
-                    // Copia o fluxo de gmStartsMode
                      let scenario = (targetMode === 'classic' ? 'Ringue.png' : (targetMode === 'arena' ? 'Ringue2.png' : 'mapas/cenarios externos/externo (1).png'));
                      if (targetMode === 'theater') {
                         newState = createNewTheaterState(scenario);
@@ -845,10 +845,11 @@ io.on('connection', (socket) => {
                 io.to(p1_socketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
                 io.to(p2_socketId).emit('assignRole', { role: 'player', playerKey: 'player2' });
                 
+                // --- CORREÇÃO 3 e 4: Enviar isGm: true para manter privilégios ---
                 io.to(state.gmId).emit('assignRole', { role: 'spectator', isGm: true });
                 
                 Object.keys(state.connectedPlayers).forEach(id => {
-                    if (id !== p1_socketId && id !== p2_socketId) {
+                    if (id !== p1_socketId && id !== p2_socketId && id !== state.gmId) {
                          io.to(id).emit('assignRole', { role: 'spectator' });
                     }
                 });
@@ -982,14 +983,8 @@ io.on('connection', (socket) => {
                         isStaging: true,
                     };
                 }
-                const newScenarioState = state.scenarioStates[newScenarioName];
-                state.publicState.scenario = newScenarioState.scenario;
-                const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(newScenarioState);
-                state.publicState.tokens = visibleTokens;
-                state.publicState.tokenOrder = visibleTokenOrder;
-                state.publicState.globalTokenScale = newScenarioState.globalTokenScale;
-                
-                logMessage(state, `GM mudou para o cenário: ${action.scenario}`);
+                // --- CORREÇÃO 2: Não atualizar o publicState aqui ---
+                logMessage(state, `GM mudou para o cenário: ${action.scenario}. Use 'Publicar' para mostrar aos espectadores.`);
                 break;
             }
 
@@ -1052,16 +1047,20 @@ io.on('connection', (socket) => {
                 const { p1, p2 } = action.cheats;
                 const p1f = state.fighters.player1;
                 const p2f = state.fighters.player2;
-                p1f.agi = parseInt(p1.agi, 10);
-                p1f.res = parseInt(p1.res, 10);
-                p1f.hp = parseInt(p1.hp, 10);
-                p1f.pa = parseInt(p1.pa, 10);
-                p1f.hpMax = p1f.res * 5;
-                p2f.agi = parseInt(p2.agi, 10);
-                p2f.res = parseInt(p2.res, 10);
-                p2f.hp = parseInt(p2.hp, 10);
-                p2f.pa = parseInt(p2.pa, 10);
-                p2f.hpMax = p2f.res * 5;
+                if (p1f) {
+                    p1f.agi = parseInt(p1.agi, 10);
+                    p1f.res = parseInt(p1.res, 10);
+                    p1f.hp = parseInt(p1.hp, 10);
+                    p1f.pa = parseInt(p1.pa, 10);
+                    p1f.hpMax = p1f.res * 5;
+                }
+                if (p2f) {
+                    p2f.agi = parseInt(p2.agi, 10);
+                    p2f.res = parseInt(p2.res, 10);
+                    p2f.hp = parseInt(p2.hp, 10);
+                    p2f.pa = parseInt(p2.pa, 10);
+                    p2f.hpMax = p2f.res * 5;
+                }
                 break;
             case 'give_last_chance':
                 state.knockdownInfo.attempts = 3; 
