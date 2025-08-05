@@ -673,7 +673,7 @@ io.on('connection', (socket) => {
             players: [{ id: socket.id, role: 'gm' }],
             spectators: [],
             state: newState,
-            theaterState: null // <<< MODIFICAÇÃO 1: Adicionado para persistir o estado do teatro
+            theaterState: null 
         };
         
         socket.emit('assignRole', { role: 'gm', isGm: true });
@@ -696,7 +696,6 @@ io.on('connection', (socket) => {
             room.spectators.push(socket.id);
         } else {
              room.players.push({ id: socket.id, role: 'player' });
-             // Apenas adiciona ao lobby se o modo atual for lobby
              if (room.state.mode === 'lobby') {
                 room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
              }
@@ -707,7 +706,7 @@ io.on('connection', (socket) => {
         logMessage(room.state, `Um ${role} entrou na sala.`);
     });
     
-    socket.on('spectateGame', (roomId) => { // Kept for backwards compatibility / direct spectate links
+    socket.on('spectateGame', (roomId) => { 
         const room = games[roomId];
         if (!room) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
         socket.join(roomId);
@@ -725,7 +724,7 @@ io.on('connection', (socket) => {
         
         const room = games[roomId];
         const state = room.state;
-        action.gmSocketId = state.gmId; // Pass GM id for validation
+        action.gmSocketId = state.gmId; 
 
         if (!isActionValid(state, action)) {
             console.log("Ação inválida recebida:", action, "no modo/fase:", state.mode, state.phase);
@@ -758,15 +757,13 @@ io.on('connection', (socket) => {
                 let lobbyStateCache = { ...state }; 
                 
                 if (targetMode === 'theater') {
-                    // <<< MODIFICAÇÃO 2: Reutilizar estado do teatro se existir
                     if (room.theaterState) {
                         newState = room.theaterState;
                     } else {
                         newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
                         newState.gmId = state.gmId;
-                        room.theaterState = newState; // Salva o novo estado do teatro na sala
+                        room.theaterState = newState; 
                     }
-                    // Converte todos os players em espectadores
                     Object.keys(state.connectedPlayers).forEach(playerId => {
                         io.to(playerId).emit('assignRole', { role: 'spectator' });
                     });
@@ -803,7 +800,6 @@ io.on('connection', (socket) => {
                 } else {
                      let scenario = (targetMode === 'classic' ? 'Ringue.png' : (targetMode === 'arena' ? 'Ringue2.png' : 'mapas/cenarios externos/externo (1).png'));
                      if (targetMode === 'theater') {
-                        // <<< MODIFICAÇÃO 3: Reutilizar estado do teatro ao trocar de modo
                         if (room.theaterState) {
                            newState = room.theaterState;
                         } else {
@@ -984,9 +980,12 @@ io.on('connection', (socket) => {
                 break;
             }
             case 'changeScenario': {
+                // <<< CORREÇÃO: Lógica para resetar o status 'isStaging'
                 const newScenarioName = action.scenario;
                 state.currentScenario = newScenarioName;
+
                 if (!state.scenarioStates[newScenarioName]) {
+                    // Se o cenário é novo, cria-o com isStaging: true
                     state.scenarioStates[newScenarioName] = {
                         scenario: newScenarioName,
                         scenarioWidth: null,
@@ -996,6 +995,9 @@ io.on('connection', (socket) => {
                         globalTokenScale: 1.0,
                         isStaging: true,
                     };
+                } else {
+                    // Se o cenário já existe, apenas o marca como 'em preparação' novamente
+                    state.scenarioStates[newScenarioName].isStaging = true;
                 }
                 logMessage(state, `GM mudou para o cenário: ${action.scenario}. Use 'Publicar' para mostrar aos espectadores.`);
                 break;
@@ -1334,12 +1336,10 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // <<< MODIFICAÇÃO 4: Lógica de desconexão refatorada
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex > -1) {
             const disconnectedPlayer = room.players.splice(playerIndex, 1)[0];
 
-            // A limpeza agora é feita no estado de lobby, seja ele o ativo ou o cache
             const lobbyState = state.mode === 'lobby' ? state : state.lobbyCache;
 
             if (lobbyState && lobbyState.connectedPlayers && lobbyState.connectedPlayers[socket.id]) {
@@ -1352,11 +1352,8 @@ io.on('connection', (socket) => {
                 delete lobbyState.connectedPlayers[socket.id];
                 
                 logMessage(lobbyState, `${playerName} desconectou-se do lobby.`);
-                // Se o lobby não for o estado ativo, não precisamos notificar a atualização ainda.
-                // A atualização será enviada quando o GM retornar ao lobby.
             }
 
-            // Evita encerrar o jogo automaticamente. O GM decide.
             if (state.mode !== 'lobby' && state.phase !== 'gameover') {
                  const playerKey = disconnectedPlayer.playerKey;
                  if ((playerKey === 'player1' || playerKey === 'player2') && state.fighters[playerKey]) {
@@ -1364,7 +1361,6 @@ io.on('connection', (socket) => {
                  }
             }
             
-            // Notifica todos na sala sobre a mudança de estado (seja lobby ou jogo)
             io.to(roomId).emit('gameUpdate', room.state);
             return;
         }
