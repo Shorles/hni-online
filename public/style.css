@@ -582,7 +582,7 @@ body {
     pointer-events: none;
 }
 
-/* POSICIONAMENTO E ANIMAÇÃO DOS LUTADORES */
+/* --- CORREÇÃO: Restaurado o posicionamento absoluto dos lutadores --- */
 .fighter-img { 
     position: absolute; 
     width: 200px; 
