@@ -97,7 +97,7 @@ body {
     padding: 15px;
     width: 80%;
     max-width: 800px;
-    max-height: 180px; /* --- CORREÇÃO 1: Aumentado de 100px --- */
+    max-height: 180px;
     overflow-y: auto;
 }
 
