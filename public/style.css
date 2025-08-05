@@ -52,7 +52,7 @@ body {
 /* --- TELAS DE LOBBY E SENHA --- */
 #password-screen, #gm-initial-lobby, #player-waiting-screen {
     background-color: rgba(0, 0, 0, 0.9);
-    gap: 30px;
+    gap: 20px;
     text-align: center;
     padding: 20px;
     box-sizing: border-box;
@@ -62,6 +62,7 @@ body {
     font-size: 3.5em;
     color: #ffeb3b;
     text-shadow: 2px 2px 5px #000;
+    margin-bottom: 20px;
 }
 
 #password-input {
@@ -73,6 +74,7 @@ body {
     background-color: #333;
     color: #fff;
     border-radius: 8px;
+    margin-bottom: 10px;
 }
 
 .gm-links-container {
@@ -95,7 +97,7 @@ body {
     padding: 15px;
     width: 80%;
     max-width: 800px;
-    max-height: 200px;
+    max-height: 180px; /* --- CORREÇÃO 1: Aumentado de 100px --- */
     overflow-y: auto;
 }
 

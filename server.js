@@ -113,7 +113,7 @@ function createNewGameState() {
         reactionState: null,
         diceCheat: null,
         illegalCheat: 'normal',
-        theaterCache: null
+        lobbyCache: null // Para guardar o estado do lobby ao mudar de modo
     };
 }
 
@@ -675,7 +675,7 @@ io.on('connection', (socket) => {
             state: newState
         };
         
-        socket.emit('assignRole', { role: 'gm' });
+        socket.emit('assignRole', { role: 'gm', isGm: true });
         socket.emit('roomCreated', newRoomId);
         io.to(socket.id).emit('gameUpdate', newState);
     });
@@ -751,10 +751,15 @@ io.on('connection', (socket) => {
             case 'gmStartsMode': {
                 const { targetMode, scenario } = action;
                 let newState;
+                let lobbyStateCache = { ...state }; // Salva o estado atual do lobby
+                
                 if (targetMode === 'theater') {
                     newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
                     newState.gmId = state.gmId;
-                    room.state = newState;
+                    // Converte todos os players em espectadores
+                    Object.keys(state.connectedPlayers).forEach(playerId => {
+                        io.to(playerId).emit('assignRole', { role: 'spectator' });
+                    });
                 } else {
                     newState = createNewGameState();
                     newState.mode = targetMode;
@@ -769,8 +774,49 @@ io.on('connection', (socket) => {
                         newState.hostId = state.gmId;
                         newState.phase = 'arena_opponent_selection';
                     }
-                    room.state = newState;
                 }
+                newState.lobbyCache = lobbyStateCache; // Armazena o lobby no novo estado
+                room.state = newState;
+                break;
+            }
+            case 'gm_switch_mode': {
+                const { targetMode } = action;
+                let lobbyState = state.lobbyCache || room.state; // Usa o cache se existir, senão o estado atual (se for lobby)
+                let newState;
+
+                if (targetMode === 'lobby') {
+                    newState = state.lobbyCache;
+                    // Reatribui papéis de jogador para quem tinha
+                    Object.values(newState.connectedPlayers).forEach(p => {
+                        io.to(p.id).emit('assignRole', { role: 'player' });
+                    });
+                } else {
+                    // Copia o fluxo de gmStartsMode
+                     let scenario = (targetMode === 'classic' ? 'Ringue.png' : (targetMode === 'arena' ? 'Ringue2.png' : 'mapas/cenarios externos/externo (1).png'));
+                     if (targetMode === 'theater') {
+                        newState = createNewTheaterState(scenario);
+                        newState.gmId = state.gmId;
+                        Object.keys(lobbyState.connectedPlayers).forEach(playerId => {
+                            io.to(playerId).emit('assignRole', { role: 'spectator' });
+                        });
+                    } else {
+                        newState = createNewGameState();
+                        newState.mode = targetMode;
+                        newState.gmId = state.gmId;
+                        newState.scenario = scenario;
+                        newState.connectedPlayers = lobbyState.connectedPlayers;
+                        logMessage(newState, `GM trocou para o modo ${targetMode}.`);
+                        
+                        if(targetMode === 'classic') {
+                            newState.phase = 'gm_classic_setup';
+                        } else if (targetMode === 'arena') {
+                            newState.hostId = state.gmId;
+                            newState.phase = 'arena_opponent_selection';
+                        }
+                    }
+                    newState.lobbyCache = lobbyState;
+                }
+                 room.state = newState;
                 break;
             }
             case 'gm_confirm_p1_setup':
@@ -781,8 +827,7 @@ io.on('connection', (socket) => {
                 if(gmAsPlayer) gmAsPlayer.playerKey = 'player1';
                 else room.players.push({id: state.gmId, role: 'gm', playerKey: 'player1'})
                 
-                // --- CORREÇÃO 1: Notificar o GM que ele agora é P1 ---
-                io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1' });
+                io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1', isGm: true });
 
                 state.phase = 'opponent_selection';
                 break;
@@ -797,12 +842,11 @@ io.on('connection', (socket) => {
                 state.fighters.player1 = { nome: p1Data.selectedCharacter.nome, img: p1Data.selectedCharacter.img };
                 state.fighters.player2 = { nome: p2Data.selectedCharacter.nome, img: p2Data.selectedCharacter.img };
                 
-                // Assign roles to players
                 io.to(p1_socketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
                 io.to(p2_socketId).emit('assignRole', { role: 'player', playerKey: 'player2' });
-
-                // Set everyone else to spectator, including GM
-                io.to(state.gmId).emit('assignRole', { role: 'spectator' }); // GM is spectator now
+                
+                io.to(state.gmId).emit('assignRole', { role: 'spectator', isGm: true });
+                
                 Object.keys(state.connectedPlayers).forEach(id => {
                     if (id !== p1_socketId && id !== p2_socketId) {
                          io.to(id).emit('assignRole', { role: 'spectator' });
@@ -824,7 +868,6 @@ io.on('connection', (socket) => {
                 const opponentAsPlayer = room.players.find(p => p.id === opponentSocketId);
                 if(opponentAsPlayer) opponentAsPlayer.playerKey = 'player2';
                 
-                // Set all other players to spectators
                 Object.values(state.connectedPlayers).forEach(p => {
                     if (p.id !== state.gmId && p.id !== opponentSocketId) {
                         io.to(p.id).emit('assignRole', { role: 'spectator' });
