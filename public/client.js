@@ -149,11 +149,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (currentRoomId && roleFromUrl) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
+            // <<< MODIFICAÇÃO: Simplificação da lógica de entrada do jogador/espectador
+            // Agora o servidor controla a tela a ser mostrada via 'gameUpdate'
             if (roleFromUrl === 'player') {
                 showScreen(selectionScreen);
                 selectionTitle.innerText = `Selecione seu Personagem`;
                 confirmBtn.innerText = 'Confirmar Personagem';
-                renderPlayerCharacterSelection();
             } else { // spectator
                 showScreen(playerWaitingScreen);
                 document.getElementById('player-waiting-message').innerText = "Aguardando o GM iniciar o jogo como espectador...";
@@ -199,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         helpBtn.addEventListener('click', showHelpModal);
         gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
         
-        copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=player`, copySpectatorLinkInGameBtn); };
+        copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copySpectatorLinkInGameBtn); };
 
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
@@ -212,6 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
             socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
             showScreen(playerWaitingScreen);
+            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
             confirmBtn.disabled = true;
             return;
         }
@@ -231,6 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPlayerCharacterSelection(unavailable = []) {
         charListContainer.innerHTML = '';
+        confirmBtn.disabled = false; // <<< MODIFICAÇÃO: Habilita o botão ao renderizar
         
         Object.entries(PLAYABLE_CHARACTERS).forEach(([name, data]) => {
             const card = document.createElement('div');
@@ -508,11 +511,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Player & Spectator Logic
         else if (myRole === 'player' || myRole === 'spectator') {
             if (gameState.mode === 'lobby') {
-                if (myRole === 'player' && gameState.connectedPlayers[socket.id] && !gameState.connectedPlayers[socket.id].selectedCharacter) {
-                    showScreen(selectionScreen);
-                    renderPlayerCharacterSelection(gameState.unavailableCharacters);
-                } else {
-                    showScreen(playerWaitingScreen);
+                if (myRole === 'player') {
+                     const myPlayerData = gameState.connectedPlayers[socket.id];
+                     if (myPlayerData && !myPlayerData.selectedCharacter) {
+                        showScreen(selectionScreen);
+                        renderPlayerCharacterSelection(gameState.unavailableCharacters);
+                    } else {
+                        showScreen(playerWaitingScreen);
+                        document.getElementById('player-waiting-message').innerText = myPlayerData ? "Personagem enviado! Aguardando o Mestre..." : "Aguardando o Mestre iniciar o jogo...";
+                    }
+                } else { // Spectator
+                     showScreen(playerWaitingScreen);
+                     document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
                 }
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
                 if (SETUP_PHASES.includes(gameState.phase)) {
@@ -552,11 +562,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
             const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
 
-            document.getElementById('gm-link-player').textContent = playerUrl;
-            document.getElementById('gm-link-spectator').textContent = specUrl;
+            const playerLinkEl = document.getElementById('gm-link-player');
+            const specLinkEl = document.getElementById('gm-link-spectator');
+
+            playerLinkEl.textContent = playerUrl;
+            specLinkEl.textContent = specUrl;
             
-            document.getElementById('gm-link-player').onclick = () => copyToClipboard(playerUrl, document.getElementById('gm-link-player'));
-            document.getElementById('gm-link-spectator').onclick = () => copyToClipboard(specUrl, document.getElementById('gm-link-spectator'));
+            playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
+            specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
 
             showScreen(gmInitialLobby);
         }
@@ -576,6 +589,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerListEl.appendChild(li);
             });
         }
+         // <<< MODIFICAÇÃO: Garante que os links flutuantes de convite fiquem sempre visíveis no lobby do GM
+        const playerLinkEl = document.getElementById('gm-link-player');
+        const specLinkEl = document.getElementById('gm-link-spectator');
+        if (!playerLinkEl.textContent.includes('Gerando')) { // Evita reescrever antes de ter o link
+             const baseUrl = window.location.origin;
+             playerLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=player`;
+             specLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=spectator`;
+        }
     }
 
 
@@ -590,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');
-        copyTheaterSpectatorLinkInGameBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
+        copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
 
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
@@ -821,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('keydown', (e) => {
             if (!isGm) return;
             
-            if (currentGameState && currentGameState.mode !== 'theater' && currentGameState.mode !== 'lobby') {
+            if (currentGameState && currentGameState.mode !== 'theater') {
                 if (e.key.toLowerCase() === 'c') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'toggle_pause' });
@@ -1272,8 +1293,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTheaterMode(state) {
-        const currentScenarioState = state.scenarioStates[state.currentScenario];
-        const dataToRender = (myRole !== 'gm' && !isGm && state.publicState) ? state.publicState : currentScenarioState;
+        // <<< MODIFICAÇÃO: Lógica de renderização agora é mais robusta e sempre usa o estado do servidor
+        const dataToRender = (isGm ? state : state.publicState) || state;
         
         if (!dataToRender || !dataToRender.scenario) return;
 
@@ -1285,7 +1306,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 worldContainer.style.width = `${img.naturalWidth}px`;
                 worldContainer.style.height = `${img.naturalHeight}px`;
             }
-            if (isGm && (currentScenarioState.scenarioWidth !== img.naturalWidth || currentScenarioState.scenarioHeight !== img.naturalHeight)) {
+            if (isGm && state.scenarioStates[state.currentScenario] && (state.scenarioStates[state.currentScenario].scenarioWidth !== img.naturalWidth || state.scenarioStates[state.currentScenario].scenarioHeight !== img.naturalHeight)) {
                 socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
             }
 
@@ -1314,10 +1335,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         theaterGmPanel.classList.toggle('hidden', !isGm); 
         toggleGmPanelBtn.classList.toggle('hidden', !isGm);
-        theaterPublishBtn.classList.toggle('hidden', !isGm || !currentScenarioState?.isStaging);
+        theaterPublishBtn.classList.toggle('hidden', !isGm || !state.scenarioStates?.[state.currentScenario]?.isStaging);
 
-        if (isGm && currentScenarioState) {
-            theaterGlobalScale.value = currentScenarioState.globalTokenScale || 1.0;
+        if (isGm && state.scenarioStates?.[state.currentScenario]) {
+            theaterGlobalScale.value = state.scenarioStates[state.currentScenario].globalTokenScale || 1.0;
         }
 
         if (!isGm) { 
@@ -1327,10 +1348,8 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterTokenContainer.innerHTML = '';
         const fragment = document.createDocumentFragment();
         
-        const publicScenarioState = state.publicState;
-        const gmData = isGm ? currentScenarioState : null;
-        const tokensToRender = isGm ? gmData.tokens : publicScenarioState.tokens;
-        const tokenOrderToRender = isGm ? gmData.tokenOrder : publicScenarioState.tokenOrder;
+        const tokensToRender = dataToRender.tokens || {};
+        const tokenOrderToRender = dataToRender.tokenOrder || [];
 
         tokenOrderToRender.forEach((tokenId, index) => {
             const tokenData = tokensToRender[tokenId];
@@ -1355,10 +1374,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (selectedTokens.has(tokenId)) {
                     tokenEl.classList.add('selected');
                 }
-                const tokenCenterX = tokenData.x + (200 * scale / 2);
-                const tokenCenterY = tokenData.y + (200 * scale / 2);
-                if (gmData.scenarioWidth && (tokenCenterX < 0 || tokenCenterX > gmData.scenarioWidth || tokenCenterY < 0 || tokenCenterY > gmData.scenarioHeight)) {
-                    tokenEl.classList.add('off-stage');
+                const gmData = state.scenarioStates?.[state.currentScenario];
+                if (gmData) {
+                    const tokenCenterX = tokenData.x + (200 * scale / 2);
+                    const tokenCenterY = tokenData.y + (200 * scale / 2);
+                    if (gmData.scenarioWidth && (tokenCenterX < 0 || tokenCenterX > gmData.scenarioWidth || tokenCenterY < 0 || tokenCenterY > gmData.scenarioHeight)) {
+                        tokenEl.classList.add('off-stage');
+                    }
                 }
             }
             fragment.appendChild(tokenEl);

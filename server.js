@@ -113,8 +113,7 @@ function createNewGameState() {
         reactionState: null,
         diceCheat: null,
         illegalCheat: 'normal',
-        lobbyCache: null, 
-        theaterCache: null
+        lobbyCache: null // Para guardar o estado do lobby ao mudar de modo
     };
 }
 
@@ -673,7 +672,8 @@ io.on('connection', (socket) => {
             id: newRoomId,
             players: [{ id: socket.id, role: 'gm' }],
             spectators: [],
-            state: newState
+            state: newState,
+            theaterState: null // <<< MODIFICAÇÃO 1: Adicionado para persistir o estado do teatro
         };
         
         socket.emit('assignRole', { role: 'gm', isGm: true });
@@ -696,7 +696,10 @@ io.on('connection', (socket) => {
             room.spectators.push(socket.id);
         } else {
              room.players.push({ id: socket.id, role: 'player' });
-             room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
+             // Apenas adiciona ao lobby se o modo atual for lobby
+             if (room.state.mode === 'lobby') {
+                room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
+             }
         }
        
         socket.emit('assignRole', { role });
@@ -752,11 +755,18 @@ io.on('connection', (socket) => {
             case 'gmStartsMode': {
                 const { targetMode, scenario } = action;
                 let newState;
-                let lobbyStateCache = { ...state };
+                let lobbyStateCache = { ...state }; 
                 
                 if (targetMode === 'theater') {
-                    newState = state.theaterCache || createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
-                    newState.gmId = state.gmId;
+                    // <<< MODIFICAÇÃO 2: Reutilizar estado do teatro se existir
+                    if (room.theaterState) {
+                        newState = room.theaterState;
+                    } else {
+                        newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
+                        newState.gmId = state.gmId;
+                        room.theaterState = newState; // Salva o novo estado do teatro na sala
+                    }
+                    // Converte todos os players em espectadores
                     Object.keys(state.connectedPlayers).forEach(playerId => {
                         io.to(playerId).emit('assignRole', { role: 'spectator' });
                     });
@@ -775,14 +785,13 @@ io.on('connection', (socket) => {
                         newState.phase = 'arena_opponent_selection';
                     }
                 }
-                newState.lobbyCache = lobbyStateCache;
+                newState.lobbyCache = lobbyStateCache; 
                 room.state = newState;
                 break;
             }
             case 'gm_switch_mode': {
                 const { targetMode } = action;
-                let lobbyState = state.lobbyCache; 
-                let currentTheaterState = state.mode === 'theater' ? state : null;
+                let lobbyState = state.lobbyCache || room.state; 
                 let newState;
 
                 if (targetMode === 'lobby') {
@@ -794,8 +803,14 @@ io.on('connection', (socket) => {
                 } else {
                      let scenario = (targetMode === 'classic' ? 'Ringue.png' : (targetMode === 'arena' ? 'Ringue2.png' : 'mapas/cenarios externos/externo (1).png'));
                      if (targetMode === 'theater') {
-                        newState = state.theaterCache || createNewTheaterState(scenario);
-                        newState.gmId = state.gmId;
+                        // <<< MODIFICAÇÃO 3: Reutilizar estado do teatro ao trocar de modo
+                        if (room.theaterState) {
+                           newState = room.theaterState;
+                        } else {
+                            newState = createNewTheaterState(scenario);
+                            newState.gmId = state.gmId;
+                            room.theaterState = newState;
+                        }
                         Object.keys(lobbyState.connectedPlayers).forEach(playerId => {
                             io.to(playerId).emit('assignRole', { role: 'spectator' });
                         });
@@ -816,10 +831,7 @@ io.on('connection', (socket) => {
                     }
                     newState.lobbyCache = lobbyState;
                 }
-                if (currentTheaterState) {
-                    newState.theaterCache = currentTheaterState;
-                }
-                room.state = newState;
+                 room.state = newState;
                 break;
             }
             case 'gm_confirm_p1_setup':
@@ -1314,7 +1326,7 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId]) return;
 
         const room = games[roomId];
-        const state = room.state;
+        let state = room.state;
 
         if (socket.id === state.gmId) {
             io.to(roomId).emit('error', { message: 'O Mestre da Sala encerrou a sessão.' });
@@ -1322,28 +1334,38 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // <<< MODIFICAÇÃO 4: Lógica de desconexão refatorada
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex > -1) {
             const disconnectedPlayer = room.players.splice(playerIndex, 1)[0];
-            
-            if (state.mode === 'lobby' && state.connectedPlayers[socket.id]) {
-                const playerInfo = state.connectedPlayers[socket.id];
+
+            // A limpeza agora é feita no estado de lobby, seja ele o ativo ou o cache
+            const lobbyState = state.mode === 'lobby' ? state : state.lobbyCache;
+
+            if (lobbyState && lobbyState.connectedPlayers && lobbyState.connectedPlayers[socket.id]) {
+                const playerInfo = lobbyState.connectedPlayers[socket.id];
+                const playerName = playerInfo.selectedCharacter ? playerInfo.selectedCharacter.nome : 'Um jogador';
+                
                 if (playerInfo.selectedCharacter) {
-                    state.unavailableCharacters = state.unavailableCharacters.filter(char => char !== playerInfo.selectedCharacter.nome);
+                    lobbyState.unavailableCharacters = lobbyState.unavailableCharacters.filter(char => char !== playerInfo.selectedCharacter.nome);
                 }
-                delete state.connectedPlayers[socket.id];
-                logMessage(state, `Um jogador desconectou.`);
-                io.to(roomId).emit('gameUpdate', state);
-            } else if (state.mode && state.mode !== 'lobby' && state.phase !== 'gameover') {
+                delete lobbyState.connectedPlayers[socket.id];
+                
+                logMessage(lobbyState, `${playerName} desconectou-se do lobby.`);
+                // Se o lobby não for o estado ativo, não precisamos notificar a atualização ainda.
+                // A atualização será enviada quando o GM retornar ao lobby.
+            }
+
+            // Evita encerrar o jogo automaticamente. O GM decide.
+            if (state.mode !== 'lobby' && state.phase !== 'gameover') {
                  const playerKey = disconnectedPlayer.playerKey;
                  if ((playerKey === 'player1' || playerKey === 'player2') && state.fighters[playerKey]) {
-                     state.phase = 'gameover';
-                     state.winner = playerKey === 'player1' ? 'player2' : 'player1';
-                     state.reason = `Oponente (${state.fighters[playerKey].nome}) desconectou.`;
-                     io.to(roomId).emit('gameUpdate', state);
-                     dispatchAction(room);
+                     logMessage(state, `AVISO: ${state.fighters[playerKey].nome} (${playerKey}) desconectou. O Mestre pode pausar ou gerenciar a situação.`, 'log-crit');
                  }
             }
+            
+            // Notifica todos na sala sobre a mudança de estado (seja lobby ou jogo)
+            io.to(roomId).emit('gameUpdate', room.state);
             return;
         }
         
