@@ -840,7 +840,8 @@ io.on('connection', (socket) => {
                 
                 io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1', isGm: true });
 
-                state.phase = 'opponent_selection';
+                // <<< CORREÇÃO: Mudar para a fase de seleção de golpes especiais
+                state.phase = 'p1_special_moves_selection';
                 break;
 
             case 'gmSelectsArenaFighters': {
@@ -980,12 +981,10 @@ io.on('connection', (socket) => {
                 break;
             }
             case 'changeScenario': {
-                // <<< CORREÇÃO: Lógica para resetar o status 'isStaging'
                 const newScenarioName = action.scenario;
                 state.currentScenario = newScenarioName;
 
                 if (!state.scenarioStates[newScenarioName]) {
-                    // Se o cenário é novo, cria-o com isStaging: true
                     state.scenarioStates[newScenarioName] = {
                         scenario: newScenarioName,
                         scenarioWidth: null,
@@ -996,7 +995,6 @@ io.on('connection', (socket) => {
                         isStaging: true,
                     };
                 } else {
-                    // Se o cenário já existe, apenas o marca como 'em preparação' novamente
                     state.scenarioStates[newScenarioName].isStaging = true;
                 }
                 logMessage(state, `GM mudou para o cenário: ${action.scenario}. Use 'Publicar' para mostrar aos espectadores.`);
