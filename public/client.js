@@ -292,6 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CORREÇÃO DO PROBLEMA 2 ---
     function renderScenarioSelection(mode) {
         const tabsContainer = document.getElementById('scenario-category-tabs');
+        const scenarioListContainer = document.getElementById('scenario-list-container');
         scenarioListContainer.innerHTML = '';
         tabsContainer.innerHTML = '';
 
@@ -338,9 +339,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 tabsContainer.appendChild(btn);
                 if (index === 0) {
                     btn.classList.add('active');
-                    renderCategory(categoryName);
                 }
             });
+
+            // Initial render for the first category
+            renderCategory(categories[0]);
         }
     }
     
