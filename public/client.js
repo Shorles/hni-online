@@ -149,8 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (currentRoomId && roleFromUrl) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            // <<< MODIFICAÇÃO: Simplificação da lógica de entrada do jogador/espectador
-            // Agora o servidor controla a tela a ser mostrada via 'gameUpdate'
             if (roleFromUrl === 'player') {
                 showScreen(selectionScreen);
                 selectionTitle.innerText = `Selecione seu Personagem`;
@@ -233,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPlayerCharacterSelection(unavailable = []) {
         charListContainer.innerHTML = '';
-        confirmBtn.disabled = false; // <<< MODIFICAÇÃO: Habilita o botão ao renderizar
+        confirmBtn.disabled = false;
         
         Object.entries(PLAYABLE_CHARACTERS).forEach(([name, data]) => {
             const card = document.createElement('div');
@@ -589,10 +587,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerListEl.appendChild(li);
             });
         }
-         // <<< MODIFICAÇÃO: Garante que os links flutuantes de convite fiquem sempre visíveis no lobby do GM
         const playerLinkEl = document.getElementById('gm-link-player');
         const specLinkEl = document.getElementById('gm-link-spectator');
-        if (!playerLinkEl.textContent.includes('Gerando')) { // Evita reescrever antes de ter o link
+        if (!playerLinkEl.textContent.includes('Gerando')) {
              const baseUrl = window.location.origin;
              playerLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=player`;
              specLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=spectator`;
@@ -1293,10 +1290,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTheaterMode(state) {
-        // <<< MODIFICAÇÃO: Lógica de renderização agora é mais robusta e sempre usa o estado do servidor
-        const dataToRender = (isGm ? state : state.publicState) || state;
+        // <<< CORREÇÃO: Lógica para determinar o que renderizar
+        const currentScenarioState = state.scenarioStates?.[state.currentScenario];
+        const dataToRender = isGm ? currentScenarioState : state.publicState;
         
-        if (!dataToRender || !dataToRender.scenario) return;
+        if (!dataToRender || !dataToRender.scenario) {
+            // Se não houver nada para renderizar (pode acontecer momentaneamente), simplesmente saia.
+            return;
+        }
 
         const img = new Image();
         img.onload = () => {
@@ -1306,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 worldContainer.style.width = `${img.naturalWidth}px`;
                 worldContainer.style.height = `${img.naturalHeight}px`;
             }
-            if (isGm && state.scenarioStates[state.currentScenario] && (state.scenarioStates[state.currentScenario].scenarioWidth !== img.naturalWidth || state.scenarioStates[state.currentScenario].scenarioHeight !== img.naturalHeight)) {
+            if (isGm && currentScenarioState && (currentScenarioState.scenarioWidth !== img.naturalWidth || currentScenarioState.scenarioHeight !== img.naturalHeight)) {
                 socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
             }
 
@@ -1337,8 +1338,8 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleGmPanelBtn.classList.toggle('hidden', !isGm);
         theaterPublishBtn.classList.toggle('hidden', !isGm || !state.scenarioStates?.[state.currentScenario]?.isStaging);
 
-        if (isGm && state.scenarioStates?.[state.currentScenario]) {
-            theaterGlobalScale.value = state.scenarioStates[state.currentScenario].globalTokenScale || 1.0;
+        if (isGm && currentScenarioState) {
+            theaterGlobalScale.value = currentScenarioState.globalTokenScale || 1.0;
         }
 
         if (!isGm) { 
