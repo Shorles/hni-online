@@ -479,7 +479,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('gameUpdate', (gameState) => {
-        // <<< CORREÇÃO: Limpa todos os modais no início de cada atualização
         modal.classList.add('hidden');
         specialMovesModal.classList.add('hidden');
         
@@ -487,7 +486,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGameState = gameState;
         scaleGame();
         
-        const SETUP_PHASES = ['gm_classic_setup', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring', 'p2_stat_assignment'];
+        // <<< CORREÇÃO: Adicionando a fase que faltava
+        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring', 'p2_stat_assignment'];
 
         // GM Logic
         if (isGm) {
