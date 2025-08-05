@@ -176,7 +176,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // GM Mode Selection buttons in the new lobby
         document.getElementById('start-classic-btn').onclick = () => { showScreen(scenarioScreen); renderScenarioSelection('classic'); };
-        document.getElementById('start-arena-btn').onclick = () => { showScreen(scenarioScreen); renderScenarioSelection('arena'); };
+        document.getElementById('start-arena-btn').onclick = () => { 
+            // Arena mode doesn't select a scenario, it goes straight to fighter selection
+            socket.emit('playerAction', { type: 'gmStartsMode', targetMode: 'arena', scenario: 'Ringue2.png' });
+        };
         document.getElementById('start-theater-btn').onclick = () => { showScreen(scenarioScreen); renderScenarioSelection('theater'); };
 
 
@@ -289,12 +292,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- CORREÇÃO DO PROBLEMA 2 ---
     function renderScenarioSelection(mode) {
         const tabsContainer = document.getElementById('scenario-category-tabs');
         const scenarioListContainer = document.getElementById('scenario-list-container');
         
-        // Limpa o conteúdo anterior
         tabsContainer.innerHTML = '';
         scenarioListContainer.innerHTML = '';
 
@@ -341,10 +342,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 tabsContainer.appendChild(btn);
                 if (index === 0) {
                     btn.classList.add('active');
+                    renderCategory(categoryName);
                 }
             });
 
-            // Renderiza a primeira categoria por padrão
             renderCategory(categories[0]);
         }
     }
@@ -387,6 +388,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.classList.add('hidden');
             };
         });
+    });
+
+    socket.on('promptArenaOpponentSelection', ({ availablePlayers }) => {
+        if (!isGm) return;
+        let selected = [];
+        let playerListHtml = '<ul>';
+        
+        if (availablePlayers.length >= 2) {
+             availablePlayers.forEach(player => {
+                playerListHtml += `
+                    <li class="opponent-selection-item" data-socket-id="${player.id}">
+                        <img src="${player.selectedCharacter.img}" alt="${player.selectedCharacter.nome}">
+                        <span>${player.selectedCharacter.nome}</span>
+                    </li>`;
+            });
+        } else {
+             playerListHtml += `<li>São necessários pelo menos 2 jogadores para o modo Arena.</li>`;
+        }
+        playerListHtml += '</ul>';
+
+        showInteractiveModal("Selecione 2 Lutadores para a Arena", playerListHtml, "Confirmar Lutadores", null);
+        modalButton.disabled = true;
+
+        document.querySelectorAll('.opponent-selection-item').forEach(item => {
+            item.onclick = () => {
+                item.classList.toggle('selected');
+                
+                selected = Array.from(document.querySelectorAll('.opponent-selection-item.selected'))
+                                .map(el => el.dataset.socketId);
+                
+                modalButton.disabled = selected.length !== 2;
+            };
+        });
+
+        modalButton.onclick = () => {
+            if (selected.length === 2) {
+                socket.emit('playerAction', { type: 'gmSelectsArenaFighters', p1_socketId: selected[0], p2_socketId: selected[1] });
+                modal.classList.add('hidden');
+            }
+        };
+    });
+
+    socket.on('promptArenaConfiguration', ({ p1, p2, availableMoves }) => {
+        const modalContentHtml = `<div style="display:flex; gap: 20px;"><div style="flex: 1; text-align: center; border-right: 1px solid #555; padding-right: 20px;"><h4>${p1.nome} (Jogador 1)</h4><label>AGI: <input type="number" id="arena-p1-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p1-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p1-moves"></div></div><div style="flex: 1; text-align: center;"><h4>${p2.nome} (Jogador 2)</h4><label>AGI: <input type="number" id="arena-p2-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p2-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p2-moves"></div></div></div>`;
+        showInteractiveModal("Configurar Batalha da Arena", modalContentHtml, "Iniciar Batalha", null);
+        renderSpecialMoveSelection(document.getElementById('arena-p1-moves'), availableMoves); renderSpecialMoveSelection(document.getElementById('arena-p2-moves'), availableMoves);
+        modalButton.onclick = () => {
+            const p1_config = { agi: document.getElementById('arena-p1-agi').value, res: document.getElementById('arena-p1-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p1-moves .selected')).map(c => c.dataset.name) };
+            const p2_config = { agi: document.getElementById('arena-p2-agi').value, res: document.getElementById('arena-p2-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p2-moves .selected')).map(c => c.dataset.name) };
+            socket.emit('playerAction', { type: 'configure_and_start_arena', p1_config, p2_config }); modal.classList.add('hidden');
+        };
     });
 
 
@@ -533,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gmModeSwitchBtn.classList.toggle('hidden', !isGm || state.mode === 'lobby');
         const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
-        const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover', 'opponent_selection'].includes(state.phase);
+        const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover', 'opponent_selection', 'arena_opponent_selection'].includes(state.phase);
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');

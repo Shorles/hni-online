@@ -496,7 +496,7 @@ function isActionValid(state, action) {
     if (!state) return false;
 
     // GM-only actions
-    if (['gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 'toggle_force_dice'].includes(type)) {
+    if (['gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 'configure_and_start_arena', 'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 'toggle_force_dice'].includes(type)) {
         return isGm;
     }
 
@@ -529,8 +529,9 @@ function isActionValid(state, action) {
     switch (state.phase) {
         case 'gm_classic_setup': return type === 'gm_confirm_p1_setup' && isGm;
         case 'opponent_selection': return type === 'gmSelectsOpponent' && isGm;
+        case 'arena_opponent_selection': return type === 'gmSelectsArenaFighters' && isGm;
         case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
-        case 'p2_stat_assignment': return type === 'set_p2_stats' && playerKey === 'player1';
+        case 'p2_stat_assignment': return type === 'set_p2_stats' && isGm; // Only GM sets P2 stats now
         case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
@@ -543,8 +544,8 @@ function isActionValid(state, action) {
         case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
         case 'gm_decision_knockdown': return (type === 'resolve_knockdown_loss' || type === 'give_last_chance') && isGm;
         case 'gm_disqualification_ack': return type === 'confirm_disqualification' && isGm;
-        case 'decision_table_wait': return (type === 'reveal_winner' && (playerKey === 'player1' || playerKey === 'host' || isGm));
-        case 'arena_configuring': return type === 'configure_and_start_arena' && playerKey === 'host';
+        case 'decision_table_wait': return (type === 'reveal_winner' && isGm);
+        case 'arena_configuring': return type === 'configure_and_start_arena' && isGm;
         case 'gameover': return false;
         default: return false;
     }
@@ -556,7 +557,6 @@ function dispatchAction(room) {
     io.to(roomId).emit('hideRollButtons');
 
     if (state.mode === 'lobby') {
-        // No actions to dispatch in lobby, it's all event-driven
         return;
     }
 
@@ -571,13 +571,29 @@ function dispatchAction(room) {
                 });
             }
             return;
+        case 'arena_opponent_selection':
+            if(state.gmId) {
+                 io.to(state.gmId).emit('promptArenaOpponentSelection', {
+                    availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter)
+                });
+            }
+            return;
+        case 'arena_configuring':
+            if (state.gmId) {
+                io.to(state.gmId).emit('promptArenaConfiguration', {
+                    p1: state.fighters.player1,
+                    p2: state.fighters.player2,
+                    availableMoves: SPECIAL_MOVES
+                });
+            }
+            return;
         case 'p1_special_moves_selection':
             const p1socketIdMoves = room.players.find(p => p.playerKey === 'player1').id;
             io.to(p1socketIdMoves).emit('promptSpecialMoves', { availableMoves: SPECIAL_MOVES });
             return;
         case 'p2_stat_assignment':
-            const p1socketIdStats = room.players.find(p => p.playerKey === 'player1').id;
-            io.to(p1socketIdStats).emit('promptP2StatsAndMoves', { p2data: state.pendingP2Choice, availableMoves: SPECIAL_MOVES });
+            const gmSocketId = state.gmId;
+            io.to(gmSocketId).emit('promptP2StatsAndMoves', { p2data: state.pendingP2Choice, availableMoves: SPECIAL_MOVES });
             return;
         case 'initiative_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }}); return;
         case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
@@ -607,11 +623,10 @@ function dispatchAction(room) {
         case 'decision_table_wait':
             const info = state.decisionInfo;
             const tableHtml = `<p>A luta foi para a decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Penalidades</td><td style="text-align:center;">-${info.p1.illegalPenalty}</td><td style="text-align:center;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
-            let decisionMakerKey = state.mode === 'arena' ? 'host' : 'player1';
-            if (state.gmId) decisionMakerKey = 'gm'; // GM is always the decision maker
+            let decisionMakerKey = state.gmId;
             io.to(roomId).emit('showModal', {
                 modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
-                btnText: "Anunciar Vencedor", action: { type: 'reveal_winner', playerKey: decisionMakerKey }, targetPlayerKey: decisionMakerKey
+                btnText: "Anunciar Vencedor", action: { type: 'reveal_winner' }, targetPlayerKey: decisionMakerKey
             });
             return;
         case 'double_knockdown':
@@ -674,7 +689,7 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         socket.currentRoomId = roomId;
 
-        if (room.players.find(p => p.id === socket.id)) return; // Already in room
+        if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
 
         if (role === 'spectator') {
             room.spectators.push(socket.id);
@@ -741,15 +756,19 @@ io.on('connection', (socket) => {
                     newState.gmId = state.gmId;
                     room.state = newState;
                 } else {
-                    // It's a battle mode (classic or arena)
                     newState = createNewGameState();
                     newState.mode = targetMode;
                     newState.gmId = state.gmId;
-                    if(targetMode === 'arena') newState.hostId = state.gmId;
                     newState.scenario = scenario || (targetMode === 'classic' ? 'Ringue.png' : 'Ringue2.png');
-                    newState.phase = 'gm_classic_setup'; // GM always picks their character first
-                    newState.connectedPlayers = state.connectedPlayers; // Carry over player list
-                    logMessage(newState, `GM iniciou o modo ${targetMode}. Aguardando GM escolher personagem...`);
+                    newState.connectedPlayers = state.connectedPlayers;
+                    logMessage(newState, `GM iniciou o modo ${targetMode}.`);
+                    
+                    if(targetMode === 'classic') {
+                        newState.phase = 'gm_classic_setup';
+                    } else if (targetMode === 'arena') {
+                        newState.hostId = state.gmId;
+                        newState.phase = 'arena_opponent_selection';
+                    }
                     room.state = newState;
                 }
                 break;
@@ -757,12 +776,44 @@ io.on('connection', (socket) => {
             case 'gm_confirm_p1_setup':
                 state.fighters.player1 = createNewFighterState(action.player1Data);
                 logMessage(state, `GM definiu ${action.player1Data.nome} como Jogador 1.`);
-                state.phase = 'opponent_selection'; // New phase
-                // Assign GM to player1 role
+                
                 const gmAsPlayer = room.players.find(p => p.id === state.gmId);
                 if(gmAsPlayer) gmAsPlayer.playerKey = 'player1';
                 else room.players.push({id: state.gmId, role: 'gm', playerKey: 'player1'})
+                
+                // --- CORREÇÃO 1: Notificar o GM que ele agora é P1 ---
+                io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1' });
+
+                state.phase = 'opponent_selection';
                 break;
+
+            case 'gmSelectsArenaFighters': {
+                const { p1_socketId, p2_socketId } = action;
+                const p1Data = state.connectedPlayers[p1_socketId];
+                const p2Data = state.connectedPlayers[p2_socketId];
+
+                if (!p1Data || !p1Data.selectedCharacter || !p2Data || !p2Data.selectedCharacter) return;
+                
+                state.fighters.player1 = { nome: p1Data.selectedCharacter.nome, img: p1Data.selectedCharacter.img };
+                state.fighters.player2 = { nome: p2Data.selectedCharacter.nome, img: p2Data.selectedCharacter.img };
+                
+                // Assign roles to players
+                io.to(p1_socketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
+                io.to(p2_socketId).emit('assignRole', { role: 'player', playerKey: 'player2' });
+
+                // Set everyone else to spectator, including GM
+                io.to(state.gmId).emit('assignRole', { role: 'spectator' }); // GM is spectator now
+                Object.keys(state.connectedPlayers).forEach(id => {
+                    if (id !== p1_socketId && id !== p2_socketId) {
+                         io.to(id).emit('assignRole', { role: 'spectator' });
+                    }
+                });
+
+                logMessage(state, `GM selecionou ${p1Data.selectedCharacter.nome} vs ${p2Data.selectedCharacter.nome} para a Arena.`);
+                state.phase = 'arena_configuring';
+                break;
+            }
+
             case 'gmSelectsOpponent': {
                 const { opponentSocketId } = action;
                 const opponentData = state.connectedPlayers[opponentSocketId];
@@ -774,10 +825,8 @@ io.on('connection', (socket) => {
                 if(opponentAsPlayer) opponentAsPlayer.playerKey = 'player2';
                 
                 // Set all other players to spectators
-                room.players.forEach(p => {
+                Object.values(state.connectedPlayers).forEach(p => {
                     if (p.id !== state.gmId && p.id !== opponentSocketId) {
-                        p.role = 'spectator';
-                        p.playerKey = 'spectator';
                         io.to(p.id).emit('assignRole', { role: 'spectator' });
                     }
                 });
@@ -1244,7 +1293,7 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('gameUpdate', state);
             } else if (state.mode && state.mode !== 'lobby' && state.phase !== 'gameover') {
                  const playerKey = disconnectedPlayer.playerKey;
-                 if (playerKey === 'player1' || playerKey === 'player2') {
+                 if ((playerKey === 'player1' || playerKey === 'player2') && state.fighters[playerKey]) {
                      state.phase = 'gameover';
                      state.winner = playerKey === 'player1' ? 'player2' : 'player1';
                      state.reason = `Oponente (${state.fighters[playerKey].nome}) desconectou.`;

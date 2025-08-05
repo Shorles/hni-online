@@ -95,8 +95,8 @@ body {
     padding: 15px;
     width: 80%;
     max-width: 800px;
-    max-height: 200px; /* --- CORREÇÃO DO PROBLEMA 1 --- */
-    overflow-y: auto;     /* --- CORREÇÃO DO PROBLEMA 1 --- */
+    max-height: 200px;
+    overflow-y: auto;
 }
 
 #gm-lobby-status-container h3, #gm-initial-lobby h2 {
@@ -723,8 +723,12 @@ body {
     width: 120px;
 }
 .opponent-selection-item:hover {
-    border-color: #ffeb3b;
+    border-color: #aaa;
     transform: scale(1.05);
+}
+.opponent-selection-item.selected {
+    border-color: #ffeb3b;
+    box-shadow: 0 0 10px #ffeb3b;
 }
 .opponent-selection-item img {
     width: 60px;
