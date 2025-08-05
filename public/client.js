@@ -479,6 +479,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('gameUpdate', (gameState) => {
+        // <<< CORREÇÃO: Limpa todos os modais no início de cada atualização
+        modal.classList.add('hidden');
+        specialMovesModal.classList.add('hidden');
+        
         const oldState = currentGameState;
         currentGameState = gameState;
         scaleGame();
@@ -1290,12 +1294,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTheaterMode(state) {
-        // <<< CORREÇÃO: Lógica para determinar o que renderizar
         const currentScenarioState = state.scenarioStates?.[state.currentScenario];
         const dataToRender = isGm ? currentScenarioState : state.publicState;
         
         if (!dataToRender || !dataToRender.scenario) {
-            // Se não houver nada para renderizar (pode acontecer momentaneamente), simplesmente saia.
             return;
         }
 
