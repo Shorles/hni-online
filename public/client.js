@@ -790,6 +790,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const theaterCharList = document.getElementById('theater-char-list');
         theaterCharList.innerHTML = '';
 
+        let touchDragData = {
+            ghost: null,
+            charName: null,
+            img: null
+        };
+
         const createMini = (name, imgPath) => {
             const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
@@ -800,8 +806,74 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isGm) return;
                 e.dataTransfer.setData('application/json', JSON.stringify({ charName: name, img: imgPath }));
             });
+
+            // LÓGICA DE ARRASTAR COM TOQUE (NOVO)
+            mini.addEventListener('touchstart', (e) => {
+                if (!isGm) return;
+                e.preventDefault();
+
+                // Criar um "fantasma" do token para arrastar
+                const ghost = mini.cloneNode(true);
+                ghost.style.position = 'fixed';
+                ghost.style.zIndex = '99999';
+                ghost.style.opacity = '0.7';
+                ghost.style.pointerEvents = 'none'; // Ignorar toques no fantasma
+                ghost.style.left = `${e.touches[0].clientX - 30}px`; // Centralizar no dedo
+                ghost.style.top = `${e.touches[0].clientY - 30}px`;
+                document.body.appendChild(ghost);
+
+                touchDragData.ghost = ghost;
+                touchDragData.charName = name;
+                touchDragData.img = imgPath;
+
+                window.addEventListener('touchmove', onMobileDragMove);
+                window.addEventListener('touchend', onMobileDragEnd);
+            }, { passive: false });
+
+
             theaterCharList.appendChild(mini);
         };
+        
+        const onMobileDragMove = (e) => {
+            if (!touchDragData.ghost) return;
+            e.preventDefault();
+            touchDragData.ghost.style.left = `${e.touches[0].clientX - 30}px`;
+            touchDragData.ghost.style.top = `${e.touches[0].clientY - 30}px`;
+        };
+        
+        const onMobileDragEnd = (e) => {
+            window.removeEventListener('touchmove', onMobileDragMove);
+            window.removeEventListener('touchend', onMobileDragEnd);
+
+            if (!touchDragData.ghost) return;
+
+            const touch = e.changedTouches[0];
+            const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+
+            // Verifica se o alvo do drop é a área do cenário
+            if (dropTarget && (dropTarget === theaterBackgroundViewport || theaterBackgroundViewport.contains(dropTarget))) {
+                 try {
+                    const { worldX, worldY } = screenToWorldCoords(e);
+                    const tokenBaseWidth = 200;
+                    const tokenScale = 1.0; 
+                    const newToken = { 
+                        id: `token-${Date.now()}`, 
+                        charName: touchDragData.charName, 
+                        img: touchDragData.img, 
+                        x: worldX - (tokenBaseWidth * tokenScale / 2), 
+                        y: worldY - (tokenBaseWidth * tokenScale / 2), 
+                        scale: tokenScale, 
+                        isFlipped: false 
+                    };
+                    socket.emit('playerAction', { type: 'updateToken', token: newToken });
+                } catch (error) { console.error("Erro ao processar o drop por toque:", error); }
+            }
+
+            // Limpa os dados de arraste
+            document.body.removeChild(touchDragData.ghost);
+            touchDragData = { ghost: null, charName: null, img: null };
+        };
+
 
         Object.keys(ALL_FIGHTERS_DATA).forEach(charName => {
             createMini(charName, `images/lutadores/${charName}.png`);
@@ -933,11 +1005,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return matrix.a; 
         };
 
+        // Função auxiliar para obter coordenadas de eventos de mouse ou toque
+        const getEventCoords = (e) => {
+            if (e.changedTouches && e.changedTouches.length > 0) { // Para touchend/touchcancel
+                return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+            }
+            if (e.touches && e.touches.length > 0) { // Para touchstart/touchmove
+                 return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+            }
+            return { clientX: e.clientX, clientY: e.clientY }; // Para mouse
+        }
+
         const screenToWorldCoords = (e) => {
+            const coords = getEventCoords(e);
             const gameScale = getGameScale();
             const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-            const mouseXOnViewport = e.clientX - viewportRect.left;
-            const mouseYOnViewport = e.clientY - viewportRect.top;
+            const mouseXOnViewport = coords.clientX - viewportRect.left;
+            const mouseYOnViewport = coords.clientY - viewportRect.top;
             const worldX = (mouseXOnViewport / gameScale + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
             const worldY = (mouseYOnViewport / gameScale + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
             return { worldX, worldY };
@@ -1093,88 +1177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } else if (isGm && isToken) {
                 e.preventDefault();
-                const draggedToken = e.target;
-                const startMouseX = e.clientX;
-                const startMouseY = e.clientY;
-                let hasDragged = false;
-                
-                const onMouseUpToken = (upEvent) => {
-                    window.removeEventListener('mousemove', onMouseMoveToken);
-                    window.removeEventListener('mouseup', onMouseUpToken);
-                    
-                    if (hasDragged) {
-                        const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
-                        const updates = tokensToDrag.map(tokenId => {
-                             const tokenEl = document.getElementById(tokenId);
-                             if (tokenEl) {
-                                 delete tokenEl.dataset.startX;
-                                 delete tokenEl.dataset.startY;
-                                 return { id: tokenId, x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
-                             }
-                             return null;
-                        }).filter(Boolean);
-                        
-                        if (updates.length > 0) {
-                            socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
-                        }
-                    } else { // It was a click
-                        if (!upEvent.ctrlKey) {
-                            document.querySelectorAll('.theater-token.selected').forEach(t => {
-                                if (t.id !== draggedToken.id) t.classList.remove('selected');
-                            });
-                            selectedTokens.clear();
-                        }
-                        draggedToken.classList.toggle('selected');
-                        if (draggedToken.classList.contains('selected')) {
-                            selectedTokens.add(draggedToken.id);
-                        } else {
-                            selectedTokens.delete(draggedToken.id);
-                        }
-                    }
-                };
-                
-                const onMouseMoveToken = (moveEvent) => {
-                    const dx = moveEvent.clientX - startMouseX;
-                    const dy = moveEvent.clientY - startMouseY;
-                    
-                    if (!hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
-                        hasDragged = true;
-                        if (!selectedTokens.has(draggedToken.id)) {
-                             if (!e.ctrlKey) {
-                                document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
-                                selectedTokens.clear();
-                             }
-                             draggedToken.classList.add('selected');
-                             selectedTokens.add(draggedToken.id);
-                        }
-                    }
-
-                    if (!hasDragged) return;
-
-                    const gameScale = getGameScale();
-                    const worldDx = dx / gameScale / currentScenarioScale;
-                    const worldDy = dy / gameScale / currentScenarioScale;
-
-                    const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
-                    
-                    tokensToDrag.forEach(tokenId => {
-                        const tokenEl = document.getElementById(tokenId);
-                        if(tokenEl && !tokenEl.dataset.startX) tokenEl.dataset.startX = tokenEl.offsetLeft;
-                        if(tokenEl && !tokenEl.dataset.startY) tokenEl.dataset.startY = tokenEl.offsetTop;
-
-                        const startX = parseFloat(tokenEl.dataset.startX);
-                        const startY = parseFloat(tokenEl.dataset.startY);
-                       
-                        if (tokenEl) {
-                           tokenEl.style.left = `${startX + worldDx}px`;
-                           tokenEl.style.top = `${startY + worldDy}px`;
-                        }
-                    });
-                };
-                
-                window.addEventListener('mousemove', onMouseMoveToken);
-                window.addEventListener('mouseup', onMouseUpToken);
-
+                handleTokenDragStart(e);
             } else if (!isToken && !(isGm && isGroupSelectMode)) {
                 isDraggingScenario = true;
                 theaterBackgroundViewport.style.cursor = 'grabbing';
@@ -1240,8 +1243,108 @@ document.addEventListener('DOMContentLoaded', () => {
         let lastTouchX = 0;
         let lastTouchY = 0;
 
+        const handleTokenDragStart = (startEvent) => {
+            const draggedToken = startEvent.target;
+            const { clientX: startMouseX, clientY: startMouseY } = getEventCoords(startEvent);
+            let hasDragged = false;
+            
+            const onDragMove = (moveEvent) => {
+                const { clientX, clientY } = getEventCoords(moveEvent);
+                const dx = clientX - startMouseX;
+                const dy = clientY - startMouseY;
+                
+                if (!hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
+                    hasDragged = true;
+                    // Ao começar a arrastar, seleciona o token se não estiver selecionado
+                    if (!selectedTokens.has(draggedToken.id)) {
+                         // A lógica de Ctrl/Cmd para multiselect não se aplica ao toque
+                         if (!startEvent.ctrlKey && !startEvent.metaKey) {
+                            document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                            selectedTokens.clear();
+                         }
+                         draggedToken.classList.add('selected');
+                         selectedTokens.add(draggedToken.id);
+                    }
+                }
+
+                if (!hasDragged) return;
+
+                const gameScale = getGameScale();
+                const worldDx = dx / gameScale / currentScenarioScale;
+                const worldDy = dy / gameScale / currentScenarioScale;
+
+                const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                
+                tokensToDrag.forEach(tokenId => {
+                    const tokenEl = document.getElementById(tokenId);
+                    if (!tokenEl) return;
+                    // Armazena a posição inicial no momento que o arraste começa
+                    if(!tokenEl.dataset.startX) tokenEl.dataset.startX = tokenEl.offsetLeft;
+                    if(!tokenEl.dataset.startY) tokenEl.dataset.startY = tokenEl.offsetTop;
+
+                    const startX = parseFloat(tokenEl.dataset.startX);
+                    const startY = parseFloat(tokenEl.dataset.startY);
+                   
+                    tokenEl.style.left = `${startX + worldDx}px`;
+                    tokenEl.style.top = `${startY + worldDy}px`;
+                });
+            };
+            
+            const onDragEnd = (endEvent) => {
+                // Remove os listeners de movimento e finalização
+                window.removeEventListener('mousemove', onDragMove);
+                window.removeEventListener('mouseup', onDragEnd);
+                window.removeEventListener('touchmove', onDragMove);
+                window.removeEventListener('touchend', onDragEnd);
+                
+                if (hasDragged) {
+                    const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                    const updates = tokensToDrag.map(tokenId => {
+                         const tokenEl = document.getElementById(tokenId);
+                         if (tokenEl) {
+                             // Limpa os dados de posição inicial
+                             delete tokenEl.dataset.startX;
+                             delete tokenEl.dataset.startY;
+                             return { id: tokenId, x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
+                         }
+                         return null;
+                    }).filter(Boolean);
+                    
+                    if (updates.length > 0) {
+                        socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
+                    }
+                } else { // Foi um clique/toque simples
+                    const isCtrlClick = endEvent.ctrlKey || endEvent.metaKey;
+                    if (!isCtrlClick) {
+                        document.querySelectorAll('.theater-token.selected').forEach(t => {
+                            if (t.id !== draggedToken.id) t.classList.remove('selected');
+                        });
+                        selectedTokens.clear();
+                    }
+                    draggedToken.classList.toggle('selected');
+                    if (draggedToken.classList.contains('selected')) {
+                        selectedTokens.add(draggedToken.id);
+                    } else {
+                        selectedTokens.delete(draggedToken.id);
+                    }
+                }
+            };
+            
+            // Adiciona os listeners corretos para mouse ou toque
+            if (startEvent.type === 'mousedown') {
+                window.addEventListener('mousemove', onDragMove);
+                window.addEventListener('mouseup', onDragEnd);
+            } else { // touchstart
+                window.addEventListener('touchmove', onDragMove);
+                window.addEventListener('touchend', onDragEnd);
+            }
+        };
+
         theaterBackgroundViewport.addEventListener('touchstart', (e) => {
+            const isToken = e.target.classList.contains('theater-token');
+
             if (e.touches.length === 2) {
+                e.preventDefault();
                 isPinching = true;
                 isTouchPanning = false;
                 initialPinchDistance = Math.hypot(
@@ -1249,20 +1352,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.touches[0].pageY - e.touches[1].pageY
                 );
             } else if (e.touches.length === 1) {
-                const isToken = e.target.classList.contains('theater-token');
-                if (isToken) return;
-                isTouchPanning = true;
-                isPinching = false;
-                lastTouchX = e.touches[0].pageX;
-                lastTouchY = e.touches[0].pageY;
+                if (isGm && isToken) {
+                    e.preventDefault();
+                    handleTokenDragStart(e);
+                } else {
+                    isTouchPanning = true;
+                    isPinching = false;
+                    lastTouchX = e.touches[0].pageX;
+                    lastTouchY = e.touches[0].pageY;
+                }
             }
         }, { passive: false });
 
         theaterBackgroundViewport.addEventListener('touchmove', (e) => {
             if (currentGameState.mode !== 'theater') return;
-            e.preventDefault();
 
             if (isPinching && e.touches.length === 2) {
+                e.preventDefault();
                 const currentPinchDistance = Math.hypot(
                     e.touches[0].pageX - e.touches[1].pageX,
                     e.touches[0].pageY - e.touches[1].pageY
@@ -1278,6 +1384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 initialPinchDistance = currentPinchDistance;
 
             } else if (isTouchPanning && e.touches.length === 1) {
+                e.preventDefault();
                 const dx = e.touches[0].pageX - lastTouchX;
                 const dy = e.touches[0].pageY - lastTouchY;
                 theaterBackgroundViewport.scrollLeft -= dx;
