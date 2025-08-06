@@ -844,9 +844,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!touchDragData.ghost) return;
             
-            // Lógica simplificada e corrigida
+            // Hide the ghost immediately to prevent it from interfering with coordinate calculations
+            touchDragData.ghost.style.display = 'none';
+
             try {
                 const { worldX, worldY } = screenToWorldCoords(e);
+
+                if (isNaN(worldX) || isNaN(worldY)) {
+                    throw new Error("Invalid coordinates calculated.");
+                }
+
                 const tokenBaseWidth = 200;
                 const tokenScale = 1.0; 
                 const newToken = { 
@@ -859,10 +866,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     isFlipped: false 
                 };
                 socket.emit('playerAction', { type: 'updateToken', token: newToken });
-            } catch (error) { console.error("Erro ao processar o drop por toque:", error); }
-
-            document.body.removeChild(touchDragData.ghost);
-            touchDragData = { ghost: null, charName: null, img: null };
+            } catch (error) { 
+                console.error("Error processing touch drop:", error);
+            } finally {
+                // Ensure the ghost is always removed from the DOM
+                document.body.removeChild(touchDragData.ghost);
+                touchDragData = { ghost: null, charName: null, img: null };
+            }
         };
 
 
