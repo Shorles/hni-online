@@ -10,7 +10,6 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-// Mantendo o nome do arquivo, mas agora ele funciona como um bestiário/lista de inimigos
 let LUTA_CHARACTERS = {};
 try {
     const lutadoresData = fs.readFileSync('lutadores.json', 'utf8');
@@ -21,7 +20,7 @@ try {
         .filter(name => name); 
 
     lutadoresNomes.forEach(nome => {
-        LUTA_CHARACTERS[nome] = { agi: 1, res: 1 }; // Stats base
+        LUTA_CHARACTERS[nome] = { agi: 1, res: 1 };
     });
     console.log('Inimigos (lutadores.json) carregados com sucesso!');
 } catch (error) {
@@ -31,20 +30,19 @@ try {
 
 const games = {};
 
-// Mantendo os nomes dos golpes, mas agora são "habilidades"
 const MOVES = {
     'Jab': { name: "Ataque Rápido", cost: 1, damage: 2, penalty: 0 },
     'Direto': { name: "Golpe Forte", cost: 2, damage: 4, penalty: 1 },
     'Upper': { name: "Golpe Esmagador", cost: 3, damage: 7, penalty: 2 },
-    'Liver Blow': { name: "Golpe Perfurante", cost: 3, damage: 4, penalty: 1, effect: 'bleed' }, // Exemplo de efeito
-    'Clinch': { name: "Atordoar", cost: 3, damage: 0, penalty: 0, effect: 'stun' }, // Exemplo de efeito
+    'Liver Blow': { name: "Golpe Perfurante", cost: 3, damage: 4, penalty: 1, effect: 'bleed' },
+    'Clinch': { name: "Atordoar", cost: 3, damage: 0, penalty: 0, effect: 'stun' },
     'Golpe Ilegal': { name: "Magia Proibida", cost: 2, damage: 6, penalty: 0 },
     'Esquiva': { name: "Postura Defensiva", cost: 2, damage: 0, penalty: 0, effect: 'def_up', self: true }
 };
 
 const SPECIAL_MOVES = {
     'Counter': { name: "Ripostar", cost: 3, damage: 0, penalty: 0, reaction: true },
-    'Flicker Jab': { name: "Saraivada de Golpes", cost: 4, damage: 1, penalty: 1, hits: 4 }, // Multi-hit
+    'Flicker Jab': { name: "Saraivada de Golpes", cost: 4, damage: 1, penalty: 1, hits: 4 },
     'Smash': { name: "Executar", cost: 4, damage: 10, penalty: 3 },
     'Bala': { name: "Flecha Perfurante", cost: 2, damage: 5, penalty: 0 },
     'Gazelle Punch': { name: "Investida Selvagem", cost: 4, damage: 9, penalty: 2 },
@@ -54,22 +52,32 @@ const SPECIAL_MOVES = {
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
+function createNewLobbyState(gmId) {
+    return {
+        mode: 'lobby',
+        phase: 'waiting_players',
+        gmId: gmId,
+        connectedPlayers: {},
+        unavailableCharacters: [],
+        log: [{ text: "Lobby criado. Aguardando jogadores..." }],
+    };
+}
+
 function createNewGameState() {
     return {
         mode: null,
         phase: 'setup',
         gmId: null,
         log: [{ text: "Aguardando início da batalha..." }],
-        scenario: 'Ringue3.png', // Cenário mais medieval
+        scenario: 'Ringue3.png',
         
-        // Nova estrutura de combate
         combatants: {
-            party: {}, // { socketId: fighterState }
-            enemies: {} // { uniqueEnemyId: fighterState }
+            party: {},
+            enemies: {}
         },
         turnOrder: [],
         turnIndex: 0,
-        whoseTurn: null, // ID do combatente atual
+        whoseTurn: null,
         initiativeRolls: {},
         
         winner: null,
@@ -94,7 +102,7 @@ function createNewFighterState(data) {
         hp: hp,
         paMax: pa,
         pa: pa,
-        def: res, // Defesa base
+        def: res,
         specialMoves: data.specialMoves || [],
         isPlayer: data.isPlayer || false
     };
@@ -124,13 +132,13 @@ function executeAttack(state, attackerId, targetId, moveName) {
     const moveDisplayName = move.name || moveName;
 
     if (!attacker || !target || !move || attacker.pa < move.cost) {
-        return; // Ação inválida
+        return;
     }
 
     attacker.pa -= move.cost;
     logMessage(state, `${attacker.nome} usa <span class="log-move-name">${moveDisplayName}</span> em ${target.nome}!`);
     
-    const roll = Math.floor(Math.random() * 6) + 1; // d6 roll
+    const roll = Math.floor(Math.random() * 6) + 1;
     const attackValue = roll + attacker.agi - (move.penalty || 0);
     logMessage(state, `Rolagem de Ataque: D6(${roll}) + AGI(${attacker.agi}) - Pen(${move.penalty || 0}) = <span class="highlight-result">${attackValue}</span> (Defesa do Alvo: ${target.def})`, 'log-info');
 
@@ -166,11 +174,9 @@ function endTurn(state) {
     let nextTurnIndex = state.turnIndex;
     let nextCombatant = null;
 
-    // Loop para encontrar o próximo combatente vivo
     for (let i = 0; i < state.turnOrder.length; i++) {
         nextTurnIndex = (nextTurnIndex + 1);
 
-        // Se chegamos ao fim da lista, é um novo round
         if(nextTurnIndex >= state.turnOrder.length) {
             nextTurnIndex = 0;
             processNewRound(state);
@@ -181,7 +187,7 @@ function endTurn(state) {
         
         if (potentialCombatant && potentialCombatant.hp > 0) {
             nextCombatant = potentialCombatant;
-            break; // Encontrou o próximo combatente vivo
+            break;
         }
     }
 
@@ -190,8 +196,6 @@ function endTurn(state) {
         state.whoseTurn = nextCombatant.id;
         logMessage(state, `É a vez de <span class="turn-highlight">${nextCombatant.nome}</span>.`, 'log-turn');
     } else {
-        // Isso só aconteceria se todos de um lado estivessem mortos, o que já seria gameover.
-        // Mas por segurança:
         checkWinCondition(state);
     }
 }
@@ -207,8 +211,7 @@ io.on('connection', (socket) => {
             id: newRoomId,
             players: [{ id: socket.id, role: 'gm' }],
             spectators: [],
-            // O estado do lobby agora é o estado principal da sala
-            state: createNewLobbyState(socket.id)
+            state: createNewLobbyState(socket.id) // <<< CORREÇÃO: A função agora existe novamente.
         };
         
         socket.emit('assignRole', { role: 'gm', isGm: true });
@@ -247,7 +250,6 @@ io.on('connection', (socket) => {
         const state = room.state;
         action.gmSocketId = room.players.find(p=>p.role === 'gm')?.id;
 
-        // Validação básica
         if (action.type.startsWith('gm_') && socket.id !== action.gmSocketId) return;
 
         switch (action.type) {
@@ -264,28 +266,25 @@ io.on('connection', (socket) => {
                 break;
             }
             
-            // Ação principal que inicia a batalha
             case 'gm_start_battle': {
                 const newBattleState = createNewGameState();
                 newBattleState.mode = 'classic_rpg';
                 newBattleState.gmId = action.gmSocketId;
-                newBattleState.lobbyCache = { ...state }; // Salva o estado do lobby
+                newBattleState.lobbyCache = { ...state };
 
-                // Adiciona jogadores selecionados à batalha
                 action.selectedPlayers.forEach(socketId => {
                     const playerData = state.connectedPlayers[socketId];
                     if (playerData && playerData.selectedCharacter) {
                         const fighterData = {
                             ...playerData.selectedCharacter,
                             id: socketId,
-                            agi: 2, res: 2, // Stats base para jogadores
+                            agi: 2, res: 2,
                             isPlayer: true
                         };
                         newBattleState.combatants.party[socketId] = createNewFighterState(fighterData);
                     }
                 });
                 
-                // Adiciona inimigos selecionados à batalha
                 let enemyCount = {};
                 action.selectedEnemies.forEach(enemyName => {
                     enemyCount[enemyName] = (enemyCount[enemyName] || 0) + 1;
@@ -295,7 +294,7 @@ io.on('connection', (socket) => {
                     const enemyData = {
                         id: uniqueId,
                         nome: `${enemyName} ${enemyCount[enemyName]}`,
-                        img: `images/lutadores/${enemyName}.png`, // Usando a imagem dos lutadores
+                        img: `images/lutadores/${enemyName}.png`,
                         agi: enemyTemplate.agi,
                         res: enemyTemplate.res,
                         isPlayer: false
@@ -314,7 +313,7 @@ io.on('connection', (socket) => {
                 const combatant = state.combatants.party[action.combatantId] || state.combatants.enemies[action.combatantId];
                 if (!combatant || state.initiativeRolls[action.combatantId] !== undefined) return;
                 
-                const roll = Math.floor(Math.random() * 20) + 1; // D20
+                const roll = Math.floor(Math.random() * 20) + 1;
                 state.initiativeRolls[action.combatantId] = roll + combatant.agi;
                 logMessage(state, `${combatant.nome} rolou iniciativa: D20(${roll}) + AGI(${combatant.agi}) = ${state.initiativeRolls[action.combatantId]}`);
 
@@ -338,7 +337,7 @@ io.on('connection', (socket) => {
             case 'attack': {
                 if (state.phase !== 'turn' || socket.id !== state.whoseTurn) return;
                 executeAttack(state, action.attackerId, action.targetId, action.move);
-                if(state.phase === 'turn') { // Se o jogo não acabou
+                if(state.phase === 'turn') {
                     endTurn(state);
                 }
                 break;
