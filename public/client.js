@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     let myRole = null;
     let myPlayerKey = null; // Mantido para modo Arena
-    let myFighterId = null; // NOVO: ID do personagem do jogador no modo Clássico
+    let myFighterId = null; // ID do personagem do jogador no modo Clássico
     let isGm = false;
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
@@ -15,25 +15,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
 
-    // Novas telas
-    const passwordScreen = document.getElementById('password-screen');
     const gmInitialLobby = document.getElementById('gm-initial-lobby');
     const playerWaitingScreen = document.getElementById('player-waiting-screen');
-
-    // Telas antigas
-    const modeSelectionScreen = document.getElementById('mode-selection-screen');
-    const arenaLobbyScreen = document.getElementById('arena-lobby-screen'); // Reutilizado para GM
     const scenarioScreen = document.getElementById('scenario-screen');
     const selectionScreen = document.getElementById('selection-screen');
-    const lobbyScreen = document.getElementById('lobby-screen'); // Reutilizado para P2 Classic
     const fightScreen = document.getElementById('fight-screen');
     const theaterScreen = document.getElementById('theater-screen');
 
     const charListContainer = document.getElementById('character-list-container');
     const confirmBtn = document.getElementById('confirm-selection-btn');
     const selectionTitle = document.getElementById('selection-title');
-    const lobbyContent = document.getElementById('lobby-content');
-    const shareContainer = document.getElementById('share-container');
     const copySpectatorLinkInGameBtn = document.getElementById('copy-spectator-link-ingame');
     let modal = document.getElementById('modal');
     let modalTitle = document.getElementById('modal-title');
@@ -102,8 +93,6 @@ document.addEventListener('DOMContentLoaded', () => {
         "outros": { baseName: "outro", count: 50 }
     };
 
-    let linkInitialized = false;
-
     socket.on('availableFighters', ({ p1 }) => {
         ALL_FIGHTERS_DATA = p1 || {};
         if(myRole === 'gm' && theaterScreen.classList.contains('active')){
@@ -146,12 +135,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showScreen(screenToShow) {
         const fullScreenViews = [
-            'password-screen', 
             'gm-initial-lobby', 
             'player-waiting-screen',
             'scenario-screen',
             'selection-screen',
-            'lobby-screen'
         ];
     
         if (fullScreenViews.includes(screenToShow.id)) {
@@ -193,9 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (move) {
                 let targetFighter = document.querySelector('.fighter-card.target');
                 
-                if (!currentFighter.isPlayer) { // GM's turn (NPC)
+                if (!currentFighter.isPlayer) {
                     targetFighter = document.querySelector('#player2-area .fighter-card.target');
-                } else { // Player's turn
+                } else {
                     targetFighter = document.querySelector('#player1-area .fighter-card.target');
                 }
                 
@@ -235,14 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (currentRoomId && roleFromUrl) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            if (roleFromUrl === 'player') {
-                showScreen(selectionScreen);
-                selectionTitle.innerText = `Selecione seu Personagem`;
-                confirmBtn.innerText = 'Confirmar Personagem';
-            } else { // spectator
-                showScreen(playerWaitingScreen);
-                document.getElementById('player-waiting-message').innerText = "Aguardando o GM iniciar o jogo como espectador...";
-            }
+            // CORREÇÃO: Jogador agora começa na tela de espera
+            showScreen(playerWaitingScreen);
         } else {
             socket.emit('gmCreatesLobby');
         }
@@ -642,8 +623,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (gameState.mode === 'lobby') {
                 if (myRole === 'player') {
                      const myPlayerData = gameState.connectedPlayers[socket.id];
+                     // CORREÇÃO: Lógica para mostrar a tela de seleção APENAS quando os dados estiverem prontos
                      if (myPlayerData && !myPlayerData.selectedCharacter) {
                         showScreen(selectionScreen);
+                        selectionTitle.innerText = `Selecione seu Personagem`;
+                        confirmBtn.innerText = 'Confirmar Personagem';
                         renderPlayerCharacterSelection(gameState.unavailableCharacters);
                     } else {
                         showScreen(playerWaitingScreen);
@@ -856,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
             const pArea = document.getElementById(`${key}-area`);
-            pArea.innerHTML = ''; // Limpa a área para reconstruir (evita bugs de layout)
+            pArea.innerHTML = ''; 
 
             if (fighter) {
                 document.getElementById(`${key}-fight-img`).src = fighter.img;

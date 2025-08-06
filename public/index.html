@@ -15,15 +15,11 @@
 
     <div id="dice-cheat-indicator" class="cheat-indicator hidden"></div>
 
-    <!-- TELA DE SENHA (NOVA) -->
-    <div id="password-screen" class="screen active">
-        <h1>Acesso do Mestre</h1>
-        <input type="password" id="password-input" placeholder="Digite a senha">
-        <button id="password-submit-btn" class="mode-btn">Entrar</button>
-    </div>
+    <!-- TELA DE SENHA (REMOVIDA) -->
+    <!-- <div id="password-screen" class="screen"> ... </div> -->
 
-    <!-- TELA INICIAL DO LOBBY DO GM (NOVA) -->
-    <div id="gm-initial-lobby" class="screen">
+    <!-- TELA INICIAL DO LOBBY DO GM (NOVA TELA INICIAL) -->
+    <div id="gm-initial-lobby" class="screen active">
         <h1>Lobby do Mestre</h1>
         <p>Envie os links abaixo para os jogadores e espectadores.</p>
         <div class="gm-links-container">
@@ -179,7 +175,6 @@
             <p><b>I:</b> Alternar Ilegal</p>
         </div>
 
-        <!-- Imagens flutuantes, usadas principalmente pelo MODO ARENA agora -->
         <img src="" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
         <img src="" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
 
@@ -188,26 +183,19 @@
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
                 
-                <!-- ÁREA JOGADOR 1 (Esquerda) -->
-                <!-- ALTERAÇÃO: Conteúdo será gerado dinamicamente pelo JS -->
                 <div class="fighter-info" id="player1-area">
                 </div>
                 
-                <!-- LOG DE LUTA -->
                 <div id="fight-log-container">
                     <h2 id="round-info">ROUND 1</h2>
                     <div id="fight-log"></div>
                 </div>
 
-                <!-- ÁREA JOGADOR 2 (Direita) -->
-                <!-- ALTERAÇÃO: Conteúdo será gerado dinamicamente pelo JS -->
                 <div class="fighter-info" id="player2-area">
                 </div>
 
             </div>
-            <!-- BOTÕES DE AÇÃO -->
             <div id="action-buttons-wrapper">
-                <!-- BOTÕES DO JOGADOR 1 / GM (VERMELHOS) -->
                 <div id="p1-controls" class="move-buttons hidden">
                     <button class="action-btn p1-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
@@ -217,10 +205,8 @@
                     <button class="action-btn p1-btn" data-move="Esquiva" data-reaction="true">Esquiva (1 PA)</button>
                     <button class="action-btn p1-btn illegal-btn" data-move="Golpe Ilegal">Golpe Ilegal (2 PA)</button>
                     <div id="p1-special-moves" class="special-moves-container"></div>
-                    <!-- ALTERAÇÃO: Adicionada classe genérica -->
                     <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
-                <!-- BOTÕES DO JOGADOR 2 / PLAYERS (AZUIS) -->
                 <div id="p2-controls" class="move-buttons hidden">
                     <button class="action-btn p2-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
@@ -238,11 +224,9 @@
             </div>
         </div>
 
-        <!-- BOTÕES DE ROLAGEM -->
         <button id="player1-roll-btn" class="roll-dice-button hidden"></button>
         <button id="player2-roll-btn" class="roll-dice-button hidden"></button>
 
-        <!-- OVERLAYS -->
         <div id="dice-overlay" class="hidden"></div>
         <div id="player1-dice-result" class="dice-result hidden"></div>
         <div id="player2-dice-result" class="dice-result hidden"></div>
@@ -255,7 +239,6 @@
         <div id="player2-dk-result" class="dk-result-overlay hidden"></div>
     </div>
 
-    <!-- MODAL PADRÃO -->
     <div id="modal" class="hidden">
         <div id="modal-content">
             <h3 id="modal-title">Título</h3>
@@ -264,7 +247,6 @@
         </div>
     </div>
     
-    <!-- MODAL DE SELEÇÃO DE GOLPES ESPECIAIS -->
     <div id="special-moves-modal" class="hidden">
         <div id="special-moves-content">
              <button id="special-moves-back-btn" class="back-btn" title="Voltar para Personagens">←</button>
