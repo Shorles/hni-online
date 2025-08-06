@@ -19,12 +19,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const PLAYABLE_CHARACTERS = { 'Ryu':{img:'images/Ryu.png'},'Yobu':{img:'images/Yobu.png'},'Nathan':{img:'images/Nathan.png'},'Okami':{img:'images/Okami.png'} };
 
-    // --- LÓGICA DE SOCKETS ---
+    // --- LÓGICA DE SOCKETS E INICIALIZAÇÃO ---
 
     socket.on('connect', () => {
         myPlayerKey = socket.id;
         
-        // <<< CORREÇÃO: Toda a lógica de inicialização agora acontece aqui, após a conexão ser estabelecida.
+        // <<< CORREÇÃO DEFINITIVA: Toda a lógica de inicialização agora acontece aqui.
+        // Isso garante que o cliente só envia comandos após a conexão ser 100% estabelecida.
         const urlParams = new URLSearchParams(window.location.search);
         const roomIdFromUrl = urlParams.get('room');
         const roleFromUrl = urlParams.get('role');
@@ -81,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
         const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
 
-        // Atualiza a URL do navegador para o GM, para que ele possa recarregar a página e continuar na sala
         const newUrl = `${window.location.pathname}?room=${roomId}`;
         window.history.replaceState({ path: newUrl }, '', newUrl);
 
@@ -413,11 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
         w.style.top = `${top}px`;
     };
     
-    // Configura os listeners estáticos uma vez
     document.getElementById('confirm-selection-btn').addEventListener('click', onConfirmSelection);
     p1Controls.addEventListener('click', handlePlayerControlClick);
     window.addEventListener('resize', scaleGame);
-    
-    // Inicia a lógica principal
-    initialize();
 });
