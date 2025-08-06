@@ -12,13 +12,13 @@ body {
     height: 720px;
     position: absolute;
     overflow: hidden;
-    background-color: #000; /* Fundo padrão */
+    background-color: #000; /* Fundo padrão para menus */
     background-size: cover;
     background-position: center;
     transform-origin: top left;
 }
 
-/* NOVA REGRA PARA TELAS DE MENU */
+/* NOVA REGRA PARA FORÇAR TELA CHEIA NOS MENUS */
 #game-wrapper.full-view {
     width: 100% !important;
     height: 100% !important;
@@ -60,7 +60,7 @@ body {
     line-height: 50px;
 }
 
-/* --- TELAS DE LOBBY E SENHA --- */
+/* --- TELAS DE LOBBY E ESPERA --- */
 #gm-initial-lobby, #player-waiting-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
@@ -74,18 +74,6 @@ body {
     color: #ffeb3b;
     text-shadow: 2px 2px 5px #000;
     margin-bottom: 20px;
-}
-
-#password-input {
-    padding: 15px;
-    font-size: 1.5em;
-    width: 300px;
-    text-align: center;
-    border: 2px solid #555;
-    background-color: #333;
-    color: #fff;
-    border-radius: 8px;
-    margin-bottom: 10px;
 }
 
 .gm-links-container {
@@ -249,7 +237,7 @@ body {
 #theater-screen {
     justify-content: flex-start;
     align-items: flex-start;
-    background-color: #222; /* Fundo de emergência */
+    background-color: #222;
 }
 
 #theater-background-viewport {
@@ -286,7 +274,7 @@ body {
 
 #theater-background-image {
     display: block;
-    pointer-events: none; /* Important for clicking through to the viewport */
+    pointer-events: none;
 }
 
 #theater-token-container {
@@ -307,10 +295,10 @@ body {
     -webkit-user-drag: none;
     pointer-events: all;
     transform-origin: center center;
-    transition: opacity 0.3s ease-in-out; /* Added for off-stage effect */
+    transition: opacity 0.3s ease-in-out;
 }
 .theater-token.off-stage {
-    opacity: 0.5; /* For GM to see which tokens are hidden */
+    opacity: 0.5;
 }
 .theater-token:active {
     cursor: grabbing;
@@ -402,7 +390,7 @@ body {
 #theater-gm-legend b {
     color: #ffc107;
     display: inline-block;
-    width: 70px; /* Align keys */
+    width: 70px;
 }
 
 #copy-theater-spectator-link {
@@ -419,7 +407,7 @@ body {
 .toggle-gm-panel-btn {
     position: absolute;
     top: 0;
-    right: 250px; /* Largura do painel */
+    right: 250px;
     width: 40px;
     height: 40px;
     font-size: 1.8em;
@@ -664,7 +652,6 @@ body {
     flex-direction: column;
     gap: 10px;
     height: 100%;
-    /* Substitui a lógica de .fighter-info */
     flex-basis: 28%; 
     padding: 10px; 
     background-color: transparent; 
@@ -916,7 +903,7 @@ body {
     #player1-roll-btn, #player2-roll-btn { left: auto; right: auto; }
     #modal-content, #special-moves-content { width: 90vw; min-width: 90vw; box-sizing: border-box; }
     #special-moves-list { max-height: 50vh; }
-    #password-screen h1, #gm-initial-lobby h1, #selection-title { font-size: 2.5em; text-align: center; }
+    #gm-initial-lobby h1, #selection-title { font-size: 2.5em; text-align: center; }
     #gm-initial-lobby h2 { font-size: 1.5em; text-align: center; }
     #game-alert-content { font-size: 1.5em; padding: 20px; }
     .dk-result-overlay { top: 30%; width: 120px; }

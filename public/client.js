@@ -219,14 +219,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
+        // Lógica de inicialização simplificada
         if (currentRoomId && roleFromUrl) {
-            // Player ou Espectador: junta-se à sala e aguarda.
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            showScreen(playerWaitingScreen);
+            showScreen(playerWaitingScreen); // Jogador sempre começa na tela de espera
         } else {
-            // GM: Cria a sala imediatamente.
             socket.emit('gmCreatesLobby');
-            showScreen(gmInitialLobby); // Mostra o lobby do GM por padrão.
+            showScreen(gmInitialLobby); // GM sempre começa no lobby
         }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
@@ -797,7 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) {
         if (!state || !myRole) return;
         
-        if (state.scenario) {
+        if (state.scenario && (state.mode === 'classic' || state.mode === 'arena')) {
             gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; 
         }
         
