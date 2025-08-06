@@ -179,58 +179,35 @@
             <p><b>I:</b> Alternar Ilegal</p>
         </div>
 
-        <img src="images/lutadores/Kureha Shoji.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
+        <!-- Imagens flutuantes, usadas principalmente pelo MODO ARENA agora -->
+        <img src="" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
         <img src="" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
 
         <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
 
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
-                <!-- ÁREA JOGADOR 1 -->
+                
+                <!-- ÁREA JOGADOR 1 (Esquerda) -->
+                <!-- ALTERAÇÃO: Conteúdo será gerado dinamicamente pelo JS -->
                 <div class="fighter-info" id="player1-area">
-                    <h2 id="player1-fight-name">Jogador 1</h2>
-                    <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div><span id="player1-hp-text">10 / 10</span></div>
-                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player1-pa-dots"></div></div>
-                    <div class="defense-display">
-                        <p class="stat-text" id="player1-agi-text">AGI: 0</p>
-                        <div class="def-shield">
-                            <img src="images/def.png" alt="Defesa">
-                            <span class="defense-text" id="player1-def-text">0</span>
-                        </div>
-                        <p class="stat-text" id="player1-res-text">RES: 0</p>
-                    </div>
-                    <p>Acertos: <span id="player1-hits">0</span></p>
-                    <p>Quedas: <span id="player1-knockdowns">0</span></p>
-                    <p>Dano Recebido: <span id="player1-damage-taken">0</span></p>
-                    <p>Penalidades: <span id="player1-point-deductions">0</span></p>
                 </div>
+                
                 <!-- LOG DE LUTA -->
                 <div id="fight-log-container">
                     <h2 id="round-info">ROUND 1</h2>
                     <div id="fight-log"></div>
                 </div>
-                <!-- ÁREA JOGADOR 2 -->
+
+                <!-- ÁREA JOGADOR 2 (Direita) -->
+                <!-- ALTERAÇÃO: Conteúdo será gerado dinamicamente pelo JS -->
                 <div class="fighter-info" id="player2-area">
-                    <h2 id="player2-fight-name">Jogador 2</h2>
-                    <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div><span id="player2-hp-text">15 / 15</span></div>
-                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player2-pa-dots"></div></div>
-                    <div class="defense-display">
-                        <p class="stat-text" id="player2-agi-text">AGI: 0</p>
-                        <div class="def-shield">
-                            <img src="images/def.png" alt="Defesa">
-                            <span class="defense-text" id="player2-def-text">0</span>
-                        </div>
-                        <p class="stat-text" id="player2-res-text">RES: 0</p>
-                    </div>
-                    <p>Acertos: <span id="player2-hits">0</span></p>
-                    <p>Quedas: <span id="player2-knockdowns">0</span></p>
-                    <p>Dano Recebido: <span id="player2-damage-taken">0</span></p>
-                    <p>Penalidades: <span id="player2-point-deductions">0</span></p>
                 </div>
+
             </div>
             <!-- BOTÕES DE AÇÃO -->
             <div id="action-buttons-wrapper">
-                <!-- BOTÕES DO JOGADOR 1 (VERMELHOS) -->
+                <!-- BOTÕES DO JOGADOR 1 / GM (VERMELHOS) -->
                 <div id="p1-controls" class="move-buttons hidden">
                     <button class="action-btn p1-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
@@ -240,9 +217,10 @@
                     <button class="action-btn p1-btn" data-move="Esquiva" data-reaction="true">Esquiva (1 PA)</button>
                     <button class="action-btn p1-btn illegal-btn" data-move="Golpe Ilegal">Golpe Ilegal (2 PA)</button>
                     <div id="p1-special-moves" class="special-moves-container"></div>
+                    <!-- ALTERAÇÃO: Adicionada classe genérica -->
                     <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
-                <!-- BOTÕES DO JOGADOR 2 (AZUIS) -->
+                <!-- BOTÕES DO JOGADOR 2 / PLAYERS (AZUIS) -->
                 <div id="p2-controls" class="move-buttons hidden">
                     <button class="action-btn p2-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
