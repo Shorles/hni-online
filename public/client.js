@@ -24,14 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('connect', () => {
         myPlayerKey = socket.id;
         
-        // <<< CORREÇÃO DEFINITIVA: Toda a lógica de inicialização agora acontece aqui.
-        // Isso garante que o cliente só envia comandos após a conexão ser 100% estabelecida.
         const urlParams = new URLSearchParams(window.location.search);
         const roomIdFromUrl = urlParams.get('room');
         const roleFromUrl = urlParams.get('role');
 
         if (roomIdFromUrl && roleFromUrl) {
-            // Se a URL tem os parâmetros, é um jogador ou espectador se conectando
             currentRoomId = roomIdFromUrl;
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
             if (roleFromUrl === 'player') {
@@ -41,8 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen('player-waiting-screen');
             }
         } else {
-            // Se não tem parâmetros, assume que é o GM e cria a sala
-            showScreen('gm-initial-lobby'); // Mostra a tela de lobby imediatamente
+            showScreen('gm-initial-lobby');
             socket.emit('gmCreatesLobby');
         }
     });
@@ -55,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameUpdate', (gameState) => {
         modal.classList.add('hidden');
         currentGameState = gameState;
-        scaleGame(); // Garante que a tela sempre se ajuste
+        scaleGame();
 
         if (gameState.mode === 'lobby') {
             if (isGm) {
@@ -174,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </label>
             `).join('<br>');
     
+        // <<< CORREÇÃO: Usar a variável LUTA_CHARACTERS para gerar a lista de inimigos
         const enemyListHtml = Object.keys(LUTA_CHARACTERS).map(name => `
             <button class="enemy-add-btn" data-name="${name}">${name}</button>
         `).join('');
@@ -189,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="enemy-selection-list">${enemyListHtml}</div>
                 </div>
                 <div class="setup-column">
-                    <h4>Inimigos na Batalha</h4>
+                    <h4>Inimigos na Batalha (Máx: 8)</h4>
                     <ul id="staged-enemies-list"></ul>
                 </div>
             </div>`;
@@ -200,6 +197,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
         document.querySelectorAll('.enemy-add-btn').forEach(btn => {
             btn.onclick = () => {
+                // <<< CORREÇÃO: Adicionar limite de 8 inimigos
+                if (selectedEnemies.length >= 8) {
+                    alert("Você pode adicionar no máximo 8 inimigos.");
+                    return;
+                }
                 const enemyName = btn.dataset.name;
                 selectedEnemies.push(enemyName);
                 const li = document.createElement('li');
@@ -413,6 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
         w.style.top = `${top}px`;
     };
     
+    // Configura os listeners estáticos uma vez, fora dos eventos de socket
     document.getElementById('confirm-selection-btn').addEventListener('click', onConfirmSelection);
     p1Controls.addEventListener('click', handlePlayerControlClick);
     window.addEventListener('resize', scaleGame);
