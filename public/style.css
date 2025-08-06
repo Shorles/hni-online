@@ -12,7 +12,7 @@ body {
     height: 720px;
     position: absolute;
     overflow: hidden;
-    background-image: url('images/Ringue.png');
+    background-image: url('images/Ringue3.png'); /* Fundo mais medieval */
     background-size: cover;
     background-position: center;
     transform-origin: top left;
@@ -22,34 +22,7 @@ body {
 .screen.active { display: flex; flex-direction: column; justify-content: center; align-items: center; }
 .hidden { display: none !important; }
 
-/* --- BOTÃO VOLTAR --- */
-.back-btn {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    width: 50px;
-    height: 50px;
-    font-size: 2em;
-    font-weight: bold;
-    color: #ffeb3b;
-    background-color: rgba(0,0,0,0.5);
-    border: 2px solid #ffeb3b;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 3100;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-.back-btn:hover {
-    background-color: rgba(255, 235, 59, 0.3);
-}
-#exit-game-btn, #theater-back-btn { 
-    font-size: 2.5em;
-    line-height: 50px;
-}
-
-/* --- TELAS DE LOBBY E SENHA --- */
+/* --- TELAS DE LOBBY E SELEÇÃO (Estilos mantidos) --- */
 #password-screen, #gm-initial-lobby, #player-waiting-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
@@ -97,7 +70,7 @@ body {
     padding: 15px;
     width: 80%;
     max-width: 800px;
-    max-height: 180px; /* <<< MODIFICAÇÃO: Aumentado de 100px para dar mais espaço */
+    max-height: 180px;
     overflow-y: auto;
 }
 
@@ -118,15 +91,6 @@ body {
     font-size: 1.8em;
     color: #ccc;
 }
-
-
-/* --- TELA DE SELEÇÃO DE MODO --- */
-#mode-selection-screen {
-    background-color: rgba(0, 0, 0, 0.9);
-    gap: 30px;
-}
-#mode-selection-screen h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; }
-#mode-selection-screen h2 { font-size: 2em; color: #fff; }
 .mode-buttons-container { display: flex; gap: 40px; }
 .mode-btn {
     padding: 20px 40px;
@@ -138,306 +102,14 @@ body {
     color: #ffeb3b;
     transition: all 0.2s ease-in-out;
 }
-.mode-btn:hover { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
-
-/* --- TELA DE LOBBY DA ARENA --- */
-#arena-lobby-screen { background-color: #1a1a1a; gap: 20px; text-align: center; padding-top: 50px; box-sizing: border-box; }
-#arena-lobby-screen h1 { font-size: 3em; color: #ffeb3b; }
-.arena-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap;}
-.arena-links-container > div { background-color: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; }
-.arena-status-container { display: flex; gap: 50px; justify-content: center; width: 80%; }
-.arena-player-status {
-    flex: 1;
-    background-color: #333;
-    padding: 20px;
-    border-radius: 10px;
-    border: 2px solid #555;
-}
-
-
-/* --- TELA DE SELEÇÃO DE CENÁRIO --- */
-#scenario-screen {
-    background-color: rgba(0, 0, 0, 0.9);
-    gap: 20px;
-    padding: 20px 0;
-    box-sizing: border-box;
-}
-#scenario-title {
-    font-size: 3em;
-    color: #ffeb3b;
-    text-shadow: 2px 2px 5px #000;
-}
-#scenario-category-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-.category-tab-btn {
-    padding: 10px 20px;
-    font-size: 1.2em;
-    cursor: pointer;
-    border: 2px solid #555;
-    border-radius: 8px;
-    background-color: #333;
-    color: #aaa;
-    transition: all 0.2s ease-in-out;
-}
-.category-tab-btn:hover {
-    background-color: #444;
-    color: #fff;
-}
-.category-tab-btn.active {
-    background-color: #ffeb3b;
-    color: #000;
-    border-color: #ffeb3b;
-    font-weight: bold;
-}
-#scenario-list-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 30px;
-    justify-content: center;
-    padding: 20px;
-    max-height: 480px;
-    overflow-y: auto;
-    width: 90%;
-}
-.scenario-card {
-    background-color: #333;
-    border: 4px solid #555;
-    border-radius: 10px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s ease-in-out;
-    width: 300px;
-    overflow: hidden;
-}
-.scenario-card:hover {
-    border-color: #aaa;
-    transform: scale(1.03);
-}
-.scenario-card.selected {
-    border-color: #ffeb3b;
-    box-shadow: 0 0 20px #ffeb3b;
-}
-.scenario-card img {
-    width: 100%;
-    height: 150px;
-    object-fit: cover;
-    display: block;
-}
-.scenario-card .scenario-name {
-    font-size: 1.5em;
-    font-weight: bold;
-    padding: 15px;
-}
-
-/* --- MODO TEATRO --- */
-#theater-screen {
-    justify-content: flex-start;
-    align-items: flex-start;
-    background-color: #222; /* Fundo de emergência */
-}
-
-#theater-background-viewport {
-    position: absolute;
-    top: 0; left: 0;
-    width: calc(100% - 250px);
-    height: 100%;
-    z-index: 1;
-    transition: width 0.3s ease-in-out;
-    overflow: auto;
-    cursor: grab;
-}
-#theater-background-viewport::-webkit-scrollbar { display: none; }
-#theater-background-viewport { -ms-overflow-style: none; scrollbar-width: none; }
-
-#theater-background-viewport.group-select-mode {
-    cursor: crosshair;
-}
-
-#theater-world-container {
-    position: relative;
-    transform-origin: 0 0;
-}
-
-
-#selection-box {
-    position: absolute;
-    border: 1px dashed #ffeb3b;
-    background-color: rgba(255, 235, 59, 0.2);
-    z-index: 9999;
-    pointer-events: none;
-    transform-origin: 0 0;
-}
-
-#theater-background-image {
-    display: block;
-    pointer-events: none; /* Important for clicking through to the viewport */
-}
-
-#theater-token-container {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    z-index: 2; 
-    transform-style: preserve-3d;
-    pointer-events: none;
-}
-
-.theater-token {
-    position: absolute;
-    width: 200px;
-    height: auto;
-    cursor: grab;
-    user-select: none;
-    -webkit-user-drag: none;
-    pointer-events: all;
-    transform-origin: center center;
-    transition: opacity 0.3s ease-in-out; /* Added for off-stage effect */
-}
-.theater-token.off-stage {
-    opacity: 0.5; /* For GM to see which tokens are hidden */
-}
-.theater-token:active {
-    cursor: grabbing;
-}
-.theater-token.selected {
-    outline: 3px dashed #ffeb3b;
-    outline-offset: 5px;
-    border-radius: 10px;
-}
-#theater-gm-panel {
-    position: absolute;
-    top: 0; right: 0;
-    width: 250px;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.75);
-    z-index: 3;
-    padding: 15px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    color: #fff;
-    overflow-y: auto;
-    transition: right 0.3s ease-in-out;
-}
-.panel-section {
-    background-color: rgba(255, 255, 255, 0.1);
-    padding: 10px;
-    border-radius: 8px;
-}
-#theater-char-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-}
-.theater-char-mini {
-    width: 60px;
-    height: 60px;
-    background-color: #333;
-    border: 2px solid #555;
-    border-radius: 5px;
-    cursor: grab;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-}
-.theater-char-mini:hover {
-    border-color: #ffeb3b;
-}
-.theater-char-mini:active {
-    cursor: grabbing;
-}
-
-#theater-gm-panel h4 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    text-align: center;
-    color: #ffeb3b;
-    border-bottom: 1px solid #555;
-    padding-bottom: 5px;
-}
-#theater-gm-panel label {
-    display: block;
-    margin-bottom: 5px;
-}
-#theater-gm-panel input[type="range"] {
-    width: 100%;
-}
-#theater-gm-panel button {
-    width: 100%;
-    padding: 10px;
-    margin-top: 15px;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-#theater-change-scenario-btn { background-color: #007bff; }
-#theater-change-scenario-btn:hover { background-color: #0056b3; }
-#theater-publish-btn { background-color: #28a745; }
-#theater-publish-btn:hover { background-color: #218838; }
-
-#theater-gm-legend p {
-    font-size: 0.9em;
-    margin: 5px 0;
-    color: #ccc;
-}
-#theater-gm-legend b {
-    color: #ffc107;
-    display: inline-block;
-    width: 70px; /* Align keys */
-}
-
-#copy-theater-spectator-link {
-    z-index: 4;
-    right: 20px;
-    top: 20px;
-}
-#copy-theater-spectator-link:disabled {
-    background-color: #6c757d;
+.mode-btn:hover:not(:disabled) { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
+.mode-btn:disabled {
+    background-color: #222;
+    color: #666;
+    border-color: #444;
     cursor: not-allowed;
-    border-color: #888;
 }
 
-.toggle-gm-panel-btn {
-    position: absolute;
-    top: 0;
-    right: 250px; /* Largura do painel */
-    width: 40px;
-    height: 40px;
-    font-size: 1.8em;
-    background-color: rgba(0,0,0,0.7);
-    color: #ffeb3b;
-    border: 2px solid #ffeb3b;
-    border-right: none;
-    border-radius: 8px 0 0 8px;
-    cursor: pointer;
-    z-index: 4;
-    transition: right 0.3s ease-in-out;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-#theater-screen.panel-hidden #theater-gm-panel {
-    right: -250px;
-}
-
-#theater-screen.panel-hidden #theater-background-viewport {
-    width: 100%;
-}
-
-#theater-screen.panel-hidden .toggle-gm-panel-btn {
-    right: 0;
-}
-
-/* --- TELA DE SELEÇÃO DE PERSONAGENS --- */
 #selection-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
@@ -494,330 +166,228 @@ body {
     border-radius: 10px;
 }
 .char-card img { width: 100px; height: 100px; object-fit: contain; background-color: #222; border-radius: 50%; margin-bottom: 10px; }
-.char-card .char-name { font-size: 1.2em; font-weight: bold; margin-bottom: 10px; }
-.char-card .char-stats label { display: block; margin-top: 5px; }
-.char-card .char-stats-display { margin-top: 10px; font-size: 1em; color: #ccc; height: 56px; display: flex; align-items: center; justify-content: center; }
-.char-card .char-stats input { width: 50px; text-align: center; font-size: 1.1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px; }
+.char-card .char-name { font-size: 1.2em; font-weight: bold; }
 #confirm-selection-btn { padding: 15px 30px; font-size: 1.5em; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 8px; flex-shrink: 0; }
 #confirm-selection-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-/* --- TELA DE LOBBY --- */
-#lobby-screen { background-color: #1a1a1a; gap: 20px; }
-#lobby-screen h1 { font-size: 3em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; }
-#lobby-content { background-color: #333; padding: 30px; border-radius: 10px; font-size: 1.5em; text-align: center; }
-#share-container { text-align: center; background-color: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 8px; }
-.share-link { background-color: #fff; color: #000; padding: 10px 20px; font-family: monospace; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 10px; border: 2px dashed #ffeb3b; display: inline-block; word-break: break-all; }
+/* --- NOVA TELA DE LUTA --- */
+#fight-screen {
+    justify-content: space-between;
+    padding: 0;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+}
 
-/* --- TELA DE LUTA --- */
-#fight-screen { justify-content: flex-end; padding: 0; box-sizing: border-box; position: relative; overflow: hidden; }
-#fight-ui-wrapper { position: absolute; bottom: 0; left: 0; width: 100%; padding: 0 20px 20px 20px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 20; }
-.copy-link-button { position: absolute; top: 20px; right: 20px; width: 40px; height: 40px; font-size: 1.5em; background-color: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid #fff; border-radius: 50%; cursor: pointer; z-index: 100; }
-.copy-link-button:hover { background-color: rgba(255, 255, 255, 0.4); }
-
-/* --- PAINEL DE CHEATS GM --- */
-#gm-cheats-panel {
+#battlefield {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 20px 50px;
+    box-sizing: border-box;
     position: absolute;
-    top: 80px;
-    left: 20px;
-    background-color: rgba(0, 0, 0, 0.6);
-    border: 1px solid #ffeb3b;
+    top: 0;
+    left: 0;
+}
+
+.combatant-column {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+#enemies-container {
+    align-items: flex-end; /* Alinha os inimigos à direita da coluna */
+}
+
+.combatant-card {
+    background-color: rgba(0,0,0,0.7);
+    border: 2px solid #555;
     border-radius: 8px;
-    padding: 10px 15px;
-    z-index: 2100;
-    color: #fff;
-    font-size: 0.9em;
-}
-#gm-cheats-panel h4 {
-    margin: 0 0 10px 0;
-    color: #ffeb3b;
-    text-align: center;
-    border-bottom: 1px solid #555;
-    padding-bottom: 5px;
-}
-#gm-cheats-panel p {
-    margin: 5px 0;
-}
-#gm-cheats-panel b {
-    color: #ffc107;
+    width: 250px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: all 0.3s ease;
 }
 
-/* --- BOTÕES DE AJUDA E MUDANÇA DE MODO --- */
-.help-btn, .gm-mode-switch-btn {
-    position: absolute;
-    top: 20px;
-    width: 40px;
-    height: 40px;
-    font-size: 1.8em;
-    font-weight: bold;
-    border: 1px solid #fff;
-    border-radius: 50%;
+.combatant-card .fighter-img {
+    width: 70px;
+    height: 70px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.enemy .fighter-img {
+    transform: scaleX(-1);
+}
+
+.combatant-info {
+    flex-grow: 1;
+}
+
+.combatant-name {
+    margin: 0 0 5px 0;
+    font-size: 1.1em;
+    white-space: nowrap;
+}
+
+.stats-bar { display: flex; align-items: center; gap: 8px; width: 100%; }
+.hp-bar-container { width: 100%; height: 18px; background-color: #555; border: 1px solid #000; border-radius: 5px; }
+.hp-bar { height: 100%; background-color: #28a745; border-radius: 5px; transition: width 0.5s ease-in-out; }
+.hp-text { font-size: 0.8em; white-space: nowrap; }
+
+.pa-display { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
+.pa-dots-container { display: flex; flex-wrap: wrap; gap: 4px; }
+.pa-dot { width: 12px; height: 12px; background-color: #007bff; border-radius: 50%; box-shadow: 0 0 5px #007bff; }
+
+.initiative-roll-area .roll-init-btn {
+    padding: 4px 8px;
+    font-size: 0.8em;
+    margin-top: 5px;
     cursor: pointer;
-    z-index: 3100;
-}
-.help-btn { 
-    right: 80px; 
-    color: #fff;
-    background-color: rgba(0, 123, 255, 0.5);
-}
-.help-btn:hover { background-color: rgba(0, 123, 255, 0.8); }
-.gm-mode-switch-btn {
-    right: 140px;
-    color: #000;
-    background-color: rgba(255, 193, 7, 0.8);
-}
-.gm-mode-switch-btn:hover { background-color: rgba(255, 193, 7, 1); }
-
-
-.cheat-indicator {
-    position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: rgba(220, 53, 69, 0.8);
-    color: white;
-    padding: 5px 15px;
-    border-radius: 5px;
-    font-weight: bold;
-    z-index: 3100;
-    pointer-events: none;
 }
 
-/* POSICIONAMENTO E ANIMAÇÃO DOS LUTADORES */
-.fighter-img { 
-    position: absolute; 
-    width: 200px; 
-    height: 200px; 
-    object-fit: contain; 
-    bottom: 350px; 
-    z-index: 10; 
-    transition: transform 0.2s ease; 
-}
-
-/* Regras de Animação */
-@keyframes player1-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(-50px); } }
-@keyframes player2-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(50px); } }
-@keyframes player1-attack-lunge-arena { 50% { transform: translateX(50px); } }
-@keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(50px); } }
-@keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
-.is-hit { animation: hit-flash 0.5s ease-in-out; }
-
-@keyframes pulse {
+/* ESTADOS DOS COMBATENTES */
+@keyframes pulse-yellow {
     0% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.7); }
     70% { box-shadow: 0 0 0 10px rgba(255, 235, 59, 0); }
     100% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0); }
 }
 
-/* Regras para MODO CLÁSSICO */
-.mode-classic #player1-fight-img { left: 380px; transform: scaleX(-1); }
-.mode-classic #player2-fight-img { right: 380px; transform: scaleX(-1); }
-.mode-classic .is-attacking-player1 { animation: player1-attack-lunge-classic 0.4s ease-in-out; }
-.mode-classic .is-attacking-player2 { animation: player2-attack-lunge-classic 0.4s ease-in-out; }
+.combatant-card.active-turn {
+    border-color: #ffeb3b;
+    transform: scale(1.05);
+    animation: pulse-yellow 2s infinite;
+}
 
-/* Regras para MODO ARENA */
-.mode-arena #player1-fight-img { left: 380px; }
-.mode-arena #player2-fight-img { right: 380px; transform: scaleX(-1); }
-.mode-arena .is-attacking-player1 { animation: player1-attack-lunge-arena 0.4s ease-in-out; }
-.mode-arena .is-attacking-player2 { animation: player2-attack-lunge-arena 0.4s ease-in-out; }
+.combatant-card.enemy:hover {
+    cursor: pointer;
+    border-color: #aaa;
+}
 
+.combatant-card.selected-target {
+    border-color: #dc3545;
+    box-shadow: 0 0 15px #dc3545;
+}
 
-/* PAINÉIS DE UI */
-.fight-ui-container { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
-.fighter-info { flex-basis: 28%; padding: 10px; background-color: rgba(0, 0, 0, 0.7); border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: border-color 0.3s ease, box-shadow 0.3s ease; }
-.fighter-info.active-turn { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; }
-.fighter-info p { margin: 0; font-size: 0.9em; }
-.fighter-info p:last-of-type { color: #dc3545; }
-.stats-bar { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
-.hp-bar-container { width: 100%; height: 20px; background-color: #555; border: 1px solid #000; border-radius: 5px; }
-.hp-bar { height: 100%; background-color: #28a745; border-radius: 5px; transition: width 0.5s ease-in-out; }
-.stats-bar > span:last-of-type { white-space: nowrap; }
-.pa-display { display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center; }
-.pa-dots-container { display: flex; flex-wrap: wrap; gap: 5px; flex-grow: 1; max-width: 150px; }
-.pa-dot { width: 15px; height: 15px; background-color: #007bff; border-radius: 50%; box-shadow: 0 0 5px #007bff; }
+.combatant-card.defeated {
+    opacity: 0.5;
+    filter: grayscale(100%);
+    transform: scale(0.95);
+}
 
-.defense-display { display: flex; justify-content: center; align-items: center; width: 100%; gap: 15px; }
-.def-shield { position: relative; display: flex; justify-content: center; align-items: center; }
-.def-shield img { width: 40px; height: 40px; }
-.defense-text { position: absolute; font-size: 1.2em; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
-.stat-text { font-size: 1em; font-weight: bold; margin: 0; }
-#player1-agi-text, #player2-agi-text { color: #87ceeb; } /* Azul claro para AGI */
-#player1-res-text, #player2-res-text { color: #90ee90; } /* Verde claro para RES */
+/* --- UI INFERIOR (Log e Ações) --- */
+#fight-ui-wrapper { 
+    position: absolute; 
+    bottom: 0; 
+    left: 0; 
+    width: 100%; 
+    padding: 15px; 
+    box-sizing: border-box; 
+    display: flex; 
+    justify-content: center;
+    align-items: flex-end; 
+    gap: 20px; 
+    z-index: 20; 
+}
 
-#fight-log-container { flex-basis: 40%; height: 220px; background-color: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
-#round-info { text-align: center; margin-top: 0; border-bottom: 1px solid #fff; padding-bottom: 10px; }
+#fight-log-container { 
+    width: 50%; 
+    height: 180px; 
+    background-color: rgba(0,0,0,0.7); 
+    border: 2px solid #555; 
+    border-radius: 10px; 
+    padding: 10px; 
+    display: flex; 
+    flex-direction: column; 
+}
 #fight-log { overflow-y: auto; flex-grow: 1; }
-#fight-log p { margin: 5px; padding-bottom: 5px; border-bottom: 1px dashed #444; font-size: 0.9em; }
-.log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
-.highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; vertical-align: middle; }
-.turn-highlight { font-weight: bold; color: #dc3545; }
-.log-move-name { font-weight: bold; font-size: 1.1em; color: #dc3545; }
-.highlight-total { font-weight: bold; font-size: 1.25em; color: #dc3545; }
-.reaction-highlight { font-size: 0.9em; color: #17a2b8; font-style: italic; }
+#fight-log p { margin: 4px; padding-bottom: 4px; border-bottom: 1px dashed #444; font-size: 0.9em; }
+.log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; text-align: center; border-bottom: 1px solid #fff; }
+.highlight-result { font-weight: bold; font-size: 1.1em; color: #ffeb3b; }
+.turn-highlight { font-weight: bold; color: #ffeb3b; }
+.log-move-name { font-weight: bold; color: #dc3545; }
 
-/* BOTÕES DE AÇÃO */
-#action-buttons-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-.move-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.special-moves-container { display: contents; } 
-.action-btn, .end-turn-btn, #forfeit-btn { 
-    padding: 6px 12px; font-size: 0.85em; cursor: pointer; border: none; 
+#action-buttons-wrapper { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    gap: 10px;
+    background-color: rgba(0,0,0,0.7);
+    padding: 15px;
+    border: 2px solid #555;
+    border-radius: 10px;
+}
+.move-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.action-btn, .end-turn-btn { 
+    padding: 8px 15px; font-size: 0.9em; cursor: pointer; border: none; 
     border-radius: 5px; color: white; transition: background-color 0.2s; 
-    min-width: 110px; position: relative;
+    min-width: 120px;
 }
 .end-turn-btn { background-color: #ffc107; color: #000; }
-#forfeit-btn { background-color: #6f42c1; }
-#forfeit-btn:hover:not(:disabled) { background-color: #5a349b; }
-.action-btn:disabled, .end-turn-btn:disabled, #forfeit-btn:disabled { background-color: #495057; cursor: not-allowed; }
-.p1-btn { background-color: #c82333; } .p1-btn:hover:not(:disabled) { background-color: #a71d2a; }
-.p2-btn { background-color: #007bff; } .p2-btn:hover:not(:disabled) { background-color: #0056b3; }
-.special-btn-player1 { background-color: #28a745; } .special-btn-player1:hover:not(:disabled) { background-color: #218838; }
-.special-btn-player2 { background-color: #20c997; } .special-btn-player2:hover:not(:disabled) { background-color: #1baa80; }
-.illegal-btn { background-color: #b30000 !important; border: 1px solid #ff4d4d; box-shadow: 0 0 5px #dc3545; }
-.illegal-btn:hover:not(:disabled) { background-color: #800000 !important; }
-
-.action-btn.white-fang-ready { border: 2px solid #ffeb3b; animation: pulse 2s infinite; }
-.white-fang-extra { font-size: 0.8em; color: #ffeb3b; display: block; font-style: italic; }
+.action-btn:disabled, .end-turn-btn:disabled { background-color: #495057; cursor: not-allowed; }
+.p1-btn { background-color: #007bff; } .p1-btn:hover:not(:disabled) { background-color: #0056b3; }
 
 
-/* BOTÕES DE ROLAGEM */
-.roll-dice-button { position: absolute; bottom: 450px; padding: 10px 15px; font-size: 1em; font-weight: bold; border: 2px solid #fff; border-radius: 8px; cursor: pointer; z-index: 100; transition: all 0.2s ease; }
-.roll-dice-button:not(.inactive):hover { transform: scale(1.05); }
-.roll-dice-button:not(.inactive) { color: #000; background-color: #ffeb3b; box-shadow: 0 0 10px #ffeb3b; }
-.roll-dice-button.inactive { color: #aaa; background-color: #666; border-color: #888; cursor: default; }
-#player1-roll-btn { left: 200px; }
-#player2-roll-btn { right: 200px; }
-
-/* MODAIS E OVERLAYS */
-#modal, #special-moves-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
-#modal-content, #special-moves-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 800px; position: relative; }
-#modal-title, #special-moves-title { margin-top: 0; font-size: 1.5em; }
+/* --- MODAIS (Estilos mantidos) --- */
+#modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
+#modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 800px; }
+#modal-title { margin-top: 0; font-size: 1.5em; }
 #modal-text { margin: 15px 0; text-align: left; }
-#modal-button, #confirm-special-moves-btn { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
-#confirm-special-moves-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
-
-#special-moves-list, #p2-moves-selection-list { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 20px; max-height: 400px; overflow-y: auto; padding: 10px; }
-#arena-p1-moves, #arena-p2-moves { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 10px; max-height: 200px; overflow-y: auto; }
-.special-move-card { background-color: #444; border: 2px solid #666; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; width: 150px; text-align: left;}
-.special-move-card:hover { border-color: #999; }
-.special-move-card.selected { border-color: #28a745; box-shadow: 0 0 10px #28a745; transform: scale(1.05); }
-.special-move-card h4 { margin: 0 0 5px 0; color: #ffeb3b; }
-.special-move-card p { margin: 2px 0; font-size: 0.9em; }
-
-/* MODAL DE AJUDA - TABELA */
-.help-table-container { max-height: 50vh; overflow-y: auto; margin: 15px 0; }
-#help-modal-table { width: 100%; border-collapse: collapse; text-align: left; }
-#help-modal-table th, #help-modal-table td { padding: 8px; border-bottom: 1px solid #555; }
-#help-modal-table th { font-weight: bold; color: #ffeb3b; }
-#help-modal-table td:nth-child(5) { font-size: 0.9em; } /* Efeito */
-#help-modal-table .special-moves-divider td { border-bottom: 2px solid #ffeb3b; padding: 2px; }
-
-/* MODAL SELEÇÃO OPONENTE */
-#modal-text ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; }
-.opponent-selection-item {
-    background-color: #444;
-    border: 2px solid #666;
-    padding: 10px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    width: 120px;
-}
-.opponent-selection-item:hover {
-    border-color: #aaa;
-    transform: scale(1.05);
-}
-.opponent-selection-item.selected {
-    border-color: #ffeb3b;
-    box-shadow: 0 0 10px #ffeb3b;
-}
-.opponent-selection-item img {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-}
-.opponent-selection-item span {
-    font-weight: bold;
-}
-
-#dice-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; }
-.dice-result { position: absolute; width: 120px; height: 120px; background-size: contain; background-position: center; background-repeat: no-repeat; z-index: 51; pointer-events: none; }
-#player1-dice-result { left: 400px; bottom: 530px; }
-#player2-dice-result { right: 400px; bottom: 530px; }
-#get-up-success-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; z-index: 4000; pointer-events: none; }
-#get-up-success-content { background: rgba(0, 0, 0, 0.85); color: #28a745; padding: 25px 40px; border-radius: 15px; border: 3px solid #28a745; text-align: center; font-size: 1.8em; font-weight: bold; text-shadow: 1px 1px 2px #000; }
-#get-up-success-content span { color: #aaa; font-size: 0.7em; display: block; margin-top: 10px; }
-
-#game-alert-overlay {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;
-    z-index: 5000; pointer-events: none; opacity: 1; transition: opacity 0.5s ease-out 2.5s;
-}
-#game-alert-overlay.hidden { opacity: 0; }
-#game-alert-content {
-    background: rgba(220, 53, 69, 0.85); color: #fff; padding: 30px 50px; border-radius: 15px;
-    border: 3px solid #fff; text-align: center; font-size: 2.5em; font-weight: bold; text-shadow: 2px 2px 4px #000;
-}
-.dk-result-overlay {
-    position: absolute; top: 50%; transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.85); padding: 20px; border-radius: 10px;
-    text-align: center; z-index: 4500; pointer-events: none;
-}
-#player1-dk-result { left: 100px; }
-#player2-dk-result { right: 100px; }
-.dk-result-overlay h4 { margin: 0 0 10px 0; font-size: 1.5em; }
-.dk-result-overlay p { margin: 0; font-size: 1.2em; }
-.dk-result-overlay.success { border: 3px solid #28a745; color: #28a745; }
-.dk-result-overlay.fail { border: 3px solid #dc3545; color: #dc3545; }
+#modal-button { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
 
 /* RESPONSIVIDADE */
 @media screen and (max-width: 800px) {
-    body { overflow: auto; }
     #game-wrapper {
         position: relative;
-        left: 0 !important;
-        top: 0 !important;
         transform: none !important;
         width: 100% !important;
+        height: auto !important;
+        min-height: 100vh;
         overflow-y: auto;
         overflow-x: hidden;
     }
-    #fight-screen, #theater-screen { height: auto; min-height: 100%; padding-bottom: 20px; }
-    .fighter-img {
-        position: relative; width: 120px; height: 120px; bottom: auto; left: auto; right: auto;
-        margin: 10px auto; z-index: 1;
-    }
-    .mode-classic #player1-fight-img, .mode-classic #player2-fight-img, .mode-arena #player2-fight-img { transform: scaleX(1); }
-    #fight-ui-wrapper { position: relative; width: 100%; padding: 0 5px; gap: 10px; }
-    .fight-ui-container { flex-direction: column; align-items: center; gap: 10px; }
-    .fighter-info { width: 95%; flex-basis: auto; padding: 8px; }
-    .fighter-info h2 { font-size: 1.2em; }
-    #fight-log-container { order: 3; width: 95%; height: 150px; font-size: 0.9em; }
-    .action-btn, .end-turn-btn, #forfeit-btn { padding: 10px 8px; font-size: 0.9em; flex-grow: 1; flex-basis: 30%; }
-    #p1-special-moves, #p2-special-moves { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-    .roll-dice-button {
-        position: relative; bottom: auto; left: auto; right: auto; margin: 20px auto;
-        display: block; width: 80%; padding: 15px; font-size: 1.2em;
-    }
-    #player1-roll-btn, #player2-roll-btn { left: auto; right: auto; }
-    #modal-content, #special-moves-content { width: 90vw; min-width: 90vw; box-sizing: border-box; }
-    #special-moves-list { max-height: 50vh; }
-    #password-screen h1, #gm-initial-lobby h1, #selection-title { font-size: 2.5em; text-align: center; }
-    #gm-initial-lobby h2 { font-size: 1.5em; text-align: center; }
-    #game-alert-content { font-size: 1.5em; padding: 20px; }
-    .dk-result-overlay { top: 30%; width: 120px; }
-    #player1-dk-result { left: 20px; }
-    #player2-dk-result { right: 20px; }
-    
-    /* MODO TEATRO RESPONSIVO */
-    #theater-gm-panel {
-        width: 100%;
+    #fight-screen {
         height: auto;
-        bottom: 0;
-        top: auto;
+        padding-bottom: 220px; /* Espaço para UI inferior */
+    }
+    #battlefield {
+        flex-direction: column;
+        height: auto;
+        position: relative;
+        padding: 10px;
+    }
+    .combatant-column {
+        width: 100%;
         flex-direction: row;
         flex-wrap: wrap;
         justify-content: center;
+    }
+    .combatant-card {
+        width: 160px;
+        flex-direction: column;
+        text-align: center;
+        gap: 5px;
+    }
+    #fight-ui-wrapper {
+        flex-direction: column;
+        align-items: center;
+        padding: 10px;
+        position: fixed; /* Fixa a UI na parte inferior */
+        background-color: #111;
         border-top: 2px solid #555;
+    }
+    #fight-log-container {
+        width: 95%;
+        height: 100px;
+    }
+    #action-buttons-wrapper {
+        width: 95%;
+        padding: 10px;
     }
 }
