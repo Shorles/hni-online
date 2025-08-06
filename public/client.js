@@ -486,7 +486,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGameState = gameState;
         scaleGame();
         
-        // <<< CORREÇÃO: Adicionando a fase que faltava
         const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring', 'p2_stat_assignment'];
 
         // GM Logic
@@ -807,18 +806,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.dataTransfer.setData('application/json', JSON.stringify({ charName: name, img: imgPath }));
             });
 
-            // LÓGICA DE ARRASTAR COM TOQUE (NOVO)
             mini.addEventListener('touchstart', (e) => {
                 if (!isGm) return;
                 e.preventDefault();
 
-                // Criar um "fantasma" do token para arrastar
                 const ghost = mini.cloneNode(true);
                 ghost.style.position = 'fixed';
                 ghost.style.zIndex = '99999';
                 ghost.style.opacity = '0.7';
-                ghost.style.pointerEvents = 'none'; // Ignorar toques no fantasma
-                ghost.style.left = `${e.touches[0].clientX - 30}px`; // Centralizar no dedo
+                ghost.style.pointerEvents = 'none';
+                ghost.style.left = `${e.touches[0].clientX - 30}px`;
                 ghost.style.top = `${e.touches[0].clientY - 30}px`;
                 document.body.appendChild(ghost);
 
@@ -826,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 touchDragData.charName = name;
                 touchDragData.img = imgPath;
 
-                window.addEventListener('touchmove', onMobileDragMove);
+                window.addEventListener('touchmove', onMobileDragMove, { passive: false });
                 window.addEventListener('touchend', onMobileDragEnd);
             }, { passive: false });
 
@@ -848,10 +845,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!touchDragData.ghost) return;
 
             const touch = e.changedTouches[0];
-            const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+            const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
 
-            // Verifica se o alvo do drop é a área do cenário
-            if (dropTarget && (dropTarget === theaterBackgroundViewport || theaterBackgroundViewport.contains(dropTarget))) {
+            if (
+                touch.clientX >= viewportRect.left &&
+                touch.clientX <= viewportRect.right &&
+                touch.clientY >= viewportRect.top &&
+                touch.clientY <= viewportRect.bottom
+            ) {
                  try {
                     const { worldX, worldY } = screenToWorldCoords(e);
                     const tokenBaseWidth = 200;
@@ -869,7 +870,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) { console.error("Erro ao processar o drop por toque:", error); }
             }
 
-            // Limpa os dados de arraste
             document.body.removeChild(touchDragData.ghost);
             touchDragData = { ghost: null, charName: null, img: null };
         };
@@ -1005,15 +1005,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return matrix.a; 
         };
 
-        // Função auxiliar para obter coordenadas de eventos de mouse ou toque
         const getEventCoords = (e) => {
-            if (e.changedTouches && e.changedTouches.length > 0) { // Para touchend/touchcancel
+            if (e.changedTouches && e.changedTouches.length > 0) {
                 return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
             }
-            if (e.touches && e.touches.length > 0) { // Para touchstart/touchmove
+            if (e.touches && e.touches.length > 0) {
                  return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
             }
-            return { clientX: e.clientX, clientY: e.clientY }; // Para mouse
+            return { clientX: e.clientX, clientY: e.clientY };
         }
 
         const screenToWorldCoords = (e) => {
@@ -1249,15 +1248,18 @@ document.addEventListener('DOMContentLoaded', () => {
             let hasDragged = false;
             
             const onDragMove = (moveEvent) => {
+                // Previne o comportamento padrão (scroll, etc) se for um evento de toque
+                if (moveEvent.type === 'touchmove') {
+                    moveEvent.preventDefault();
+                }
+
                 const { clientX, clientY } = getEventCoords(moveEvent);
                 const dx = clientX - startMouseX;
                 const dy = clientY - startMouseY;
                 
                 if (!hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
                     hasDragged = true;
-                    // Ao começar a arrastar, seleciona o token se não estiver selecionado
                     if (!selectedTokens.has(draggedToken.id)) {
-                         // A lógica de Ctrl/Cmd para multiselect não se aplica ao toque
                          if (!startEvent.ctrlKey && !startEvent.metaKey) {
                             document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
                             selectedTokens.clear();
@@ -1278,7 +1280,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tokensToDrag.forEach(tokenId => {
                     const tokenEl = document.getElementById(tokenId);
                     if (!tokenEl) return;
-                    // Armazena a posição inicial no momento que o arraste começa
                     if(!tokenEl.dataset.startX) tokenEl.dataset.startX = tokenEl.offsetLeft;
                     if(!tokenEl.dataset.startY) tokenEl.dataset.startY = tokenEl.offsetTop;
 
@@ -1291,7 +1292,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             const onDragEnd = (endEvent) => {
-                // Remove os listeners de movimento e finalização
                 window.removeEventListener('mousemove', onDragMove);
                 window.removeEventListener('mouseup', onDragEnd);
                 window.removeEventListener('touchmove', onDragMove);
@@ -1302,7 +1302,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const updates = tokensToDrag.map(tokenId => {
                          const tokenEl = document.getElementById(tokenId);
                          if (tokenEl) {
-                             // Limpa os dados de posição inicial
                              delete tokenEl.dataset.startX;
                              delete tokenEl.dataset.startY;
                              return { id: tokenId, x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
@@ -1313,7 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (updates.length > 0) {
                         socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
                     }
-                } else { // Foi um clique/toque simples
+                } else {
                     const isCtrlClick = endEvent.ctrlKey || endEvent.metaKey;
                     if (!isCtrlClick) {
                         document.querySelectorAll('.theater-token.selected').forEach(t => {
@@ -1330,12 +1329,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
             
-            // Adiciona os listeners corretos para mouse ou toque
             if (startEvent.type === 'mousedown') {
                 window.addEventListener('mousemove', onDragMove);
                 window.addEventListener('mouseup', onDragEnd);
-            } else { // touchstart
-                window.addEventListener('touchmove', onDragMove);
+            } else { 
+                window.addEventListener('touchmove', onDragMove, { passive: false });
                 window.addEventListener('touchend', onDragEnd);
             }
         };
