@@ -143,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         if (fullScreenViews.includes(screenToShow.id)) {
             gameWrapper.classList.add('full-view');
-            gameWrapper.style.backgroundImage = 'none';
         } else {
             gameWrapper.classList.remove('full-view');
         }
@@ -222,9 +221,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (currentRoomId && roleFromUrl) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            // CORREÇÃO: Jogador agora começa na tela de espera
             showScreen(playerWaitingScreen);
         } else {
+            showScreen(gmInitialLobby); // GM sempre começa aqui agora
             socket.emit('gmCreatesLobby');
         }
         
@@ -623,7 +622,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (gameState.mode === 'lobby') {
                 if (myRole === 'player') {
                      const myPlayerData = gameState.connectedPlayers[socket.id];
-                     // CORREÇÃO: Lógica para mostrar a tela de seleção APENAS quando os dados estiverem prontos
                      if (myPlayerData && !myPlayerData.selectedCharacter) {
                         showScreen(selectionScreen);
                         selectionTitle.innerText = `Selecione seu Personagem`;
