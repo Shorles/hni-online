@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameUpdate', (gameState) => {
         modal.classList.add('hidden');
         currentGameState = gameState;
+        scaleGame(); // <<< CORREÇÃO: Garante que a tela sempre se ajuste
 
         if (gameState.mode === 'lobby') {
             if (isGm) {
@@ -96,7 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen('fight-screen');
             updateUI(gameState);
         }
-        // Outros modos (como Teatro) podem ser adicionados aqui
     });
 
     socket.on('roomCreated', (roomId) => {
@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
 
         // Atualiza a URL do navegador para o GM, para que ele possa recarregar a página e continuar na sala
-        const newUrl = `${baseUrl}?room=${roomId}`;
+        const newUrl = `${window.location.pathname}?room=${roomId}`;
         window.history.replaceState({ path: newUrl }, '', newUrl);
 
         const playerLinkEl = document.getElementById('gm-link-player');
@@ -119,7 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
         specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
     });
     
-    // Mantém o nome do evento, mas agora carrega a lista de inimigos para o GM
     socket.on('availableFighters', ({ p1 }) => {
         LUTA_CHARACTERS = p1 || {};
     });
@@ -128,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateGmLobbyUI(state) {
         const playerListEl = document.getElementById('gm-lobby-player-list');
-        const startBattleBtn = document.getElementById('start-classic-btn'); // Reutilizando o botão
+        const startBattleBtn = document.getElementById('start-classic-btn');
         startBattleBtn.innerText = "Iniciar Batalha (Medieval)";
         startBattleBtn.onclick = () => showGmBattleSetupModal(state);
         
@@ -235,7 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
     
-    // A função principal de renderização da batalha
     function updateUI(state) {
         renderCombatants(state);
         updateActionButtons(state);
@@ -255,12 +253,10 @@ document.addEventListener('DOMContentLoaded', () => {
         partyContainer.innerHTML = '';
         enemiesContainer.innerHTML = '';
 
-        // Renderiza o grupo de jogadores
         Object.values(state.combatants.party).forEach(p => {
             partyContainer.appendChild(createCombatantCard(p, state));
         });
 
-        // Renderiza os inimigos
         Object.values(state.combatants.enemies).forEach(e => {
             const card = createCombatantCard(e, state);
             if (e.hp > 0) {
@@ -269,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
             enemiesContainer.appendChild(card);
         });
         
-        // Aplica destaques
         if (state.whoseTurn) {
             document.querySelector(`.combatant-card[data-id="${state.whoseTurn}"]`)?.classList.add('active-turn');
         }
@@ -294,8 +289,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.phase === 'initiative_roll' && state.initiativeRolls[c.id] === undefined) {
             if (c.isPlayer && c.id === myPlayerKey) {
                 initiativeButton = `<button class="roll-init-btn">Rolar Iniciativa</button>`;
-            } else if (!c.isPlayer && isGm) {
-                 // O GM terá um botão geral
             }
         }
         
@@ -352,7 +345,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (move) {
                 let disabled = true;
                 if (me.pa >= move.cost) {
-                    // Ataques precisam de alvo, habilidades de auto-buff não
                     if (move.self || selectedTargetId) {
                         disabled = false;
                     }
@@ -382,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 attackerId: myPlayerKey,
                 targetId: selectedTargetId
             });
-            selectTarget(null, null); // Desseleciona o alvo após o ataque
+            selectTarget(null, null);
         }
     }
     
@@ -406,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalButton = newButton;
         modalButton.innerText = btnText;
         modalButton.style.display = 'inline-block';
-        modalButton.onclick = action; // Ação é definida na chamada
+        modalButton.onclick = action;
         modal.classList.remove('hidden');
     }
 
@@ -418,5 +410,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const scaleGame = () => {
+        const w = document.getElementById('game-wrapper');
+        const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+        w.style.transform = `scale(${scale})`;
+        const left = (window.innerWidth - (1280 * scale)) / 2;
+        const top = (window.innerHeight - (720 * scale)) / 2;
+        w.style.left = `${left}px`;
+        w.style.top = `${top}px`;
+    };
+    
+    window.addEventListener('resize', scaleGame);
     initialize();
 });
