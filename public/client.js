@@ -220,11 +220,13 @@ document.addEventListener('DOMContentLoaded', () => {
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
         if (currentRoomId && roleFromUrl) {
+            // Player ou Espectador: junta-se à sala e aguarda.
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
             showScreen(playerWaitingScreen);
         } else {
-            showScreen(gmInitialLobby); // GM sempre começa aqui agora
+            // GM: Cria a sala imediatamente.
             socket.emit('gmCreatesLobby');
+            showScreen(gmInitialLobby); // Mostra o lobby do GM por padrão.
         }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
@@ -585,7 +587,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const SETUP_PHASES_ARENA = ['p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring', 'p2_stat_assignment'];
 
-        // GM Logic
         if (isGm) {
             if (gameState.mode === 'lobby') {
                 showScreen(gmInitialLobby);
@@ -617,7 +618,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTheaterMode(gameState);
             }
         } 
-        // Player & Spectator Logic
         else if (myRole === 'player' || myRole === 'spectator') {
             if (gameState.mode === 'lobby') {
                 if (myRole === 'player') {
@@ -631,7 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         showScreen(playerWaitingScreen);
                         document.getElementById('player-waiting-message').innerText = myPlayerData ? "Personagem enviado! Aguardando o Mestre..." : "Aguardando o Mestre iniciar o jogo...";
                     }
-                } else { // Spectator
+                } else { 
                      showScreen(playerWaitingScreen);
                      document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
                 }
@@ -668,22 +668,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
-        if (myRole === 'gm' || isGm) {
-            const baseUrl = window.location.origin;
-            const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
-            const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
+        const baseUrl = window.location.origin;
+        const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
+        const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
 
-            const playerLinkEl = document.getElementById('gm-link-player');
-            const specLinkEl = document.getElementById('gm-link-spectator');
+        const playerLinkEl = document.getElementById('gm-link-player');
+        const specLinkEl = document.getElementById('gm-link-spectator');
 
-            playerLinkEl.textContent = playerUrl;
-            specLinkEl.textContent = specUrl;
-            
-            playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
-            specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
-
-            showScreen(gmInitialLobby);
-        }
+        playerLinkEl.textContent = playerUrl;
+        specLinkEl.textContent = specUrl;
+        
+        playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
+        specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
     });
 
     function updateGmLobbyUI(state) {
@@ -747,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentFighter = [...state.npcs, ...state.players].find(f => f.id === currentFighterId);
             if (!currentFighter) return card;
 
-            const isMyTurn = (isGm && !currentFighter.isPlayer) || (!isGm && currentFighter.isPlayer && currentFighter.socketId === socket.id);
+            const isMyTurn = (isGm && !currentFighter.isPlayer) || (myFighterId && currentFighter.id === myFighterId);
             const isTargetable = (currentFighter.isPlayer && !fighter.isPlayer) || (!currentFighter.isPlayer && fighter.isPlayer);
             
             if (isMyTurn && isTargetable) {
@@ -776,7 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('round-info').innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${turnFighter.nome}</span>`;
             
             const isMyGMTurn = isGm && !turnFighter.isPlayer;
-            const isMyPlayerTurn = !isGm && turnFighter.isPlayer && turnFighter.socketId === socket.id;
+            const isMyPlayerTurn = myFighterId && turnFighter.id === myFighterId;
 
             if (isMyGMTurn || isMyPlayerTurn) {
                 document.getElementById('action-buttons-wrapper').classList.remove('hidden');
@@ -1856,6 +1852,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    scaleGame();
     window.addEventListener('resize', scaleGame);
 });
