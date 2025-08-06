@@ -9,27 +9,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let LUTA_CHARACTERS = {}; // Será usado para a lista de inimigos do GM
     let selectedTargetId = null;
 
-    // ... (Referências de elementos do DOM serão atualizadas/adicionadas depois)
     const fightScreen = document.getElementById('fight-screen');
     const actionButtonsWrapper = document.getElementById('action-buttons-wrapper');
-    const p1Controls = document.getElementById('p1-controls'); // Será reutilizado para o jogador
+    const p1Controls = document.getElementById('p1-controls');
     let modal = document.getElementById('modal');
     let modalTitle = document.getElementById('modal-title');
     let modalText = document.getElementById('modal-text');
     let modalButton = document.getElementById('modal-button');
     
-    // Mantendo os nomes, mas o conceito muda
     const PLAYABLE_CHARACTERS = { 'Ryu':{img:'images/Ryu.png'},'Yobu':{img:'images/Yobu.png'},'Nathan':{img:'images/Nathan.png'},'Okami':{img:'images/Okami.png'} };
 
-    // --- FUNÇÕES DE SETUP E INICIALIZAÇÃO ---
+    // --- LÓGICA DE SOCKETS ---
 
-    function initialize() {
+    socket.on('connect', () => {
+        myPlayerKey = socket.id;
+        
+        // <<< CORREÇÃO: Toda a lógica de inicialização agora acontece aqui, após a conexão ser estabelecida.
         const urlParams = new URLSearchParams(window.location.search);
-        currentRoomId = urlParams.get('room');
+        const roomIdFromUrl = urlParams.get('room');
         const roleFromUrl = urlParams.get('role');
 
-        if (currentRoomId && roleFromUrl) {
+        if (roomIdFromUrl && roleFromUrl) {
             // Se a URL tem os parâmetros, é um jogador ou espectador se conectando
+            currentRoomId = roomIdFromUrl;
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
             if (roleFromUrl === 'player') {
                 showScreen('selection-screen');
@@ -38,36 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen('player-waiting-screen');
             }
         } else {
-            // Se não tem parâmetros, assume que é o GM e cria a sala automaticamente
+            // Se não tem parâmetros, assume que é o GM e cria a sala
             showScreen('gm-initial-lobby'); // Mostra a tela de lobby imediatamente
             socket.emit('gmCreatesLobby');
         }
-        
-        document.getElementById('confirm-selection-btn').addEventListener('click', onConfirmSelection);
-        p1Controls.addEventListener('click', handlePlayerControlClick);
-    }
-
-    function onConfirmSelection() {
-        const selectedCard = document.querySelector('.char-card.selected');
-        if (!selectedCard) { alert('Por favor, selecione um personagem!'); return; }
-        
-        const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
-        socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
-        
-        showScreen('player-waiting-screen');
-        document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
-    }
-
-    function showScreen(screenId) {
-        document.querySelectorAll('.screen').forEach(screen => {
-            screen.classList.toggle('active', screen.id === screenId);
-        });
-    }
-
-    // --- LÓGICA DE SOCKETS ---
-
-    socket.on('connect', () => {
-        myPlayerKey = socket.id;
     });
 
     socket.on('assignRole', (data) => {
@@ -78,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameUpdate', (gameState) => {
         modal.classList.add('hidden');
         currentGameState = gameState;
-        scaleGame(); // <<< CORREÇÃO: Garante que a tela sempre se ajuste
+        scaleGame(); // Garante que a tela sempre se ajuste
 
         if (gameState.mode === 'lobby') {
             if (isGm) {
@@ -123,7 +99,24 @@ document.addEventListener('DOMContentLoaded', () => {
         LUTA_CHARACTERS = p1 || {};
     });
 
-    // --- LÓGICA DA INTERFACE (UI) ---
+    // --- FUNÇÕES DE SETUP E UI ---
+
+    function onConfirmSelection() {
+        const selectedCard = document.querySelector('.char-card.selected');
+        if (!selectedCard) { alert('Por favor, selecione um personagem!'); return; }
+        
+        const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
+        socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
+        
+        showScreen('player-waiting-screen');
+        document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+    }
+
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.toggle('active', screen.id === screenId);
+        });
+    }
 
     function updateGmLobbyUI(state) {
         const playerListEl = document.getElementById('gm-lobby-player-list');
@@ -420,6 +413,11 @@ document.addEventListener('DOMContentLoaded', () => {
         w.style.top = `${top}px`;
     };
     
+    // Configura os listeners estáticos uma vez
+    document.getElementById('confirm-selection-btn').addEventListener('click', onConfirmSelection);
+    p1Controls.addEventListener('click', handlePlayerControlClick);
     window.addEventListener('resize', scaleGame);
+    
+    // Inicia a lógica principal
     initialize();
 });
