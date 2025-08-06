@@ -60,7 +60,7 @@ function createNewLobbyState(gmId) {
         connectedPlayers: {},
         unavailableCharacters: [],
         log: [{ text: "Lobby criado. Aguardando jogadores..." }],
-        availableEnemies: LUTA_CHARACTERS // <<< CORREÇÃO: Inclui a lista de inimigos no estado do lobby
+        availableEnemies: LUTA_CHARACTERS
     };
 }
 
@@ -201,6 +201,24 @@ function endTurn(state) {
     }
 }
 
+// Função auxiliar para verificar se todos rolaram e iniciar a batalha
+function checkAllInitiativesRolled(state) {
+    const allCombatants = [...Object.values(state.combatants.party), ...Object.values(state.combatants.enemies)];
+    const allHaveRolled = allCombatants.every(c => state.initiativeRolls[c.id] !== undefined);
+
+    if (allHaveRolled) {
+        state.turnOrder = allCombatants
+            .map(c => c.id)
+            .sort((a, b) => state.initiativeRolls[b] - state.initiativeRolls[a]);
+        
+        state.turnIndex = 0;
+        state.whoseTurn = state.turnOrder[0];
+        state.phase = 'turn';
+        const firstUp = state.combatants.party[state.whoseTurn] || state.combatants.enemies[state.whoseTurn];
+        logMessage(state, `Ordem de Batalha definida! ${firstUp.nome} começa!`, 'log-turn');
+    }
+}
+
 io.on('connection', (socket) => {
     
     socket.on('gmCreatesLobby', () => {
@@ -311,26 +329,31 @@ io.on('connection', (socket) => {
             
             case 'roll_initiative': {
                 if (state.phase !== 'initiative_roll') return;
-                const combatant = state.combatants.party[action.combatantId] || state.combatants.enemies[action.combatantId];
+                const combatant = state.combatants.party[action.combatantId];
                 if (!combatant || state.initiativeRolls[action.combatantId] !== undefined) return;
                 
                 const roll = Math.floor(Math.random() * 20) + 1;
                 state.initiativeRolls[action.combatantId] = roll + combatant.agi;
                 logMessage(state, `${combatant.nome} rolou iniciativa: D20(${roll}) + AGI(${combatant.agi}) = ${state.initiativeRolls[action.combatantId]}`);
 
-                const allCombatants = [...Object.values(state.combatants.party), ...Object.values(state.combatants.enemies)];
-                const allHaveRolled = allCombatants.every(c => state.initiativeRolls[c.id] !== undefined);
+                checkAllInitiativesRolled(state);
+                break;
+            }
 
-                if (allHaveRolled) {
-                    state.turnOrder = allCombatants
-                        .map(c => c.id)
-                        .sort((a, b) => state.initiativeRolls[b] - state.initiativeRolls[a]);
-                    
-                    state.turnIndex = 0;
-                    state.whoseTurn = state.turnOrder[0];
-                    state.phase = 'turn';
-                    const firstUp = state.combatants.party[state.whoseTurn] || state.combatants.enemies[state.whoseTurn];
-                    logMessage(state, `Ordem de Batalha definida! ${firstUp.nome} começa!`, 'log-turn');
+            // <<< CORREÇÃO: Nova ação para o GM rolar a iniciativa dos inimigos
+            case 'gm_roll_enemies_initiative': {
+                if (state.phase !== 'initiative_roll') return;
+                let rolledSomething = false;
+                Object.values(state.combatants.enemies).forEach(enemy => {
+                    if(state.initiativeRolls[enemy.id] === undefined) {
+                        const roll = Math.floor(Math.random() * 20) + 1;
+                        state.initiativeRolls[enemy.id] = roll + enemy.agi;
+                        logMessage(state, `${enemy.nome} rolou iniciativa: D20(${roll}) + AGI(${enemy.agi}) = ${state.initiativeRolls[enemy.id]}`);
+                        rolledSomething = true;
+                    }
+                });
+                if (rolledSomething) {
+                    checkAllInitiativesRolled(state);
                 }
                 break;
             }

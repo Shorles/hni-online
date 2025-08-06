@@ -89,8 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
         playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
         specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
     });
-    
-    // O evento 'availableFighters' foi removido para evitar a condição de corrida.
 
     // --- FUNÇÕES DE SETUP E UI ---
 
@@ -167,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </label>
             `).join('<br>');
     
-        // <<< CORREÇÃO: Lê a lista de inimigos diretamente do estado do lobby
         const enemyListHtml = Object.keys(lobbyState.availableEnemies).map(name => `
             <button class="enemy-add-btn" data-name="${name}">${name}</button>
         `).join('');
@@ -256,6 +253,21 @@ document.addEventListener('DOMContentLoaded', () => {
             enemiesContainer.appendChild(card);
         });
         
+        // <<< CORREÇÃO: Adiciona botão de iniciativa para o GM
+        if (isGm && state.phase === 'initiative_roll') {
+            const hasEnemyUnrolled = Object.values(state.combatants.enemies).some(e => state.initiativeRolls[e.id] === undefined);
+            if (hasEnemyUnrolled) {
+                const gmRollBtn = document.createElement('button');
+                gmRollBtn.textContent = 'Rolar Iniciativa (Inimigos)';
+                gmRollBtn.className = 'gm-roll-all-btn';
+                gmRollBtn.onclick = () => {
+                    gmRollBtn.disabled = true;
+                    socket.emit('playerAction', { type: 'gm_roll_enemies_initiative' });
+                };
+                enemiesContainer.appendChild(gmRollBtn);
+            }
+        }
+
         if (state.whoseTurn) {
             document.querySelector(`.combatant-card[data-id="${state.whoseTurn}"]`)?.classList.add('active-turn');
         }
@@ -414,6 +426,4 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('confirm-selection-btn').addEventListener('click', onConfirmSelection);
     p1Controls.addEventListener('click', handlePlayerControlClick);
     window.addEventListener('resize', scaleGame);
-    
-    // A chamada para initialize() foi removida daqui para dentro do evento 'connect'
 });
