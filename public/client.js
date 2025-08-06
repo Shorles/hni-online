@@ -843,32 +843,23 @@ document.addEventListener('DOMContentLoaded', () => {
             window.removeEventListener('touchend', onMobileDragEnd);
 
             if (!touchDragData.ghost) return;
-
-            const touch = e.changedTouches[0];
-            const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-
-            if (
-                touch.clientX >= viewportRect.left &&
-                touch.clientX <= viewportRect.right &&
-                touch.clientY >= viewportRect.top &&
-                touch.clientY <= viewportRect.bottom
-            ) {
-                 try {
-                    const { worldX, worldY } = screenToWorldCoords(e);
-                    const tokenBaseWidth = 200;
-                    const tokenScale = 1.0; 
-                    const newToken = { 
-                        id: `token-${Date.now()}`, 
-                        charName: touchDragData.charName, 
-                        img: touchDragData.img, 
-                        x: worldX - (tokenBaseWidth * tokenScale / 2), 
-                        y: worldY - (tokenBaseWidth * tokenScale / 2), 
-                        scale: tokenScale, 
-                        isFlipped: false 
-                    };
-                    socket.emit('playerAction', { type: 'updateToken', token: newToken });
-                } catch (error) { console.error("Erro ao processar o drop por toque:", error); }
-            }
+            
+            // Lógica simplificada e corrigida
+            try {
+                const { worldX, worldY } = screenToWorldCoords(e);
+                const tokenBaseWidth = 200;
+                const tokenScale = 1.0; 
+                const newToken = { 
+                    id: `token-${Date.now()}`, 
+                    charName: touchDragData.charName, 
+                    img: touchDragData.img, 
+                    x: worldX - (tokenBaseWidth * tokenScale / 2), 
+                    y: worldY - (tokenBaseWidth * tokenScale / 2), 
+                    scale: tokenScale, 
+                    isFlipped: false 
+                };
+                socket.emit('playerAction', { type: 'updateToken', token: newToken });
+            } catch (error) { console.error("Erro ao processar o drop por toque:", error); }
 
             document.body.removeChild(touchDragData.ghost);
             touchDragData = { ghost: null, charName: null, img: null };
@@ -1248,7 +1239,6 @@ document.addEventListener('DOMContentLoaded', () => {
             let hasDragged = false;
             
             const onDragMove = (moveEvent) => {
-                // Previne o comportamento padrão (scroll, etc) se for um evento de toque
                 if (moveEvent.type === 'touchmove') {
                     moveEvent.preventDefault();
                 }
@@ -1504,7 +1494,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     socket.on('assignRole', (data) => {
         myRole = data.role;
-        myPlayerKey = data.playerKey || null; // e.g., 'player1', 'player2'
+        myPlayerKey = data.playerKey || null;
         isGm = data.isGm || myRole === 'gm';
         if (isGm) exitGameBtn.classList.remove('hidden');
     });
