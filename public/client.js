@@ -24,12 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- FUNÇÕES DE SETUP E INICIALIZAÇÃO ---
 
     function initialize() {
-        // A lógica de entrada permanece a mesma
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
         const roleFromUrl = urlParams.get('role');
 
         if (currentRoomId && roleFromUrl) {
+            // Se a URL tem os parâmetros, é um jogador ou espectador se conectando
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
             if (roleFromUrl === 'player') {
                 showScreen('selection-screen');
@@ -38,12 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen('player-waiting-screen');
             }
         } else {
-            showScreen('password-screen');
-            document.getElementById('password-submit-btn').onclick = () => {
-                if (document.getElementById('password-input').value === 'abif13') {
-                    socket.emit('gmCreatesLobby');
-                } else { alert('Senha incorreta.'); }
-            };
+            // Se não tem parâmetros, assume que é o GM e cria a sala automaticamente
+            showScreen('gm-initial-lobby'); // Mostra a tela de lobby imediatamente
+            socket.emit('gmCreatesLobby');
         }
         
         document.getElementById('confirm-selection-btn').addEventListener('click', onConfirmSelection);
@@ -108,6 +105,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
         const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
 
+        // Atualiza a URL do navegador para o GM, para que ele possa recarregar a página e continuar na sala
+        const newUrl = `${baseUrl}?room=${roomId}`;
+        window.history.replaceState({ path: newUrl }, '', newUrl);
+
         const playerLinkEl = document.getElementById('gm-link-player');
         const specLinkEl = document.getElementById('gm-link-spectator');
 
@@ -116,8 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
         specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
-
-        showScreen('gm-initial-lobby');
     });
     
     // Mantém o nome do evento, mas agora carrega a lista de inimigos para o GM
@@ -368,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!target || target.disabled) return;
 
         const moveName = target.dataset.move;
-        const isEndTurn = target.id === 'p1-end-turn-btn'; // Supondo que você adicione um ID
+        const isEndTurn = target.id === 'p1-end-turn-btn'; 
         
         if(isEndTurn) {
              socket.emit('playerAction', { type: 'end_turn' });
