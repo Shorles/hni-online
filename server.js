@@ -60,6 +60,7 @@ function createNewLobbyState(gmId) {
         connectedPlayers: {},
         unavailableCharacters: [],
         log: [{ text: "Lobby criado. Aguardando jogadores..." }],
+        availableEnemies: LUTA_CHARACTERS // <<< CORREÇÃO: Inclui a lista de inimigos no estado do lobby
     };
 }
 
@@ -211,7 +212,7 @@ io.on('connection', (socket) => {
             id: newRoomId,
             players: [{ id: socket.id, role: 'gm' }],
             spectators: [],
-            state: createNewLobbyState(socket.id) // <<< CORREÇÃO: A função agora existe novamente.
+            state: createNewLobbyState(socket.id)
         };
         
         socket.emit('assignRole', { role: 'gm', isGm: true });

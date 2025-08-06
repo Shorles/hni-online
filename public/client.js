@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
 
-    let LUTA_CHARACTERS = {}; // Será usado para a lista de inimigos do GM
     let selectedTargetId = null;
 
     const fightScreen = document.getElementById('fight-screen');
@@ -91,9 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
     });
     
-    socket.on('availableFighters', ({ p1 }) => {
-        LUTA_CHARACTERS = p1 || {};
-    });
+    // O evento 'availableFighters' foi removido para evitar a condição de corrida.
 
     // --- FUNÇÕES DE SETUP E UI ---
 
@@ -170,8 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </label>
             `).join('<br>');
     
-        // <<< CORREÇÃO: Usar a variável LUTA_CHARACTERS para gerar a lista de inimigos
-        const enemyListHtml = Object.keys(LUTA_CHARACTERS).map(name => `
+        // <<< CORREÇÃO: Lê a lista de inimigos diretamente do estado do lobby
+        const enemyListHtml = Object.keys(lobbyState.availableEnemies).map(name => `
             <button class="enemy-add-btn" data-name="${name}">${name}</button>
         `).join('');
     
@@ -197,7 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         document.querySelectorAll('.enemy-add-btn').forEach(btn => {
             btn.onclick = () => {
-                // <<< CORREÇÃO: Adicionar limite de 8 inimigos
                 if (selectedEnemies.length >= 8) {
                     alert("Você pode adicionar no máximo 8 inimigos.");
                     return;
@@ -415,8 +411,9 @@ document.addEventListener('DOMContentLoaded', () => {
         w.style.top = `${top}px`;
     };
     
-    // Configura os listeners estáticos uma vez, fora dos eventos de socket
     document.getElementById('confirm-selection-btn').addEventListener('click', onConfirmSelection);
     p1Controls.addEventListener('click', handlePlayerControlClick);
     window.addEventListener('resize', scaleGame);
+    
+    // A chamada para initialize() foi removida daqui para dentro do evento 'connect'
 });
