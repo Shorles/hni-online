@@ -95,7 +95,7 @@ function advanceTurn(state, io, roomId) {
     if (getFighter(state, lastPlayerId) && getFighter(state, lastPlayerId).status === 'active') {
         state.turnOrder.push(lastPlayerId);
     }
-    state.turnOrder = state.turnOrder.filter(id => getFighter(state, id).status === 'active');
+    state.turnOrder = state.turnOrder.filter(id => getFighter(state, id) && getFighter(state, id).status === 'active');
     if (checkGameOver(state)) { io.to(roomId).emit('gameUpdate', state); return; }
     if (state.turnOrder.length === 0) { return; }
     const allHaveActed = state.turnOrder.every(id => getFighter(state, id).hasActed);
@@ -146,9 +146,42 @@ io.on('connection', (socket) => {
         const state = room.state;
         const playerKey = socket.id;
         switch (action.type) {
-            case 'playerSelectsCharacter': { /* ... */ break; }
-            case 'gmStartsAdventure': { /* ... */ break; }
-            case 'gmConfirmParty': { /* ... */ break; }
+            case 'playerSelectsCharacter': {
+                if (state.mode !== 'lobby') return;
+                const { character } = action;
+                if (state.unavailableCharacters.includes(character.nome)) { socket.emit('characterUnavailable', character.nome); return; }
+                state.unavailableCharacters.push(character.nome);
+                state.connectedPlayers[socket.id].selectedCharacter = character;
+                logMessage(state, `Jogador selecionou ${character.nome}.`);
+                break;
+            }
+            case 'gmStartsAdventure': {
+                let newState = createNewGameState();
+                newState.gmId = state.gmId;
+                newState.lobbyCache = state;
+                for (const sId in state.connectedPlayers) {
+                    const playerData = state.connectedPlayers[sId];
+                    if (playerData.selectedCharacter) {
+                        newState.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img });
+                        io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
+                    }
+                }
+                room.state = newState;
+                break;
+            }
+            case 'gmConfirmParty': {
+                if (state.phase !== 'party_setup') return;
+                action.playerStats.forEach(pStat => {
+                    if (state.fighters.players[pStat.id]) {
+                       const player = state.fighters.players[pStat.id];
+                       player.agi = pStat.agi; player.res = pStat.res;
+                       player.hp = pStat.res * 5; player.hpMax = pStat.res * 5;
+                    }
+                });
+                state.phase = 'npc_setup';
+                logMessage(state, `Grupo confirmado! GM está preparando os inimigos...`);
+                break;
+            }
             case 'gmStartBattle': {
                 if (state.phase !== 'npc_setup') return;
                 const { npcs } = action;
