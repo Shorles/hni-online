@@ -76,7 +76,7 @@ function executeAttack(state, attackerKey, defenderKey, io, roomId) {
     if (attackValue >= defenseValue) {
         logMessage(state, "Acertou!", 'log-hit');
         io.to(roomId).emit('triggerHitAnimation', { defenderKey });
-        io.to(roomId).emit('playSound', 'baseforte01.mp3');
+        io.to(roomId).emit('playSound', 'baseforte01.mp3'); // <-- SOM DE ACERTO
         defender.hp = Math.max(0, defender.hp - ATTACK_MOVE.damage);
         logMessage(state, `${defender.nome} sofre ${ATTACK_MOVE.damage} de dano!`, 'log-hit');
         if (defender.hp <= 0) {
@@ -85,7 +85,7 @@ function executeAttack(state, attackerKey, defenderKey, io, roomId) {
         }
     } else {
         logMessage(state, "Errou!", 'log-miss');
-        io.to(roomId).emit('playSound', 'Esquiva.mp3');
+        io.to(roomId).emit('playSound', 'Esquiva.mp3'); // <-- SOM DE ERRO
     }
 }
 
@@ -235,13 +235,11 @@ io.on('connection', (socket) => {
                 executeAttack(state, attackerKey, action.targetKey, io, roomId);
                 if (attacker) { attacker.hasActed = true; }
 
-                // AJUSTE CRÍTICO: Avança o turno automaticamente após o ataque.
-                // Usamos um pequeno delay para dar tempo das animações começarem no cliente.
                 setTimeout(() => {
                     advanceTurn(state, io, roomId);
                     io.to(roomId).emit('gameUpdate', room.state);
-                }, 700); // 700ms de delay
-                return; // Impede a emissão dupla do gameUpdate no final do switch.
+                }, 700);
+                return;
 
             case 'end_turn':
                 const actorKey = action.actorKey;

@@ -140,7 +140,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `<img src="${data.img}" alt="${data.name}"><div class="char-name">${data.name}</div>`;
             if (unavailable.includes(data.name)) {
                 card.classList.add('disabled');
-                // AJUSTE: Adiciona o overlay com a palavra "SELECIONADO"
                 card.innerHTML += `<div class="char-unavailable-overlay">SELECIONADO</div>`;
             } else {
                 card.addEventListener('click', () => {
@@ -319,7 +318,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state || !state.fighters) return;
         fightSceneCharacters.innerHTML = '';
         updateTurnOrderUI(state);
-        const PLAYER_POSITIONS = [ { left: '200px', top: '500px', zIndex: 14 }, { left: '300px', top: '400px', zIndex: 13 }, { left: '400px', top: '300px', zIndex: 12 }, { left: '500px', top: '200px', zIndex: 11 } ];
+        
+        // AJUSTE: Novas posições para os players
+        const PLAYER_POSITIONS = [ 
+            { left: '150px', top: '500px', zIndex: 1 }, 
+            { left: '250px', top: '400px', zIndex: 2 }, 
+            { left: '350px', top: '300px', zIndex: 3 }, 
+            { left: '450px', top: '200px', zIndex: 4 } 
+        ];
         const NPC_POSITIONS = [ { left: '1000px', top: '500px', zIndex: 14 }, { left: '900px',  top: '400px', zIndex: 13 }, { left: '800px',  top: '300px', zIndex: 12 }, { left: '700px',  top: '200px', zIndex: 11 } ];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
@@ -415,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.classList.add(animationClass); 
                 el.addEventListener('animationend', () => el.classList.remove(animationClass), { once: true });
             }
-        }, 50); // Pequeno delay para garantir que o elemento exista
+        }, 50);
     });
 
     socket.on('triggerHitAnimation', ({ defenderKey }) => { 
@@ -425,9 +431,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.classList.add('is-hit-flash');
                 el.addEventListener('animationend', () => el.classList.remove('is-hit-flash'), { once: true });
             }
-        }, 50); // Pequeno delay
+        }, 50);
     });
     
+    // AJUSTE: Recebe o evento e toca o som correspondente
+    socket.on('playSound', (soundFile) => {
+        const audio = new Audio(`sons/${soundFile}`);
+        audio.play();
+    });
+
     socket.on('error', (err) => { alert(err.message); window.location.reload(); });
     
     initialize();

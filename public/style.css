@@ -122,9 +122,10 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .npc-defeated-final { opacity: 0; pointer-events: none; }
 
 .is-attacking-player { animation: lunge-player 0.5s ease-in-out; }
-@keyframes lunge-player { 50% { transform: translate(50px, -20px); } }
+@keyframes lunge-player { 50% { transform: translate(100px, 0); } }
+
 .is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
-@keyframes lunge-npc { 50% { transform: translate(-50px, -20px); } }
+@keyframes lunge-npc { 50% { transform: translate(-100px, 0); } }
 /* --- FIM DAS ANIMAÇÕES --- */
 
 #fight-log-container { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 50%; max-width: 600px; height: 150px; background-color: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; z-index: 10; }
