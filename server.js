@@ -109,7 +109,6 @@ function advanceTurn(state, io, roomId) {
     logMessage(state, `É a vez de ${newAttacker.nome}.`, 'log-info');
 }
 
-
 io.on('connection', (socket) => {
     socket.on('gmCreatesLobby', () => {
         const newRoomId = uuidv4().substring(0, 6);
@@ -147,9 +146,42 @@ io.on('connection', (socket) => {
         const state = room.state;
         const playerKey = socket.id;
         switch (action.type) {
-            case 'playerSelectsCharacter': { /* ... */ break; }
-            case 'gmStartsAdventure': { /* ... */ break; }
-            case 'gmConfirmParty': { /* ... */ break; }
+            case 'playerSelectsCharacter': {
+                if (state.mode !== 'lobby') return;
+                const { character } = action;
+                if (state.unavailableCharacters.includes(character.nome)) { socket.emit('characterUnavailable', character.nome); return; }
+                state.unavailableCharacters.push(character.nome);
+                state.connectedPlayers[socket.id].selectedCharacter = character;
+                logMessage(state, `Jogador selecionou ${character.nome}.`);
+                break;
+            }
+            case 'gmStartsAdventure': {
+                let newState = createNewGameState();
+                newState.gmId = state.gmId;
+                newState.lobbyCache = state;
+                for (const sId in state.connectedPlayers) {
+                    const playerData = state.connectedPlayers[sId];
+                    if (playerData.selectedCharacter) {
+                        newState.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img });
+                        io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
+                    }
+                }
+                room.state = newState;
+                break;
+            }
+            case 'gmConfirmParty': {
+                if (state.phase !== 'party_setup') return;
+                action.playerStats.forEach(pStat => {
+                    if (state.fighters.players[pStat.id]) {
+                       const player = state.fighters.players[pStat.id];
+                       player.agi = pStat.agi; player.res = pStat.res;
+                       player.hp = pStat.res * 5; player.hpMax = pStat.res * 5;
+                    }
+                });
+                state.phase = 'npc_setup';
+                logMessage(state, `Grupo confirmado! GM está preparando os inimigos...`);
+                break;
+            }
             case 'gmStartBattle': {
                 if (state.phase !== 'npc_setup') return;
                 const { npcs } = action;

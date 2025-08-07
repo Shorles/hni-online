@@ -219,12 +219,95 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    function copyToClipboard(text, element) { /* ... */ }
-    function updateGmLobbyUI(state) { /* ... */ }
-    function updateGmPartySetupScreen(state) { /* ... */ }
-    function renderNpcSelectionForGm() { /* ... */ }
-    function renderInitiativeUI(state) { /* ... */ }
-    function updateTurnOrderUI(state) { /* ... */ }
+    function copyToClipboard(text, element) {
+        if(!element) return;
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = element.textContent;
+            element.textContent = 'Copiado!';
+            setTimeout(() => { element.textContent = originalText; }, 2000);
+        });
+    }
+
+    function updateGmLobbyUI(state) {
+        if (!isGm) return;
+        const playerListEl = document.getElementById('gm-lobby-player-list');
+        if (!playerListEl) return;
+        playerListEl.innerHTML = '';
+        const connectedPlayers = Object.values(state.connectedPlayers);
+        if (connectedPlayers.length === 0) { playerListEl.innerHTML = '<li>Aguardando jogadores...</li>'; } 
+        else {
+            connectedPlayers.forEach(p => {
+                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
+                playerListEl.innerHTML += `<li>Jogador Conectado - Personagem: ${charName}</li>`;
+            });
+        }
+    }
+    
+    function updateGmPartySetupScreen(state) {
+        const partyList = document.getElementById('gm-party-list');
+        partyList.innerHTML = '';
+        Object.values(state.fighters.players).forEach(player => {
+            const playerDiv = document.createElement('div');
+            playerDiv.className = 'party-member-card';
+            playerDiv.dataset.id = player.id;
+            playerDiv.innerHTML = `<img src="${player.img}" alt="${player.nome}"><h4>${player.nome}</h4><label>AGI: <input type="number" class="agi-input" value="2"></label><label>RES: <input type="number" class="res-input" value="3"></label>`;
+            partyList.appendChild(playerDiv);
+        });
+    }
+
+    function renderNpcSelectionForGm() {
+        const npcArea = document.getElementById('npc-selection-area');
+        npcArea.innerHTML = '';
+        const imgPath = 'images/lutadores/';
+        Object.keys(ALL_FIGHTERS_DATA).forEach(name => {
+            const stats = ALL_FIGHTERS_DATA[name];
+            const card = document.createElement('div');
+            card.className = 'npc-card';
+            card.dataset.name = name;
+            card.dataset.img = `${imgPath}${name}.png`;
+            card.innerHTML = `<img src="${imgPath}${name}.png" alt="${name}"><div class="char-name">${name}</div><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label>`;
+            card.addEventListener('click', (e) => {
+                if(e.target.tagName === 'INPUT') return;
+                const selectedCount = document.querySelectorAll('#npc-selection-area .npc-card.selected').length;
+                if (!card.classList.contains('selected') && selectedCount >= 4) { alert("Você pode selecionar no máximo 4 NPCs."); return; }
+                card.classList.toggle('selected');
+            });
+            npcArea.appendChild(card);
+        });
+    }
+    
+    function renderInitiativeUI(state) {
+        const initiativeUI = document.getElementById('initiative-ui');
+        initiativeUI.classList.remove('hidden');
+        const playerRollBtn = document.getElementById('player-roll-initiative-btn');
+        const gmRollBtn = document.getElementById('gm-roll-initiative-btn');
+        if (myRole === 'player' && state.fighters.players[myPlayerKey] && !state.initiativeRolls[myPlayerKey]) {
+            playerRollBtn.classList.remove('hidden'); playerRollBtn.disabled = false;
+            playerRollBtn.onclick = () => { playerRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative' }); };
+        } else { playerRollBtn.classList.add('hidden'); }
+        if (isGm) {
+            const npcsNeedToRoll = Object.values(state.fighters.npcs).some(npc => !state.initiativeRolls[npc.id]);
+            if (npcsNeedToRoll) {
+                gmRollBtn.classList.remove('hidden'); gmRollBtn.disabled = false;
+                gmRollBtn.onclick = () => { gmRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative', isGmRoll: true }); };
+            } else { gmRollBtn.classList.add('hidden'); }
+        } else { gmRollBtn.classList.add('hidden'); }
+    }
+
+    function updateTurnOrderUI(state) {
+        turnOrderSidebar.innerHTML = '';
+        if (state.phase !== 'battle') { turnOrderSidebar.classList.add('hidden'); return; }
+        turnOrderSidebar.classList.remove('hidden');
+        state.turnOrder.forEach((charId, index) => {
+            const fighter = getFighter(state, charId);
+            if (!fighter) return;
+            const turnEntry = document.createElement('div');
+            turnEntry.className = 'turn-order-entry';
+            if (index === 0) { turnEntry.classList.add('active-in-turn-order'); }
+            turnEntry.innerHTML = `<img src="${fighter.img}" alt="${fighter.nome}">`;
+            turnOrderSidebar.appendChild(turnEntry);
+        });
+    }
 
     function updateUI(state) {
         if (!state || !state.fighters) return;
@@ -239,15 +322,17 @@ document.addEventListener('DOMContentLoaded', () => {
             fightSceneCharacters.appendChild(el);
         });
         Object.values(state.fighters.npcs).forEach((fighter, index) => {
-            if (fighter.status === 'down' && document.getElementById(fighter.id) === null) return;
+            if (fighter.status === 'down') return;
             const pos = NPC_POSITIONS[index];
             const el = createFighterElement(fighter, 'npc', state, pos);
             fightSceneCharacters.appendChild(el);
         });
 
-        if (state.phase === 'gameover') { /* ... */ } 
-        else if (state.phase === 'initiative_roll') { roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Iniciativa`; } 
-        else if (state.activeCharacterKey) {
+        if (state.phase === 'gameover') {
+            roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span><br>${state.reason}`;
+        } else if (state.phase === 'initiative_roll') {
+            roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Iniciativa`;
+        } else if (state.activeCharacterKey) {
             const activeFighter = getFighter(state, state.activeCharacterKey);
             if (activeFighter) { roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${activeFighter.nome}</span>`; }
         }
@@ -306,7 +391,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { 
         const el = document.getElementById(attackerKey);
         if (el) { 
-            const animationClass = el.classList.contains('player-char-container') ? 'is-attacking-player' : 'is-attacking-npc';
+            const isPlayer = el.classList.contains('player-char-container');
+            const animationClass = isPlayer ? 'is-attacking-player' : 'is-attacking-npc';
             el.classList.add(animationClass); 
             setTimeout(() => el.classList.remove(animationClass), 500);
         }
