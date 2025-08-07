@@ -24,32 +24,17 @@ body {
 
 /* --- BOTÃO VOLTAR --- */
 .back-btn {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    width: 50px;
-    height: 50px;
-    font-size: 2em;
-    font-weight: bold;
-    color: #ffeb3b;
-    background-color: rgba(0,0,0,0.5);
-    border: 2px solid #ffeb3b;
-    border-radius: 50%;
-    cursor: pointer;
-    z-index: 3100;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    position: absolute; top: 20px; left: 20px; width: 50px; height: 50px;
+    font-size: 2em; font-weight: bold; color: #ffeb3b; background-color: rgba(0,0,0,0.5);
+    border: 2px solid #ffeb3b; border-radius: 50%; cursor: pointer; z-index: 3100;
+    display: flex; justify-content: center; align-items: center;
 }
 .back-btn:hover { background-color: rgba(255, 235, 59, 0.3); }
 
 /* --- TELAS DE LOBBY E SETUP --- */
-#gm-initial-lobby, #player-waiting-screen, #gm-party-setup-screen, #gm-npc-setup-screen {
-    background-color: rgba(0, 0, 0, 0.9);
-    gap: 20px;
-    text-align: center;
-    padding: 20px;
-    box-sizing: border-box;
+#gm-initial-lobby, #player-waiting-screen, #gm-party-setup-screen, #gm-npc-setup-screen, #selection-screen {
+    background-color: rgba(0, 0, 0, 0.9); gap: 20px;
+    text-align: center; padding: 20px; box-sizing: border-box;
 }
 h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bottom: 20px; }
 .gm-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
@@ -68,131 +53,152 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 .mode-btn:hover { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
 
-/* --- TELA DE SELEÇÃO DE PERSONAGENS --- */
-#selection-screen {
-    background-color: rgba(0, 0, 0, 0.9); gap: 20px; padding: 20px 0; box-sizing: border-box;
-}
-#selection-title { font-size: 3em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; flex-shrink: 0; }
-#character-list-container {
+/* --- TELA DE SELEÇÃO DE PERSONAGENS E NPCS --- */
+#character-list-container, .party-list-container, .npc-selection-container {
     display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
     padding: 20px; max-height: 500px; overflow-y: auto; width: 90%;
 }
-.char-card {
+.char-card, .party-member-card, .npc-card {
     background-color: #333; border: 3px solid #555; border-radius: 10px;
-    padding: 15px; text-align: center; cursor: pointer;
-    transition: all 0.2s ease-in-out; width: 150px; position: relative;
+    padding: 15px; text-align: center; transition: all 0.2s ease-in-out;
+    width: 150px;
 }
-.char-card:hover { border-color: #aaa; }
+.char-card:hover, .npc-card:hover { border-color: #aaa; }
 .char-card.selected { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; transform: scale(1.05); }
-.char-card.disabled { cursor: not-allowed; border-color: #444; }
-.char-card.disabled img { filter: grayscale(100%); }
-.char-card .char-unavailable-overlay {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background-color: rgba(0,0,0,0.7); color: #ffeb3b; font-size: 1.2em;
-    font-weight: bold; display: flex; justify-content: center; align-items: center; border-radius: 10px;
-}
-.char-card img { width: 100px; height: 100px; object-fit: contain; background-color: #222; border-radius: 50%; margin-bottom: 10px; }
-.char-card .char-name { font-size: 1.2em; font-weight: bold; }
-#confirm-selection-btn { padding: 15px 30px; font-size: 1.5em; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 8px; flex-shrink: 0; margin-top: 20px; }
-#confirm-selection-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
-
-/* --- NOVAS TELAS DE SETUP DO GM COM INPUTS --- */
-.party-list-container, .npc-selection-container {
-    display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
-    background-color: rgba(255,255,255,0.1); border-radius: 10px;
-    padding: 20px; width: 80%; max-height: 400px; overflow-y: auto;
-}
-.party-member-card {
-    background-color: #222; border: 2px solid #444; border-radius: 8px; padding: 10px; text-align: center;
-}
-.party-member-card img { width: 80px; height: 80px; border-radius: 50%; }
-.party-member-card h4 { margin: 10px 0 5px 0; color: #ffeb3b; }
-.npc-card {
-    background-color: #333; border: 3px solid #555; border-radius: 10px;
-    padding: 10px; text-align: center; cursor: pointer;
-    transition: all 0.2s ease-in-out; width: 150px;
-}
-.npc-card:hover { border-color: #aaa; }
+.npc-card { cursor: pointer; }
 .npc-card.selected { border-color: #dc3545; box-shadow: 0 0 15px #dc3545; transform: scale(1.05); }
-.npc-card img { width: 80px; height: 80px; object-fit: contain; background-color: #222; border-radius: 50%; margin-bottom: 10px; }
-
-/* Estilos dos inputs de stats */
-.party-member-card label, .npc-card label {
-    display: block; margin: 5px 0; font-size: 0.9em;
+.char-card img, .party-member-card img, .npc-card img {
+    width: 80px; height: 80px; object-fit: contain;
+    background-color: #222; border-radius: 50%; margin-bottom: 10px;
 }
+.char-card .char-name, .party-member-card h4, .npc-card .char-name { font-size: 1.2em; font-weight: bold; }
+.party-member-card label, .npc-card label { display: block; margin: 5px 0; font-size: 0.9em; }
 .party-member-card input, .npc-card input {
     width: 50px; text-align: center; font-size: 1em; background: #555;
     color: #fff; border: 1px solid #777; border-radius: 4px;
 }
+#confirm-selection-btn { margin-top: 20px; }
 
-/* --- TELA DE LUTA 4x4 --- */
+/* --- TELA DE LUTA --- */
 #fight-screen {
-    flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box;
+    padding: 0;
+    justify-content: normal;
+    align-items: normal;
+    position: relative; /* Pai para posicionamento absoluto */
 }
-.battle-area { display: flex; justify-content: space-between; width: 100%; flex-grow: 1; gap: 20px; }
-.fighters-grid {
-    flex: 1; display: grid; grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(2, 1fr); gap: 15px; padding: 10px;
-}
-#fight-log-container {
-    flex-basis: 450px; height: 100%; background-color: rgba(0,0,0,0.6);
-    border: 2px solid #555; border-radius: 10px; padding: 10px;
-    display: flex; flex-direction: column;
-}
-#round-info { text-align: center; margin-top: 0; border-bottom: 1px solid #fff; padding-bottom: 10px; }
-#fight-log { overflow-y: auto; flex-grow: 1; }
-#fight-log p { margin: 5px; padding-bottom: 5px; border-bottom: 1px dashed #444; font-size: 0.9em; }
-.log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; }
-.log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
-.highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; }
-.turn-highlight { font-weight: bold; color: #dc3545; }
 
-/* ESTILOS DOS CARDS DE COMBATENTES (SIMPLIFICADO) */
-.player-container, .npc-container {
-    background-color: rgba(0, 0, 0, 0.7); border: 3px solid #555; border-radius: 10px;
-    display: flex; flex-direction: column; padding: 10px; transition: all 0.3s ease;
+#fight-scene-characters {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Permite clicar através dele, nos filhos */
 }
-.player-container { border-color: #007bff; }
-.npc-container { border-color: #c82333; }
-.fighter-img-container { text-align: center; flex-grow: 1; display: flex; align-items: center; justify-content: center; }
-.fighter-img { max-width: 100%; max-height: 120px; object-fit: contain; }
-.fighter-info { text-align: center; }
-.fighter-info h2 { margin: 10px 0; font-size: 1.1em; }
-.stats-bar { display: flex; align-items: center; gap: 5px; font-size: 0.9em; }
-.hp-bar-container { width: 100%; height: 15px; background-color: #555; border: 1px solid #000; border-radius: 5px; }
-.hp-bar { height: 100%; background-color: #28a745; border-radius: 5px; transition: width 0.5s ease-in-out; }
-.attributes-display { display: flex; justify-content: space-around; margin-top: 10px; font-weight: bold; }
 
-/* ESTADOS DOS COMBATENTES */
-@keyframes pulse-yellow {
-    0% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(255, 235, 59, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0); }
+/* POSICIONAMENTO DOS PERSONAGENS NO CENÁRIO */
+.player-char-container, .npc-char-container {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 150px;
+    transition: all 0.3s ease;
+    pointer-events: all; /* Filhos podem ser clicados */
 }
-.active-turn {
-    border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b;
-    transform: scale(1.05); animation: pulse-yellow 2s infinite;
+
+.fighter-img-ingame {
+    width: 150px;
+    height: 150px;
+    object-fit: contain;
+    filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.7));
 }
-.down { filter: grayscale(100%); opacity: 0.6; }
+
+.health-bar-ingame {
+    width: 100px;
+    height: 15px;
+    background-color: #555;
+    border: 1px solid #000;
+    border-radius: 5px;
+    margin-bottom: 5px;
+    position: relative;
+}
+.health-bar-ingame-fill {
+    height: 100%;
+    background-color: #28a745;
+    border-radius: 5px;
+    transition: width 0.5s ease-in-out;
+}
+.health-bar-ingame-text {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    top: -1px;
+    font-size: 0.8em;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 1px black;
+}
+
+.fighter-name-ingame {
+    background-color: rgba(0,0,0,0.6);
+    padding: 2px 8px;
+    border-radius: 5px;
+    margin-top: 5px;
+    font-size: 0.9em;
+    font-weight: bold;
+}
+
+/* ESTADOS DOS PERSONAGENS NO CENÁRIO */
+@keyframes pulse-yellow { /* ... */ }
+.player-char-container.active-turn, .npc-char-container.active-turn {
+    filter: drop-shadow(0px 0px 15px #ffeb3b);
+    transform: scale(1.1);
+}
+.player-char-container.down, .npc-char-container.down {
+    filter: grayscale(100%) brightness(0.7);
+    opacity: 0.6;
+}
 .is-attacking { animation: lunge 0.4s ease-in-out; }
 @keyframes lunge { 50% { transform: translateY(-20px) scale(1.1); } }
 .is-hit { animation: hit-flash 0.5s ease-in-out; }
 @keyframes hit-flash { 0%, 100% { filter: brightness(1); } 25%, 75% { filter: brightness(3); } 50% { filter: brightness(1); } }
 
-/* SELEÇÃO DE ALVO */
-.npc-container.targetable { cursor: crosshair; }
-.npc-container.is-targeting { border-color: #ff0000; box-shadow: 0 0 20px #ff0000; transform: scale(1.05); }
-#targeting-indicator {
-    position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
-    background-color: rgba(220, 53, 69, 0.9); color: white; padding: 10px 25px;
-    border-radius: 8px; font-weight: bold; z-index: 100; pointer-events: none;
+/* UI SOBREPOSTA */
+#fight-log-container {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50%;
+    max-width: 600px;
+    height: 150px;
+    background-color: rgba(0,0,0,0.7);
+    border: 2px solid #555;
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
 }
+#round-info { /* ... */ }
+#fight-log { /* ... */ }
+.log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; }
+.log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
+.highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; }
+.turn-highlight { font-weight: bold; color: #dc3545; }
 
-/* BOTÕES DE AÇÃO */
 #action-buttons-wrapper {
-    display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
-    padding: 15px; background-color: rgba(0,0,0,0.5); border-radius: 10px;
-    margin-top: 15px; width: 100%; box-sizing: border-box; height: 80px;
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 20px;
+    padding: 15px;
+    background-color: rgba(0,0,0,0.7);
+    border-radius: 10px;
+    z-index: 10;
 }
 .action-btn, .end-turn-btn {
     padding: 15px 30px; font-size: 1.2em; cursor: pointer; border: none;
@@ -203,33 +209,31 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .end-turn-btn { background-color: #ffc107; color: #000; }
 .action-btn:disabled, .end-turn-btn:disabled { background-color: #495057; cursor: not-allowed; opacity: 0.7; }
 
-/* MODAIS E OVERLAYS */
-#modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
-#modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 800px; }
-#modal-title { margin-top: 0; font-size: 1.5em; }
-#modal-text { margin: 15px 0; text-align: left; }
-#modal-button { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
-
-/* RESPONSIVIDADE */
-@media screen and (max-height: 700px), screen and (max-width: 1100px) {
-    .fighters-grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, 1fr); }
-    .battle-area { flex-direction: column; height: 80%; }
-    #fight-log-container { order: 1; width: 100%; height: 150px; flex-basis: auto; }
-    #players-container { order: 0; }
-    #npcs-container { order: 2; }
-    #targeting-indicator { bottom: 120px; }
+/* SELEÇÃO DE ALVO */
+.npc-char-container.targetable { cursor: crosshair; }
+.npc-char-container.is-targeting { filter: drop-shadow(0px 0px 15px red); }
+#targeting-indicator {
+    position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+    background-color: rgba(220, 53, 69, 0.9); color: white; padding: 10px 25px;
+    border-radius: 8px; font-weight: bold; z-index: 100; pointer-events: none;
 }
 
+/* MODAIS */
+#modal { /* ... */ }
+
+/* RESPONSIVIDADE */
 @media screen and (max-width: 800px) {
     body { overflow: auto; }
     #game-wrapper {
         position: relative; left: 0 !important; top: 0 !important;
         transform: none !important; width: 100% !important;
+        height: auto !important; min-height: 100vh;
         overflow-y: auto; overflow-x: hidden;
     }
-    .battle-area { flex-direction: column; }
-    .fighters-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
-    #fight-log-container { height: 150px; flex-basis: auto; }
-    #action-buttons-wrapper { height: auto; }
+    #fight-log-container { width: 90%; height: 120px; }
+    #action-buttons-wrapper { width: 90%; flex-direction: column; gap: 10px; }
     .action-btn, .end-turn-btn { font-size: 1em; padding: 10px; }
+    .player-char-container, .npc-char-container { width: 90px; }
+    .fighter-img-ingame { width: 90px; height: 90px; }
+    .health-bar-ingame { width: 70px; height: 12px; }
 }

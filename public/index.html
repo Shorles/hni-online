@@ -11,11 +11,8 @@
 <div id="game-wrapper">
 
     <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
-
-    <!-- MODIFICAÇÃO: Tela de senha removida. GM vai direto para o lobby -->
     
     <!-- TELA INICIAL DO LOBBY DO GM -->
-    <!-- MODIFICAÇÃO: 'active' por padrão para o GM -->
     <div id="gm-initial-lobby" class="screen active">
         <h1>Lobby do Mestre</h1>
         <p>Envie os links abaixo para os jogadores e espectadores.</p>
@@ -44,9 +41,7 @@
     <div id="gm-party-setup-screen" class="screen">
         <h1>Definir Atributos do Grupo</h1>
         <p>Defina a Agilidade (AGI) e Resistência (RES) para cada aventureiro.</p>
-        <div id="gm-party-list" class="party-list-container">
-            <!-- Jogadores com inputs de stats aparecerão aqui -->
-        </div>
+        <div id="gm-party-list" class="party-list-container"></div>
         <button id="gm-confirm-party-btn" class="mode-btn">Confirmar Grupo e Preparar Inimigos</button>
     </div>
 
@@ -54,9 +49,7 @@
     <div id="gm-npc-setup-screen" class="screen">
         <h1>Montar Encontro</h1>
         <p>Selecione de 1 a 4 inimigos e defina seus atributos.</p>
-        <div id="npc-selection-area" class="npc-selection-container">
-            <!-- Cards de NPCs selecionáveis com inputs de stats aparecerão aqui -->
-        </div>
+        <div id="npc-selection-area" class="npc-selection-container"></div>
         <button id="gm-start-battle-btn" class="mode-btn">Iniciar Batalha!</button>
     </div>
 
@@ -73,20 +66,27 @@
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
 
-    <!-- TELA DE LUTA 4x4 -->
+    <!-- MODIFICAÇÃO: TELA DE LUTA REESTRUTURADA PARA POSICIONAMENTO LIVRE -->
     <div id="fight-screen" class="screen">
-        <div class="battle-area">
-            <div id="players-container" class="fighters-grid"></div>
-            <div id="fight-log-container">
-                <h2 id="round-info">ROUND 1</h2>
-                <div id="fight-log"></div>
-            </div>
-            <div id="npcs-container" class="fighters-grid"></div>
+        
+        <!-- Este container será o palco para os personagens -->
+        <div id="fight-scene-characters">
+            <!-- Personagens serão inseridos aqui pelo client.js -->
         </div>
+
+        <!-- UI sobreposta ao cenário -->
+        <div id="fight-log-container">
+            <h2 id="round-info">ROUND 1</h2>
+            <div id="fight-log"></div>
+        </div>
+
         <div id="targeting-indicator" class="hidden">
             Selecione um alvo! (Clique direito ou ESC para cancelar)
         </div>
-        <div id="action-buttons-wrapper"></div>
+
+        <div id="action-buttons-wrapper">
+            <!-- Botões de ação serão inseridos aqui pelo client.js -->
+        </div>
     </div>
 
     <!-- MODAL PADRÃO -->
