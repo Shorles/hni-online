@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     let myRole = null;
-    let myPlayerKey = null; // Mantido para modo Arena
-    let myFighterId = null; // ID do personagem do jogador no modo Clássico
+    let myPlayerKey = null;
     let isGm = false;
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
@@ -15,16 +14,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
 
+    // Novas telas
+    const passwordScreen = document.getElementById('password-screen');
     const gmInitialLobby = document.getElementById('gm-initial-lobby');
     const playerWaitingScreen = document.getElementById('player-waiting-screen');
+
+    // Telas antigas
+    const modeSelectionScreen = document.getElementById('mode-selection-screen');
+    const arenaLobbyScreen = document.getElementById('arena-lobby-screen'); // Reutilizado para GM
     const scenarioScreen = document.getElementById('scenario-screen');
     const selectionScreen = document.getElementById('selection-screen');
+    const lobbyScreen = document.getElementById('lobby-screen'); // Reutilizado para P2 Classic
     const fightScreen = document.getElementById('fight-screen');
     const theaterScreen = document.getElementById('theater-screen');
 
     const charListContainer = document.getElementById('character-list-container');
     const confirmBtn = document.getElementById('confirm-selection-btn');
     const selectionTitle = document.getElementById('selection-title');
+    const lobbyContent = document.getElementById('lobby-content');
+    const shareContainer = document.getElementById('share-container');
     const copySpectatorLinkInGameBtn = document.getElementById('copy-spectator-link-ingame');
     let modal = document.getElementById('modal');
     let modalTitle = document.getElementById('modal-title');
@@ -57,23 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
     const theaterBackBtn = document.getElementById('theater-back-btn');
     const theaterPublishBtn = document.getElementById('theater-publish-btn');
-    
-    const coordsDisplay = document.createElement('div');
-    coordsDisplay.id = 'coords-display';
-    coordsDisplay.style.position = 'fixed';
-    coordsDisplay.style.top = '10px';
-    coordsDisplay.style.left = '10px';
-    coordsDisplay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-    coordsDisplay.style.color = 'white';
-    coordsDisplay.style.padding = '10px';
-    coordsDisplay.style.border = '1px solid white';
-    coordsDisplay.style.borderRadius = '5px';
-    coordsDisplay.style.zIndex = '99999';
-    coordsDisplay.style.display = 'none';
-    document.body.appendChild(coordsDisplay);
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
+    // Agora são os personagens que os JOGADORES podem escolher
     const PLAYABLE_CHARACTERS = { 'Ryu':{img:'images/Ryu.png'},'Yobu':{img:'images/Yobu.png'},'Nathan':{img:'images/Nathan.png'},'Okami':{img:'images/Okami.png'} };
     
     const DYNAMIC_CHARACTERS = [];
@@ -93,6 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
         "outros": { baseName: "outro", count: 50 }
     };
 
+    let linkInitialized = false;
+
     socket.on('availableFighters', ({ p1 }) => {
         ALL_FIGHTERS_DATA = p1 || {};
         if(myRole === 'gm' && theaterScreen.classList.contains('active')){
@@ -105,20 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum'};
         const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Esquiva'];
         let playerSpecialMoves = [];
-        
-        let fighter = null;
-        if (myFighterId && currentGameState.mode === 'classic') {
-             fighter = currentGameState.players.find(p => p.id === myFighterId);
-        } else if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
-             fighter = currentGameState.fighters[myPlayerKey];
-        }
-
-        if (fighter && fighter.specialMoves) { 
-             playerSpecialMoves = fighter.specialMoves; 
-        } else { 
-            playerSpecialMoves = Object.keys(currentGameState.moves).filter(m => !BASIC_MOVES_ORDER.includes(m)); 
-        }
-
+        if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
+            const fighter = currentGameState.fighters[myPlayerKey];
+            if (fighter && fighter.specialMoves) { playerSpecialMoves = fighter.specialMoves; } else { playerSpecialMoves = Object.keys(availableSpecialMoves || {}); }
+        } else { playerSpecialMoves = Object.keys(currentGameState.moves).filter(m => !BASIC_MOVES_ORDER.includes(m)); }
         playerSpecialMoves.sort();
         let tableHtml = `<div class="help-table-container"><table id="help-modal-table"><thead><tr><th>Nome</th><th>Custo (PA)</th><th>Dano</th><th>Penalidade</th><th>Efeito</th></tr></thead><tbody>`;
         const renderRow = (moveName) => {
@@ -133,76 +120,17 @@ document.addEventListener('DOMContentLoaded', () => {
         showInfoModal("Guia de Golpes e Efeitos", tableHtml);
     }
 
-    function showScreen(screenToShow) {
-        const fullScreenViews = [
-            'gm-initial-lobby', 
-            'player-waiting-screen',
-            'scenario-screen',
-            'selection-screen',
-        ];
-    
-        if (fullScreenViews.includes(screenToShow.id)) {
-            gameWrapper.classList.add('full-view');
-        } else {
-            gameWrapper.classList.remove('full-view');
-        }
-    
-        allScreens.forEach(screen => { 
-            screen.classList.toggle('active', screen.id === screenToShow.id); 
-        });
-        
-        scaleGame();
-    }
+    function showScreen(screenToShow) { allScreens.forEach(screen => { screen.classList.toggle('active', screen.id === screenToShow.id); }); }
 
     function handlePlayerControlClick(event) {
-        if (!currentGameState) return;
-
-        const target = event.target.closest('button'); 
-        if (!target || target.disabled) return;
-        
+        if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
+        const target = event.target.closest('button'); if (!target || target.disabled) return;
         const move = target.dataset.move;
-        
-        if (currentGameState.mode === 'classic') {
-            const currentFighterId = currentGameState.turnOrder[currentGameState.turnIndex];
-            const currentFighter = [...currentGameState.npcs, ...currentGameState.players].find(f => f.id === currentFighterId);
-
-            let myTurnFighterId = null;
-
-            if (isGm && !currentFighter.isPlayer) {
-                myTurnFighterId = currentFighter.id;
-            } else if (!isGm && currentFighter.isPlayer && currentFighter.socketId === socket.id) {
-                myTurnFighterId = currentFighter.id;
-            }
-
-            if (!myTurnFighterId) return;
-
-            if (move) {
-                let targetFighter = document.querySelector('.fighter-card.target');
-                
-                if (!currentFighter.isPlayer) {
-                    targetFighter = document.querySelector('#player2-area .fighter-card.target');
-                } else {
-                    targetFighter = document.querySelector('#player1-area .fighter-card.target');
-                }
-                
-                if (!targetFighter) {
-                    alert("Selecione um alvo!");
-                    return;
-                }
-                const targetId = targetFighter.dataset.id;
-                socket.emit('playerAction', { type: 'attack', move, fighterId: myTurnFighterId, targetId });
-            } else if (target.classList.contains('end-turn-btn')) { 
-                socket.emit('playerAction', { type: 'end_turn', fighterId: myTurnFighterId });
-            }
-
-        } else if (currentGameState.mode === 'arena') {
-             if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2')) return;
-            if (move === 'Golpe Ilegal') {
-                const fighter = currentGameState.fighters[myPlayerKey]; const moveData = currentGameState.moves['Golpe Ilegal'];
-                if (fighter && moveData && fighter.pa >= moveData.cost) { showIllegalMoveConfirmation(); }
-            } else if (move) { socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-            } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) { socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey }); }
-        }
+        if (move === 'Golpe Ilegal') {
+            const fighter = currentGameState.fighters[myPlayerKey]; const moveData = currentGameState.moves['Golpe Ilegal'];
+            if (fighter && moveData && fighter.pa >= moveData.cost) { showIllegalMoveConfirmation(); }
+        } else if (move) { socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+        } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) { socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey }); }
     }
     
     function showIllegalMoveConfirmation() {
@@ -219,23 +147,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
-        // Lógica de inicialização simplificada e robusta
         if (currentRoomId && roleFromUrl) {
-            // Player ou Espectador: junta-se à sala e aguarda.
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            showScreen(playerWaitingScreen); 
+            if (roleFromUrl === 'player') {
+                showScreen(selectionScreen);
+                selectionTitle.innerText = `Selecione seu Personagem`;
+                confirmBtn.innerText = 'Confirmar Personagem';
+            } else { // spectator
+                showScreen(playerWaitingScreen);
+                document.getElementById('player-waiting-message').innerText = "Aguardando o GM iniciar o jogo como espectador...";
+            }
         } else {
-            // GM: Cria a sala imediatamente. A tela de lobby já é a padrão no HTML.
-            socket.emit('gmCreatesLobby');
+            showScreen(passwordScreen);
+            const passInput = document.getElementById('password-input');
+            const passBtn = document.getElementById('password-submit-btn');
+            passInput.onkeydown = (e) => { if(e.key === 'Enter') passBtn.click(); }
+            passBtn.onclick = () => {
+                if (passInput.value === 'abif13') {
+                    socket.emit('gmCreatesLobby');
+                } else {
+                    alert('Senha incorreta.');
+                }
+            };
         }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
 
+        // GM Mode Selection buttons in the new lobby
         document.getElementById('start-classic-btn').onclick = () => { showScreen(scenarioScreen); renderScenarioSelection('classic'); };
         document.getElementById('start-arena-btn').onclick = () => { 
             socket.emit('playerAction', { type: 'gmStartsMode', targetMode: 'arena', scenario: 'Ringue2.png' });
         };
         document.getElementById('start-theater-btn').onclick = () => { showScreen(scenarioScreen); renderScenarioSelection('theater'); };
+
 
         charSelectBackBtn.addEventListener('click', () => {
             if (myRole === 'gm') showScreen(modeSelectionScreen);
@@ -261,11 +205,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function onConfirmSelection() {
-        const selectedCards = document.querySelectorAll('.char-card.selected'); 
-        if (selectedCards.length === 0) { alert('Por favor, selecione ao menos um personagem!'); return; }
+        const selectedCard = document.querySelector('.char-card.selected'); if (!selectedCard) { alert('Por favor, selecione um personagem!'); return; }
         
         if (myRole === 'player') {
-            const selectedCard = selectedCards[0];
             const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
             socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
             showScreen(playerWaitingScreen);
@@ -274,30 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (currentGameState && currentGameState.phase === 'classic_setup_npc_selection') {
-            const npcTeamData = Array.from(selectedCards).map(card => ({
-                nome: card.dataset.name, 
-                img: card.dataset.img,
-                agi: card.querySelector('.agi-input').value, 
-                res: card.querySelector('.res-input').value,
-            }));
-
-            const playerTeamData = Object.values(currentGameState.connectedPlayers)
-                .filter(p => p.role === 'player' && p.selectedCharacter)
-                .map(p => ({ socketId: p.id }));
-
-            if(playerTeamData.length === 0){
-                alert("Nenhum jogador se conectou e escolheu um personagem para a batalha!");
-                return;
-            }
-
-            confirmBtn.disabled = true;
-            socket.emit('playerAction', { type: 'gm_confirm_classic_setup', npcTeamData, playerTeamData });
-            return;
-        }
-
         if (currentGameState && currentGameState.phase === 'gm_classic_setup') {
-            const selectedCard = selectedCards[0];
             const player1Data = { 
                 nome: selectedCard.dataset.name, 
                 img: selectedCard.dataset.img,
@@ -336,11 +255,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderGmCharacterSelection(showStatsInputs = false, multiSelect = false, maxSelect = 4) {
+
+    function renderGmCharacterSelection(showStatsInputs = false) {
         charListContainer.innerHTML = ''; 
         
         const charData = ALL_FIGHTERS_DATA;
-        const imgPath = 'images/npcs/';
+        const imgPath = 'images/lutadores/';
 
         for (const name in charData) {
             const stats = charData[name]; 
@@ -354,25 +274,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 : ``;
 
             card.innerHTML = `<img src="${imgPath}${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
-            
             card.addEventListener('click', () => { 
-                if (multiSelect) {
-                    const selectedCount = document.querySelectorAll('.char-card.selected').length;
-                    if (card.classList.contains('selected')) {
-                        card.classList.remove('selected');
-                    } else if (selectedCount < maxSelect) {
-                        card.classList.add('selected');
-                    } else {
-                        alert(`Você pode selecionar no máximo ${maxSelect} personagens.`);
-                    }
-                    const newSelectedCount = document.querySelectorAll('.char-card.selected').length;
-                    selectionTitle.innerText = `GM: Selecione seu Time (${newSelectedCount}/${maxSelect})`;
-                    confirmBtn.disabled = newSelectedCount === 0;
-
-                } else {
-                    document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); 
-                    card.classList.add('selected'); 
-                }
+                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); 
+                card.classList.add('selected'); 
             });
             charListContainer.appendChild(card);
         }
@@ -539,6 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
+
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
         specialMovesTitle.innerText = 'Selecione os Golpes Especiais do GM';
@@ -573,77 +478,75 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // O CÉREBRO DA UI - AGORA CONTROLA QUAL TELA MOSTRAR
     socket.on('gameUpdate', (gameState) => {
         modal.classList.add('hidden');
         specialMovesModal.classList.add('hidden');
         
+        const oldState = currentGameState;
         currentGameState = gameState;
+        scaleGame();
         
-        if (gameState.mode === 'classic' && myRole === 'player' && gameState.players) {
-            const myData = gameState.players.find(p => p.socketId === socket.id);
-            if (myData) myFighterId = myData.id;
+        // <<< CORREÇÃO: Adicionando a fase que faltava
+        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring', 'p2_stat_assignment'];
+
+        // GM Logic
+        if (isGm) {
+            if (gameState.mode === 'lobby') {
+                showScreen(gmInitialLobby);
+                updateGmLobbyUI(gameState);
+            } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
+                if (gameState.phase === 'gm_classic_setup') {
+                    showScreen(selectionScreen);
+                    selectionTitle.innerText = 'GM: Selecione seu Lutador';
+                    confirmBtn.innerText = 'Confirmar Personagem';
+                    confirmBtn.disabled = false;
+                    renderGmCharacterSelection(true);
+                } else {
+                    showScreen(fightScreen);
+                }
+            } else if (gameState.mode === 'theater') {
+                showScreen(theaterScreen);
+                initializeTheaterMode();
+                renderTheaterMode(gameState);
+            }
+        } 
+        // Player & Spectator Logic
+        else if (myRole === 'player' || myRole === 'spectator') {
+            if (gameState.mode === 'lobby') {
+                if (myRole === 'player') {
+                     const myPlayerData = gameState.connectedPlayers[socket.id];
+                     if (myPlayerData && !myPlayerData.selectedCharacter) {
+                        showScreen(selectionScreen);
+                        renderPlayerCharacterSelection(gameState.unavailableCharacters);
+                    } else {
+                        showScreen(playerWaitingScreen);
+                        document.getElementById('player-waiting-message').innerText = myPlayerData ? "Personagem enviado! Aguardando o Mestre..." : "Aguardando o Mestre iniciar o jogo...";
+                    }
+                } else { // Spectator
+                     showScreen(playerWaitingScreen);
+                     document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
+                }
+            } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
+                if (SETUP_PHASES.includes(gameState.phase)) {
+                    showScreen(playerWaitingScreen);
+                    document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
+                } else {
+                    showScreen(fightScreen);
+                }
+            } else if (gameState.mode === 'theater') {
+                 showScreen(theaterScreen);
+                 renderTheaterMode(gameState);
+            }
         }
 
-        // Lógica central de exibição de telas
-        if (isGm) {
-            switch(gameState.mode) {
-                case 'lobby':
-                    showScreen(gmInitialLobby);
-                    updateGmLobbyUI(gameState);
-                    break;
-                case 'classic':
-                    if (gameState.phase === 'classic_setup_npc_selection') {
-                        showScreen(selectionScreen);
-                        selectionTitle.innerText = 'GM: Selecione seu Time (0/4)';
-                        confirmBtn.innerText = 'Iniciar Batalha';
-                        confirmBtn.disabled = true;
-                        renderGmCharacterSelection(true, true, 4);
-                    } else {
-                        showScreen(fightScreen);
-                    }
-                    break;
-                case 'arena':
-                    // Lógica do modo arena...
-                    showScreen(fightScreen);
-                    break;
-                case 'theater':
-                    showScreen(theaterScreen);
-                    initializeTheaterMode();
-                    renderTheaterMode(gameState);
-                    break;
-            }
-        } else { // Player ou Spectator
-            switch(gameState.mode) {
-                case 'lobby':
-                    if (myRole === 'player') {
-                        const myPlayerData = gameState.connectedPlayers[socket.id];
-                        if (myPlayerData && !myPlayerData.selectedCharacter) {
-                            showScreen(selectionScreen);
-                            renderPlayerCharacterSelection(gameState.unavailableCharacters);
-                        } else {
-                            showScreen(playerWaitingScreen);
-                            document.getElementById('player-waiting-message').innerText = myPlayerData ? "Personagem enviado! Aguardando..." : "Aguardando o Mestre...";
-                        }
-                    } else {
-                        showScreen(playerWaitingScreen);
-                        document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
-                    }
-                    break;
-                case 'classic':
-                case 'arena':
-                    if (['classic_setup_npc_selection'].includes(gameState.phase)) {
-                        showScreen(playerWaitingScreen);
-                        document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
-                    } else {
-                        showScreen(fightScreen);
-                    }
-                    break;
-                case 'theater':
-                    showScreen(theaterScreen);
-                    renderTheaterMode(gameState);
-                    break;
-            }
+        const oldPhase = oldState ? oldState.phase : null;
+        const wasPaused = oldPhase === 'paused';
+        const isNowPaused = gameState.phase === 'paused';
+        
+        if (isGm && isNowPaused && !wasPaused) { 
+            showCheatsModal(); 
+        } else if (!isNowPaused && wasPaused) { 
+            modal.classList.add('hidden'); 
         }
         
         if (gameState.mode !== 'lobby') {
@@ -656,18 +559,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
-        const baseUrl = window.location.origin;
-        const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
-        const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
+        if (myRole === 'gm') {
+            const baseUrl = window.location.origin;
+            const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
+            const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
 
-        const playerLinkEl = document.getElementById('gm-link-player');
-        const specLinkEl = document.getElementById('gm-link-spectator');
+            const playerLinkEl = document.getElementById('gm-link-player');
+            const specLinkEl = document.getElementById('gm-link-spectator');
 
-        playerLinkEl.textContent = playerUrl;
-        specLinkEl.textContent = specUrl;
-        
-        playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
-        specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
+            playerLinkEl.textContent = playerUrl;
+            specLinkEl.textContent = specUrl;
+            
+            playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
+            specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
+
+            showScreen(gmInitialLobby);
+        }
     });
 
     function updateGmLobbyUI(state) {
@@ -684,117 +591,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerListEl.appendChild(li);
             });
         }
+        const playerLinkEl = document.getElementById('gm-link-player');
+        const specLinkEl = document.getElementById('gm-link-spectator');
+        if (!playerLinkEl.textContent.includes('Gerando')) {
+             const baseUrl = window.location.origin;
+             playerLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=player`;
+             specLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=spectator`;
+        }
     }
+
 
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const originalText = element.textContent || '🔗'; element.textContent = 'Copiado!'; setTimeout(() => { element.textContent = originalText; }, 2000); }); }
     
-    function renderClassicUI(state) {
-        const p1Area = document.getElementById('player1-area');
-        const p2Area = document.getElementById('player2-area');
-        p1Area.innerHTML = '';
-        p2Area.innerHTML = '';
-    
-        document.getElementById('player1-fight-img').classList.add('hidden');
-        document.getElementById('player2-fight-img').classList.add('hidden');
-    
-        const createFighterCard = (fighter) => {
-            const card = document.createElement('div');
-            card.className = 'fighter-card';
-            card.dataset.id = fighter.id;
-            
-            if (fighter.hp <= 0) card.classList.add('defeated');
-    
-            const hpPercentage = (fighter.hp / fighter.hpMax) * 100;
-    
-            card.innerHTML = `
-                <div class="fighter-card-header">
-                    <h4 class="fighter-card-name">${fighter.nome}</h4>
-                    <div class="fighter-card-hp">
-                        <div class="fighter-card-hp-bar" style="width: ${hpPercentage}%;"></div>
-                        <span class="fighter-card-hp-text">${fighter.hp}/${fighter.hpMax}</span>
-                    </div>
-                </div>
-                <img src="${fighter.img}" class="fighter-card-img">
-                <div class="fighter-card-pa">
-                    ${Array(fighter.pa).fill('<div class="pa-dot"></div>').join('')}
-                </div>
-            `;
-            
-            const currentFighterId = state.turnOrder[state.turnIndex];
-            const currentFighter = [...state.npcs, ...state.players].find(f => f.id === currentFighterId);
-            if (!currentFighter) return card;
-
-            const isMyTurn = (isGm && !currentFighter.isPlayer) || (myFighterId && currentFighter.id === myFighterId);
-            const isTargetable = (currentFighter.isPlayer && !fighter.isPlayer) || (!currentFighter.isPlayer && fighter.isPlayer);
-            
-            if (isMyTurn && isTargetable) {
-                card.classList.add('targetable');
-                card.addEventListener('click', () => {
-                    document.querySelectorAll('.fighter-card.target').forEach(c => c.classList.remove('target'));
-                    card.classList.add('target');
-                });
-            }
-
-            return card;
-        };
-        
-        state.npcs.forEach(npc => p1Area.appendChild(createFighterCard(npc)));
-        state.players.forEach(player => p2Area.appendChild(createFighterCard(player)));
-    
-        const currentFighterId = state.turnOrder[state.turnIndex];
-        const turnFighter = [...state.npcs, ...state.players].find(f => f.id === currentFighterId);
-        
-        p1Controls.classList.add('hidden');
-        p2Controls.classList.add('hidden');
-        document.getElementById('action-buttons-wrapper').classList.add('hidden');
-        
-        if (turnFighter) {
-            document.querySelector(`.fighter-card[data-id="${currentFighterId}"]`)?.classList.add('active-turn');
-            document.getElementById('round-info').innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${turnFighter.nome}</span>`;
-            
-            const isMyGMTurn = isGm && !turnFighter.isPlayer;
-            const isMyPlayerTurn = myFighterId && turnFighter.id === myFighterId;
-
-            if (isMyGMTurn || isMyPlayerTurn) {
-                document.getElementById('action-buttons-wrapper').classList.remove('hidden');
-                const controls = isMyGMTurn ? p1Controls : p2Controls;
-                controls.classList.remove('hidden');
-                controls.querySelectorAll('button').forEach(btn => {
-                    const moveName = btn.dataset.move;
-                    if (moveName) {
-                        btn.disabled = turnFighter.pa < state.moves[moveName].cost;
-                    } else {
-                        btn.disabled = false;
-                    }
-                });
-            }
-        }
-        
-        const logBox = document.getElementById('fight-log'); 
-        logBox.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
-        logBox.scrollTop = logBox.scrollHeight;
-    }
-
     function updateUI(state) {
         if (!state || !myRole) return;
         
-        if (state.scenario && (state.mode === 'classic' || state.mode === 'arena')) {
-            gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; 
-        }
-        
-        if (state.mode === 'classic') {
-            renderClassicUI(state);
-            return;
-        }
-
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
-        const isCombatMode = state.mode === 'arena';
+        const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
         const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover', 'opponent_selection', 'arena_opponent_selection'].includes(state.phase);
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');
         copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
-        
+
+        if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
 
         if(isGm) {
@@ -809,41 +629,27 @@ document.addEventListener('DOMContentLoaded', () => {
             else { cheatIndicator.classList.add('hidden'); }
         }
 
-        if (state.mode !== 'arena') return;
+        if (state.mode !== 'classic' && state.mode !== 'arena') return;
 
         p1SpecialMovesContainer.innerHTML = ''; p2SpecialMovesContainer.innerHTML = '';
         ['player1', 'player2'].forEach(key => {
             const fighter = state.fighters[key];
-            const pArea = document.getElementById(`${key}-area`);
-            pArea.innerHTML = ''; 
-
             if (fighter) {
+                document.getElementById(`${key}-fight-name`).innerText = fighter.nome.replace(/-SD$/, '');
                 document.getElementById(`${key}-fight-img`).src = fighter.img;
-                document.getElementById(`${key}-fight-img`).classList.remove('hidden');
-
                 if (fighter.hpMax !== undefined) {
-                    pArea.innerHTML = `
-                        <h2 id="${key}-fight-name">${fighter.nome}</h2>
-                        <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="${key}-hp-bar" class="hp-bar" style="width:${(fighter.hp / fighter.hpMax) * 100}%"></div></div><span id="${key}-hp-text">${fighter.hp} / ${fighter.hpMax}</span></div>
-                        <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="${key}-pa-dots">${Array(fighter.pa).fill('<div class="pa-dot"></div>').join('')}</div></div>
-                        <div class="defense-display">
-                            <p class="stat-text" id="${key}-agi-text">AGI: ${fighter.agi}</p>
-                            <div class="def-shield">
-                                <img src="images/def.png" alt="Defesa">
-                                <span class="defense-text" id="${key}-def-text">${fighter.def}</span>
-                            </div>
-                            <p class="stat-text" id="${key}-res-text">RES: ${fighter.res}</p>
-                        </div>
-                        <p>Acertos: <span id="${key}-hits">${fighter.hitsLanded}</span></p>
-                        <p>Quedas: <span id="${key}-knockdowns">${fighter.knockdowns}</span></p>
-                        <p>Dano Recebido: <span id="${key}-damage-taken">${fighter.totalDamageTaken}</span></p>
-                        <p>Penalidades: <span id="${key}-point-deductions">${fighter.pointDeductions}</span></p>
-                    `;
+                    document.getElementById(`${key}-hp-text`).innerText = `${fighter.hp} / ${fighter.hpMax}`; 
+                    document.getElementById(`${key}-hp-bar`).style.width = `${(fighter.hp / fighter.hpMax) * 100}%`;
+                    document.getElementById(`${key}-def-text`).innerText = fighter.def; 
+                    document.getElementById(`${key}-agi-text`).innerText = `AGI: ${fighter.agi}`;
+                    document.getElementById(`${key}-res-text`).innerText = `RES: ${fighter.res}`;
+                    document.getElementById(`${key}-hits`).innerText = fighter.hitsLanded;
+                    document.getElementById(`${key}-knockdowns`).innerText = fighter.knockdowns;
+                    document.getElementById(`${key}-damage-taken`).innerText = fighter.totalDamageTaken;
+                    document.getElementById(`${key}-point-deductions`).innerText = fighter.pointDeductions; document.getElementById(`${key}-pa-dots`).innerHTML = Array(fighter.pa).fill('<div class="pa-dot"></div>').join('');
                 }
-
                 if (fighter.specialMoves) {
                     const container = (key === 'player1') ? p1SpecialMovesContainer : p2SpecialMovesContainer;
-                    container.innerHTML = '';
                     fighter.specialMoves.forEach(moveName => {
                         const moveData = state.moves[moveName]; if (!moveData) return;
                         const displayName = moveData.displayName || moveName; const btn = document.createElement('button');
@@ -852,10 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         container.appendChild(btn);
                     });
                 }
-            } else if (key === 'player2' && state.pendingP2Choice) { 
-                document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img; 
-                document.getElementById(`${key}-fight-img`).classList.remove('hidden');
-            }
+            } else if (key === 'player2' && state.pendingP2Choice) { document.getElementById(`${key}-fight-img`).src = state.pendingP2Choice.img; }
         });
         const roundInfoEl = document.getElementById('round-info');
         if (state.phase === 'paused') roundInfoEl.innerHTML = `<span class="turn-highlight">JOGO PAUSADO</span>`;
@@ -987,12 +790,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const theaterCharList = document.getElementById('theater-char-list');
         theaterCharList.innerHTML = '';
 
-        let touchDragData = {
-            ghost: null,
-            charName: null,
-            img: null
-        };
-
         const createMini = (name, imgPath) => {
             const mini = document.createElement('div');
             mini.className = 'theater-char-mini';
@@ -1003,76 +800,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isGm) return;
                 e.dataTransfer.setData('application/json', JSON.stringify({ charName: name, img: imgPath }));
             });
-
-            mini.addEventListener('touchstart', (e) => {
-                if (!isGm) return;
-                e.preventDefault();
-
-                const ghost = mini.cloneNode(true);
-                ghost.style.position = 'fixed';
-                ghost.style.zIndex = '99999';
-                ghost.style.opacity = '0.7';
-                ghost.style.pointerEvents = 'none';
-                ghost.style.left = `${e.touches[0].clientX - 30}px`;
-                ghost.style.top = `${e.touches[0].clientY - 30}px`;
-                document.body.appendChild(ghost);
-
-                touchDragData.ghost = ghost;
-                touchDragData.charName = name;
-                touchDragData.img = imgPath;
-
-                window.addEventListener('touchmove', onMobileDragMove, { passive: false });
-                window.addEventListener('touchend', onMobileDragEnd);
-            }, { passive: false });
-
-
             theaterCharList.appendChild(mini);
-        };
-        
-        const onMobileDragMove = (e) => {
-            if (!touchDragData.ghost) return;
-            e.preventDefault();
-            touchDragData.ghost.style.left = `${e.touches[0].clientX - 30}px`;
-            touchDragData.ghost.style.top = `${e.touches[0].clientY - 30}px`;
-        };
-        
-        const onMobileDragEnd = (e) => {
-            window.removeEventListener('touchmove', onMobileDragMove);
-            window.removeEventListener('touchend', onMobileDragEnd);
-
-            if (!touchDragData.ghost) return;
-            
-            touchDragData.ghost.style.display = 'none';
-
-            try {
-                const { worldX, worldY } = screenToWorldCoords(e);
-
-                if (isNaN(worldX) || isNaN(worldY)) {
-                    throw new Error("Invalid coordinates calculated.");
-                }
-
-                const tokenBaseWidth = 200;
-                const tokenScale = 1.0; 
-                const newToken = { 
-                    id: `token-${Date.now()}`, 
-                    charName: touchDragData.charName, 
-                    img: touchDragData.img, 
-                    x: worldX - (tokenBaseWidth * tokenScale / 2), 
-                    y: worldY - (tokenBaseWidth * tokenScale / 2), 
-                    scale: tokenScale, 
-                    isFlipped: false 
-                };
-                socket.emit('playerAction', { type: 'updateToken', token: newToken });
-            } catch (error) { 
-                console.error("Error processing touch drop:", error);
-            } finally {
-                document.body.removeChild(touchDragData.ghost);
-                touchDragData = { ghost: null, charName: null, img: null };
-            }
         };
 
         Object.keys(ALL_FIGHTERS_DATA).forEach(charName => {
-            createMini(charName, `images/npcs/${charName}.png`);
+            createMini(charName, `images/lutadores/${charName}.png`);
         });
         Object.keys(PLAYABLE_CHARACTERS).forEach(charName => {
             createMini(charName, PLAYABLE_CHARACTERS[charName].img);
@@ -1109,22 +841,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializeGlobalKeyListeners() {
         window.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-                if (modal.classList.contains('hidden') && specialMovesModal.classList.contains('hidden')) {
-                    e.preventDefault();
-                    const display = document.getElementById('coords-display');
-                    const isHidden = display.style.display === 'none';
-                    display.style.display = isHidden ? 'block' : 'none';
-
-                    if (isHidden) {
-                        window.addEventListener('mousemove', updateCoordsDisplay);
-                    } else {
-                        window.removeEventListener('mousemove', updateCoordsDisplay);
-                    }
-                }
-            }
-
-
             if (!isGm) return;
             
             if (currentGameState && currentGameState.mode !== 'theater') {
@@ -1199,13 +915,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function updateCoordsDisplay(e) {
-        const display = document.getElementById('coords-display');
-        if (display.style.display !== 'none') {
-            display.innerHTML = `X: ${e.clientX}, Y: ${e.clientY}`;
-        }
-    }
-    
     function setupTheaterEventListeners() {
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
         const theaterScreenEl = document.getElementById('theater-screen');
@@ -1224,26 +933,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return matrix.a; 
         };
 
-        const getEventCoords = (e) => {
-            if (e.changedTouches && e.changedTouches.length > 0) {
-                return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
-            }
-            if (e.touches && e.touches.length > 0) {
-                 return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
-            }
-            return { clientX: e.clientX, clientY: e.clientY };
-        }
-
         const screenToWorldCoords = (e) => {
-            const coords = getEventCoords(e);
+            const gameScale = getGameScale();
             const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-            
-            const x_on_viewport = coords.clientX - viewportRect.left;
-            const y_on_viewport = coords.clientY - viewportRect.top;
-
-            const worldX = (x_on_viewport / currentScenarioScale) + theaterBackgroundViewport.scrollLeft;
-            const worldY = (y_on_viewport / currentScenarioScale) + theaterBackgroundViewport.scrollTop;
-            
+            const mouseXOnViewport = e.clientX - viewportRect.left;
+            const mouseYOnViewport = e.clientY - viewportRect.top;
+            const worldX = (mouseXOnViewport / gameScale + theaterBackgroundViewport.scrollLeft) / currentScenarioScale;
+            const worldY = (mouseYOnViewport / gameScale + theaterBackgroundViewport.scrollTop) / currentScenarioScale;
             return { worldX, worldY };
         };
 
@@ -1397,7 +1093,88 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } else if (isGm && isToken) {
                 e.preventDefault();
-                handleTokenDragStart(e);
+                const draggedToken = e.target;
+                const startMouseX = e.clientX;
+                const startMouseY = e.clientY;
+                let hasDragged = false;
+                
+                const onMouseUpToken = (upEvent) => {
+                    window.removeEventListener('mousemove', onMouseMoveToken);
+                    window.removeEventListener('mouseup', onMouseUpToken);
+                    
+                    if (hasDragged) {
+                        const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                        const updates = tokensToDrag.map(tokenId => {
+                             const tokenEl = document.getElementById(tokenId);
+                             if (tokenEl) {
+                                 delete tokenEl.dataset.startX;
+                                 delete tokenEl.dataset.startY;
+                                 return { id: tokenId, x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
+                             }
+                             return null;
+                        }).filter(Boolean);
+                        
+                        if (updates.length > 0) {
+                            socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
+                        }
+                    } else { // It was a click
+                        if (!upEvent.ctrlKey) {
+                            document.querySelectorAll('.theater-token.selected').forEach(t => {
+                                if (t.id !== draggedToken.id) t.classList.remove('selected');
+                            });
+                            selectedTokens.clear();
+                        }
+                        draggedToken.classList.toggle('selected');
+                        if (draggedToken.classList.contains('selected')) {
+                            selectedTokens.add(draggedToken.id);
+                        } else {
+                            selectedTokens.delete(draggedToken.id);
+                        }
+                    }
+                };
+                
+                const onMouseMoveToken = (moveEvent) => {
+                    const dx = moveEvent.clientX - startMouseX;
+                    const dy = moveEvent.clientY - startMouseY;
+                    
+                    if (!hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
+                        hasDragged = true;
+                        if (!selectedTokens.has(draggedToken.id)) {
+                             if (!e.ctrlKey) {
+                                document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                                selectedTokens.clear();
+                             }
+                             draggedToken.classList.add('selected');
+                             selectedTokens.add(draggedToken.id);
+                        }
+                    }
+
+                    if (!hasDragged) return;
+
+                    const gameScale = getGameScale();
+                    const worldDx = dx / gameScale / currentScenarioScale;
+                    const worldDy = dy / gameScale / currentScenarioScale;
+
+                    const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
+                    
+                    tokensToDrag.forEach(tokenId => {
+                        const tokenEl = document.getElementById(tokenId);
+                        if(tokenEl && !tokenEl.dataset.startX) tokenEl.dataset.startX = tokenEl.offsetLeft;
+                        if(tokenEl && !tokenEl.dataset.startY) tokenEl.dataset.startY = tokenEl.offsetTop;
+
+                        const startX = parseFloat(tokenEl.dataset.startX);
+                        const startY = parseFloat(tokenEl.dataset.startY);
+                       
+                        if (tokenEl) {
+                           tokenEl.style.left = `${startX + worldDx}px`;
+                           tokenEl.style.top = `${startY + worldDy}px`;
+                        }
+                    });
+                };
+                
+                window.addEventListener('mousemove', onMouseMoveToken);
+                window.addEventListener('mouseup', onMouseUpToken);
+
             } else if (!isToken && !(isGm && isGroupSelectMode)) {
                 isDraggingScenario = true;
                 theaterBackgroundViewport.style.cursor = 'grabbing';
@@ -1463,106 +1240,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let lastTouchX = 0;
         let lastTouchY = 0;
 
-        const handleTokenDragStart = (startEvent) => {
-            const draggedToken = startEvent.target;
-            const { clientX: startMouseX, clientY: startMouseY } = getEventCoords(startEvent);
-            let hasDragged = false;
-            
-            const onDragMove = (moveEvent) => {
-                if (moveEvent.type === 'touchmove') {
-                    moveEvent.preventDefault();
-                }
-
-                const { clientX, clientY } = getEventCoords(moveEvent);
-                const dx = clientX - startMouseX;
-                const dy = clientY - startMouseY;
-                
-                if (!hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
-                    hasDragged = true;
-                    if (!selectedTokens.has(draggedToken.id)) {
-                         if (!startEvent.ctrlKey && !startEvent.metaKey) {
-                            document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
-                            selectedTokens.clear();
-                         }
-                         draggedToken.classList.add('selected');
-                         selectedTokens.add(draggedToken.id);
-                    }
-                }
-
-                if (!hasDragged) return;
-
-                const gameScale = getGameScale();
-                const worldDx = dx / gameScale / currentScenarioScale;
-                const worldDy = dy / gameScale / currentScenarioScale;
-
-                const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
-                
-                tokensToDrag.forEach(tokenId => {
-                    const tokenEl = document.getElementById(tokenId);
-                    if (!tokenEl) return;
-                    if(!tokenEl.dataset.startX) tokenEl.dataset.startX = tokenEl.offsetLeft;
-                    if(!tokenEl.dataset.startY) tokenEl.dataset.startY = tokenEl.offsetTop;
-
-                    const startX = parseFloat(tokenEl.dataset.startX);
-                    const startY = parseFloat(tokenEl.dataset.startY);
-                   
-                    tokenEl.style.left = `${startX + worldDx}px`;
-                    tokenEl.style.top = `${startY + worldDy}px`;
-                });
-            };
-            
-            const onDragEnd = (endEvent) => {
-                window.removeEventListener('mousemove', onDragMove);
-                window.removeEventListener('mouseup', onDragEnd);
-                window.removeEventListener('touchmove', onDragMove);
-                window.removeEventListener('touchend', onDragEnd);
-                
-                if (hasDragged) {
-                    const tokensToDrag = selectedTokens.has(draggedToken.id) ? Array.from(selectedTokens) : [draggedToken.id];
-                    const updates = tokensToDrag.map(tokenId => {
-                         const tokenEl = document.getElementById(tokenId);
-                         if (tokenEl) {
-                             delete tokenEl.dataset.startX;
-                             delete tokenEl.dataset.startY;
-                             return { id: tokenId, x: parseFloat(tokenEl.style.left), y: parseFloat(tokenEl.style.top) };
-                         }
-                         return null;
-                    }).filter(Boolean);
-                    
-                    if (updates.length > 0) {
-                        socket.emit('playerAction', { type: 'updateToken', token: { updates: updates } });
-                    }
-                } else {
-                    const isCtrlClick = endEvent.ctrlKey || endEvent.metaKey;
-                    if (!isCtrlClick) {
-                        document.querySelectorAll('.theater-token.selected').forEach(t => {
-                            if (t.id !== draggedToken.id) t.classList.remove('selected');
-                        });
-                        selectedTokens.clear();
-                    }
-                    draggedToken.classList.toggle('selected');
-                    if (draggedToken.classList.contains('selected')) {
-                        selectedTokens.add(draggedToken.id);
-                    } else {
-                        selectedTokens.delete(draggedToken.id);
-                    }
-                }
-            };
-            
-            if (startEvent.type === 'mousedown') {
-                window.addEventListener('mousemove', onDragMove);
-                window.addEventListener('mouseup', onDragEnd);
-            } else { 
-                window.addEventListener('touchmove', onDragMove, { passive: false });
-                window.addEventListener('touchend', onDragEnd);
-            }
-        };
-
         theaterBackgroundViewport.addEventListener('touchstart', (e) => {
-            const isToken = e.target.classList.contains('theater-token');
-
             if (e.touches.length === 2) {
-                e.preventDefault();
                 isPinching = true;
                 isTouchPanning = false;
                 initialPinchDistance = Math.hypot(
@@ -1570,23 +1249,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.touches[0].pageY - e.touches[1].pageY
                 );
             } else if (e.touches.length === 1) {
-                if (isGm && isToken) {
-                    e.preventDefault();
-                    handleTokenDragStart(e);
-                } else {
-                    isTouchPanning = true;
-                    isPinching = false;
-                    lastTouchX = e.touches[0].pageX;
-                    lastTouchY = e.touches[0].pageY;
-                }
+                const isToken = e.target.classList.contains('theater-token');
+                if (isToken) return;
+                isTouchPanning = true;
+                isPinching = false;
+                lastTouchX = e.touches[0].pageX;
+                lastTouchY = e.touches[0].pageY;
             }
         }, { passive: false });
 
         theaterBackgroundViewport.addEventListener('touchmove', (e) => {
             if (currentGameState.mode !== 'theater') return;
+            e.preventDefault();
 
             if (isPinching && e.touches.length === 2) {
-                e.preventDefault();
                 const currentPinchDistance = Math.hypot(
                     e.touches[0].pageX - e.touches[1].pageX,
                     e.touches[0].pageY - e.touches[1].pageY
@@ -1602,7 +1278,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 initialPinchDistance = currentPinchDistance;
 
             } else if (isTouchPanning && e.touches.length === 1) {
-                e.preventDefault();
                 const dx = e.touches[0].pageX - lastTouchX;
                 const dy = e.touches[0].pageY - lastTouchY;
                 theaterBackgroundViewport.scrollLeft -= dx;
@@ -1721,22 +1396,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
-    
-    socket.on('triggerHitAnimation', ({ defenderKey, defenderId }) => { 
-        if (currentGameState.mode === 'classic' && defenderId) {
-            const card = document.querySelector(`.fighter-card[data-id="${defenderId}"]`);
-            if (card) {
-                card.classList.add('is-hit');
-                setTimeout(() => card.classList.remove('is-hit'), 500);
-            }
-        } else if (currentGameState.mode === 'arena' && defenderKey) {
-            const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); }
-        }
-    });
-
+    socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     socket.on('assignRole', (data) => {
         myRole = data.role;
-        myPlayerKey = data.playerKey || null;
+        myPlayerKey = data.playerKey || null; // e.g., 'player1', 'player2'
         isGm = data.isGm || myRole === 'gm';
         if (isGm) exitGameBtn.classList.remove('hidden');
     });
@@ -1751,11 +1414,6 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });
     socket.on('showModal', ({ title, text, btnText, action, targetPlayerKey, modalType, knockdownInfo, doubleKnockdownInfo }) => {
         let isMyTurnForAction = myPlayerKey === targetPlayerKey || (isGm && action);
-        
-        if (currentGameState.mode === 'classic' && modalType === 'gameover'){
-            showInfoModal(title, text);
-            return;
-        }
         
         switch(modalType) {
             case 'gm_knockdown_decision': if (isGm) { const downedFighterName = currentGameState.fighters[knockdownInfo.downedPlayer]?.nome || 'O lutador'; const modalContentHtml = `<p>${downedFighterName} falhou em todas as tentativas de se levantar. O que o juíz (você) fará?</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="gm-give-chance-btn" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Dar Última Chance</button><button id="gm-end-fight-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Encerrar a Luta (KO)</button></div>`; showInfoModal("Decisão do Juíz", modalContentHtml); document.getElementById('gm-give-chance-btn').onclick = () => { socket.emit('playerAction', { type: 'give_last_chance' }); modal.classList.add('hidden'); }; document.getElementById('gm-end-fight-btn').onclick = () => { socket.emit('playerAction', { type: 'resolve_knockdown_loss' }); modal.classList.add('hidden'); }; } break;
@@ -1798,40 +1456,40 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const scaleGame = () => {
         const w = document.getElementById('game-wrapper');
-    
-        if (w.classList.contains('full-view')) {
-            w.style.transform = 'none';
-            w.style.width = '100%';
-            w.style.height = '100%';
-            w.style.left = '0';
-            w.style.top = '0';
-            return;
-        }
-    
         const isMobile = window.innerWidth <= 800;
+
+        // Reset styles for recalculation
         w.style.width = '1280px';
         w.style.height = '720px';
-    
+
         if (isMobile) {
             if (currentGameState && currentGameState.mode === 'theater') {
+                // Modo Cenário no Celular: Sem escala, ocupa a tela visível
                 w.style.transform = 'none';
                 w.style.width = '100%';
                 w.style.height = `${window.innerHeight}px`;
                 w.style.left = '0';
                 w.style.top = '0';
             } else {
+                // Modo Luta no Celular: Escala para caber na tela
                 const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
                 w.style.transform = `scale(${scale})`;
-                w.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
-                w.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+                const left = (window.innerWidth - (1280 * scale)) / 2;
+                const top = (window.innerHeight - (720 * scale)) / 2;
+                w.style.left = `${left}px`;
+                w.style.top = `${top}px`;
             }
         } else {
+            // Desktop: Lógica de escala padrão
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
             w.style.transform = `scale(${scale})`;
-            w.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
-            w.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+            const left = (window.innerWidth - (1280 * scale)) / 2;
+            const top = (window.innerHeight - (720 * scale)) / 2;
+            w.style.left = `${left}px`;
+            w.style.top = `${top}px`;
         }
     };
     
+    scaleGame();
     window.addEventListener('resize', scaleGame);
 });
