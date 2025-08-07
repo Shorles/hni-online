@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fightSceneCharacters = document.getElementById('fight-scene-characters');
     const coordsDisplay = document.getElementById('coords-display');
 
+
     socket.on('availableFighters', ({ p1, playable }) => {
         ALL_FIGHTERS_DATA = p1 || {};
         PLAYABLE_CHARACTERS_DATA = playable || [];
@@ -105,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentRoomId && roleFromUrl) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            // A tela inicial do jogador será definida pelo evento 'gameUpdate'
             showScreen(playerWaitingScreen); 
         } else {
             socket.emit('gmCreatesLobby');
@@ -196,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- CORREÇÃO: Lógica de exibição de tela restaurada e aprimorada ---
     socket.on('gameUpdate', (gameState) => {
         const oldPhase = currentGameState ? currentGameState.phase : null;
         currentGameState = gameState;
@@ -222,15 +221,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                 }
             }
-        } else { // Lógica para Player e Spectator
+        } else { 
             if (gameState.mode === 'lobby') {
                 const myPlayerData = gameState.connectedPlayers[socket.id];
-                // Mostra a seleção de personagem SE for um jogador E ainda não tiver escolhido
                 if (myRole === 'player' && myPlayerData && !myPlayerData.selectedCharacter) {
                     showScreen(selectionScreen);
                     renderPlayerCharacterSelection(gameState.unavailableCharacters);
                 } else {
-                    // Caso contrário, mostra a tela de espera
                     showScreen(playerWaitingScreen);
                     document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre iniciar...";
                 }
@@ -261,13 +258,151 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(gmInitialLobby);
         }
     });
+    
+    // --- FUNÇÕES RESTAURADAS E CORRIGIDAS ---
 
-    function copyToClipboard(text, element) { /* ... */ }
-    function updateGmLobbyUI(state) { /* ... */ }
-    function updateGmPartySetupScreen(state) { /* ... */ }
-    function renderNpcSelectionForGm() { /* ... */ }
-    function updateUI(state) { /* ... */ }
-    function createFighterElement(fighter, type, state, position) { /* ... */ }
+    function copyToClipboard(text, element) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = element.textContent;
+            element.textContent = 'Copiado!';
+            setTimeout(() => { element.textContent = originalText; }, 2000);
+        });
+    }
+
+    function updateGmLobbyUI(state) {
+        const playerListEl = document.getElementById('gm-lobby-player-list');
+        playerListEl.innerHTML = '';
+        const connectedPlayers = Object.values(state.connectedPlayers);
+        if (connectedPlayers.length === 0) {
+            playerListEl.innerHTML = '<li>Aguardando jogadores...</li>';
+        } else {
+            connectedPlayers.forEach(p => {
+                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
+                playerListEl.innerHTML += `<li>Jogador Conectado - Personagem: ${charName}</li>`;
+            });
+        }
+    }
+    
+    function updateGmPartySetupScreen(state) {
+        const partyList = document.getElementById('gm-party-list');
+        partyList.innerHTML = '';
+        Object.values(state.fighters.players).forEach(player => {
+            const playerDiv = document.createElement('div');
+            playerDiv.className = 'party-member-card';
+            playerDiv.dataset.id = player.id;
+            playerDiv.innerHTML = `
+                <img src="${player.img}" alt="${player.nome}">
+                <h4>${player.nome}</h4>
+                <label>AGI: <input type="number" class="agi-input" value="2"></label>
+                <label>RES: <input type="number" class="res-input" value="3"></label>
+            `;
+            partyList.appendChild(playerDiv);
+        });
+    }
+
+    function renderNpcSelectionForGm() {
+        const npcArea = document.getElementById('npc-selection-area');
+        npcArea.innerHTML = '';
+        const imgPath = 'images/lutadores/';
+
+        Object.keys(ALL_FIGHTERS_DATA).forEach(name => {
+            const stats = ALL_FIGHTERS_DATA[name];
+            const card = document.createElement('div');
+            card.className = 'npc-card';
+            card.dataset.name = name;
+            card.dataset.img = `${imgPath}${name}.png`;
+            card.innerHTML = `
+                <img src="${imgPath}${name}.png" alt="${name}"><div class="char-name">${name}</div>
+                <label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label>
+                <label>RES: <input type="number" class="res-input" value="${stats.res}"></label>
+            `;
+            card.addEventListener('click', (e) => {
+                if(e.target.tagName === 'INPUT') return;
+                const selectedCount = document.querySelectorAll('#npc-selection-area .npc-card.selected').length;
+                if (!card.classList.contains('selected') && selectedCount >= 4) {
+                    alert("Você pode selecionar no máximo 4 NPCs.");
+                    return;
+                }
+                card.classList.toggle('selected');
+            });
+            npcArea.appendChild(card);
+        });
+    }
+
+    function updateUI(state) {
+        if (!state || state.mode !== 'adventure') return;
+        
+        fightSceneCharacters.innerHTML = '';
+
+        const PLAYER_POSITIONS = [{bottom: '15%', left: '10%'}, {bottom: '15%', left: '20%'}, {bottom: '15%', left: '30%'}, {bottom: '15%', left: '40%'}];
+        const NPC_POSITIONS = [{bottom: '15%', right: '10%'}, {bottom: '15%', right: '20%'}, {bottom: '15%', right: '30%'}, {bottom: '15%', right: '40%'}];
+        
+        Object.values(state.fighters.players).forEach((fighter, index) => {
+            const pos = PLAYER_POSITIONS[index];
+            const el = createFighterElement(fighter, 'player', state, pos);
+            fightSceneCharacters.appendChild(el);
+        });
+
+        Object.values(state.fighters.npcs).forEach((fighter, index) => {
+            const pos = NPC_POSITIONS[index];
+            const el = createFighterElement(fighter, 'npc', state, pos);
+            fightSceneCharacters.appendChild(el);
+            if (el.classList.contains('targetable')) {
+                el.addEventListener('click', handleTargetClick);
+            }
+        });
+
+        if (state.phase === 'gameover') {
+            roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span><br>${state.reason}`;
+        } else if (state.activeCharacterKey) {
+            const activeFighter = state.fighters.players[state.activeCharacterKey] || state.fighters.npcs[state.activeCharacterKey];
+            roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${activeFighter.nome}</span>`;
+        }
+        
+        fightLog.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
+        fightLog.scrollTop = fightLog.scrollHeight;
+        
+        actionButtonsWrapper.innerHTML = '';
+        if (myPlayerKey && state.fighters.players[myPlayerKey] && state.fighters.players[myPlayerKey].status === 'active') {
+            const myTurn = myPlayerKey === state.activeCharacterKey;
+            const canAct = myTurn && state.phase === 'battle';
+            
+            actionButtonsWrapper.innerHTML = `
+                <button class="action-btn" data-action="attack" ${!canAct ? 'disabled' : ''}>Atacar</button>
+                <button class="end-turn-btn" data-action="end_turn" ${!canAct ? 'disabled' : ''}>Passar Turno</button>
+            `;
+        }
+    }
+
+    function createFighterElement(fighter, type, state, position) {
+        const container = document.createElement('div');
+        container.className = `${type}-char-container`;
+        container.id = fighter.id;
+        container.dataset.key = fighter.id;
+        Object.assign(container.style, position);
+        
+        let statusClass = '';
+        if (fighter.status === 'down') statusClass = 'down';
+        else if (state.activeCharacterKey === fighter.id) statusClass = 'active-turn';
+        if (type === 'npc' && fighter.status === 'active') container.classList.add('targetable');
+
+        container.classList.add(statusClass);
+        const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
+
+        container.innerHTML = `
+            <div class="health-bar-ingame">
+                <div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div>
+                <span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span>
+            </div>
+            <img src="${fighter.img}" class="fighter-img-ingame">
+            <div class="fighter-name-ingame">${fighter.nome}</div>
+        `;
+
+        if(type === 'npc'){
+            container.querySelector('.fighter-img-ingame').style.transform = 'scaleX(-1)';
+        }
+        return container;
+    }
 
     socket.on('assignRole', (data) => {
         myRole = data.role;
@@ -275,13 +410,22 @@ document.addEventListener('DOMContentLoaded', () => {
         isGm = data.isGm || myRole === 'gm';
     });
 
-    socket.on('triggerAttackAnimation', ({ attackerKey }) => { /* ... */ });
-    socket.on('triggerHitAnimation', ({ defenderKey }) => { /* ... */ });
-    socket.on('error', (err) => { /* ... */ });
+    socket.on('triggerAttackAnimation', ({ attackerKey }) => { 
+        const el = document.getElementById(attackerKey);
+        if (el) { el.classList.add(`is-attacking`); setTimeout(() => el.classList.remove(`is-attacking`), 400); }
+    });
+    socket.on('triggerHitAnimation', ({ defenderKey }) => { 
+        const el = document.getElementById(defenderKey);
+        if (el) { el.classList.add('is-hit'); setTimeout(() => el.classList.remove('is-hit'), 500); }
+    });
+    
+    socket.on('error', (err) => { 
+        alert(err.message);
+        window.location.reload();
+     });
     
     initialize();
     
-    // --- CORREÇÃO: Função de escala restaurada para a versão robusta ---
     function scaleGame() {
         const gameWrapper = document.getElementById('game-wrapper');
         const scale = Math.min(
@@ -293,5 +437,5 @@ document.addEventListener('DOMContentLoaded', () => {
         gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
     }
     window.addEventListener('resize', scaleGame);
-    scaleGame(); // Chama a função uma vez no início
+    scaleGame();
 });
