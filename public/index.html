@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HNI Battle Online</title>
+    <title>Medieval Battle RPG</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,24 +11,22 @@
 <div id="game-wrapper">
 
     <button id="help-btn" class="help-btn hidden" title="Guia de Golpes">?</button>
-    <button id="gm-mode-switch-btn" class="gm-mode-switch-btn hidden" title="Mudar Modo de Jogo">🔄</button>
+    <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
 
-    <div id="dice-cheat-indicator" class="cheat-indicator hidden"></div>
-
-    <!-- TELA DE SENHA (NOVA) -->
+    <!-- TELA DE SENHA -->
     <div id="password-screen" class="screen active">
         <h1>Acesso do Mestre</h1>
         <input type="password" id="password-input" placeholder="Digite a senha">
         <button id="password-submit-btn" class="mode-btn">Entrar</button>
     </div>
 
-    <!-- TELA INICIAL DO LOBBY DO GM (NOVA) -->
+    <!-- TELA INICIAL DO LOBBY DO GM -->
     <div id="gm-initial-lobby" class="screen">
         <h1>Lobby do Mestre</h1>
         <p>Envie os links abaixo para os jogadores e espectadores.</p>
         <div class="gm-links-container">
             <div>
-                <h3>Link do Jogador:</h3>
+                <h3>Link do Jogador (Até 4):</h3>
                 <div id="gm-link-player" class="share-link" title="Clique para copiar">Gerando...</div>
             </div>
             <div>
@@ -44,237 +42,79 @@
         </div>
         <h2>Selecione o Modo de Jogo para Iniciar</h2>
         <div class="mode-buttons-container">
-            <button id="start-classic-btn" class="mode-btn">Player vs. "NPC" (Clássico)</button>
-            <button id="start-arena-btn" class="mode-btn">Player vs. Player (Arena)</button>
-            <button id="start-theater-btn" class="mode-btn">Cenários (GM)</button>
+            <!-- MODIFICAÇÃO: Botão principal agora é para a Aventura -->
+            <button id="start-adventure-btn" class="mode-btn">Iniciar Aventura 4x4</button>
+            <!-- Outros modos podem ser adicionados aqui no futuro -->
+            <!-- <button id="start-theater-btn" class="mode-btn">Cenários (GM)</button> -->
         </div>
-        <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
+    </div>
+    
+    <!-- MODIFICAÇÃO: Nova tela para o GM confirmar o grupo -->
+    <div id="gm-party-setup-screen" class="screen">
+        <h1>Confirmar Grupo</h1>
+        <p>Estes são os aventureiros que entraram na sessão. Você pode aguardar mais jogadores ou iniciar a preparação dos inimigos.</p>
+        <div id="gm-party-list" class="party-list-container">
+            <!-- Jogadores confirmados aparecerão aqui -->
+        </div>
+        <button id="gm-confirm-party-btn" class="mode-btn">Confirmar Grupo e Preparar Inimigos</button>
     </div>
 
-    <!-- TELA DE ESPERA DO JOGADOR/ESPECTADOR (NOVA) -->
+    <!-- MODIFICAÇÃO: Nova tela para o GM selecionar os NPCs -->
+    <div id="gm-npc-setup-screen" class="screen">
+        <h1>Montar Encontro</h1>
+        <p>Selecione de 1 a 4 inimigos para enfrentar o grupo de aventureiros.</p>
+        <div id="npc-selection-area" class="npc-selection-container">
+            <!-- Cards de NPCs selecionáveis aparecerão aqui -->
+        </div>
+        <button id="gm-start-battle-btn" class="mode-btn">Iniciar Batalha!</button>
+    </div>
+
+    <!-- TELA DE ESPERA DO JOGADOR/ESPECTADOR -->
     <div id="player-waiting-screen" class="screen">
-         <h1>HNI Battle Online</h1>
+         <h1>Medieval Battle RPG</h1>
          <p id="player-waiting-message">Aguardando o Mestre iniciar o jogo...</p>
     </div>
     
-    <!-- TELA DE SELEÇÃO DE MODO DE JOGO (REMOVIDA DO FLUXO INICIAL, AGORA DENTRO DO LOBBY DO GM) -->
-    <div id="mode-selection-screen" class="screen">
-        <h1>HNI Battle Online</h1>
-        <h2>Selecione o Modo de Jogo</h2>
-        <div class="mode-buttons-container">
-            <button id="mode-classic-btn" class="mode-btn">Player vs. "NPC" (Clássico)</button>
-            <button id="mode-arena-btn" class="mode-btn">Player vs. Player (Arena)</button>
-            <button id="mode-theater-btn" class="mode-btn">Cenários (GM)</button>
-        </div>
-    </div>
-
-    <!-- TELA DE LOBBY DA ARENA (NÃO MAIS USADA DIRETAMENTE) -->
-    <div id="arena-lobby-screen" class="screen">
-        <h1>Lobby da Arena</h1>
-        <p>Envie os links abaixo para os jogadores e espectadores.</p>
-        <div class="arena-links-container">
-            <div>
-                <h3>Link do Jogador 1:</h3>
-                <div id="arena-link-p1" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-            <div>
-                <h3>Link do Jogador 2:</h3>
-                <div id="arena-link-p2" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-            <div>
-                <h3>Link de Espectador:</h3>
-                <div id="arena-link-spectator" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-        </div>
-        <div class="arena-status-container">
-            <div id="arena-p1-status" class="arena-player-status">
-                <h4>Jogador 1</h4>
-                <p>Aguardando conexão...</p>
-            </div>
-            <div id="arena-p2-status" class="arena-player-status">
-                <h4>Jogador 2</h4>
-                <p>Aguardando conexão...</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- TELA DE SELEÇÃO DE CENÁRIO (REUTILIZADA) -->
-    <div id="scenario-screen" class="screen">
-        <h1 id="scenario-title">Selecione o Cenário</h1>
-        <div id="scenario-category-tabs"></div>
-        <div id="scenario-list-container"></div>
-    </div>
-    
-    <!-- TELA DO MODO TEATRO -->
-    <div id="theater-screen" class="screen">
-        <div id="theater-background-viewport">
-            <div id="theater-world-container">
-                <img id="theater-background-image" src="" alt="Cenário do Teatro">
-                <div id="theater-token-container"></div>
-                <div id="selection-box" class="hidden"></div>
-            </div>
-        </div>
-
-        <button id="copy-theater-spectator-link" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
-        
-        <button id="toggle-gm-panel-btn" class="toggle-gm-panel-btn hidden" title="Mostrar/Ocultar Painel">☰</button>
-        
-        <div id="theater-gm-panel" class="hidden">
-            <div class="panel-section">
-                <h4>Personagens</h4>
-                <div id="theater-char-list"></div>
-            </div>
-            <div class="panel-section">
-                <h4>Controles Gerais</h4>
-                <label for="theater-global-scale">Escala Global:</label>
-                <input type="range" id="theater-global-scale" min="0.2" max="3" step="0.1" value="1">
-                <button id="theater-change-scenario-btn">Mudar Cenário</button>
-                <button id="theater-publish-btn" class="hidden">Publicar Cena</button>
-            </div>
-             <div class="panel-section" id="theater-gm-legend">
-                <h4>Atalhos (GM)</h4>
-                <p><b>G:</b> Seleção em Grupo</p>
-                <p><b>F:</b> Virar Personagem</p>
-                <p><b>Setas ↑↓:</b> Mudar Camada</p>
-                <p><b>Delete:</b> Excluir</p>
-                <p><b>O (hover):</b> Resetar Tamanho</p>
-            </div>
-        </div>
-        <button id="theater-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
-    </div>
-
-
-    <!-- TELA DE SELEÇÃO DE PERSONAGENS -->
+    <!-- TELA DE SELEÇÃO DE PERSONAGENS (Reutilizada para jogadores) -->
     <div id="selection-screen" class="screen">
-        <button id="char-select-back-btn" class="back-btn" title="Voltar para Cenários">←</button>
-        <h1 id="selection-title">Selecione seu Lutador</h1>
+        <h1 id="selection-title">Selecione seu Aventureiro</h1>
         <div id="character-list-container"></div>
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
+    
+    <!-- MANTIDO PARA COMPATIBILIDADE FUTURA OU OUTROS MODOS -->
+    <div id="theater-screen" class="screen"></div>
 
-    <!-- TELA DE LOBBY (MODO CLÁSSICO - NÃO MAIS USADA DIRETAMENTE) -->
-    <div id="lobby-screen" class="screen">
-        <button id="lobby-back-btn" class="back-btn" title="Voltar para Golpes">←</button>
-        <h1>Hajime no Ippo: Batalha Online</h1>
-        <div id="lobby-content">
-            <p>Aguardando conexão...</p>
-        </div>
-        <div id="share-container" class="hidden">
-            <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
-            <div id="share-link-p2" class="share-link" title="Clique para copiar">Carregando...</div>
-            <br>
-            <p>Ou envie este link para espectadores:</p>
-            <div id="share-link-spectator" class="share-link" title="Clique para copiar">Carregando...</div>
-        </div>
-    </div>
-
-    <!-- TELA DE LUTA -->
+    <!-- MODIFICAÇÃO: TELA DE LUTA REESTRUTURADA PARA 4x4 -->
     <div id="fight-screen" class="screen">
-        <div id="gm-cheats-panel" class="hidden">
-            <h4>Atalhos GM</h4>
-            <p><b>C:</b> Pausar / Cheats</p>
-            <p><b>T:</b> Forçar Crítico</p>
-            <p><b>R:</b> Forçar Erro</p>
-            <p><b>Y:</b> Forçar Valor Dado</p>
-            <p><b>I:</b> Alternar Ilegal</p>
-        </div>
-
-        <img src="images/lutadores/Kureha Shoji.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
-        <img src="" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
-
-        <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
-
-        <div id="fight-ui-wrapper">
-            <div class="fight-ui-container">
-                <!-- ÁREA JOGADOR 1 -->
-                <div class="fighter-info" id="player1-area">
-                    <h2 id="player1-fight-name">Jogador 1</h2>
-                    <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div><span id="player1-hp-text">10 / 10</span></div>
-                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player1-pa-dots"></div></div>
-                    <div class="defense-display">
-                        <p class="stat-text" id="player1-agi-text">AGI: 0</p>
-                        <div class="def-shield">
-                            <img src="images/def.png" alt="Defesa">
-                            <span class="defense-text" id="player1-def-text">0</span>
-                        </div>
-                        <p class="stat-text" id="player1-res-text">RES: 0</p>
-                    </div>
-                    <p>Acertos: <span id="player1-hits">0</span></p>
-                    <p>Quedas: <span id="player1-knockdowns">0</span></p>
-                    <p>Dano Recebido: <span id="player1-damage-taken">0</span></p>
-                    <p>Penalidades: <span id="player1-point-deductions">0</span></p>
-                </div>
-                <!-- LOG DE LUTA -->
-                <div id="fight-log-container">
-                    <h2 id="round-info">ROUND 1</h2>
-                    <div id="fight-log"></div>
-                </div>
-                <!-- ÁREA JOGADOR 2 -->
-                <div class="fighter-info" id="player2-area">
-                    <h2 id="player2-fight-name">Jogador 2</h2>
-                    <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div><span id="player2-hp-text">15 / 15</span></div>
-                    <div class="pa-display"><span>PA:</span><div class="pa-dots-container" id="player2-pa-dots"></div></div>
-                    <div class="defense-display">
-                        <p class="stat-text" id="player2-agi-text">AGI: 0</p>
-                        <div class="def-shield">
-                            <img src="images/def.png" alt="Defesa">
-                            <span class="defense-text" id="player2-def-text">0</span>
-                        </div>
-                        <p class="stat-text" id="player2-res-text">RES: 0</p>
-                    </div>
-                    <p>Acertos: <span id="player2-hits">0</span></p>
-                    <p>Quedas: <span id="player2-knockdowns">0</span></p>
-                    <p>Dano Recebido: <span id="player2-damage-taken">0</span></p>
-                    <p>Penalidades: <span id="player2-point-deductions">0</span></p>
-                </div>
+        
+        <div class="battle-area">
+            <div id="players-container" class="fighters-grid">
+                <!-- Cards dos jogadores serão inseridos aqui pelo client.js -->
             </div>
-            <!-- BOTÕES DE AÇÃO -->
-            <div id="action-buttons-wrapper">
-                <!-- BOTÕES DO JOGADOR 1 (VERMELHOS) -->
-                <div id="p1-controls" class="move-buttons hidden">
-                    <button class="action-btn p1-btn" data-move="Jab">Jab (1 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Upper">Upper (3 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Liver Blow">Liver Blow (3 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Clinch">Clinch (3 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Esquiva" data-reaction="true">Esquiva (1 PA)</button>
-                    <button class="action-btn p1-btn illegal-btn" data-move="Golpe Ilegal">Golpe Ilegal (2 PA)</button>
-                    <div id="p1-special-moves" class="special-moves-container"></div>
-                    <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
-                </div>
-                <!-- BOTÕES DO JOGADOR 2 (AZUIS) -->
-                <div id="p2-controls" class="move-buttons hidden">
-                    <button class="action-btn p2-btn" data-move="Jab">Jab (1 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Upper">Upper (3 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Liver Blow">Liver Blow (3 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Clinch">Clinch (3 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Esquiva" data-reaction="true">Esquiva (1 PA)</button>
-                    <button class="action-btn p2-btn illegal-btn" data-move="Golpe Ilegal">Golpe Ilegal (2 PA)</button>
-                    <div id="p2-special-moves" class="special-moves-container"></div>
-                    <button id="p2-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
-                </div>
-                <div id="utility-buttons">
-                    <button id="forfeit-btn">Jogar a Toalha</button>
-                </div>
+            
+            <div id="fight-log-container">
+                <h2 id="round-info">ROUND 1</h2>
+                <div id="fight-log"></div>
+            </div>
+
+            <div id="npcs-container" class="fighters-grid">
+                <!-- Cards dos NPCs serão inseridos aqui pelo client.js -->
             </div>
         </div>
 
-        <!-- BOTÕES DE ROLAGEM -->
-        <button id="player1-roll-btn" class="roll-dice-button hidden"></button>
-        <button id="player2-roll-btn" class="roll-dice-button hidden"></button>
+        <div id="targeting-indicator" class="hidden">
+            Selecione um alvo! (Clique direito ou ESC para cancelar)
+        </div>
 
-        <!-- OVERLAYS -->
-        <div id="dice-overlay" class="hidden"></div>
-        <div id="player1-dice-result" class="dice-result hidden"></div>
-        <div id="player2-dice-result" class="dice-result hidden"></div>
-
+        <div id="action-buttons-wrapper">
+            <!-- Botões de ação serão inseridos aqui pelo client.js -->
+        </div>
+        
+        <!-- OVERLAYS E MODAIS -->
         <div id="game-alert-overlay" class="hidden">
             <div id="game-alert-content"></div>
         </div>
-        
-        <div id="player1-dk-result" class="dk-result-overlay hidden"></div>
-        <div id="player2-dk-result" class="dk-result-overlay hidden"></div>
     </div>
 
     <!-- MODAL PADRÃO -->
@@ -284,20 +124,6 @@
             <div id="modal-text">Texto.</div>
             <button id="modal-button">OK</button>
         </div>
-    </div>
-    
-    <!-- MODAL DE SELEÇÃO DE GOLPES ESPECIAIS -->
-    <div id="special-moves-modal" class="hidden">
-        <div id="special-moves-content">
-             <button id="special-moves-back-btn" class="back-btn" title="Voltar para Personagens">←</button>
-            <h3 id="special-moves-title">Selecione seus Golpes Especiais</h3>
-            <div id="special-moves-list"></div>
-            <button id="confirm-special-moves-btn">Confirmar Golpes</button>
-        </div>
-    </div>
-
-    <div id="get-up-success-overlay" class="hidden">
-        <div id="get-up-success-content"></div>
     </div>
 
 </div>
