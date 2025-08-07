@@ -31,7 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const coordsDisplay = document.getElementById('coords-display');
     const turnOrderSidebar = document.getElementById('turn-order-sidebar');
 
-
     socket.on('availableFighters', ({ p1, playable }) => {
         ALL_FIGHTERS_DATA = p1 || {};
         PLAYABLE_CHARACTERS_DATA = playable || [];
@@ -98,14 +97,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
         const roleFromUrl = urlParams.get('role');
-
         if (currentRoomId && roleFromUrl) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
             showScreen(playerWaitingScreen); 
         } else {
             socket.emit('gmCreatesLobby');
         }
-        
         document.body.addEventListener('contextmenu', (e) => { if (isTargeting) { e.preventDefault(); cancelTargeting(); } });
         document.body.addEventListener('keydown', (e) => {
             if (isTargeting && e.key === "Escape") { cancelTargeting(); }
@@ -158,8 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGameState = gameState;
         
         const initiativeUI = document.getElementById('initiative-ui');
-        if(initiativeUI) initiativeUI.classList.add('hidden');
-
+        if (initiativeUI) initiativeUI.classList.add('hidden');
 
         if (isGm) {
             if (gameState.mode === 'lobby') {
@@ -437,7 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
         gameWrapper.style.transform = `scale(${scale})`;
         gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
-        gameWrapper.style.top = `${(window.innerWidth - (720 * scale)) / 2}px`;
+        gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
     }
     window.addEventListener('resize', scaleGame);
     scaleGame();
