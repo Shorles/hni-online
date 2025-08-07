@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const coordsDisplay = document.getElementById('coords-display');
     const turnOrderSidebar = document.getElementById('turn-order-sidebar');
 
+
     socket.on('availableFighters', ({ p1, playable }) => {
         ALL_FIGHTERS_DATA = p1 || {};
         PLAYABLE_CHARACTERS_DATA = playable || [];
@@ -42,11 +43,62 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function handleActionClick(event) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function handleTargetClick(event) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function cancelTargeting() { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function toggleCoordsMode() { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function updateCoordsDisplay(event) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function handleActionClick(event) {
+        if (!myPlayerKey || !currentGameState || currentGameState.phase !== 'battle') return;
+        
+        const myFighter = currentGameState.fighters.players[myPlayerKey];
+        if (!myFighter || myFighter.id !== currentGameState.activeCharacterKey) return;
+
+        const target = event.target.closest('button'); 
+        if (!target || target.disabled) return;
+        
+        const action = target.dataset.action;
+        
+        if (action === 'attack') {
+            isTargeting = true;
+            document.getElementById('targeting-indicator').classList.remove('hidden');
+            document.querySelectorAll('.npc-char-container.targetable').forEach(el => el.classList.add('is-targeting'));
+        } else if (action === 'end_turn') {
+            socket.emit('playerAction', { type: 'end_turn' });
+        }
+    }
+
+    function handleTargetClick(event) {
+        if (!isTargeting) return;
+        const targetContainer = event.target.closest('.npc-char-container');
+        if (!targetContainer || !targetContainer.classList.contains('targetable')) return;
+        const targetKey = targetContainer.dataset.key;
+        
+        socket.emit('playerAction', { type: 'attack', targetKey: targetKey });
+        cancelTargeting();
+    }
+    
+    function cancelTargeting() {
+        isTargeting = false;
+        document.getElementById('targeting-indicator').classList.add('hidden');
+        document.querySelectorAll('.npc-char-container.is-targeting').forEach(el => el.classList.remove('is-targeting'));
+    }
+
+    function toggleCoordsMode() {
+        coordsModeActive = !coordsModeActive;
+        coordsDisplay.classList.toggle('hidden', !coordsModeActive);
+
+        if (coordsModeActive) {
+            document.addEventListener('mousemove', updateCoordsDisplay);
+        } else {
+            document.removeEventListener('mousemove', updateCoordsDisplay);
+        }
+    }
+
+    function updateCoordsDisplay(event) {
+        const gameWrapper = document.getElementById('game-wrapper');
+        const rect = gameWrapper.getBoundingClientRect();
+        const transform = window.getComputedStyle(gameWrapper).transform;
+        const scale = transform === 'none' ? 1 : new DOMMatrix(transform).a;
+        const x = Math.round((event.clientX - rect.left) / scale);
+        const y = Math.round((event.clientY - rect.top) / scale);
+        coordsDisplay.textContent = `X: ${x}, Y: ${y}`;
+    }
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -60,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
         
-        // Listeners universais
+        // Listeners universais que não dependem de um elemento específico de tela
         document.body.addEventListener('contextmenu', (e) => { if (isTargeting) { e.preventDefault(); cancelTargeting(); } });
         document.body.addEventListener('keydown', (e) => {
             if (isTargeting && e.key === "Escape") { cancelTargeting(); }
@@ -108,7 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             charListContainer.appendChild(card);
         });
-        // Listener do botão de confirmação é adicionado aqui, quando a tela é renderizada
+
+        // Adiciona o listener aqui, pois o botão `confirmBtn` existe nesta tela
         confirmBtn.onclick = onConfirmSelection;
     }
 
@@ -170,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- CORREÇÃO: Listeners de botões do GM são adicionados aqui, após a confirmação do papel de GM ---
+    // Listeners de botões do GM são adicionados aqui, pois este evento só o GM recebe
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
         if (isGm) {
@@ -220,23 +273,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function copyToClipboard(text, element) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function updateGmLobbyUI(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function updateGmPartySetupScreen(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function renderNpcSelectionForGm() { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function renderInitiativeUI(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function updateTurnOrderUI(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function updateUI(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function getFighter(state, key) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    function createFighterElement(fighter, type, state, position) { /* ... (código da versão ALPHA, sem alterações) ... */ }
-    socket.on('assignRole', (data) => { /* ... (código da versão ALPHA, sem alterações) ... */ });
-    socket.on('triggerAttackAnimation', ({ attackerKey }) => { /* ... (código da versão ALPHA, sem alterações) ... */ });
-    socket.on('triggerHitAnimation', ({ defenderKey }) => { /* ... (código da versão ALPHA, sem alterações) ... */ });
-    socket.on('error', (err) => { /* ... (código da versão ALPHA, sem alterações) ... */ });
+    function copyToClipboard(text, element) { /* ... */ }
+    function updateGmLobbyUI(state) { /* ... */ }
+    function updateGmPartySetupScreen(state) { /* ... */ }
+    function renderNpcSelectionForGm() { /* ... */ }
+    function renderInitiativeUI(state) { /* ... */ }
+    function updateTurnOrderUI(state) { /* ... */ }
+    function updateUI(state) { /* ... */ }
+    function getFighter(state, key) { /* ... */ }
+    function createFighterElement(fighter, type, state, position) { /* ... */ }
+    socket.on('assignRole', (data) => { /* ... */ });
+    socket.on('triggerAttackAnimation', ({ attackerKey }) => { /* ... */ });
+    socket.on('triggerHitAnimation', ({ defenderKey }) => { /* ... */ });
+    socket.on('error', (err) => { /* ... */ });
     
     initialize();
     
-    function scaleGame() { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function scaleGame() {
+        const gameWrapper = document.getElementById('game-wrapper');
+        const scale = Math.min(
+            window.innerWidth / 1280,
+            window.innerHeight / 720
+        );
+        gameWrapper.style.transform = `scale(${scale})`;
+        gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+        gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+    }
     window.addEventListener('resize', scaleGame);
     scaleGame();
 });

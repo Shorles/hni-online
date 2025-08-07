@@ -40,9 +40,18 @@ function rollD6() {
     return Math.floor(Math.random() * 6) + 1;
 }
 
-function createNewLobbyState(gmId) { /* ... (sem alterações) */ }
+function createNewLobbyState(gmId) {
+    return {
+        mode: 'lobby',
+        phase: 'waiting_players',
+        gmId: gmId,
+        connectedPlayers: {},
+        unavailableCharacters: [],
+        log: [{ text: "Lobby criado. Aguardando jogadores..." }],
+    };
+}
 
-// --- MODIFICAÇÃO: Adicionadas propriedades para a iniciativa ---
+// Adicionadas propriedades para a iniciativa
 function createNewGameState() {
     return {
         fighters: {
@@ -52,11 +61,11 @@ function createNewGameState() {
         winner: null,
         reason: null,
         currentRound: 1,
-        whoseTurn: null, // Agora será definido pela ordem de iniciativa
+        whoseTurn: null,
         activeCharacterKey: null,
-        turnOrder: [], // Ordem de iniciativa para o round atual
+        turnOrder: [],
         turnIndex: -1,
-        initiativeRolls: {}, // Para armazenar as rolagens de cada um
+        initiativeRolls: {},
         phase: 'party_setup',
         log: [{ text: "Aguardando jogadores formarem o grupo..." }],
         scenario: 'mapas/cenarios externos/externo (1).png',
@@ -65,25 +74,102 @@ function createNewGameState() {
     };
 }
 
-function createNewFighterState(data) { /* ... (sem alterações) */ }
-function logMessage(state, text, className = '') { /* ... (sem alterações) */ }
-function getFighter(state, key) { /* ... (sem alterações) */ }
-function checkGameOver(state) { /* ... (sem alterações) */ }
-function executeAttack(state, attackerKey, defenderKey, io, roomId) { /* ... (sem alterações) */ }
+function createNewFighterState(data) {
+    const res = Math.max(1, parseInt(data.res, 10) || 1);
+    const agi = parseInt(data.agi, 10) || 1;
 
-// --- MODIFICAÇÃO: advanceTurn agora usa a ordem de iniciativa pré-calculada ---
+    return {
+        id: data.id,
+        nome: data.nome,
+        img: data.img,
+        agi: agi,
+        res: res,
+        hpMax: res * 5,
+        hp: res * 5,
+        status: 'active'
+    };
+}
+
+function logMessage(state, text, className = '') {
+    if (state && state.log) {
+        state.log.push({ text, className });
+        if (state.log.length > 50) state.log.shift();
+    }
+}
+
+function getFighter(state, key) {
+    return state.fighters.players[key] || state.fighters.npcs[key];
+}
+
+function checkGameOver(state) {
+    const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
+    const activeNpcs = Object.values(state.fighters.npcs).filter(n => n.status === 'active');
+
+    if (activeNpcs.length === 0 && Object.keys(state.fighters.npcs).length > 0) {
+        state.phase = 'gameover';
+        state.winner = 'players';
+        state.reason = "Todos os inimigos foram derrotados! Vitória do grupo!";
+        logMessage(state, state.reason, 'log-crit');
+        return true;
+    }
+
+    if (activePlayers.length === 0 && Object.keys(state.fighters.players).length > 0) {
+        state.phase = 'gameover';
+        state.winner = 'npcs';
+        state.reason = "Todos os aventureiros foram derrotados...";
+        logMessage(state, state.reason, 'log-crit');
+        return true;
+    }
+
+    return false;
+}
+
+function executeAttack(state, attackerKey, defenderKey, io, roomId) {
+    const attacker = getFighter(state, attackerKey);
+    const defender = getFighter(state, defenderKey);
+
+    if (!attacker || !defender || attacker.status !== 'active' || defender.status !== 'active') {
+        return;
+    }
+
+    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
+
+    const roll = rollD6();
+    const attackValue = roll + attacker.agi;
+    const defenseValue = defender.agi;
+
+    logMessage(state, `${attacker.nome} ataca ${defender.nome}!`);
+    logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI = <span class="highlight-result">${attackValue}</span> (AGI do Alvo: ${defenseValue})`, 'log-info');
+
+    if (attackValue >= defenseValue) {
+        logMessage(state, "Acertou!", 'log-hit');
+        io.to(roomId).emit('triggerHitAnimation', { defenderKey });
+        io.to(roomId).emit('playSound', 'baseforte01.mp3');
+
+        defender.hp = Math.max(0, defender.hp - ATTACK_MOVE.damage);
+        logMessage(state, `${defender.nome} sofre ${ATTACK_MOVE.damage} de dano!`, 'log-hit');
+
+        if (defender.hp <= 0) {
+            defender.status = 'down';
+            logMessage(state, `${defender.nome} foi derrotado!`, 'log-crit');
+            checkGameOver(state);
+        }
+    } else {
+        logMessage(state, "Errou!", 'log-miss');
+        io.to(roomId).emit('playSound', 'Esquiva.mp3');
+    }
+}
+
 function advanceTurn(state, io, roomId) {
     if (state.phase !== 'battle') return;
 
-    // Remove o personagem que acabou de jogar da frente da fila
     if (state.turnIndex >= 0) {
         state.turnOrder.shift();
     }
 
-    // Se a fila acabou, o round termina
     if (state.turnOrder.length === 0) {
         state.currentRound++;
-        state.phase = 'initiative_roll'; // Começa uma nova rodada de iniciativa
+        state.phase = 'initiative_roll';
         state.initiativeRolls = {};
         state.activeCharacterKey = null;
         logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-turn');
@@ -91,12 +177,10 @@ function advanceTurn(state, io, roomId) {
         return;
     }
 
-    // Pega o próximo da fila
     state.activeCharacterKey = state.turnOrder[0];
     const newAttacker = getFighter(state, state.activeCharacterKey);
     logMessage(state, `É a vez de ${newAttacker.nome}.`, 'log-info');
 
-    // Automação do turno do NPC
     if (state.fighters.npcs[state.activeCharacterKey]) {
         io.to(roomId).emit('gameUpdate', state);
         setTimeout(() => {
@@ -116,9 +200,60 @@ function advanceTurn(state, io, roomId) {
 }
 
 io.on('connection', (socket) => {
-    socket.on('gmCreatesLobby', () => { /* ... (sem alterações) */ });
-    socket.emit('availableFighters', { /* ... (sem alterações) */ });
-    socket.on('playerJoinsLobby', ({ roomId, role }) => { /* ... (sem alterações) */ });
+    socket.on('gmCreatesLobby', () => {
+        const newRoomId = uuidv4().substring(0, 6);
+        socket.join(newRoomId);
+        socket.currentRoomId = newRoomId;
+        const newState = createNewLobbyState(socket.id);
+
+        games[newRoomId] = {
+            id: newRoomId,
+            players: [{ id: socket.id, role: 'gm' }],
+            spectators: [],
+            state: newState,
+        };
+
+        socket.emit('assignRole', { role: 'gm', isGm: true });
+        socket.emit('roomCreated', newRoomId);
+        io.to(socket.id).emit('gameUpdate', newState);
+    });
+    
+    socket.emit('availableFighters', {
+        p1: LUTA_CHARACTERS,
+        playable: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/${name}.png` }))
+    });
+
+    socket.on('playerJoinsLobby', ({ roomId, role }) => {
+        const room = games[roomId];
+        if (!room) {
+            socket.emit('error', { message: 'Sala não encontrada.' });
+            return;
+        }
+
+        if (role === 'player' && Object.keys(room.state.connectedPlayers).length >= MAX_PLAYERS) {
+            socket.emit('error', { message: 'O grupo de aventureiros já está cheio.' });
+            return;
+        }
+
+        socket.join(roomId);
+        socket.currentRoomId = roomId;
+
+        if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
+
+        if (role === 'spectator') {
+            room.spectators.push(socket.id);
+        } else {
+            room.players.push({ id: socket.id, role: 'player' });
+            if (room.state.mode === 'lobby') {
+                room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
+            }
+        }
+
+        socket.emit('assignRole', { role });
+        io.to(socket.id).emit('gameUpdate', room.state);
+        logMessage(room.state, `Um ${role} entrou na sala.`);
+        io.to(roomId).emit('gameUpdate', room.state);
+    });
 
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
@@ -129,11 +264,52 @@ io.on('connection', (socket) => {
         const playerKey = socket.id;
 
         switch (action.type) {
-            case 'playerSelectsCharacter': { /* ... (sem alterações) */ }
-            case 'gmStartsAdventure': { /* ... (sem alterações) */ }
-            case 'gmConfirmParty': { /* ... (sem alterações) */ }
+            case 'playerSelectsCharacter': {
+                if (state.mode !== 'lobby') return;
+                const { character } = action;
+                if (state.unavailableCharacters.includes(character.nome)) {
+                    socket.emit('characterUnavailable', character.nome);
+                    return;
+                }
+                state.unavailableCharacters.push(character.nome);
+                state.connectedPlayers[socket.id].selectedCharacter = character;
+                logMessage(state, `Jogador selecionou ${character.nome}.`);
+                break;
+            }
+            case 'gmStartsAdventure': {
+                let newState = createNewGameState();
+                newState.gmId = state.gmId;
+                newState.lobbyCache = state;
 
-            // --- MODIFICAÇÃO: gmStartBattle agora leva para a fase de iniciativa ---
+                for (const sId in state.connectedPlayers) {
+                    const playerData = state.connectedPlayers[sId];
+                    if (playerData.selectedCharacter) {
+                        newState.fighters.players[sId] = createNewFighterState({
+                            id: sId,
+                            nome: playerData.selectedCharacter.nome,
+                            img: playerData.selectedCharacter.img,
+                        });
+                        io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
+                    }
+                }
+                room.state = newState;
+                break;
+            }
+            case 'gmConfirmParty': {
+                if (state.phase !== 'party_setup') return;
+                action.playerStats.forEach(pStat => {
+                    if (state.fighters.players[pStat.id]) {
+                       const player = state.fighters.players[pStat.id];
+                       player.agi = pStat.agi;
+                       player.res = pStat.res;
+                       player.hp = pStat.res * 5;
+                       player.hpMax = pStat.res * 5;
+                    }
+                });
+                state.phase = 'npc_setup';
+                logMessage(state, `Grupo confirmado! GM está preparando os inimigos...`);
+                break;
+            }
             case 'gmStartBattle': {
                 if (state.phase !== 'npc_setup') return;
                 const { npcs } = action;
@@ -141,16 +317,12 @@ io.on('connection', (socket) => {
                     const npcId = `npc_${index}`;
                     state.fighters.npcs[npcId] = createNewFighterState({ id: npcId, ...npcConfig });
                 });
-
                 logMessage(state, `Os combatentes estão prontos! Rolem a iniciativa!`, 'log-turn');
                 state.phase = 'initiative_roll';
                 break;
             }
-
-            // --- MODIFICAÇÃO: Nova ação para rolar iniciativa ---
             case 'roll_initiative': {
                 if (state.phase !== 'initiative_roll') return;
-
                 const charactersToRoll = action.isGmRoll ? Object.values(state.fighters.npcs) : [getFighter(state, playerKey)];
                 
                 charactersToRoll.forEach(char => {
@@ -161,24 +333,17 @@ io.on('connection', (socket) => {
                     }
                 });
 
-                // Verifica se todos já rolaram
                 const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
                 const allRolled = allFighters.every(f => f.status !== 'active' || state.initiativeRolls[f.id] !== undefined);
 
                 if (allRolled) {
-                    // Determina a ordem de turno com desempate
                     const sortedFighters = allFighters
                         .filter(f => f.status === 'active')
                         .sort((a, b) => {
                             const rollA = state.initiativeRolls[a.id];
                             const rollB = state.initiativeRolls[b.id];
-
-                            // Critério 1: Maior rolagem vence
                             if (rollA !== rollB) return rollB - rollA;
 
-                            // Critério 2: Desempate por camada (z-index)
-                            // Camadas: P1/N1=14, P2/N2=13, P3/N3=12, P4/N4=11
-                            // Maior z-index tem prioridade
                             const getLayer = (fighterId) => {
                                 const isPlayer = !!state.fighters.players[fighterId];
                                 const list = Object.keys(isPlayer ? state.fighters.players : state.fighters.npcs);
@@ -189,13 +354,9 @@ io.on('connection', (socket) => {
                             const layerB = getLayer(b.id);
                             if (layerA !== layerB) return layerB - layerA;
 
-                            // Critério 3: Desempate entre P vs N na mesma camada
                             const isPlayerA = !!state.fighters.players[a.id];
-                            const isPlayerB = !!state.fighters.players[b.id];
-                            if (isPlayerA && !isPlayerB) return -1; // Jogador tem prioridade
-                            if (!isPlayerA && isPlayerB) return 1;
-
-                            return 0; // Se tudo for igual
+                            if (isPlayerA) return -1;
+                            return 1;
                         });
                     
                     state.turnOrder = sortedFighters.map(f => f.id);
@@ -206,14 +367,22 @@ io.on('connection', (socket) => {
                 }
                 break;
             }
-            
-            case 'attack': { /* ... (sem alterações) */ }
-            case 'end_turn': { /* ... (sem alterações) */ }
+            case 'attack':
+                if (playerKey !== state.activeCharacterKey) return;
+                executeAttack(state, playerKey, action.targetKey, io, roomId);
+                if (state.phase === 'battle') {
+                    advanceTurn(state, io, roomId);
+                }
+                break;
+            case 'end_turn':
+                if (playerKey !== state.activeCharacterKey) return;
+                advanceTurn(state, io, roomId);
+                break;
         }
         io.to(roomId).emit('gameUpdate', room.state);
     });
     
-    socket.on('disconnect', () => { /* ... (sem alterações) */ });
+    socket.on('disconnect', () => { /* ... */ });
 });
 
 const PORT = process.env.PORT || 3000;
