@@ -73,7 +73,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 #confirm-selection-btn { margin-top: 20px; }
 
 #fight-scene-characters { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-.player-char-container, .npc-char-container { position: absolute; display: flex; flex-direction: column; align-items: center; width: 150px; transition: all 0.3s ease; pointer-events: all; }
+.player-char-container, .npc-char-container { position: absolute; display: flex; flex-direction: column; align-items: center; width: 150px; /* Removido 'transition' para evitar conflito com 'animation' */ pointer-events: all; }
 .fighter-img-ingame { width: 150px; height: 150px; object-fit: contain; filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.7)); }
 .health-bar-ingame { width: 100px; height: 15px; background-color: rgba(85, 85, 85, 0.7); border: 1px solid #000; border-radius: 5px; margin-bottom: 5px; position: relative; }
 .health-bar-ingame-fill { height: 100%; background-color: #28a745; border-radius: 5px; transition: width 0.5s ease-in-out; }
@@ -86,15 +86,53 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .turn-order-entry.active-in-turn-order { border-color: #ffeb3b; transform: scale(1.15); box-shadow: 0 0 15px #ffeb3b; }
 
 .active-turn { filter: drop-shadow(0px 0px 15px #ffeb3b); }
-.is-hit-flash { animation: hit-flash-effect 0.5s ease-in-out; }
-@keyframes hit-flash-effect { 0%, 100% { filter: brightness(1) drop-shadow(2px 2px 5px rgba(0,0,0,0.7)); } 25%, 75% { filter: brightness(3) drop-shadow(2px 2px 5px rgba(0,0,0,0.7)); } 50% { filter: brightness(1) drop-shadow(2px 2px 5px rgba(0,0,0,0.7)); } }
-.defeated-player { filter: grayscale(100%) brightness(0.7); transition: filter 0.5s; }
-.defeated-npc { animation: fade-out-and-disappear 1.5s forwards; }
-@keyframes fade-out-and-disappear { 0% { opacity: 1; } 25% { opacity: 0; } 50% { opacity: 1; } 75% { opacity: 0; } 100% { opacity: 0; transform: scale(0.8); } }
-.is-attacking-player { animation: lunge-player 0.5s ease-in-out; }
-@keyframes lunge-player { 50% { transform: translate(50px, -20px); } }
-.is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
-@keyframes lunge-npc { 50% { transform: translate(-50px, -20px); } }
+
+/* --- ANIMAÇÕES AJUSTADAS --- */
+
+.is-hit-flash {
+    animation: hit-flash-effect 0.4s ease-out;
+}
+@keyframes hit-flash-effect {
+    0%, 100% { filter: brightness(1) drop-shadow(2px 2px 5px rgba(0,0,0,0.7)); }
+    50% { filter: brightness(5) drop-shadow(2px 2px 5px rgba(255,255,255,0.7)); }
+}
+
+.defeated-player {
+    animation: defeat-grayscale-flash 1s forwards;
+}
+@keyframes defeat-grayscale-flash {
+    0%, 20% { filter: brightness(3); }
+    10%, 30% { filter: brightness(1); }
+    100% { filter: grayscale(100%) brightness(0.7); }
+}
+
+.defeated-npc {
+    animation: defeat-fade-out 2s forwards;
+}
+@keyframes defeat-fade-out {
+    0%, 20% { opacity: 1; transform: scale(1.1); }
+    10%, 30% { opacity: 0.3; transform: scale(1); }
+    40% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.5); }
+}
+
+.is-attacking-player {
+    animation: lunge-player 0.5s ease-in-out;
+}
+@keyframes lunge-player {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(50px, -20px); }
+}
+
+.is-attacking-npc {
+    animation: lunge-npc 0.5s ease-in-out;
+}
+@keyframes lunge-npc {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-50px, -20px); }
+}
+/* --- FIM DAS ANIMAÇÕES --- */
+
 
 #fight-log-container { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 50%; max-width: 600px; height: 150px; background-color: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; z-index: 10; }
 #round-info { margin-top: 0; text-align: center; border-bottom: 1px solid #fff; padding-bottom: 10px; }
@@ -117,7 +155,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 .npc-char-container.targetable, .player-char-container.targetable { cursor: crosshair; }
 .npc-char-container.is-targeting, .player-char-container.is-targeting { filter: drop-shadow(0px 0px 15px red); }
-.target-hover { filter: drop-shadow(0px 0px 20px #ffffff) !important; transform: scale(1.1); }
+.target-hover { filter: drop-shadow(0px 0px 20px #ffffff) !important; transform: scale(1.1); transition: transform 0.2s ease, filter 0.2s ease; }
 #targeting-indicator { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); background-color: rgba(220, 53, 69, 0.9); color: white; padding: 10px 25px; border-radius: 8px; font-weight: bold; z-index: 100; pointer-events: none; }
 #coords-display { position: absolute; top: 20px; right: 20px; background-color: rgba(0,0,0,0.8); color: #ffeb3b; padding: 5px 10px; border-radius: 5px; font-family: monospace; font-size: 1em; z-index: 9999; pointer-events: none; }
 

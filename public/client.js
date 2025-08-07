@@ -322,7 +322,8 @@ document.addEventListener('DOMContentLoaded', () => {
             fightSceneCharacters.appendChild(el);
         });
         Object.values(state.fighters.npcs).forEach((fighter, index) => {
-            if (fighter.status === 'down') return;
+            // A alteração aqui é que o NPC continua sendo renderizado mesmo se 'down'
+            // para que a animação de derrota possa ser executada.
             const pos = NPC_POSITIONS[index];
             const el = createFighterElement(fighter, 'npc', state, pos);
             fightSceneCharacters.appendChild(el);
@@ -359,18 +360,25 @@ document.addEventListener('DOMContentLoaded', () => {
         container.id = fighter.id;
         container.dataset.key = fighter.id;
         Object.assign(container.style, position);
-        let statusClass = '';
-        if (fighter.status === 'down') { statusClass = (type === 'player') ? 'defeated-player' : 'defeated-npc'; } 
-        else if (state.activeCharacterKey === fighter.id) { statusClass = 'active-turn'; }
+
+        // Limpa classes de animação antigas para garantir que possam ser reaplicadas
+        container.classList.remove('is-attacking-player', 'is-attacking-npc', 'is-hit-flash', 'defeated-player', 'defeated-npc');
         
-        const activeFighter = getFighter(state, state.activeCharacterKey);
-        if (activeFighter) {
-            const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
-            const isThisFighterPlayer = type === 'player';
-            if (isActiveFighterPlayer !== isThisFighterPlayer && fighter.status === 'active') { container.classList.add('targetable'); }
+        // Aplica classes de status com base no estado atual
+        if (fighter.status === 'down') {
+            container.classList.add(type === 'player' ? 'defeated-player' : 'defeated-npc');
+        } else if (state.activeCharacterKey === fighter.id) {
+            container.classList.add('active-turn');
         }
         
-        if (statusClass) { container.classList.add(statusClass); }
+        const activeFighter = getFighter(state, state.activeCharacterKey);
+        if (activeFighter && fighter.status === 'active') { // Só pode ser alvo se estiver ativo
+            const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
+            const isThisFighterPlayer = type === 'player';
+            if (isActiveFighterPlayer !== isThisFighterPlayer) {
+                container.classList.add('targetable');
+            }
+        }
         
         container.addEventListener('mouseenter', () => { if (isTargeting && container.classList.contains('targetable')) { container.classList.add('target-hover'); } });
         container.addEventListener('mouseleave', () => { container.classList.remove('target-hover'); });
@@ -394,12 +402,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const isPlayer = el.classList.contains('player-char-container');
             const animationClass = isPlayer ? 'is-attacking-player' : 'is-attacking-npc';
             el.classList.add(animationClass); 
-            setTimeout(() => el.classList.remove(animationClass), 500);
+            // Usa 'animationend' para remover a classe, que é mais confiável que setTimeout
+            el.addEventListener('animationend', () => {
+                el.classList.remove(animationClass);
+            }, { once: true });
         }
     });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { 
         const el = document.getElementById(defenderKey);
-        if (el) { el.classList.add('is-hit-flash'); setTimeout(() => el.classList.remove('is-hit-flash'), 500); }
+        if (el) {
+            el.classList.add('is-hit-flash');
+            el.addEventListener('animationend', () => {
+                el.classList.remove('is-hit-flash');
+            }, { once: true });
+        }
     });
     
     socket.on('error', (err) => { alert(err.message); window.location.reload(); });
