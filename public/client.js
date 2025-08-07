@@ -326,24 +326,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- MODIFICAÇÃO: Apenas esta função foi alterada para usar as novas posições ---
     function updateUI(state) {
-        if (!state || state.mode !== 'adventure') return;
+        if (!state || !state.fighters) return; // Adicionado um check extra
         
         fightSceneCharacters.innerHTML = '';
 
-        // Posições X, Y e Camada (z-index)
         const PLAYER_POSITIONS = [
-            { left: '200px', top: '500px', zIndex: 14 }, // Player 1 (Frente)
-            { left: '300px', top: '400px', zIndex: 13 }, // Player 2
-            { left: '400px', top: '300px', zIndex: 12 }, // Player 3
-            { left: '500px', top: '200px', zIndex: 11 }  // Player 4 (Atrás)
+            { left: '200px', top: '500px', zIndex: 14 },
+            { left: '300px', top: '400px', zIndex: 13 },
+            { left: '400px', top: '300px', zIndex: 12 },
+            { left: '500px', top: '200px', zIndex: 11 }
         ];
         const NPC_POSITIONS = [
-            { left: '1000px', top: '500px', zIndex: 14 }, // Inimigo 1 (Frente)
-            { left: '900px',  top: '400px', zIndex: 13 }, // Inimigo 2
-            { left: '800px',  top: '300px', zIndex: 12 }, // Inimigo 3
-            { left: '700px',  top: '200px', zIndex: 11 }  // Inimigo 4 (Atrás)
+            { left: '1000px', top: '500px', zIndex: 14 },
+            { left: '900px',  top: '400px', zIndex: 13 },
+            { left: '800px',  top: '300px', zIndex: 12 },
+            { left: '700px',  top: '200px', zIndex: 11 }
         ];
         
         Object.values(state.fighters.players).forEach((fighter, index) => {
@@ -364,8 +362,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.phase === 'gameover') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span><br>${state.reason}`;
         } else if (state.activeCharacterKey) {
+            // --- CORREÇÃO: Adicionada verificação de segurança ---
             const activeFighter = getFighter(state, state.activeCharacterKey);
-            roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${activeFighter.nome}</span>`;
+            if (activeFighter) {
+                roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${activeFighter.nome}</span>`;
+            } else {
+                roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Aguardando...`;
+            }
         }
         
         fightLog.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
