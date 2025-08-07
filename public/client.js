@@ -31,7 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const coordsDisplay = document.getElementById('coords-display');
     const turnOrderSidebar = document.getElementById('turn-order-sidebar');
 
-
     socket.on('availableFighters', ({ p1, playable }) => {
         ALL_FIGHTERS_DATA = p1 || {};
         PLAYABLE_CHARACTERS_DATA = playable || [];
@@ -43,13 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function handleActionClick(event) { /* ... (sem alterações) */ }
-    function handleTargetClick(event) { /* ... (sem alterações) */ }
-    function cancelTargeting() { /* ... (sem alterações) */ }
-    function toggleCoordsMode() { /* ... (sem alterações) */ }
-    function updateCoordsDisplay(event) { /* ... (sem alterações) */ }
+    function handleActionClick(event) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function handleTargetClick(event) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function cancelTargeting() { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function toggleCoordsMode() { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function updateCoordsDisplay(event) { /* ... (código da versão ALPHA, sem alterações) ... */ }
 
-    // --- CORREÇÃO: A inicialização dos listeners foi movida para dentro de 'initialize' ---
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
@@ -62,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
         
-        // Adiciona listeners aos botões que existem em TODAS as telas ou desde o início.
+        // Listeners universais
         document.body.addEventListener('contextmenu', (e) => { if (isTargeting) { e.preventDefault(); cancelTargeting(); } });
         document.body.addEventListener('keydown', (e) => {
             if (isTargeting && e.key === "Escape") { cancelTargeting(); }
@@ -71,49 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 toggleCoordsMode();
             }
         });
-        
         actionButtonsWrapper.addEventListener('click', handleActionClick);
-        
-        // Adiciona listeners aos botões que só existem em telas específicas APÓS ter certeza que eles existem.
-        if (document.getElementById('start-adventure-btn')) {
-             document.getElementById('start-adventure-btn').onclick = () => {
-                socket.emit('playerAction', { type: 'gmStartsAdventure' });
-            };
-        }
-        if (document.getElementById('gm-confirm-party-btn')) {
-            document.getElementById('gm-confirm-party-btn').onclick = () => {
-                const playerStats = [];
-                document.querySelectorAll('#gm-party-list .party-member-card').forEach(card => {
-                    playerStats.push({
-                        id: card.dataset.id,
-                        agi: parseInt(card.querySelector('.agi-input').value, 10),
-                        res: parseInt(card.querySelector('.res-input').value, 10)
-                    });
-                });
-                socket.emit('playerAction', { type: 'gmConfirmParty', playerStats });
-            };
-        }
-        if (document.getElementById('gm-start-battle-btn')) {
-            document.getElementById('gm-start-battle-btn').onclick = () => {
-                const npcConfigs = [];
-                document.querySelectorAll('#npc-selection-area .npc-card.selected').forEach(card => {
-                    npcConfigs.push({
-                        nome: card.dataset.name,
-                        img: card.dataset.img,
-                        agi: parseInt(card.querySelector('.agi-input').value, 10),
-                        res: parseInt(card.querySelector('.res-input').value, 10),
-                    });
-                });
-                if (npcConfigs.length === 0 || npcConfigs.length > 4) {
-                    alert("Selecione de 1 a 4 NPCs para a batalha.");
-                    return;
-                }
-                socket.emit('playerAction', { type: 'gmStartBattle', npcs: npcConfigs });
-            };
-        }
-        if(confirmBtn){
-            confirmBtn.addEventListener('click', onConfirmSelection);
-        }
     }
 
     function onConfirmSelection() {
@@ -129,7 +85,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderPlayerCharacterSelection(unavailable = []) { /* ... (sem alterações) */ }
+    function renderPlayerCharacterSelection(unavailable = []) {
+        charListContainer.innerHTML = '';
+        confirmBtn.disabled = false;
+        
+        PLAYABLE_CHARACTERS_DATA.forEach(data => {
+            const card = document.createElement('div');
+            card.className = 'char-card';
+            card.dataset.name = data.name;
+            card.dataset.img = data.img;
+            card.innerHTML = `<img src="${data.img}" alt="${data.name}"><div class="char-name">${data.name}</div>`;
+            
+            if (unavailable.includes(data.name)) {
+                card.classList.add('disabled');
+                card.innerHTML += `<div class="char-unavailable-overlay">SELECIONADO</div>`;
+            } else {
+                card.addEventListener('click', () => {
+                    if (card.classList.contains('disabled')) return;
+                    document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                });
+            }
+            charListContainer.appendChild(card);
+        });
+        // Listener do botão de confirmação é adicionado aqui, quando a tela é renderizada
+        confirmBtn.onclick = onConfirmSelection;
+    }
 
     socket.on('gameUpdate', (gameState) => {
         const oldPhase = currentGameState ? currentGameState.phase : null;
@@ -189,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- CORREÇÃO: Listeners de botões do GM são adicionados aqui, após a confirmação do papel de GM ---
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
         if (isGm) {
@@ -197,40 +179,64 @@ document.addEventListener('DOMContentLoaded', () => {
             const spectatorUrl = `${baseUrl}?room=${roomId}&role=spectator`;
             const playerLinkEl = document.getElementById('gm-link-player');
             const spectatorLinkEl = document.getElementById('gm-link-spectator');
+            
             playerLinkEl.textContent = playerUrl;
             spectatorLinkEl.textContent = spectatorUrl;
             playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
             spectatorLinkEl.onclick = () => copyToClipboard(spectatorUrl, spectatorLinkEl);
+            
+            document.getElementById('start-adventure-btn').onclick = () => {
+                socket.emit('playerAction', { type: 'gmStartsAdventure' });
+            };
+            document.getElementById('gm-confirm-party-btn').onclick = () => {
+                const playerStats = [];
+                document.querySelectorAll('#gm-party-list .party-member-card').forEach(card => {
+                    playerStats.push({
+                        id: card.dataset.id,
+                        agi: parseInt(card.querySelector('.agi-input').value, 10),
+                        res: parseInt(card.querySelector('.res-input').value, 10)
+                    });
+                });
+                socket.emit('playerAction', { type: 'gmConfirmParty', playerStats });
+            };
+            document.getElementById('gm-start-battle-btn').onclick = () => {
+                const npcConfigs = [];
+                document.querySelectorAll('#npc-selection-area .npc-card.selected').forEach(card => {
+                    npcConfigs.push({
+                        nome: card.dataset.name,
+                        img: card.dataset.img,
+                        agi: parseInt(card.querySelector('.agi-input').value, 10),
+                        res: parseInt(card.querySelector('.res-input').value, 10),
+                    });
+                });
+                if (npcConfigs.length === 0 || npcConfigs.length > 4) {
+                    alert("Selecione de 1 a 4 NPCs para a batalha.");
+                    return;
+                }
+                socket.emit('playerAction', { type: 'gmStartBattle', npcs: npcConfigs });
+            };
+
             showScreen(gmInitialLobby);
         }
     });
 
-    function copyToClipboard(text, element) { /* ... (sem alterações) */ }
-    function updateGmLobbyUI(state) { /* ... (sem alterações) */ }
-    function updateGmPartySetupScreen(state) { /* ... (sem alterações) */ }
-    function renderNpcSelectionForGm() { /* ... (sem alterações) */ }
-    function renderInitiativeUI(state) { /* ... (sem alterações) */ }
-    function updateTurnOrderUI(state) { /* ... (sem alterações) */ }
-    function updateUI(state) { /* ... (sem alterações) */ }
-    function getFighter(state, key) { /* ... (sem alterações) */ }
-    function createFighterElement(fighter, type, state, position) { /* ... (sem alterações) */ }
-    socket.on('assignRole', (data) => { /* ... (sem alterações) */ });
-    socket.on('triggerAttackAnimation', ({ attackerKey }) => { /* ... (sem alterações) */ });
-    socket.on('triggerHitAnimation', ({ defenderKey }) => { /* ... (sem alterações) */ });
-    socket.on('error', (err) => { /* ... (sem alterações) */ });
+    function copyToClipboard(text, element) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function updateGmLobbyUI(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function updateGmPartySetupScreen(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function renderNpcSelectionForGm() { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function renderInitiativeUI(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function updateTurnOrderUI(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function updateUI(state) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function getFighter(state, key) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    function createFighterElement(fighter, type, state, position) { /* ... (código da versão ALPHA, sem alterações) ... */ }
+    socket.on('assignRole', (data) => { /* ... (código da versão ALPHA, sem alterações) ... */ });
+    socket.on('triggerAttackAnimation', ({ attackerKey }) => { /* ... (código da versão ALPHA, sem alterações) ... */ });
+    socket.on('triggerHitAnimation', ({ defenderKey }) => { /* ... (código da versão ALPHA, sem alterações) ... */ });
+    socket.on('error', (err) => { /* ... (código da versão ALPHA, sem alterações) ... */ });
     
     initialize();
     
-    function scaleGame() {
-        const gameWrapper = document.getElementById('game-wrapper');
-        const scale = Math.min(
-            window.innerWidth / 1280,
-            window.innerHeight / 720
-        );
-        gameWrapper.style.transform = `scale(${scale})`;
-        gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
-        gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
-    }
+    function scaleGame() { /* ... (código da versão ALPHA, sem alterações) ... */ }
     window.addEventListener('resize', scaleGame);
     scaleGame();
 });
