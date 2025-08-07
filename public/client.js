@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateUI(state) {
-        if (!state || !state.fighters) return; // Adicionado um check extra
+        if (!state || !state.fighters) return;
         
         fightSceneCharacters.innerHTML = '';
 
@@ -362,7 +362,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.phase === 'gameover') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span><br>${state.reason}`;
         } else if (state.activeCharacterKey) {
-            // --- CORREÇÃO: Adicionada verificação de segurança ---
             const activeFighter = getFighter(state, state.activeCharacterKey);
             if (activeFighter) {
                 roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${activeFighter.nome}</span>`;
@@ -401,7 +400,13 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state.activeCharacterKey === fighter.id) statusClass = 'active-turn';
         if (type === 'npc' && fighter.status === 'active') container.classList.add('targetable');
 
-        container.classList.add(statusClass);
+        // --- A CORREÇÃO ESTÁ AQUI ---
+        // Adiciona a classe apenas se ela não estiver vazia.
+        if (statusClass) {
+            container.classList.add(statusClass);
+        }
+        // --- FIM DA CORREÇÃO ---
+
         const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
 
         container.innerHTML = `
