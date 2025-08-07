@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let myPlayerKey = null;
     let isGm = false;
     let currentGameState = null;
+    let oldGameState = null; // Para comparar estados e detectar mudanças
+    let defeatAnimationPlayed = new Set(); // Para controlar animações de derrota
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
 
@@ -152,13 +154,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     socket.on('gameUpdate', (gameState) => {
-        const oldPhase = currentGameState ? currentGameState.phase : null;
+        oldGameState = currentGameState;
         currentGameState = gameState;
+        
+        const oldPhase = oldGameState ? oldGameState.phase : null;
         const initiativeUI = document.getElementById('initiative-ui');
         if(initiativeUI) initiativeUI.classList.add('hidden');
 
         if (isGm) {
-            if (gameState.mode === 'lobby') { showScreen(gmInitialLobby); updateGmLobbyUI(gameState); }
+            if (gameState.mode === 'lobby') { showScreen(gmInitialLobby); updateGmLobbyUI(gameState); defeatAnimationPlayed.clear(); }
             else if (gameState.mode === 'adventure') {
                  switch (gameState.phase) {
                     case 'party_setup': showScreen(gmPartySetupScreen); updateGmPartySetupScreen(gameState); break;
@@ -175,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     showScreen(playerWaitingScreen); document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre iniciar...";
                 }
+                 defeatAnimationPlayed.clear();
             } else if (gameState.mode === 'adventure') {
                 if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
                     showScreen(playerWaitingScreen); document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
@@ -316,16 +321,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const PLAYER_POSITIONS = [ { left: '200px', top: '500px', zIndex: 14 }, { left: '300px', top: '400px', zIndex: 13 }, { left: '400px', top: '300px', zIndex: 12 }, { left: '500px', top: '200px', zIndex: 11 } ];
         const NPC_POSITIONS = [ { left: '1000px', top: '500px', zIndex: 14 }, { left: '900px',  top: '400px', zIndex: 13 }, { left: '800px',  top: '300px', zIndex: 12 }, { left: '700px',  top: '200px', zIndex: 11 } ];
         
-        Object.values(state.fighters.players).forEach((fighter, index) => {
-            const pos = PLAYER_POSITIONS[index];
-            const el = createFighterElement(fighter, 'player', state, pos);
-            fightSceneCharacters.appendChild(el);
-        });
-        Object.values(state.fighters.npcs).forEach((fighter, index) => {
-            // A alteração aqui é que o NPC continua sendo renderizado mesmo se 'down'
-            // para que a animação de derrota possa ser executada.
-            const pos = NPC_POSITIONS[index];
-            const el = createFighterElement(fighter, 'npc', state, pos);
+        const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
+        const positions = [...PLAYER_POSITIONS, ...NPC_POSITIONS];
+        const fighterPositions = {};
+        Object.values(state.fighters.players).forEach((f, i) => fighterPositions[f.id] = PLAYER_POSITIONS[i]);
+        Object.values(state.fighters.npcs).forEach((f, i) => fighterPositions[f.id] = NPC_POSITIONS[i]);
+
+        allFighters.forEach(fighter => {
+            const isPlayer = !!state.fighters.players[fighter.id];
+            const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
             fightSceneCharacters.appendChild(el);
         });
 
@@ -353,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function getFighter(state, key) { return state.fighters.players[key] || state.fighters.npcs[key]; }
+    function getOldFighter(key) { return oldGameState ? (oldGameState.fighters.players[key] || oldGameState.fighters.npcs[key]) : null; }
 
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
@@ -361,22 +366,27 @@ document.addEventListener('DOMContentLoaded', () => {
         container.dataset.key = fighter.id;
         Object.assign(container.style, position);
 
-        // Limpa classes de animação antigas para garantir que possam ser reaplicadas
-        container.classList.remove('is-attacking-player', 'is-attacking-npc', 'is-hit-flash', 'defeated-player', 'defeated-npc');
-        
-        // Aplica classes de status com base no estado atual
-        if (fighter.status === 'down') {
-            container.classList.add(type === 'player' ? 'defeated-player' : 'defeated-npc');
-        } else if (state.activeCharacterKey === fighter.id) {
-            container.classList.add('active-turn');
+        const oldFighterState = getOldFighter(fighter.id);
+        const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
+
+        if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
+            defeatAnimationPlayed.add(fighter.id);
+            container.classList.add(type === 'player' ? 'animate-defeat-player' : 'animate-defeat-npc');
+        } else if (fighter.status === 'down') {
+             container.classList.add(type === 'player' ? 'player-defeated-final' : 'npc-defeated-final');
         }
-        
-        const activeFighter = getFighter(state, state.activeCharacterKey);
-        if (activeFighter && fighter.status === 'active') { // Só pode ser alvo se estiver ativo
-            const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
-            const isThisFighterPlayer = type === 'player';
-            if (isActiveFighterPlayer !== isThisFighterPlayer) {
-                container.classList.add('targetable');
+
+        if (fighter.status === 'active') {
+            if (state.activeCharacterKey === fighter.id) {
+                container.classList.add('active-turn');
+            }
+            const activeFighter = getFighter(state, state.activeCharacterKey);
+            if (activeFighter) {
+                const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
+                const isThisFighterPlayer = type === 'player';
+                if (isActiveFighterPlayer !== isThisFighterPlayer) {
+                    container.classList.add('targetable');
+                }
             }
         }
         
@@ -397,25 +407,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { 
-        const el = document.getElementById(attackerKey);
-        if (el) { 
-            const isPlayer = el.classList.contains('player-char-container');
-            const animationClass = isPlayer ? 'is-attacking-player' : 'is-attacking-npc';
-            el.classList.add(animationClass); 
-            // Usa 'animationend' para remover a classe, que é mais confiável que setTimeout
-            el.addEventListener('animationend', () => {
-                el.classList.remove(animationClass);
-            }, { once: true });
-        }
+        // Usamos setTimeout para garantir que a classe seja adicionada após o DOM ser atualizado
+        setTimeout(() => {
+            const el = document.getElementById(attackerKey);
+            if (el) { 
+                const isPlayer = el.classList.contains('player-char-container');
+                const animationClass = isPlayer ? 'is-attacking-player' : 'is-attacking-npc';
+                el.classList.add(animationClass); 
+                el.addEventListener('animationend', () => {
+                    el.classList.remove(animationClass);
+                }, { once: true });
+            }
+        }, 0);
     });
+
     socket.on('triggerHitAnimation', ({ defenderKey }) => { 
-        const el = document.getElementById(defenderKey);
-        if (el) {
-            el.classList.add('is-hit-flash');
-            el.addEventListener('animationend', () => {
-                el.classList.remove('is-hit-flash');
-            }, { once: true });
-        }
+        setTimeout(() => {
+            const el = document.getElementById(defenderKey);
+            if (el) {
+                el.classList.add('is-hit-flash');
+                el.addEventListener('animationend', () => {
+                    el.classList.remove('is-hit-flash');
+                }, { once: true });
+            }
+        }, 0);
     });
     
     socket.on('error', (err) => { alert(err.message); window.location.reload(); });
