@@ -11,54 +11,81 @@
 <div id="game-wrapper">
 
     <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
-    
+
     <!-- TELA INICIAL DO LOBBY DO GM -->
     <div id="gm-initial-lobby" class="screen active">
-        <!-- ... (conteúdo sem alterações) ... -->
+        <h1>Lobby do Mestre</h1>
+        <p>Envie os links abaixo para os jogadores e espectadores.</p>
+        <div class="gm-links-container">
+            <div>
+                <h3>Link do Jogador (Até 4):</h3>
+                <div id="gm-link-player" class="share-link" title="Clique para copiar">Gerando...</div>
+            </div>
+            <div>
+                <h3>Link de Espectador:</h3>
+                <div id="gm-link-spectator" class="share-link" title="Clique para copiar">Gerando...</div>
+            </div>
+        </div>
+        <div id="gm-lobby-status-container">
+            <h3>Jogadores Conectados:</h3>
+            <ul id="gm-lobby-player-list">
+                <li>Aguardando jogadores...</li>
+            </ul>
+        </div>
+        <div class="mode-buttons-container">
+            <button id="start-adventure-btn" class="mode-btn">Iniciar Aventura</button>
+        </div>
     </div>
     
     <!-- Tela para o GM confirmar o grupo e definir stats -->
     <div id="gm-party-setup-screen" class="screen">
-        <!-- ... (conteúdo sem alterações) ... -->
+        <h1>Definir Atributos do Grupo</h1>
+        <p>Defina a Agilidade (AGI) e Resistência (RES) para cada aventureiro.</p>
+        <div id="gm-party-list" class="party-list-container">
+            <!-- Jogadores com inputs de stats aparecerão aqui -->
+        </div>
+        <button id="gm-confirm-party-btn" class="mode-btn">Confirmar Grupo e Preparar Inimigos</button>
     </div>
 
     <!-- Tela para o GM selecionar os NPCs e definir stats -->
     <div id="gm-npc-setup-screen" class="screen">
-        <!-- ... (conteúdo sem alterações) ... -->
+        <h1>Montar Encontro</h1>
+        <p>Selecione de 1 a 4 inimigos e defina seus atributos.</p>
+        <div id="npc-selection-area" class="npc-selection-container">
+            <!-- Cards de NPCs selecionáveis com inputs de stats aparecerão aqui -->
+        </div>
+        <button id="gm-start-battle-btn" class="mode-btn">Iniciar Batalha!</button>
     </div>
 
     <!-- TELA DE ESPERA DO JOGADOR/ESPECTADOR -->
     <div id="player-waiting-screen" class="screen">
-        <!-- ... (conteúdo sem alterações) ... -->
+         <h1>Medieval Battle RPG</h1>
+         <p id="player-waiting-message">Aguardando o Mestre iniciar o jogo...</p>
     </div>
     
     <!-- TELA DE SELEÇÃO DE PERSONAGENS (Para jogadores) -->
     <div id="selection-screen" class="screen">
-        <!-- ... (conteúdo sem alterações) ... -->
+        <h1 id="selection-title">Selecione seu Aventureiro</h1>
+        <div id="character-list-container"></div>
+        <button id="confirm-selection-btn">Confirmar</button>
     </div>
 
-    <!-- TELA DE LUTA -->
+    <!-- TELA DE LUTA 4x4 -->
     <div id="fight-screen" class="screen">
         
-        <div id="fight-scene-characters">
-            <!-- Personagens serão inseridos aqui pelo client.js -->
-        </div>
+        <div class="battle-area">
+            <div id="players-container" class="fighters-grid">
+                <!-- Cards dos jogadores serão inseridos aqui pelo client.js -->
+            </div>
+            
+            <div id="fight-log-container">
+                <h2 id="round-info">ROUND 1</h2>
+                <div id="fight-log"></div>
+            </div>
 
-        <!-- MODIFICAÇÃO: Barra de ordem de turno -->
-        <div id="turn-order-sidebar" class="hidden">
-            <!-- Ordem de turno será inserida aqui -->
-        </div>
-
-        <!-- UI sobreposta ao cenário -->
-        <div id="fight-log-container">
-            <h2 id="round-info">ROUND 1</h2>
-            <div id="fight-log"></div>
-        </div>
-
-        <!-- MODIFICAÇÃO: UI para rolar iniciativa -->
-        <div id="initiative-ui" class="hidden">
-            <button id="player-roll-initiative-btn" class="initiative-btn hidden">Rolar Iniciativa</button>
-            <button id="gm-roll-initiative-btn" class="initiative-btn hidden">Rolar para Inimigos</button>
+            <div id="npcs-container" class="fighters-grid">
+                <!-- Cards dos NPCs serão inseridos aqui pelo client.js -->
+            </div>
         </div>
 
         <div id="targeting-indicator" class="hidden">
@@ -72,10 +99,12 @@
 
     <!-- MODAL PADRÃO -->
     <div id="modal" class="hidden">
-        <!-- ... (conteúdo sem alterações) ... -->
+        <div id="modal-content">
+            <h3 id="modal-title">Título</h3>
+            <div id="modal-text">Texto.</div>
+            <button id="modal-button">OK</button>
+        </div>
     </div>
-    
-    <div id="coords-display" class="hidden">X: 0, Y: 0</div>
 
 </div>
 
