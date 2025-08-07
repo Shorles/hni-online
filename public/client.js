@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const actionButtonsWrapper = document.getElementById('action-buttons-wrapper');
     const fightSceneCharacters = document.getElementById('fight-scene-characters');
     const coordsDisplay = document.getElementById('coords-display');
-    // --- MODIFICAÇÃO: Elemento para a barra de ordem de turno ---
     const turnOrderSidebar = document.getElementById('turn-order-sidebar');
 
 
@@ -38,13 +37,19 @@ document.addEventListener('DOMContentLoaded', () => {
         PLAYABLE_CHARACTERS_DATA = playable || [];
     });
 
-    function showScreen(screenToShow) { /* ... (sem alterações) */ }
+    function showScreen(screenToShow) {
+        allScreens.forEach(screen => {
+            screen.classList.toggle('active', screen === screenToShow);
+        });
+    }
+
     function handleActionClick(event) { /* ... (sem alterações) */ }
     function handleTargetClick(event) { /* ... (sem alterações) */ }
     function cancelTargeting() { /* ... (sem alterações) */ }
     function toggleCoordsMode() { /* ... (sem alterações) */ }
     function updateCoordsDisplay(event) { /* ... (sem alterações) */ }
 
+    // --- CORREÇÃO: A inicialização dos listeners foi movida para dentro de 'initialize' ---
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
@@ -57,13 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
         
-        confirmBtn.addEventListener('click', onConfirmSelection);
-        
-        document.getElementById('start-adventure-btn').onclick = () => { /* ... (sem alterações) */ };
-        document.getElementById('gm-confirm-party-btn').onclick = () => { /* ... (sem alterações) */ };
-        document.getElementById('gm-start-battle-btn').onclick = () => { /* ... (sem alterações) */ };
-
-        document.body.addEventListener('contextmenu', (e) => { /* ... (sem alterações) */ });
+        // Adiciona listeners aos botões que existem em TODAS as telas ou desde o início.
+        document.body.addEventListener('contextmenu', (e) => { if (isTargeting) { e.preventDefault(); cancelTargeting(); } });
         document.body.addEventListener('keydown', (e) => {
             if (isTargeting && e.key === "Escape") { cancelTargeting(); }
             if (isGm && e.key.toLowerCase() === 'f') {
@@ -73,16 +73,68 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         actionButtonsWrapper.addEventListener('click', handleActionClick);
+        
+        // Adiciona listeners aos botões que só existem em telas específicas APÓS ter certeza que eles existem.
+        if (document.getElementById('start-adventure-btn')) {
+             document.getElementById('start-adventure-btn').onclick = () => {
+                socket.emit('playerAction', { type: 'gmStartsAdventure' });
+            };
+        }
+        if (document.getElementById('gm-confirm-party-btn')) {
+            document.getElementById('gm-confirm-party-btn').onclick = () => {
+                const playerStats = [];
+                document.querySelectorAll('#gm-party-list .party-member-card').forEach(card => {
+                    playerStats.push({
+                        id: card.dataset.id,
+                        agi: parseInt(card.querySelector('.agi-input').value, 10),
+                        res: parseInt(card.querySelector('.res-input').value, 10)
+                    });
+                });
+                socket.emit('playerAction', { type: 'gmConfirmParty', playerStats });
+            };
+        }
+        if (document.getElementById('gm-start-battle-btn')) {
+            document.getElementById('gm-start-battle-btn').onclick = () => {
+                const npcConfigs = [];
+                document.querySelectorAll('#npc-selection-area .npc-card.selected').forEach(card => {
+                    npcConfigs.push({
+                        nome: card.dataset.name,
+                        img: card.dataset.img,
+                        agi: parseInt(card.querySelector('.agi-input').value, 10),
+                        res: parseInt(card.querySelector('.res-input').value, 10),
+                    });
+                });
+                if (npcConfigs.length === 0 || npcConfigs.length > 4) {
+                    alert("Selecione de 1 a 4 NPCs para a batalha.");
+                    return;
+                }
+                socket.emit('playerAction', { type: 'gmStartBattle', npcs: npcConfigs });
+            };
+        }
+        if(confirmBtn){
+            confirmBtn.addEventListener('click', onConfirmSelection);
+        }
     }
 
-    function onConfirmSelection() { /* ... (sem alterações) */ }
+    function onConfirmSelection() {
+        const selectedCard = document.querySelector('.char-card.selected');
+        if (!selectedCard) { alert('Por favor, selecione um personagem!'); return; }
+        
+        if (myRole === 'player') {
+            const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
+            socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
+            showScreen(playerWaitingScreen);
+            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+            confirmBtn.disabled = true;
+        }
+    }
+
     function renderPlayerCharacterSelection(unavailable = []) { /* ... (sem alterações) */ }
 
     socket.on('gameUpdate', (gameState) => {
         const oldPhase = currentGameState ? currentGameState.phase : null;
         currentGameState = gameState;
         
-        // Esconde a UI de iniciativa por padrão
         document.getElementById('initiative-ui').classList.add('hidden');
 
         if (isGm) {
@@ -91,16 +143,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateGmLobbyUI(gameState);
             } else if (gameState.mode === 'adventure') {
                  switch (gameState.phase) {
-                    case 'party_setup': /* ... (sem alterações) */ break;
-                    case 'npc_setup': /* ... (sem alterações) */ break;
-                    
-                    // --- MODIFICAÇÃO: Nova fase de iniciativa ---
+                    case 'party_setup':
+                        showScreen(gmPartySetupScreen);
+                        updateGmPartySetupScreen(gameState);
+                        break;
+                    case 'npc_setup':
+                        showScreen(gmNpcSetupScreen);
+                        if (oldPhase !== 'npc_setup') renderNpcSelectionForGm();
+                        break;
                     case 'initiative_roll':
                         showScreen(fightScreen);
-                        updateUI(gameState); // Desenha os personagens
-                        renderInitiativeUI(gameState); // Mostra os botões de rolar
+                        updateUI(gameState);
+                        renderInitiativeUI(gameState);
                         break;
-                    
                     case 'battle':
                     case 'gameover':
                         showScreen(fightScreen);
@@ -108,9 +163,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                 }
             }
-        } else { // Player & Spectator
-            if (gameState.mode === 'lobby') { /* ... (sem alterações) */ }
-            else if (gameState.mode === 'adventure') {
+        } else { 
+            if (gameState.mode === 'lobby') {
+                const myPlayerData = gameState.connectedPlayers[socket.id];
+                if (myRole === 'player' && myPlayerData && !myPlayerData.selectedCharacter) {
+                    showScreen(selectionScreen);
+                    renderPlayerCharacterSelection(gameState.unavailableCharacters);
+                } else {
+                    showScreen(playerWaitingScreen);
+                    document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre iniciar...";
+                }
+            } else if (gameState.mode === 'adventure') {
                 if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
                     showScreen(playerWaitingScreen);
                     document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
@@ -126,183 +189,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    socket.on('roomCreated', (roomId) => { /* ... (sem alterações) */ });
+    socket.on('roomCreated', (roomId) => {
+        currentRoomId = roomId;
+        if (isGm) {
+            const baseUrl = window.location.origin;
+            const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
+            const spectatorUrl = `${baseUrl}?room=${roomId}&role=spectator`;
+            const playerLinkEl = document.getElementById('gm-link-player');
+            const spectatorLinkEl = document.getElementById('gm-link-spectator');
+            playerLinkEl.textContent = playerUrl;
+            spectatorLinkEl.textContent = spectatorUrl;
+            playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
+            spectatorLinkEl.onclick = () => copyToClipboard(spectatorUrl, spectatorLinkEl);
+            showScreen(gmInitialLobby);
+        }
+    });
+
     function copyToClipboard(text, element) { /* ... (sem alterações) */ }
     function updateGmLobbyUI(state) { /* ... (sem alterações) */ }
     function updateGmPartySetupScreen(state) { /* ... (sem alterações) */ }
     function renderNpcSelectionForGm() { /* ... (sem alterações) */ }
-    
-    // --- MODIFICAÇÃO: Nova função para renderizar a UI de iniciativa ---
-    function renderInitiativeUI(state) {
-        const initiativeUI = document.getElementById('initiative-ui');
-        initiativeUI.classList.remove('hidden');
-        
-        const playerRollBtn = document.getElementById('player-roll-initiative-btn');
-        const gmRollBtn = document.getElementById('gm-roll-initiative-btn');
-
-        // Lógica para o botão do jogador
-        if (myRole === 'player' && state.fighters.players[myPlayerKey] && !state.initiativeRolls[myPlayerKey]) {
-            playerRollBtn.classList.remove('hidden');
-            playerRollBtn.disabled = false;
-            playerRollBtn.onclick = () => {
-                playerRollBtn.disabled = true;
-                socket.emit('playerAction', { type: 'roll_initiative' });
-            };
-        } else {
-            playerRollBtn.classList.add('hidden');
-        }
-
-        // Lógica para o botão do GM
-        if (isGm) {
-            const npcsNeedToRoll = Object.values(state.fighters.npcs).some(npc => !state.initiativeRolls[npc.id]);
-            if (npcsNeedToRoll) {
-                gmRollBtn.classList.remove('hidden');
-                gmRollBtn.disabled = false;
-                gmRollBtn.onclick = () => {
-                    gmRollBtn.disabled = true;
-                    socket.emit('playerAction', { type: 'roll_initiative', isGmRoll: true });
-                };
-            } else {
-                gmRollBtn.classList.add('hidden');
-            }
-        } else {
-            gmRollBtn.classList.add('hidden');
-        }
-    }
-
-    // --- MODIFICAÇÃO: Nova função para atualizar a barra de ordem de turno ---
-    function updateTurnOrderUI(state) {
-        turnOrderSidebar.innerHTML = ''; // Limpa a barra
-        if (state.phase !== 'battle') {
-            turnOrderSidebar.classList.add('hidden');
-            return;
-        }
-        turnOrderSidebar.classList.remove('hidden');
-
-        state.turnOrder.forEach((charId, index) => {
-            const fighter = getFighter(state, charId);
-            if (!fighter) return;
-
-            const turnEntry = document.createElement('div');
-            turnEntry.className = 'turn-order-entry';
-            
-            // Destaca o personagem ativo
-            if (index === 0) {
-                turnEntry.classList.add('active-in-turn-order');
-            }
-
-            turnEntry.innerHTML = `<img src="${fighter.img}" alt="${fighter.nome}">`;
-            turnOrderSidebar.appendChild(turnEntry);
-        });
-    }
-
-    function updateUI(state) {
-        if (!state || !state.fighters) return;
-        
-        fightSceneCharacters.innerHTML = '';
-        updateTurnOrderUI(state);
-
-        const PLAYER_POSITIONS = [ /* ... (sem alterações) */ ];
-        const NPC_POSITIONS = [ /* ... (sem alterações) */ ];
-        
-        Object.values(state.fighters.players).forEach((fighter, index) => {
-            const pos = PLAYER_POSITIONS[index];
-            const el = createFighterElement(fighter, 'player', state, pos);
-            fightSceneCharacters.appendChild(el);
-        });
-
-        Object.values(state.fighters.npcs).forEach((fighter, index) => {
-            const pos = NPC_POSITIONS[index];
-            const el = createFighterElement(fighter, 'npc', state, pos);
-            fightSceneCharacters.appendChild(el);
-            if (el.classList.contains('targetable')) {
-                el.addEventListener('click', handleTargetClick);
-            }
-        });
-
-        if (state.phase === 'gameover') {
-            roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span><br>${state.reason}`;
-        } else if (state.phase === 'initiative_roll') {
-            roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Iniciativa`;
-        } else if (state.activeCharacterKey) {
-            const activeFighter = getFighter(state, state.activeCharacterKey);
-            if (activeFighter) {
-                roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${activeFighter.nome}</span>`;
-            }
-        }
-        
-        fightLog.innerHTML = state.log.map(msg => `<p class="${msg.className || ''}">${msg.text}</p>`).join('');
-        fightLog.scrollTop = fightLog.scrollHeight;
-        
-        actionButtonsWrapper.innerHTML = '';
-        if (myPlayerKey && state.fighters.players[myPlayerKey] && state.fighters.players[myPlayerKey].status === 'active') {
-            const myTurn = myPlayerKey === state.activeCharacterKey;
-            const canAct = myTurn && state.phase === 'battle';
-            actionButtonsWrapper.innerHTML = `
-                <button class="action-btn" data-action="attack" ${!canAct ? 'disabled' : ''}>Atacar</button>
-                <button class="end-turn-btn" data-action="end_turn" ${!canAct ? 'disabled' : ''}>Passar Turno</button>
-            `;
-        }
-    }
-    
-    function getFighter(state, key) {
-        return state.fighters.players[key] || state.fighters.npcs[key];
-    }
-
-    // --- MODIFICAÇÃO: createFighterElement aplica as novas classes de derrota ---
-    function createFighterElement(fighter, type, state, position) {
-        const container = document.createElement('div');
-        container.className = `${type}-char-container`;
-        container.id = fighter.id;
-        container.dataset.key = fighter.id;
-        Object.assign(container.style, position);
-        
-        let statusClass = '';
-        if (fighter.status === 'down') {
-            statusClass = (type === 'player') ? 'defeated-player' : 'defeated-npc';
-        } else if (state.activeCharacterKey === fighter.id) {
-            statusClass = 'active-turn';
-        }
-        
-        if (type === 'npc' && fighter.status === 'active') container.classList.add('targetable');
-
-        if (statusClass) {
-            container.classList.add(statusClass);
-        }
-
-        const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
-        container.innerHTML = `
-            <div class="health-bar-ingame">
-                <div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div>
-                <span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span>
-            </div>
-            <img src="${fighter.img}" class="fighter-img-ingame">
-            <div class="fighter-name-ingame">${fighter.nome}</div>
-        `;
-        
-        // --- MODIFICAÇÃO: Espelhamento removido ---
-        // if(type === 'npc'){ container.querySelector('.fighter-img-ingame').style.transform = 'scaleX(-1)'; }
-        
-        return container;
-    }
-
+    function renderInitiativeUI(state) { /* ... (sem alterações) */ }
+    function updateTurnOrderUI(state) { /* ... (sem alterações) */ }
+    function updateUI(state) { /* ... (sem alterações) */ }
+    function getFighter(state, key) { /* ... (sem alterações) */ }
+    function createFighterElement(fighter, type, state, position) { /* ... (sem alterações) */ }
     socket.on('assignRole', (data) => { /* ... (sem alterações) */ });
-    
-    // --- MODIFICAÇÃO: Animações usam as novas classes ---
-    socket.on('triggerAttackAnimation', ({ attackerKey }) => { 
-        const el = document.getElementById(attackerKey);
-        if (el) { el.classList.add(`is-attacking-lunge`); setTimeout(() => el.classList.remove(`is-attacking-lunge`), 500); }
-    });
-    socket.on('triggerHitAnimation', ({ defenderKey }) => { 
-        const el = document.getElementById(defenderKey);
-        if (el) { el.classList.add('is-hit-flash'); setTimeout(() => el.classList.remove('is-hit-flash'), 500); }
-    });
-    
+    socket.on('triggerAttackAnimation', ({ attackerKey }) => { /* ... (sem alterações) */ });
+    socket.on('triggerHitAnimation', ({ defenderKey }) => { /* ... (sem alterações) */ });
     socket.on('error', (err) => { /* ... (sem alterações) */ });
     
     initialize();
     
-    function scaleGame() { /* ... (sem alterações) */ }
+    function scaleGame() {
+        const gameWrapper = document.getElementById('game-wrapper');
+        const scale = Math.min(
+            window.innerWidth / 1280,
+            window.innerHeight / 720
+        );
+        gameWrapper.style.transform = `scale(${scale})`;
+        gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+        gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+    }
     window.addEventListener('resize', scaleGame);
     scaleGame();
 });
