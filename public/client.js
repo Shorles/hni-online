@@ -52,7 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
             isTargeting = true;
             targetingAttackerKey = activeFighterKey;
             document.getElementById('targeting-indicator').classList.remove('hidden');
-            // CORREÇÃO: Destaca alvos corretos (jogadores se NPC ataca, NPCs se jogador ataca)
             const isNpcTurn = !!currentGameState.fighters.npcs[activeFighterKey];
             const targetSelector = isNpcTurn ? '.player-char-container.targetable' : '.npc-char-container.targetable';
             document.querySelectorAll(targetSelector).forEach(el => el.classList.add('is-targeting'));
@@ -63,7 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleTargetClick(event) {
         if (!isTargeting || !targetingAttackerKey) return;
-        // CORREÇÃO: Usa uma classe genérica para encontrar o alvo
         const targetContainer = event.target.closest('.char-container');
         if (!targetContainer || !targetContainer.classList.contains('targetable')) return;
         const targetKey = targetContainer.dataset.key;
@@ -82,8 +80,22 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.char-container.is-targeting').forEach(el => el.classList.remove('is-targeting'));
     }
 
-    function toggleCoordsMode() { /* ... */ }
-    function updateCoordsDisplay(event) { /* ... */ }
+    function toggleCoordsMode() {
+        coordsModeActive = !coordsModeActive;
+        coordsDisplay.classList.toggle('hidden', !coordsModeActive);
+        if (coordsModeActive) { document.addEventListener('mousemove', updateCoordsDisplay); } 
+        else { document.removeEventListener('mousemove', updateCoordsDisplay); }
+    }
+
+    function updateCoordsDisplay(event) {
+        const gameWrapper = document.getElementById('game-wrapper');
+        const rect = gameWrapper.getBoundingClientRect();
+        const transform = window.getComputedStyle(gameWrapper).transform;
+        const scale = transform === 'none' ? 1 : new DOMMatrix(transform).a;
+        const x = Math.round((event.clientX - rect.left) / scale);
+        const y = Math.round((event.clientY - rect.top) / scale);
+        coordsDisplay.textContent = `X: ${x}, Y: ${y}`;
+    }
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -103,8 +115,41 @@ document.addEventListener('DOMContentLoaded', () => {
         actionButtonsWrapper.addEventListener('click', handleActionClick);
     }
 
-    function onConfirmSelection() { /* ... */ }
-    function renderPlayerCharacterSelection(unavailable = []) { /* ... */ }
+    function onConfirmSelection() {
+        const selectedCard = document.querySelector('.char-card.selected');
+        if (!selectedCard) { alert('Por favor, selecione um personagem!'); return; }
+        if (myRole === 'player') {
+            const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
+            socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
+            showScreen(playerWaitingScreen);
+            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+            confirmBtn.disabled = true;
+        }
+    }
+
+    function renderPlayerCharacterSelection(unavailable = []) {
+        charListContainer.innerHTML = '';
+        confirmBtn.disabled = false;
+        PLAYABLE_CHARACTERS_DATA.forEach(data => {
+            const card = document.createElement('div');
+            card.className = 'char-card';
+            card.dataset.name = data.name;
+            card.dataset.img = data.img;
+            card.innerHTML = `<img src="${data.img}" alt="${data.name}"><div class="char-name">${data.name}</div>`;
+            if (unavailable.includes(data.name)) {
+                card.classList.add('disabled');
+                card.innerHTML += `<div class="char-unavailable-overlay">SELECIONADO</div>`;
+            } else {
+                card.addEventListener('click', () => {
+                    if (card.classList.contains('disabled')) return;
+                    document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                });
+            }
+            charListContainer.appendChild(card);
+        });
+        confirmBtn.onclick = onConfirmSelection;
+    }
 
     socket.on('gameUpdate', (gameState) => {
         const oldPhase = currentGameState ? currentGameState.phase : null;
@@ -142,10 +187,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    socket.on('roomCreated', (roomId) => { /* ... */ });
+    socket.on('roomCreated', (roomId) => {
+        currentRoomId = roomId;
+        if (isGm) {
+            const baseUrl = window.location.origin;
+            const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
+            const spectatorUrl = `${baseUrl}?room=${roomId}&role=spectator`;
+            const playerLinkEl = document.getElementById('gm-link-player');
+            const spectatorLinkEl = document.getElementById('gm-link-spectator');
+            playerLinkEl.textContent = playerUrl;
+            spectatorLinkEl.textContent = spectatorUrl;
+            playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
+            spectatorLinkEl.onclick = () => copyToClipboard(spectatorUrl, spectatorLinkEl);
+            document.getElementById('start-adventure-btn').onclick = () => socket.emit('playerAction', { type: 'gmStartsAdventure' });
+            document.getElementById('gm-confirm-party-btn').onclick = () => {
+                const playerStats = [];
+                document.querySelectorAll('#gm-party-list .party-member-card').forEach(card => {
+                    playerStats.push({ id: card.dataset.id, agi: parseInt(card.querySelector('.agi-input').value, 10), res: parseInt(card.querySelector('.res-input').value, 10) });
+                });
+                socket.emit('playerAction', { type: 'gmConfirmParty', playerStats });
+            };
+            document.getElementById('gm-start-battle-btn').onclick = () => {
+                const npcConfigs = [];
+                document.querySelectorAll('#npc-selection-area .npc-card.selected').forEach(card => {
+                    npcConfigs.push({ nome: card.dataset.name, img: card.dataset.img, agi: parseInt(card.querySelector('.agi-input').value, 10), res: parseInt(card.querySelector('.res-input').value, 10) });
+                });
+                if (npcConfigs.length === 0 || npcConfigs.length > 4) { alert("Selecione de 1 a 4 NPCs para a batalha."); return; }
+                socket.emit('playerAction', { type: 'gmStartBattle', npcs: npcConfigs });
+            };
+            showScreen(gmInitialLobby);
+        }
+    });
     
-    function copyToClipboard(text, element) { /* ... */ }
-    function updateGmLobbyUI(state) { /* ... */ }
+    function copyToClipboard(text, element) {
+        if(!element) return;
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = element.textContent;
+            element.textContent = 'Copiado!';
+            setTimeout(() => { element.textContent = originalText; }, 2000);
+        });
+    }
+
+    function updateGmLobbyUI(state) {
+        if (!isGm) return;
+        const playerListEl = document.getElementById('gm-lobby-player-list');
+        if (!playerListEl) return;
+        playerListEl.innerHTML = '';
+        const connectedPlayers = Object.values(state.connectedPlayers);
+        if (connectedPlayers.length === 0) { playerListEl.innerHTML = '<li>Aguardando jogadores...</li>'; } 
+        else {
+            connectedPlayers.forEach(p => {
+                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
+                playerListEl.innerHTML += `<li>Jogador Conectado - Personagem: ${charName}</li>`;
+            });
+        }
+    }
+    
     function updateGmPartySetupScreen(state) { /* ... */ }
     function renderNpcSelectionForGm() { /* ... */ }
     function renderInitiativeUI(state) { /* ... */ }
@@ -163,7 +260,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const el = createFighterElement(fighter, 'player', state, pos);
             fightSceneCharacters.appendChild(el);
         });
+
         Object.values(state.fighters.npcs).forEach((fighter, index) => {
+            // CORREÇÃO: Não desenha mais o NPC se ele estiver derrotado
+            if (fighter.status === 'down') return;
             const pos = NPC_POSITIONS[index];
             const el = createFighterElement(fighter, 'npc', state, pos);
             fightSceneCharacters.appendChild(el);
@@ -216,26 +316,26 @@ document.addEventListener('DOMContentLoaded', () => {
         container.addEventListener('mouseenter', () => { if (isTargeting && container.classList.contains('targetable')) { container.classList.add('target-hover'); } });
         container.addEventListener('mouseleave', () => { container.classList.remove('target-hover'); });
         
-        // CORREÇÃO: Adicionado listener de clique aqui para o ataque do GM
         if(container.classList.contains('targetable')) {
              container.addEventListener('click', handleTargetClick);
         }
 
         const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
-        container.innerHTML = `<div class="health-bar-ingame">...</div><img ...>...`; // Conteúdo como na BETA
+        container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
 
-    socket.on('assignRole', (data) => { /* ... */ });
+    socket.on('assignRole', (data) => {
+        myRole = data.role; myPlayerKey = data.playerKey || null; isGm = data.isGm || myRole === 'gm';
+    });
 
-    // CORREÇÃO: Usando a classe de animação correta
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { 
         const el = document.getElementById(attackerKey);
         if (el) { 
             const isPlayer = el.classList.contains('player-char-container');
-            // A classe 'is-attacking-lunge' já existe e faz o movimento genérico
-            el.classList.add(isPlayer ? 'is-attacking-player' : 'is-attacking-npc'); 
-            setTimeout(() => el.classList.remove(isPlayer ? 'is-attacking-player' : 'is-attacking-npc'), 500);
+            const animationClass = isPlayer ? 'is-attacking-player' : 'is-attacking-npc';
+            el.classList.add(animationClass); 
+            setTimeout(() => el.classList.remove(animationClass), 500);
         }
     });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { 
@@ -243,11 +343,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) { el.classList.add('is-hit-flash'); setTimeout(() => el.classList.remove('is-hit-flash'), 500); }
     });
     
-    socket.on('error', (err) => { /* ... */ });
+    socket.on('error', (err) => { alert(err.message); window.location.reload(); });
     
     initialize();
     
-    function scaleGame() { /* ... */ }
+    function scaleGame() {
+        const gameWrapper = document.getElementById('game-wrapper');
+        const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+        gameWrapper.style.transform = `scale(${scale})`;
+        gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+        gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+    }
     window.addEventListener('resize', scaleGame);
     scaleGame();
 });

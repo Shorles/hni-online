@@ -26,12 +26,7 @@ const games = {};
 const ATTACK_MOVE = { damage: 5 };
 function rollD6() { return Math.floor(Math.random() * 6) + 1; }
 
-function createNewLobbyState(gmId) {
-    return {
-        mode: 'lobby', phase: 'waiting_players', gmId: gmId, connectedPlayers: {},
-        unavailableCharacters: [], log: [{ text: "Lobby criado. Aguardando jogadores..." }],
-    };
-}
+function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_players', gmId: gmId, connectedPlayers: {}, unavailableCharacters: [], log: [{ text: "Lobby criado. Aguardando jogadores..." }], }; }
 
 function createNewGameState() {
     return {
@@ -87,7 +82,6 @@ function executeAttack(state, attackerKey, defenderKey, io, roomId) {
         if (defender.hp <= 0) {
             defender.status = 'down';
             logMessage(state, `${defender.nome} foi derrotado!`, 'log-crit');
-            // Os personagens derrotados são filtrados da ordem de turno em advanceTurn
         }
     } else {
         logMessage(state, "Errou!", 'log-miss');
@@ -97,36 +91,23 @@ function executeAttack(state, attackerKey, defenderKey, io, roomId) {
 
 function advanceTurn(state, io, roomId) {
     if (state.phase !== 'battle') return;
-
-    // Move o personagem que acabou de agir para o final da fila
-    const lastPlayer = state.turnOrder.shift();
-    if (getFighter(state, lastPlayer).status === 'active') { // Só recoloca na fila se não foi derrotado
-        state.turnOrder.push(lastPlayer);
+    const lastPlayerId = state.turnOrder.shift();
+    if (getFighter(state, lastPlayerId) && getFighter(state, lastPlayerId).status === 'active') {
+        state.turnOrder.push(lastPlayerId);
     }
-    
-    // Filtra permanentemente qualquer personagem derrotado que possa ter ficado na fila
     state.turnOrder = state.turnOrder.filter(id => getFighter(state, id).status === 'active');
-    
-    if (checkGameOver(state)) return;
-
-    // Se a fila de turnos esvaziou (todos os de um time foram derrotados), o jogo acaba
-    if (state.turnOrder.length === 0) {
-        return; 
-    }
-    
-    // Verifica se todos na fila atual já agiram (início de um novo round)
+    if (checkGameOver(state)) { io.to(roomId).emit('gameUpdate', state); return; }
+    if (state.turnOrder.length === 0) { return; }
     const allHaveActed = state.turnOrder.every(id => getFighter(state, id).hasActed);
-    if(allHaveActed) {
+    if (allHaveActed) {
         state.currentRound++;
-        state.turnOrder.forEach(id => getFighter(state, id).hasActed = false); // Reseta a flag de ação
+        state.turnOrder.forEach(id => getFighter(state, id).hasActed = false);
         logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn');
     }
-
     state.activeCharacterKey = state.turnOrder[0];
     const newAttacker = getFighter(state, state.activeCharacterKey);
     logMessage(state, `É a vez de ${newAttacker.nome}.`, 'log-info');
 }
-
 
 io.on('connection', (socket) => {
     socket.on('gmCreatesLobby', () => {
@@ -165,42 +146,9 @@ io.on('connection', (socket) => {
         const state = room.state;
         const playerKey = socket.id;
         switch (action.type) {
-            case 'playerSelectsCharacter': {
-                if (state.mode !== 'lobby') return;
-                const { character } = action;
-                if (state.unavailableCharacters.includes(character.nome)) { socket.emit('characterUnavailable', character.nome); return; }
-                state.unavailableCharacters.push(character.nome);
-                state.connectedPlayers[socket.id].selectedCharacter = character;
-                logMessage(state, `Jogador selecionou ${character.nome}.`);
-                break;
-            }
-            case 'gmStartsAdventure': {
-                let newState = createNewGameState();
-                newState.gmId = state.gmId;
-                newState.lobbyCache = state;
-                for (const sId in state.connectedPlayers) {
-                    const playerData = state.connectedPlayers[sId];
-                    if (playerData.selectedCharacter) {
-                        newState.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img });
-                        io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
-                    }
-                }
-                room.state = newState;
-                break;
-            }
-            case 'gmConfirmParty': {
-                if (state.phase !== 'party_setup') return;
-                action.playerStats.forEach(pStat => {
-                    if (state.fighters.players[pStat.id]) {
-                       const player = state.fighters.players[pStat.id];
-                       player.agi = pStat.agi; player.res = pStat.res;
-                       player.hp = pStat.res * 5; player.hpMax = pStat.res * 5;
-                    }
-                });
-                state.phase = 'npc_setup';
-                logMessage(state, `Grupo confirmado! GM está preparando os inimigos...`);
-                break;
-            }
+            case 'playerSelectsCharacter': { /* ... */ break; }
+            case 'gmStartsAdventure': { /* ... */ break; }
+            case 'gmConfirmParty': { /* ... */ break; }
             case 'gmStartBattle': {
                 if (state.phase !== 'npc_setup') return;
                 const { npcs } = action;
@@ -214,8 +162,7 @@ io.on('connection', (socket) => {
                 const charactersToRoll = action.isGmRoll ? Object.values(state.fighters.npcs) : [getFighter(state, playerKey)];
                 charactersToRoll.forEach(char => {
                     if (char && !state.initiativeRolls[char.id]) {
-                        const roll = rollD6();
-                        state.initiativeRolls[char.id] = char.agi + roll;
+                        const roll = rollD6(); state.initiativeRolls[char.id] = char.agi + roll;
                         logMessage(state, `${char.nome} rolou iniciativa: ${state.initiativeRolls[char.id]} (AGI ${char.agi} + D6 ${roll})`, 'log-info');
                     }
                 });
@@ -249,7 +196,6 @@ io.on('connection', (socket) => {
                 const isGmAction = isGm && state.fighters.npcs[attackerKey];
                 const isPlayerAction = playerKey === attackerKey;
                 if (!isPlayerAction && !isGmAction) return;
-
                 const attacker = getFighter(state, attackerKey);
                 if (attackerKey !== state.activeCharacterKey || (attacker && attacker.hasActed)) return;
                 executeAttack(state, attackerKey, action.targetKey, io, roomId);
