@@ -219,13 +219,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
-        // Lógica de inicialização simplificada
+        // Lógica de inicialização simplificada e robusta
         if (currentRoomId && roleFromUrl) {
+            // Player ou Espectador: junta-se à sala e aguarda.
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            showScreen(playerWaitingScreen); // Jogador sempre começa na tela de espera
+            showScreen(playerWaitingScreen); 
         } else {
+            // GM: Cria a sala imediatamente. A tela de lobby já é a padrão no HTML.
             socket.emit('gmCreatesLobby');
-            showScreen(gmInitialLobby); // GM sempre começa no lobby
         }
         
         confirmBtn.addEventListener('click', onConfirmSelection);
@@ -572,11 +573,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    // O CÉREBRO DA UI - AGORA CONTROLA QUAL TELA MOSTRAR
     socket.on('gameUpdate', (gameState) => {
         modal.classList.add('hidden');
         specialMovesModal.classList.add('hidden');
         
-        const oldState = currentGameState;
         currentGameState = gameState;
         
         if (gameState.mode === 'classic' && myRole === 'player' && gameState.players) {
@@ -584,77 +585,65 @@ document.addEventListener('DOMContentLoaded', () => {
             if (myData) myFighterId = myData.id;
         }
 
-        const SETUP_PHASES_ARENA = ['p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring', 'p2_stat_assignment'];
-
+        // Lógica central de exibição de telas
         if (isGm) {
-            if (gameState.mode === 'lobby') {
-                showScreen(gmInitialLobby);
-                updateGmLobbyUI(gameState);
-            } else if (gameState.mode === 'classic') {
-                if (gameState.phase === 'classic_setup_npc_selection') {
-                    showScreen(selectionScreen);
-                    selectionTitle.innerText = 'GM: Selecione seu Time (0/4)';
-                    confirmBtn.innerText = 'Iniciar Batalha';
-                    confirmBtn.disabled = true;
-                    renderGmCharacterSelection(true, true, 4);
-                } else {
-                    showScreen(fightScreen);
-                }
-            }
-            else if (gameState.mode === 'arena') {
-                if (gameState.phase === 'gm_classic_setup') {
-                    showScreen(selectionScreen);
-                    selectionTitle.innerText = 'GM: Selecione seu Lutador';
-                    confirmBtn.innerText = 'Confirmar Personagem';
-                    confirmBtn.disabled = false;
-                    renderGmCharacterSelection(true);
-                } else {
-                    showScreen(fightScreen);
-                }
-            } else if (gameState.mode === 'theater') {
-                showScreen(theaterScreen);
-                initializeTheaterMode();
-                renderTheaterMode(gameState);
-            }
-        } 
-        else if (myRole === 'player' || myRole === 'spectator') {
-            if (gameState.mode === 'lobby') {
-                if (myRole === 'player') {
-                     const myPlayerData = gameState.connectedPlayers[socket.id];
-                     if (myPlayerData && !myPlayerData.selectedCharacter) {
+            switch(gameState.mode) {
+                case 'lobby':
+                    showScreen(gmInitialLobby);
+                    updateGmLobbyUI(gameState);
+                    break;
+                case 'classic':
+                    if (gameState.phase === 'classic_setup_npc_selection') {
                         showScreen(selectionScreen);
-                        selectionTitle.innerText = `Selecione seu Personagem`;
-                        confirmBtn.innerText = 'Confirmar Personagem';
-                        renderPlayerCharacterSelection(gameState.unavailableCharacters);
+                        selectionTitle.innerText = 'GM: Selecione seu Time (0/4)';
+                        confirmBtn.innerText = 'Iniciar Batalha';
+                        confirmBtn.disabled = true;
+                        renderGmCharacterSelection(true, true, 4);
+                    } else {
+                        showScreen(fightScreen);
+                    }
+                    break;
+                case 'arena':
+                    // Lógica do modo arena...
+                    showScreen(fightScreen);
+                    break;
+                case 'theater':
+                    showScreen(theaterScreen);
+                    initializeTheaterMode();
+                    renderTheaterMode(gameState);
+                    break;
+            }
+        } else { // Player ou Spectator
+            switch(gameState.mode) {
+                case 'lobby':
+                    if (myRole === 'player') {
+                        const myPlayerData = gameState.connectedPlayers[socket.id];
+                        if (myPlayerData && !myPlayerData.selectedCharacter) {
+                            showScreen(selectionScreen);
+                            renderPlayerCharacterSelection(gameState.unavailableCharacters);
+                        } else {
+                            showScreen(playerWaitingScreen);
+                            document.getElementById('player-waiting-message').innerText = myPlayerData ? "Personagem enviado! Aguardando..." : "Aguardando o Mestre...";
+                        }
                     } else {
                         showScreen(playerWaitingScreen);
-                        document.getElementById('player-waiting-message').innerText = myPlayerData ? "Personagem enviado! Aguardando o Mestre..." : "Aguardando o Mestre iniciar o jogo...";
+                        document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
                     }
-                } else { 
-                     showScreen(playerWaitingScreen);
-                     document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
-                }
-            } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
-                if (SETUP_PHASES_ARENA.includes(gameState.phase) || gameState.phase === 'classic_setup_npc_selection') {
-                    showScreen(playerWaitingScreen);
-                    document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
-                } else {
-                    showScreen(fightScreen);
-                }
-            } else if (gameState.mode === 'theater') {
-                 showScreen(theaterScreen);
-                 renderTheaterMode(gameState);
+                    break;
+                case 'classic':
+                case 'arena':
+                    if (['classic_setup_npc_selection'].includes(gameState.phase)) {
+                        showScreen(playerWaitingScreen);
+                        document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
+                    } else {
+                        showScreen(fightScreen);
+                    }
+                    break;
+                case 'theater':
+                    showScreen(theaterScreen);
+                    renderTheaterMode(gameState);
+                    break;
             }
-        }
-
-        const oldPhase = oldState ? oldState.phase : null;
-        const wasPaused = oldPhase === 'paused';
-        const isNowPaused = gameState.phase === 'paused';
-        
-        if (isGm && isNowPaused && !wasPaused) { 
-            showCheatsModal(); 
-        } else if (!isNowPaused && wasPaused) { 
-            modal.classList.add('hidden'); 
         }
         
         if (gameState.mode !== 'lobby') {
@@ -694,13 +683,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.innerHTML = `Jogador Conectado - Personagem: ${charName}`;
                 playerListEl.appendChild(li);
             });
-        }
-        const playerLinkEl = document.getElementById('gm-link-player');
-        const specLinkEl = document.getElementById('gm-link-spectator');
-        if (!playerLinkEl.textContent.includes('Gerando')) {
-             const baseUrl = window.location.origin;
-             playerLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=player`;
-             specLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=spectator`;
         }
     }
 
