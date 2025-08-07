@@ -258,8 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(gmInitialLobby);
         }
     });
-    
-    // --- FUNÇÕES RESTAURADAS E CORRIGIDAS ---
 
     function copyToClipboard(text, element) {
         navigator.clipboard.writeText(text).then(() => {
@@ -304,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const npcArea = document.getElementById('npc-selection-area');
         npcArea.innerHTML = '';
         const imgPath = 'images/lutadores/';
-
         Object.keys(ALL_FIGHTERS_DATA).forEach(name => {
             const stats = ALL_FIGHTERS_DATA[name];
             const card = document.createElement('div');
@@ -329,13 +326,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- MODIFICAÇÃO: Apenas esta função foi alterada para usar as novas posições ---
     function updateUI(state) {
         if (!state || state.mode !== 'adventure') return;
         
         fightSceneCharacters.innerHTML = '';
 
-        const PLAYER_POSITIONS = [{bottom: '15%', left: '10%'}, {bottom: '15%', left: '20%'}, {bottom: '15%', left: '30%'}, {bottom: '15%', left: '40%'}];
-        const NPC_POSITIONS = [{bottom: '15%', right: '10%'}, {bottom: '15%', right: '20%'}, {bottom: '15%', right: '30%'}, {bottom: '15%', right: '40%'}];
+        // Posições X, Y e Camada (z-index)
+        const PLAYER_POSITIONS = [
+            { left: '200px', top: '500px', zIndex: 14 }, // Player 1 (Frente)
+            { left: '300px', top: '400px', zIndex: 13 }, // Player 2
+            { left: '400px', top: '300px', zIndex: 12 }, // Player 3
+            { left: '500px', top: '200px', zIndex: 11 }  // Player 4 (Atrás)
+        ];
+        const NPC_POSITIONS = [
+            { left: '1000px', top: '500px', zIndex: 14 }, // Inimigo 1 (Frente)
+            { left: '900px',  top: '400px', zIndex: 13 }, // Inimigo 2
+            { left: '800px',  top: '300px', zIndex: 12 }, // Inimigo 3
+            { left: '700px',  top: '200px', zIndex: 11 }  // Inimigo 4 (Atrás)
+        ];
         
         Object.values(state.fighters.players).forEach((fighter, index) => {
             const pos = PLAYER_POSITIONS[index];
@@ -355,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.phase === 'gameover') {
             roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span><br>${state.reason}`;
         } else if (state.activeCharacterKey) {
-            const activeFighter = state.fighters.players[state.activeCharacterKey] || state.fighters.npcs[state.activeCharacterKey];
+            const activeFighter = getFighter(state, state.activeCharacterKey);
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - Vez de: <span class="turn-highlight">${activeFighter.nome}</span>`;
         }
         
@@ -366,12 +375,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (myPlayerKey && state.fighters.players[myPlayerKey] && state.fighters.players[myPlayerKey].status === 'active') {
             const myTurn = myPlayerKey === state.activeCharacterKey;
             const canAct = myTurn && state.phase === 'battle';
-            
             actionButtonsWrapper.innerHTML = `
                 <button class="action-btn" data-action="attack" ${!canAct ? 'disabled' : ''}>Atacar</button>
                 <button class="end-turn-btn" data-action="end_turn" ${!canAct ? 'disabled' : ''}>Passar Turno</button>
             `;
         }
+    }
+    
+    function getFighter(state, key) {
+        return state.fighters.players[key] || state.fighters.npcs[key];
     }
 
     function createFighterElement(fighter, type, state, position) {
