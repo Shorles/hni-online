@@ -61,16 +61,27 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .mode-btn:hover { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
 
 #character-list-container, .party-list-container, .npc-selection-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; padding: 20px; max-height: 500px; overflow-y: auto; width: 90%; }
-.char-card, .party-member-card, .npc-card { background-color: #333; border: 3px solid #555; border-radius: 10px; padding: 15px; text-align: center; transition: all 0.2s ease-in-out; width: 150px; }
+.char-card, .party-member-card, .npc-card { background-color: #333; border: 3px solid #555; border-radius: 10px; padding: 15px; text-align: center; transition: all 0.2s ease-in-out; width: 150px; position: relative; cursor: pointer; }
 .char-card:hover, .npc-card:hover { border-color: #aaa; }
 .char-card.selected { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; transform: scale(1.05); }
+
+/* Estilo para personagem já selecionado por outro player */
+.char-card.disabled { cursor: not-allowed; }
+.char-card.disabled img { filter: grayscale(100%); }
+.char-unavailable-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); border-radius: 7px; display: flex; justify-content: center; align-items: center; color: #dc3545; font-size: 1.5em; font-weight: bold; text-shadow: 1px 1px 2px black; }
+
 .npc-card { cursor: pointer; }
 .npc-card.selected { border-color: #dc3545; box-shadow: 0 0 15px #dc3545; transform: scale(1.05); }
 .char-card img, .party-member-card img, .npc-card img { width: 80px; height: 80px; object-fit: contain; background-color: #222; border-radius: 50%; margin-bottom: 10px; }
 .char-card .char-name, .party-member-card h4, .npc-card .char-name { font-size: 1.2em; font-weight: bold; }
 .party-member-card label, .npc-card label { display: block; margin: 5px 0; font-size: 0.9em; }
 .party-member-card input, .npc-card input { width: 50px; text-align: center; font-size: 1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px; }
-#confirm-selection-btn { margin-top: 20px; }
+
+/* Botão de confirmação estilizado */
+#confirm-selection-btn { margin-top: 20px; padding: 15px 35px; font-size: 1.3em; cursor: pointer; border: 2px solid #ffeb3b; border-radius: 10px; background-color: #333; color: #ffeb3b; transition: all 0.2s ease-in-out; }
+#confirm-selection-btn:hover:not(:disabled) { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
+#confirm-selection-btn:disabled { background-color: #495057; color: #aaa; cursor: not-allowed; border-color: #6c757d; }
+
 
 #fight-scene-characters { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 .player-char-container, .npc-char-container { position: absolute; display: flex; flex-direction: column; align-items: center; width: 150px; pointer-events: all; }
@@ -88,26 +99,19 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .active-turn { filter: drop-shadow(0px 0px 15px #ffeb3b); }
 
 /* --- ANIMAÇÕES AJUSTADAS --- */
-
 .is-hit-flash { animation: hit-flash-effect 0.4s ease-out; }
 @keyframes hit-flash-effect {
     0%, 100% { filter: brightness(1) drop-shadow(2px 2px 5px rgba(0,0,0,0.7)); }
     50% { filter: brightness(3) drop-shadow(2px 2px 5px rgba(255,255,255,0.7)); }
 }
-
-/* Animação de UM-HIT de derrota para o Player (pisca e fica cinza) */
 .animate-defeat-player { animation: defeat-grayscale-flash 1.2s forwards; }
 @keyframes defeat-grayscale-flash {
     0%, 20%, 40% { filter: brightness(3); }
     10%, 30% { filter: brightness(1); }
     100% { filter: grayscale(100%) brightness(0.7); }
 }
-
-/* Estado final do player derrotado (só cinza, sem animação) */
 .player-defeated-final { filter: grayscale(100%) brightness(0.7); }
 
-
-/* Animação de UM-HIT de derrota para o NPC (pisca e some) */
 .animate-defeat-npc { animation: defeat-fade-out 2s forwards; }
 @keyframes defeat-fade-out {
     0%, 20% { opacity: 1; transform: scale(1.1); }
@@ -115,22 +119,13 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     40% { opacity: 1; transform: scale(1); }
     100% { opacity: 0; transform: scale(0.5); pointer-events: none; }
 }
-
-/* Estado final do NPC (invisível, sem animação) */
 .npc-defeated-final { opacity: 0; pointer-events: none; }
 
-
 .is-attacking-player { animation: lunge-player 0.5s ease-in-out; }
-@keyframes lunge-player {
-    50% { transform: translate(50px, -20px); }
-}
-
+@keyframes lunge-player { 50% { transform: translate(50px, -20px); } }
 .is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
-@keyframes lunge-npc {
-    50% { transform: translate(-50px, -20px); }
-}
+@keyframes lunge-npc { 50% { transform: translate(-50px, -20px); } }
 /* --- FIM DAS ANIMAÇÕES --- */
-
 
 #fight-log-container { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 50%; max-width: 600px; height: 150px; background-color: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; z-index: 10; }
 #round-info { margin-top: 0; text-align: center; border-bottom: 1px solid #fff; padding-bottom: 10px; }

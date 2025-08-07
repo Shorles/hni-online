@@ -140,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `<img src="${data.img}" alt="${data.name}"><div class="char-name">${data.name}</div>`;
             if (unavailable.includes(data.name)) {
                 card.classList.add('disabled');
+                // AJUSTE: Adiciona o overlay com a palavra "SELECIONADO"
                 card.innerHTML += `<div class="char-unavailable-overlay">SELECIONADO</div>`;
             } else {
                 card.addEventListener('click', () => {
@@ -322,7 +323,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const NPC_POSITIONS = [ { left: '1000px', top: '500px', zIndex: 14 }, { left: '900px',  top: '400px', zIndex: 13 }, { left: '800px',  top: '300px', zIndex: 12 }, { left: '700px',  top: '200px', zIndex: 11 } ];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
-        const positions = [...PLAYER_POSITIONS, ...NPC_POSITIONS];
         const fighterPositions = {};
         Object.values(state.fighters.players).forEach((f, i) => fighterPositions[f.id] = PLAYER_POSITIONS[i]);
         Object.values(state.fighters.npcs).forEach((f, i) => fighterPositions[f.id] = NPC_POSITIONS[i]);
@@ -407,18 +407,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { 
-        // Usamos setTimeout para garantir que a classe seja adicionada após o DOM ser atualizado
         setTimeout(() => {
             const el = document.getElementById(attackerKey);
             if (el) { 
                 const isPlayer = el.classList.contains('player-char-container');
                 const animationClass = isPlayer ? 'is-attacking-player' : 'is-attacking-npc';
                 el.classList.add(animationClass); 
-                el.addEventListener('animationend', () => {
-                    el.classList.remove(animationClass);
-                }, { once: true });
+                el.addEventListener('animationend', () => el.classList.remove(animationClass), { once: true });
             }
-        }, 0);
+        }, 50); // Pequeno delay para garantir que o elemento exista
     });
 
     socket.on('triggerHitAnimation', ({ defenderKey }) => { 
@@ -426,11 +423,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const el = document.getElementById(defenderKey);
             if (el) {
                 el.classList.add('is-hit-flash');
-                el.addEventListener('animationend', () => {
-                    el.classList.remove('is-hit-flash');
-                }, { once: true });
+                el.addEventListener('animationend', () => el.classList.remove('is-hit-flash'), { once: true });
             }
-        }, 0);
+        }, 50); // Pequeno delay
     });
     
     socket.on('error', (err) => { alert(err.message); window.location.reload(); });

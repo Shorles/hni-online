@@ -231,9 +231,18 @@ io.on('connection', (socket) => {
                 if (!isPlayerAction && !isGmAction) return;
                 const attacker = getFighter(state, attackerKey);
                 if (attackerKey !== state.activeCharacterKey || (attacker && attacker.hasActed)) return;
+                
                 executeAttack(state, attackerKey, action.targetKey, io, roomId);
                 if (attacker) { attacker.hasActed = true; }
-                break;
+
+                // AJUSTE CRÍTICO: Avança o turno automaticamente após o ataque.
+                // Usamos um pequeno delay para dar tempo das animações começarem no cliente.
+                setTimeout(() => {
+                    advanceTurn(state, io, roomId);
+                    io.to(roomId).emit('gameUpdate', room.state);
+                }, 700); // 700ms de delay
+                return; // Impede a emissão dupla do gameUpdate no final do switch.
+
             case 'end_turn':
                 const actorKey = action.actorKey;
                 if (actorKey !== state.activeCharacterKey) return;
