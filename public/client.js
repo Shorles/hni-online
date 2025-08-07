@@ -112,7 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
         
-        // Listeners universais que não dependem de um elemento específico de tela
         document.body.addEventListener('contextmenu', (e) => { if (isTargeting) { e.preventDefault(); cancelTargeting(); } });
         document.body.addEventListener('keydown', (e) => {
             if (isTargeting && e.key === "Escape") { cancelTargeting(); }
@@ -160,8 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             charListContainer.appendChild(card);
         });
-
-        // Adiciona o listener aqui, pois o botão `confirmBtn` existe nesta tela
         confirmBtn.onclick = onConfirmSelection;
     }
 
@@ -223,7 +220,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Listeners de botões do GM são adicionados aqui, pois este evento só o GM recebe
     socket.on('roomCreated', (roomId) => {
         currentRoomId = roomId;
         if (isGm) {
@@ -244,27 +240,17 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('gm-confirm-party-btn').onclick = () => {
                 const playerStats = [];
                 document.querySelectorAll('#gm-party-list .party-member-card').forEach(card => {
-                    playerStats.push({
-                        id: card.dataset.id,
-                        agi: parseInt(card.querySelector('.agi-input').value, 10),
-                        res: parseInt(card.querySelector('.res-input').value, 10)
-                    });
+                    playerStats.push({ id: card.dataset.id, agi: parseInt(card.querySelector('.agi-input').value, 10), res: parseInt(card.querySelector('.res-input').value, 10) });
                 });
                 socket.emit('playerAction', { type: 'gmConfirmParty', playerStats });
             };
             document.getElementById('gm-start-battle-btn').onclick = () => {
                 const npcConfigs = [];
                 document.querySelectorAll('#npc-selection-area .npc-card.selected').forEach(card => {
-                    npcConfigs.push({
-                        nome: card.dataset.name,
-                        img: card.dataset.img,
-                        agi: parseInt(card.querySelector('.agi-input').value, 10),
-                        res: parseInt(card.querySelector('.res-input').value, 10),
-                    });
+                    npcConfigs.push({ nome: card.dataset.name, img: card.dataset.img, agi: parseInt(card.querySelector('.agi-input').value, 10), res: parseInt(card.querySelector('.res-input').value, 10) });
                 });
                 if (npcConfigs.length === 0 || npcConfigs.length > 4) {
-                    alert("Selecione de 1 a 4 NPCs para a batalha.");
-                    return;
+                    alert("Selecione de 1 a 4 NPCs para a batalha."); return;
                 }
                 socket.emit('playerAction', { type: 'gmStartBattle', npcs: npcConfigs });
             };
@@ -274,7 +260,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function copyToClipboard(text, element) { /* ... */ }
-    function updateGmLobbyUI(state) { /* ... */ }
+    function updateGmLobbyUI(state) {
+        // CORREÇÃO: Adicionado um 'if (isGm)' para garantir que este código só rode para o mestre
+        if (!isGm) return;
+        const playerListEl = document.getElementById('gm-lobby-player-list');
+        playerListEl.innerHTML = '';
+        const connectedPlayers = Object.values(state.connectedPlayers);
+        if (connectedPlayers.length === 0) {
+            playerListEl.innerHTML = '<li>Aguardando jogadores...</li>';
+        } else {
+            connectedPlayers.forEach(p => {
+                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
+                playerListEl.innerHTML += `<li>Jogador Conectado - Personagem: ${charName}</li>`;
+            });
+        }
+    }
     function updateGmPartySetupScreen(state) { /* ... */ }
     function renderNpcSelectionForGm() { /* ... */ }
     function renderInitiativeUI(state) { /* ... */ }
@@ -282,7 +282,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI(state) { /* ... */ }
     function getFighter(state, key) { /* ... */ }
     function createFighterElement(fighter, type, state, position) { /* ... */ }
-    socket.on('assignRole', (data) => { /* ... */ });
+    socket.on('assignRole', (data) => {
+        myRole = data.role;
+        myPlayerKey = data.playerKey || null;
+        isGm = data.isGm || myRole === 'gm';
+    });
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { /* ... */ });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { /* ... */ });
     socket.on('error', (err) => { /* ... */ });
