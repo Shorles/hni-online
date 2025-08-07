@@ -39,6 +39,7 @@ body {
 h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bottom: 20px; }
 .gm-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
 .gm-links-container > div { background-color: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 8px; }
+.share-link { background-color: #fff; color: #000; padding: 10px 20px; font-family: monospace; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 10px; border: 2px dashed #ffeb3b; display: inline-block; word-break: break-all; }
 #gm-lobby-status-container {
     background-color: rgba(255, 255, 255, 0.1); border-radius: 8px;
     padding: 15px; width: 80%; max-width: 800px; max-height: 180px; overflow-y: auto;
@@ -84,73 +85,47 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     padding: 0;
     justify-content: normal;
     align-items: normal;
-    position: relative; /* Pai para posicionamento absoluto */
+    position: relative;
 }
 
 #fight-scene-characters {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none; /* Permite clicar através dele, nos filhos */
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%; pointer-events: none;
 }
 
 /* POSICIONAMENTO DOS PERSONAGENS NO CENÁRIO */
 .player-char-container, .npc-char-container {
-    position: absolute;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 150px;
-    transition: all 0.3s ease;
-    pointer-events: all; /* Filhos podem ser clicados */
+    position: absolute; display: flex; flex-direction: column;
+    align-items: center; width: 150px;
+    transition: all 0.3s ease; pointer-events: all;
 }
 
 .fighter-img-ingame {
-    width: 150px;
-    height: 150px;
-    object-fit: contain;
+    width: 150px; height: 150px; object-fit: contain;
     filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.7));
 }
 
 .health-bar-ingame {
-    width: 100px;
-    height: 15px;
-    background-color: #555;
-    border: 1px solid #000;
-    border-radius: 5px;
-    margin-bottom: 5px;
-    position: relative;
+    width: 100px; height: 15px; background-color: #555;
+    border: 1px solid #000; border-radius: 5px;
+    margin-bottom: 5px; position: relative;
 }
 .health-bar-ingame-fill {
-    height: 100%;
-    background-color: #28a745;
-    border-radius: 5px;
+    height: 100%; background-color: #28a745; border-radius: 5px;
     transition: width 0.5s ease-in-out;
 }
 .health-bar-ingame-text {
-    position: absolute;
-    width: 100%;
-    text-align: center;
-    top: -1px;
-    font-size: 0.8em;
-    font-weight: bold;
-    color: white;
-    text-shadow: 1px 1px 1px black;
+    position: absolute; width: 100%; text-align: center;
+    top: -1px; font-size: 0.8em; font-weight: bold;
+    color: white; text-shadow: 1px 1px 1px black;
 }
 
 .fighter-name-ingame {
-    background-color: rgba(0,0,0,0.6);
-    padding: 2px 8px;
-    border-radius: 5px;
-    margin-top: 5px;
-    font-size: 0.9em;
-    font-weight: bold;
+    background-color: rgba(0,0,0,0.6); padding: 2px 8px;
+    border-radius: 5px; margin-top: 5px; font-size: 0.9em; font-weight: bold;
 }
 
 /* ESTADOS DOS PERSONAGENS NO CENÁRIO */
-@keyframes pulse-yellow { /* ... */ }
 .player-char-container.active-turn, .npc-char-container.active-turn {
     filter: drop-shadow(0px 0px 15px #ffeb3b);
     transform: scale(1.1);
@@ -166,39 +141,24 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 /* UI SOBREPOSTA */
 #fight-log-container {
-    position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 50%;
-    max-width: 600px;
-    height: 150px;
-    background-color: rgba(0,0,0,0.7);
-    border: 2px solid #555;
-    border-radius: 10px;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    z-index: 10;
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    width: 50%; max-width: 600px; height: 150px;
+    background-color: rgba(0,0,0,0.7); border: 2px solid #555;
+    border-radius: 10px; padding: 10px;
+    display: flex; flex-direction: column; z-index: 10;
 }
-#round-info { /* ... */ }
-#fight-log { /* ... */ }
+#round-info { margin-top: 0; text-align: center; border-bottom: 1px solid #fff; padding-bottom: 10px; }
+#fight-log { overflow-y: auto; flex-grow: 1; font-size: 0.9em; }
+#fight-log p { margin: 5px 0; }
 .log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; }
 .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; }
 .highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; }
 .turn-highlight { font-weight: bold; color: #dc3545; }
 
 #action-buttons-wrapper {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 20px;
-    padding: 15px;
-    background-color: rgba(0,0,0,0.7);
-    border-radius: 10px;
-    z-index: 10;
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 20px; padding: 15px;
+    background-color: rgba(0,0,0,0.7); border-radius: 10px; z-index: 10;
 }
 .action-btn, .end-turn-btn {
     padding: 15px 30px; font-size: 1.2em; cursor: pointer; border: none;
@@ -218,8 +178,20 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     border-radius: 8px; font-weight: bold; z-index: 100; pointer-events: none;
 }
 
-/* MODAIS */
-#modal { /* ... */ }
+/* MODIFICAÇÃO: Estilo para o display de coordenadas */
+#coords-display {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: rgba(0,0,0,0.8);
+    color: #ffeb3b;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 1em;
+    z-index: 9999;
+    pointer-events: none;
+}
 
 /* RESPONSIVIDADE */
 @media screen and (max-width: 800px) {
@@ -230,9 +202,10 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
         height: auto !important; min-height: 100vh;
         overflow-y: auto; overflow-x: hidden;
     }
-    #fight-log-container { width: 90%; height: 120px; }
-    #action-buttons-wrapper { width: 90%; flex-direction: column; gap: 10px; }
+    #fight-log-container { width: 90%; height: 120px; top: 10px; }
+    #action-buttons-wrapper { width: 90%; flex-direction: column; gap: 10px; bottom: 10px; }
     .action-btn, .end-turn-btn { font-size: 1em; padding: 10px; }
+    
     .player-char-container, .npc-char-container { width: 90px; }
     .fighter-img-ingame { width: 90px; height: 90px; }
     .health-bar-ingame { width: 70px; height: 12px; }

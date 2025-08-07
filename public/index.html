@@ -66,27 +66,17 @@
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
 
-    <!-- MODIFICAÇÃO: TELA DE LUTA REESTRUTURADA PARA POSICIONAMENTO LIVRE -->
+    <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
-        
-        <!-- Este container será o palco para os personagens -->
-        <div id="fight-scene-characters">
-            <!-- Personagens serão inseridos aqui pelo client.js -->
-        </div>
-
-        <!-- UI sobreposta ao cenário -->
+        <div id="fight-scene-characters"></div>
         <div id="fight-log-container">
             <h2 id="round-info">ROUND 1</h2>
             <div id="fight-log"></div>
         </div>
-
         <div id="targeting-indicator" class="hidden">
             Selecione um alvo! (Clique direito ou ESC para cancelar)
         </div>
-
-        <div id="action-buttons-wrapper">
-            <!-- Botões de ação serão inseridos aqui pelo client.js -->
-        </div>
+        <div id="action-buttons-wrapper"></div>
     </div>
 
     <!-- MODAL PADRÃO -->
@@ -97,6 +87,9 @@
             <button id="modal-button">OK</button>
         </div>
     </div>
+    
+    <!-- MODIFICAÇÃO: Div para mostrar as coordenadas -->
+    <div id="coords-display" class="hidden">X: 0, Y: 0</div>
 
 </div>
 
