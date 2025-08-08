@@ -19,11 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Controles de UI
     let isTargeting = false;
     let targetingAttackerKey = null;
-    let coordsModeActive = false;
-    let selectedTokens = new Set();
     
     // Variáveis do Modo Cenário
     let currentScenarioScale = 1.0;
+    let isGroupSelectMode = false;
+    let selectedTokens = new Set();
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -47,20 +47,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterBackBtn = document.getElementById('theater-back-btn');
     const theaterPublishBtn = document.getElementById('theater-publish-btn');
     
-
-    // --- FUNÇÃO DE ESCALA (DEFINIDA ANTES DE SER USADA) ---
+    // --- FUNÇÕES DE UTILIDADE (DEFINIDAS PRIMEIRO) ---
+    
     function scaleGame() {
         const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
         gameWrapper.style.transform = `scale(${scale})`;
         gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
         gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
     }
-
-    // --- FUNÇÕES DE LÓGICA E RENDERIZAÇÃO ---
-
+    
     function showScreen(screenToShow) {
         allScreens.forEach(screen => screen.classList.toggle('active', screen === screenToShow));
     }
+
+    function showInfoModal(title, text) {
+        const modal = document.getElementById('modal');
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-text').innerHTML = text;
+        modal.classList.remove('hidden');
+        document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
+    }
+
+    function copyToClipboard(text, element) {
+        if(!element) return;
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = element.textContent || '🔗';
+            element.textContent = 'Copiado!';
+            setTimeout(() => { element.textContent = originalText; }, 2000);
+        });
+    }
+
+    function cancelTargeting() {
+        isTargeting = false;
+        targetingAttackerKey = null;
+        document.getElementById('targeting-indicator').classList.add('hidden');
+        document.querySelectorAll('.char-container.is-targeting').forEach(el => el.classList.remove('is-targeting'));
+    }
+
+    // --- FUNÇÕES DE LÓGICA E RENDERIZAÇÃO ---
 
     function handleAdventureMode(gameState) {
         if (isGm) {
@@ -348,8 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleGmPanelBtn.classList.toggle('hidden', !isGm);
         theaterBackBtn.classList.toggle('hidden', !isGm);
         theaterPublishBtn.classList.toggle('hidden', !isGm || !state.scenarioStates?.[state.currentScenario]?.isStaging);
-        copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm);
-
+        
         if (isGm && currentScenarioState) {
             theaterGlobalScale.value = currentScenarioState.globalTokenScale || 1.0;
         }
@@ -366,7 +389,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tokenOrderToRender.forEach((tokenId, index) => {
             const tokenData = tokensToRender[tokenId];
             if (!tokenData) return;
-
             const tokenEl = document.createElement('img');
             tokenEl.id = tokenId;
             tokenEl.className = 'theater-token';
@@ -374,14 +396,12 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.style.left = `${tokenData.x}px`;
             tokenEl.style.top = `${tokenData.y}px`;
             tokenEl.style.zIndex = index;
-            
             const scale = tokenData.scale || 1;
             const isFlipped = tokenData.isFlipped;
             tokenEl.dataset.scale = scale;
             tokenEl.dataset.flipped = String(isFlipped);
             tokenEl.title = tokenData.charName;
             tokenEl.draggable = false;
-            
             if (isGm) {
                 if (selectedTokens.has(tokenId)) tokenEl.classList.add('selected');
                 const gmData = state.scenarioStates?.[state.currentScenario];
@@ -520,13 +540,8 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCategory(Object.keys(ALL_SCENARIOS)[0]);
         };
     
-        theaterBackgroundViewport.addEventListener('mousedown', (e) => {
-            // Lógica de arrastar e selecionar
-        });
-    
-        theaterBackgroundViewport.addEventListener('wheel', (e) => {
-            // Lógica de zoom
-        }, { passive: false });
+        theaterBackgroundViewport.addEventListener('mousedown', (e) => { /* ... Lógica de arrastar ... */ });
+        theaterBackgroundViewport.addEventListener('wheel', (e) => { /* ... Lógica de zoom ... */ }, { passive: false });
     }
 
     function initializeGlobalKeyListeners() {
@@ -542,30 +557,6 @@ document.addEventListener('DOMContentLoaded', () => {
                  else if (e.key === 'ArrowUp') { currentSelectedTokens.forEach(token => socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'backward' })); }
             }
         });
-    }
-
-    function cancelTargeting() {
-        isTargeting = false;
-        targetingAttackerKey = null;
-        document.getElementById('targeting-indicator').classList.add('hidden');
-        document.querySelectorAll('.char-container.is-targeting').forEach(el => el.classList.remove('is-targeting'));
-    }
-
-    function copyToClipboard(text, element) {
-        if(!element) return;
-        navigator.clipboard.writeText(text).then(() => {
-            const originalText = element.textContent || '🔗';
-            element.textContent = 'Copiado!';
-            setTimeout(() => { element.textContent = originalText; }, 2000);
-        });
-    }
-
-    function showInfoModal(title, text) {
-        const modal = document.getElementById('modal');
-        document.getElementById('modal-title').innerText = title;
-        document.getElementById('modal-text').innerHTML = text;
-        modal.classList.remove('hidden');
-        document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
     }
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
@@ -642,8 +633,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentRoomId && roleFromUrl) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            // CORREÇÃO: Mostra a tela de espera INICIALMENTE. O 'gameUpdate' vai corrigir para a tela de seleção se necessário.
-            showScreen(playerWaitingScreen); 
+            if (roleFromUrl === 'player') {
+                showScreen(selectionScreen); // Mostra a seleção para o jogador
+            } else {
+                showScreen(playerWaitingScreen); // Mostra espera para espectador
+            }
         } else {
             socket.emit('gmCreatesLobby');
         }
@@ -657,15 +651,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         theaterBackBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
-        copyTheaterSpectatorLinkBtn.addEventListener('click', () => {
-            if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copyTheaterSpectatorLinkBtn);
-        });
-
+        
         window.addEventListener('resize', scaleGame);
         scaleGame();
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
     }
     
-    initialize(); // Ponto de entrada do script
+    initialize();
 });
