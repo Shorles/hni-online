@@ -319,14 +319,19 @@ document.addEventListener('DOMContentLoaded', () => {
         fightSceneCharacters.innerHTML = '';
         updateTurnOrderUI(state);
         
-        // AJUSTE: Novas posições para os players
+        // AJUSTE ÚNICO NESTE ARQUIVO: Camadas (zIndex) corrigidas para a perspectiva correta.
         const PLAYER_POSITIONS = [ 
-            { left: '150px', top: '500px', zIndex: 1 }, 
-            { left: '250px', top: '400px', zIndex: 2 }, 
-            { left: '350px', top: '300px', zIndex: 3 }, 
-            { left: '450px', top: '200px', zIndex: 4 } 
+            { left: '150px', top: '500px', zIndex: 14 }, 
+            { left: '250px', top: '400px', zIndex: 13 }, 
+            { left: '350px', top: '300px', zIndex: 12 }, 
+            { left: '450px', top: '200px', zIndex: 11 } 
         ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px', zIndex: 14 }, { left: '900px',  top: '400px', zIndex: 13 }, { left: '800px',  top: '300px', zIndex: 12 }, { left: '700px',  top: '200px', zIndex: 11 } ];
+        const NPC_POSITIONS = [ 
+            { left: '1000px', top: '500px', zIndex: 14 }, 
+            { left: '900px',  top: '400px', zIndex: 13 }, 
+            { left: '800px',  top: '300px', zIndex: 12 }, 
+            { left: '700px',  top: '200px', zIndex: 11 } 
+        ];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
@@ -434,7 +439,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 50);
     });
     
-    // AJUSTE: Recebe o evento e toca o som correspondente
     socket.on('playSound', (soundFile) => {
         const audio = new Audio(`sons/${soundFile}`);
         audio.play();
