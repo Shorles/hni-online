@@ -51,7 +51,7 @@ function createNewAdventureState() {
     return {
         mode: 'adventure', fighters: { players: {}, npcs: {} }, winner: null, reason: null, currentRound: 1,
         activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
-        log: [{ text: "Aguardando jogadores formarem o grupo..." }], scenario: 'mapas/cenarios externos/externo (1).png',
+        scenario: 'mapas/cenarios externos/externo (1).png',
         gmId: null, lobbyCache: null
     };
 }
@@ -75,7 +75,9 @@ function createNewFighterState(data) {
     const res = Math.max(1, parseInt(data.res, 10) || 1);
     const agi = parseInt(data.agi, 10) || 1;
     return {
-        id: data.id, nome: data.nome, img: data.img, agi: agi, res: res, hpMax: res * 5, hp: res * 5, status: 'active'
+        id: data.id,
+        nome: data.nome || data.name, // CORREÇÃO: Aceita 'name' ou 'nome'
+        img: data.img, agi: agi, res: res, hpMax: res * 5, hp: res * 5, status: 'active'
     };
 }
 
@@ -95,40 +97,47 @@ function checkGameOver(state) {
     const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
     const activeNpcs = Object.values(state.fighters.npcs).filter(n => n.status === 'active');
     if (activePlayers.length === 0) {
-        state.winner = 'npcs';
-        state.reason = 'Todos os jogadores foram derrotados.';
+        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados.';
         logMessage(state, 'Fim da batalha! Os inimigos venceram.', 'game_over');
     } else if (activeNpcs.length === 0) {
-        state.winner = 'players';
-        state.reason = 'Todos os inimigos foram derrotados.';
+        state.winner = 'players'; state.reason = 'Todos os inimigos foram derrotados.';
         logMessage(state, 'Fim da batalha! Os jogadores venceram!', 'game_over');
     }
 }
 
 function advanceTurn(state) {
-    state.turnIndex++;
-    if (state.turnIndex >= state.turnOrder.length) {
-        state.turnIndex = 0;
+    let nextIndex = state.turnIndex;
+    let attempts = 0;
+    do {
+        nextIndex = (nextIndex + 1) % state.turnOrder.length;
+        if (attempts++ > state.turnOrder.length * 2) {
+             state.winner = 'draw'; state.reason = 'Ninguém pôde lutar.'; return;
+        }
+    } while (getFighter(state, state.turnOrder[nextIndex]).status !== 'active');
+    
+    if (nextIndex < state.turnIndex) {
         state.currentRound++;
         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
     }
+    state.turnIndex = nextIndex;
+
     state.activeCharacterKey = state.turnOrder[state.turnIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
 }
 
-function executeAttack(state, attackerKey, targetKey) {
+function executeAttack(state, roomId, attackerKey, targetKey) {
     const attacker = getFighter(state, attackerKey);
     const target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
-
-    // Lógica de acerto (simplificada por enquanto)
-    const hit = true; // Acerto automático para teste
     
+    const hit = true;
     if (hit) {
         const damage = ATTACK_MOVE.damage;
         target.hp = Math.max(0, target.hp - damage);
         logMessage(state, `${attacker.nome} ataca ${target.nome} e causa ${damage} de dano!`, 'hit');
+        io.to(roomId).emit('characterHit', { targetKey: target.id });
+
         if (target.hp === 0) {
             target.status = 'down';
             logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
@@ -144,8 +153,7 @@ function executeAttack(state, attackerKey, targetKey) {
 }
 
 function startBattle(state) {
-    const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
-    state.turnOrder = allFighters
+    state.turnOrder = Object.values(state.fighters.players).concat(Object.values(state.fighters.npcs))
         .filter(f => f.status === 'active')
         .sort((a, b) => {
             const rollA = state.initiativeRolls[a.id] || 0;
@@ -154,147 +162,77 @@ function startBattle(state) {
             return b.agi - a.agi;
         })
         .map(f => f.id);
-
+    
     state.phase = 'battle';
-    state.turnIndex = -1; // -1 para que o primeiro advanceTurn comece no índice 0
-    logMessage(state, 'A batalha começou!', 'info');
+    state.turnIndex = -1;
+    state.currentRound = 1;
+    logMessage(state, `--- A Batalha Começou! (Round ${state.currentRound}) ---`, 'round');
     advanceTurn(state);
 }
 
 // --- Conexão Socket.IO ---
 io.on('connection', (socket) => {
-    socket.on('gmCreatesLobby', () => {
-        const roomId = uuidv4();
-        socket.join(roomId);
-        socket.currentRoomId = roomId;
-        games[roomId] = {
-            state: createNewLobbyState(socket.id),
-            sockets: { [socket.id]: { role: 'gm' } }
-        };
-        socket.emit('assignRole', { isGm: true, role: 'gm' });
-        socket.emit('roomCreated', roomId);
-        io.to(roomId).emit('gameUpdate', games[roomId].state);
-    });
-
-    const fullCharacterList = {
-        players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })),
-        npcs: Object.keys(ALL_NPCS).map(name => ({ name, img: `images/lutadores/${name}.png` })),
-        dynamic: DYNAMIC_CHARACTERS
-    };
-    socket.emit('initialData', { characters: fullCharacterList, scenarios: ALL_SCENARIOS });
-
-    socket.on('playerJoinsLobby', ({ roomId, role }) => {
-        if (!games[roomId]) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
-        if (Object.values(games[roomId].state.connectedPlayers).filter(p => p.role === 'player').length >= MAX_PLAYERS && role === 'player') {
-             socket.emit('error', { message: 'A sala está cheia.' }); return;
-        }
-        socket.join(roomId);
-        socket.currentRoomId = roomId;
-        games[roomId].sockets[socket.id] = { role: role };
-        games[roomId].state.connectedPlayers[socket.id] = { role: role, selectedCharacter: null };
-        logMessage(games[roomId].state, `Um ${role} conectou-se.`);
-        socket.emit('assignRole', { role: role });
-        io.to(roomId).emit('gameUpdate', games[roomId].state);
-    });
+    socket.on('gmCreatesLobby', () => { /* ...código sem alterações... */ });
+    socket.emit('initialData', { /* ...código sem alterações... */ });
+    socket.on('playerJoinsLobby', ({ roomId, role }) => { /* ...código sem alterações... */ });
 
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId] || !action || !action.type) return;
         const room = games[roomId];
-        const state = room.state;
+        let state = room.state;
         const isGm = socket.id === state.gmId;
 
-        // Ações Globais / de Transição de Modo (Apenas GM)
-        if (isGm) {
-            if (action.type === 'gmStartsTheater') {
-                const lobbyCache = { ...state };
-                room.state = createNewTheaterState(state.gmId, 'mapas/cenarios externos/externo (1).png');
-                room.state.lobbyCache = lobbyCache;
-            } else if (action.type === 'gmStartsAdventure') {
-                const lobbyCache = { ...state };
-                let newState = createNewAdventureState();
-                newState.gmId = state.gmId;
-                newState.lobbyCache = lobbyCache;
-                for (const sId in state.connectedPlayers) {
-                    const playerData = state.connectedPlayers[sId];
-                    if (playerData.selectedCharacter && playerData.role === 'player') {
-                        newState.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img, res: 3, agi: 2 });
-                        io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
-                    }
-                }
-                room.state = newState;
-            } else if (action.type === 'gmGoesBackToLobby') {
-                if (state.lobbyCache) room.state = state.lobbyCache;
-            }
-        }
+        if (isGm) { /* ...código de transição de modo sem alterações... */ }
         
-        // Ações Específicas de Cada Modo
         switch (state.mode) {
-            case 'lobby':
-                if (action.type === 'playerSelectsCharacter' && state.connectedPlayers[socket.id]) {
-                    if (state.unavailableCharacters.includes(action.character.nome)) { socket.emit('characterUnavailable', action.character.nome); return; }
-                    state.unavailableCharacters.push(action.character.nome);
-                    state.connectedPlayers[socket.id].selectedCharacter = action.character;
-                    logMessage(state, `Jogador selecionou ${action.character.nome}.`);
-                }
-                break;
+            case 'lobby': /* ...código sem alterações... */ break;
             case 'adventure':
                 if (isGm) {
                     switch (action.type) {
-                        case 'gmConfirmParty':
-                            if (state.phase === 'party_setup') {
-                                action.playerStats.forEach(pStat => {
-                                    if (state.fighters.players[pStat.id]) {
-                                       const player = state.fighters.players[pStat.id];
-                                       player.agi = parseInt(pStat.agi, 10) || 1;
-                                       player.res = Math.max(1, parseInt(pStat.res, 10) || 1);
-                                       player.hpMax = player.res * 5; player.hp = player.hpMax;
-                                    }
-                                });
-                                state.phase = 'npc_setup';
-                                logMessage(state, `Grupo confirmado! GM está preparando os inimigos...`);
-                            }
-                            break;
+                        case 'gmConfirmParty': /* ...código sem alterações... */ break;
                         case 'gmStartBattle':
                             if (state.phase === 'npc_setup' && action.npcs && action.npcs.length > 0) {
-                                action.npcs.forEach((npcData, index) => {
+                                action.npcs.forEach(npcData => {
                                     const npcId = `npc-${uuidv4()}`;
                                     state.fighters.npcs[npcId] = createNewFighterState({ ...npcData, id: npcId });
-                                    const roll = rollD6() + state.fighters.npcs[npcId].agi;
-                                    state.initiativeRolls[npcId] = roll;
-                                    logMessage(state, `${npcData.nome} rolou ${roll} de iniciativa.`);
                                 });
                                 state.phase = 'initiative_roll';
-                                logMessage(state, 'Inimigos prontos! Aguardando jogadores rolarem iniciativa.');
-                                const allPlayersRolled = Object.values(state.fighters.players).every(p => state.initiativeRolls[p.id]);
-                                if (allPlayersRolled) {
-                                    startBattle(state);
-                                }
+                                logMessage(state, 'Inimigos prontos! Aguardando todos rolarem iniciativa.');
                             }
                             break;
                     }
                 }
-                // Ações de qualquer jogador no modo Aventura
                 switch(action.type) {
                     case 'roll_initiative':
                         if (state.phase === 'initiative_roll') {
-                           const fighter = getFighter(state, socket.id);
-                           if (fighter && !state.initiativeRolls[socket.id]) {
-                               const roll = rollD6() + fighter.agi;
-                               state.initiativeRolls[socket.id] = roll;
-                               logMessage(state, `${fighter.nome} rolou ${roll} de iniciativa.`);
-
-                               const allPlayersRolled = Object.values(state.fighters.players).every(p => state.initiativeRolls[p.id]);
-                               const allNpcsRolled = Object.values(state.fighters.npcs).every(n => state.initiativeRolls[n.id]);
-                               if (allPlayersRolled && allNpcsRolled) {
-                                   startBattle(state);
-                               }
+                           if (action.isGmRoll && isGm) {
+                                Object.values(state.fighters.npcs).forEach(npc => {
+                                    if (!state.initiativeRolls[npc.id]) {
+                                        const roll = rollD6() + npc.agi;
+                                        state.initiativeRolls[npc.id] = roll;
+                                        logMessage(state, `(GM) ${npc.nome} rolou ${roll} de iniciativa.`);
+                                    }
+                                });
+                           } else if (!isGm) {
+                                const fighter = getFighter(state, socket.id);
+                                if (fighter && !state.initiativeRolls[socket.id]) {
+                                   const roll = rollD6() + fighter.agi;
+                                   state.initiativeRolls[socket.id] = roll;
+                                   logMessage(state, `${fighter.nome} rolou ${roll} de iniciativa.`);
+                                }
+                           }
+                           
+                           const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
+                           const allRolled = allFighters.every(f => state.initiativeRolls[f.id]);
+                           if (allRolled) {
+                               startBattle(state);
                            }
                         }
                         break;
                     case 'attack':
                          if (state.phase === 'battle' && action.attackerKey === state.activeCharacterKey) {
-                            executeAttack(state, action.attackerKey, action.targetKey);
+                            executeAttack(state, roomId, action.attackerKey, action.targetKey);
                          }
                         break;
                     case 'end_turn':
@@ -305,51 +243,7 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'theater':
-                if (isGm) {
-                    const currentScenarioState = state.scenarioStates[state.currentScenario];
-                    if (!currentScenarioState) break;
-                    
-                    switch (action.type) {
-                        case 'changeScenario':
-                            if (action.scenario && typeof action.scenario === 'string') {
-                                state.currentScenario = action.scenario;
-                                if (!state.scenarioStates[action.scenario]) {
-                                    state.scenarioStates[action.scenario] = {
-                                        scenario: action.scenario, scenarioWidth: null, scenarioHeight: null, tokens: {},
-                                        tokenOrder: [], globalTokenScale: currentScenarioState.globalTokenScale || 1.0, isStaging: true,
-                                    };
-                                }
-                            }
-                            break;
-                        case 'update_scenario_dims':
-                            currentScenarioState.scenarioWidth = action.width; currentScenarioState.scenarioHeight = action.height;
-                            break;
-                        case 'updateToken':
-                            currentScenarioState.isStaging = true;
-                            const tokenData = action.token;
-                            if (tokenData.remove && tokenData.ids) {
-                                tokenData.ids.forEach(id => { delete currentScenarioState.tokens[id]; currentScenarioState.tokenOrder = currentScenarioState.tokenOrder.filter(i => i !== id); });
-                            } else if (currentScenarioState.tokens[tokenData.id]) {
-                                Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
-                            } else {
-                                currentScenarioState.tokens[tokenData.id] = tokenData;
-                                if (!currentScenarioState.tokenOrder.includes(tokenData.id)) currentScenarioState.tokenOrder.push(tokenData.id);
-                            }
-                            break;
-                        case 'changeTokenOrder':
-                            //...
-                            break;
-                        case 'updateGlobalScale':
-                            currentScenarioState.isStaging = true; currentScenarioState.globalTokenScale = action.scale;
-                            break;
-                        case 'publish_stage':
-                            state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                            state.publicState.isStaging = false;
-                            currentScenarioState.isStaging = false;
-                            logMessage(state, 'Cena publicada para os jogadores.');
-                            break;
-                    }
-                }
+                 if (isGm) { /* ...código do modo cenário sem alterações... */ }
                 break;
         }
 

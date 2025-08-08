@@ -9,9 +9,15 @@
 <body>
 
 <div id="game-wrapper">
+
+    <!-- NOVA TELA DE CARREGAMENTO -->
+    <div id="loading-screen" class="screen active">
+        <h1>Medieval Battle RPG</h1>
+        <p>Conectando ao servidor...</p>
+    </div>
     
-    <!-- TELA INICIAL DO LOBBY DO GM -->
-    <div id="gm-initial-lobby" class="screen active">
+    <!-- TELA INICIAL DO LOBBY DO GM (REMOVIDO "active") -->
+    <div id="gm-initial-lobby" class="screen">
         <h1>Lobby do Mestre</h1>
         <p>Envie os links abaixo para os jogadores e espectadores.</p>
         <div class="gm-links-container">
@@ -26,9 +32,7 @@
         </div>
         <div id="gm-lobby-status-container">
             <h3>Jogadores Conectados:</h3>
-            <ul id="gm-lobby-player-list">
-                <li>Aguardando jogadores...</li>
-            </ul>
+            <ul id="gm-lobby-player-list"></ul>
         </div>
         <div class="mode-buttons-container">
             <button id="start-adventure-btn" class="mode-btn">Iniciar Aventura</button>
@@ -85,7 +89,7 @@
         <div id="action-buttons-wrapper"></div>
     </div>
 
-    <!-- MODO CENÁRIO (DO JOGO ANTIGO) -->
+    <!-- MODO CENÁRIO -->
     <div id="theater-screen" class="screen">
         <div id="theater-background-viewport">
             <div id="theater-world-container">
@@ -94,7 +98,6 @@
                 <div id="selection-box" class="hidden"></div>
             </div>
         </div>
-        <button id="copy-theater-spectator-link" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
         <button id="toggle-gm-panel-btn" class="toggle-gm-panel-btn hidden" title="Mostrar/Ocultar Painel">☰</button>
         <div id="theater-gm-panel" class="hidden">
             <div class="panel-section">
@@ -115,6 +118,7 @@
                 <p><b>Setas ↑↓:</b> Mudar Camada</p>
                 <p><b>Delete:</b> Excluir</p>
                 <p><b>O (hover):</b> Resetar Tamanho</p>
+                <p><b>Scroll (hover):</b> Mudar Tamanho</p>
             </div>
         </div>
         <button id="theater-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
@@ -129,7 +133,6 @@
         </div>
     </div>
     
-    <div id="coords-display" class="hidden">X: 0, Y: 0</div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
