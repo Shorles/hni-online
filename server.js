@@ -12,27 +12,17 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-let LUTA_CHARACTERS = {}; // Manteremos o nome para compatibilidade, mas agora armazena NPCs
-let PLAYABLE_CHARACTERS = []; // Será preenchido dinamicamente
+let LUTA_CHARACTERS = {};
+let PLAYABLE_CHARACTERS = [];
 const MAX_PLAYERS = 4;
 
 try {
-    // AJUSTE: Lendo o novo arquivo 'characters.json'
     const charactersData = fs.readFileSync('characters.json', 'utf8');
     const characters = JSON.parse(charactersData);
-
-    // AJUSTE: Populando as listas dinamicamente
     PLAYABLE_CHARACTERS = characters.players || [];
     const npcNames = characters.npcs || [];
-    
-    // Popula a lista de NPCs com stats padrão
-    npcNames.forEach(nome => {
-        LUTA_CHARACTERS[nome] = { agi: 2, res: 3 };
-    });
-
-} catch (error) {
-    console.error('Erro ao carregar characters.json:', error);
-}
+    npcNames.forEach(nome => { LUTA_CHARACTERS[nome] = { agi: 2, res: 3 }; });
+} catch (error) { console.error('Erro ao carregar characters.json:', error); }
 
 const games = {};
 const ATTACK_MOVE = { damage: 5 };
@@ -42,8 +32,9 @@ function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_pla
 
 function createNewGameState() {
     return {
-        fighters: { players: {}, npcs: {} }, winner: null, reason: null, currentRound: 1, whoseTurn: null,
-        activeCharacterKey: null, turnOrder: [], turnIndex: -1, initiativeRolls: {}, phase: 'party_setup',
+        fighters: { players: {}, npcs: {} }, winner: null, reason: null, currentRound: 1,
+        activeCharacterKey: null, turnOrder: [], turnIndex: 0, // Inicia no índice 0
+        initiativeRolls: {}, phase: 'party_setup',
         log: [{ text: "Aguardando jogadores formarem o grupo..." }], scenario: 'mapas/cenarios externos/externo (1).png',
         mode: 'adventure', gmId: null,
     };
@@ -54,7 +45,7 @@ function createNewFighterState(data) {
     const agi = parseInt(data.agi, 10) || 1;
     return {
         id: data.id, nome: data.nome, img: data.img, agi: agi, res: res, hpMax: res * 5, hp: res * 5,
-        status: 'active', hasActed: false 
+        status: 'active' // A flag 'hasActed' foi removida, não é mais necessária
     };
 }
 
@@ -101,35 +92,37 @@ function executeAttack(state, attackerKey, defenderKey, io, roomId) {
     }
 }
 
+// Lógica de avanço de turno completamente refatorada para ser mais simples e robusta
 function advanceTurn(state, io, roomId) {
-    if (state.phase !== 'battle') return;
-    const lastPlayerId = state.turnOrder.shift();
-    const lastFighter = getFighter(state, lastPlayerId);
-    if (lastFighter && lastFighter.status === 'active') {
-        state.turnOrder.push(lastPlayerId);
-    }
-    state.turnOrder = state.turnOrder.filter(id => {
-        const fighter = getFighter(state, id);
-        return fighter && fighter.status === 'active';
-    });
+    // 1. Remove personagens derrotados da ordem de turno para evitar que tenham um turno
+    state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
+    
+    // 2. Checa se o jogo acabou após remover os derrotados
     if (checkGameOver(state)) {
-        io.to(roomId).emit('gameUpdate', state); 
-        return; 
+        io.to(roomId).emit('gameUpdate', state);
+        return;
     }
-    if (state.turnOrder.length === 0) {
-        return; 
-    }
-    const allHaveActed = state.turnOrder.every(id => getFighter(state, id).hasActed);
-    if (allHaveActed) {
+
+    // Se não houver ninguém na ordem, não faz nada
+    if (state.turnOrder.length === 0) return;
+
+    // 3. Incrementa o índice do turno
+    state.turnIndex++;
+
+    // 4. Se o índice passar do fim da lista, começa um novo round
+    if (state.turnIndex >= state.turnOrder.length) {
+        state.turnIndex = 0;
         state.currentRound++;
-        state.turnOrder.forEach(id => getFighter(state, id).hasActed = false);
         logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn');
     }
-    state.activeCharacterKey = state.turnOrder[0];
-    const newAttacker = getFighter(state, state.activeCharacterKey);
-    logMessage(state, `É a vez de ${newAttacker.nome}.`, 'log-info');
-}
 
+    // 5. Define o personagem ativo
+    state.activeCharacterKey = state.turnOrder[state.turnIndex];
+    const newAttacker = getFighter(state, state.activeCharacterKey);
+    if (newAttacker) {
+        logMessage(state, `É a vez de ${newAttacker.nome}.`, 'log-info');
+    }
+}
 
 io.on('connection', (socket) => {
     socket.on('gmCreatesLobby', () => {
@@ -143,13 +136,9 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
     });
 
-    // AJUSTE: Constrói os dados para o cliente com os caminhos corretos das imagens
     socket.emit('availableFighters', { 
-        p1: LUTA_CHARACTERS, // p1 agora são os NPCs para o GM
-        playable: PLAYABLE_CHARACTERS.map(name => ({
-            name,
-            img: `images/players/${name}.png` // Caminho correto para a imagem do jogador
-        })) 
+        p1: LUTA_CHARACTERS,
+        playable: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })) 
     });
 
     socket.on('playerJoinsLobby', ({ roomId, role }) => {
@@ -236,42 +225,26 @@ io.on('connection', (socket) => {
                     const sortedFighters = allFighters.filter(f => f.status === 'active').sort((a, b) => {
                             const rollA = state.initiativeRolls[a.id]; const rollB = state.initiativeRolls[b.id];
                             if (rollA !== rollB) return rollB - rollA;
-                            const getLayer = (fighterId) => {
-                                const isPlayer = !!state.fighters.players[fighterId];
-                                const list = Object.keys(isPlayer ? state.fighters.players : state.fighters.npcs);
-                                const index = list.indexOf(fighterId); return 14 - index;
-                            };
-                            const layerA = getLayer(a.id); const layerB = getLayer(b.id);
-                            if (layerA !== layerB) return layerB - layerA;
-                            const isPlayerA = !!state.fighters.players[a.id];
-                            if (isPlayerA) return -1; return 1;
+                            return Math.random() - 0.5; // Desempate aleatório simples
                         });
                     state.turnOrder = sortedFighters.map(f => f.id);
                     logMessage(state, "Ordem de turno definida!", "log-crit");
                     state.phase = 'battle';
-                    state.turnIndex = -1;
-                    advanceTurn(state, io, roomId);
+                    state.turnIndex = 0; // Começa no primeiro jogador da lista
+                    state.activeCharacterKey = state.turnOrder[0]; // Define o primeiro a jogar
+                    logMessage(state, `É a vez de ${getFighter(state, state.activeCharacterKey).nome}.`, 'log-info');
                 }
                 break;
             }
             case 'attack':
-                const isGm = socket.id === state.gmId;
-                const attackerKey = action.attackerKey;
-                const isGmAction = isGm && state.fighters.npcs[attackerKey];
-                const isPlayerAction = playerKey === attackerKey;
-                if (!isPlayerAction && !isGmAction) return;
-                const attacker = getFighter(state, attackerKey);
-                if (attackerKey !== state.activeCharacterKey || (attacker && attacker.hasActed)) return;
-                
-                executeAttack(state, attackerKey, action.targetKey, io, roomId);
-                if (attacker) { attacker.hasActed = true; }
-
+                const attacker = getFighter(state, action.attackerKey);
+                if (action.attackerKey !== state.activeCharacterKey || !attacker) return;
+                executeAttack(state, action.attackerKey, action.targetKey, io, roomId);
                 advanceTurn(state, io, roomId);
                 break;
 
             case 'end_turn':
-                const actorKey = action.actorKey;
-                if (actorKey !== state.activeCharacterKey) return;
+                if (action.actorKey !== state.activeCharacterKey) return;
                 advanceTurn(state, io, roomId);
                 break;
         }
