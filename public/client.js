@@ -20,12 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let isTargeting = false;
     let targetingAttackerKey = null;
     let coordsModeActive = false;
+    let selectedTokens = new Set();
     
     // Variáveis do Modo Cenário
     let currentScenarioScale = 1.0;
-    let isGroupSelectMode = false;
-    let selectedTokens = new Set();
-    let isDraggingScenario = false;
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -46,11 +44,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterCharList = document.getElementById('theater-char-list');
     const theaterGlobalScale = document.getElementById('theater-global-scale');
     const theaterChangeScenarioBtn = document.getElementById('theater-change-scenario-btn');
-    const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
     const theaterBackBtn = document.getElementById('theater-back-btn');
     const theaterPublishBtn = document.getElementById('theater-publish-btn');
     
-    
+
+    // --- FUNÇÃO DE ESCALA (DEFINIDA ANTES DE SER USADA) ---
+    function scaleGame() {
+        const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+        gameWrapper.style.transform = `scale(${scale})`;
+        gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+        gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+    }
+
     // --- FUNÇÕES DE LÓGICA E RENDERIZAÇÃO ---
 
     function showScreen(screenToShow) {
@@ -226,25 +231,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (fighter.status === 'active') {
-            if (state.activeCharacterKey === fighter.id) {
-                container.classList.add('active-turn');
-            }
+            if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
             const activeFighter = state.fighters.players[state.activeCharacterKey] || state.fighters.npcs[state.activeCharacterKey];
             if (activeFighter) {
                 const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
                 const isThisFighterPlayer = type === 'player';
-                if (isActiveFighterPlayer !== isThisFighterPlayer) {
-                    container.classList.add('targetable');
-                }
+                if (isActiveFighterPlayer !== isThisFighterPlayer) container.classList.add('targetable');
             }
         }
         
-        container.addEventListener('mouseenter', () => { if (isTargeting && container.classList.contains('targetable')) { container.classList.add('target-hover'); } });
-        container.addEventListener('mouseleave', () => { container.classList.remove('target-hover'); });
-        
-        if(container.classList.contains('targetable')) {
-             container.addEventListener('click', handleTargetClick);
-        }
+        container.addEventListener('mouseenter', () => { if (isTargeting && container.classList.contains('targetable')) container.classList.add('target-hover'); });
+        container.addEventListener('mouseleave', () => container.classList.remove('target-hover'));
+        if(container.classList.contains('targetable')) container.addEventListener('click', handleTargetClick);
 
         const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
         container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
@@ -523,14 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
-            const isToken = e.target.classList.contains('theater-token');
-            if (isGm && isGroupSelectMode && !isToken) {
-                // Lógica de seleção em grupo (marquee)
-            } else if (isGm && isToken) {
-                // Lógica de arrastar token individual ou grupo de tokens
-            } else if (!isToken && !(isGm && isGroupSelectMode)) {
-                // Lógica de arrastar o cenário (pan)
-            }
+            // Lógica de arrastar e selecionar
         });
     
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
@@ -541,14 +532,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeGlobalKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (!isGm || !currentGameState || currentGameState.mode !== 'theater') return;
-            if (e.key.toLowerCase() === 'g') { /* ... */ }
-            if (e.key.toLowerCase() === 'o') { /* ... */ }
+            if (e.key.toLowerCase() === 'g') { isGroupSelectMode = !isGroupSelectMode; theaterBackgroundViewport.classList.toggle('group-select-mode', isGroupSelectMode); if (!isGroupSelectMode) { selectedTokens.clear(); document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected')); } }
+            if (e.key.toLowerCase() === 'o') { const hoveredToken = document.querySelector(".theater-token:hover"); if (hoveredToken) socket.emit('playerAction', { type: 'updateToken', token: { id: hoveredToken.id, scale: 1.0 }}); }
             const currentSelectedTokens = document.querySelectorAll('.theater-token.selected');
             if (currentSelectedTokens.length > 0) {
-                 if (e.key === 'Delete') { /* ... */ }
-                 else if (e.key.toLowerCase() === 'f') { /* ... */ }
-                 else if (e.key === 'ArrowDown') { /* ... */ }
-                 else if (e.key === 'ArrowUp') { /* ... */ }
+                 if (e.key === 'Delete') { const idsToRemove = Array.from(selectedTokens); socket.emit('playerAction', { type: 'updateToken', token: { remove: true, ids: idsToRemove }}); selectedTokens.clear(); }
+                 else if (e.key.toLowerCase() === 'f') { currentSelectedTokens.forEach(token => { const currentTokenState = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[token.id]; if (currentTokenState) socket.emit('playerAction', { type: 'updateToken', token: { id: token.id, isFlipped: !currentTokenState.isFlipped }}); }); }
+                 else if (e.key === 'ArrowDown') { currentSelectedTokens.forEach(token => socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'forward' })); }
+                 else if (e.key === 'ArrowUp') { currentSelectedTokens.forEach(token => socket.emit('playerAction', { type: 'changeTokenOrder', tokenId: token.id, direction: 'backward' })); }
             }
         });
     }
@@ -569,13 +560,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function scaleGame() {
-        const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-        gameWrapper.style.transform = `scale(${scale})`;
-        gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
-        gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
-    }
-
     function showInfoModal(title, text) {
         const modal = document.getElementById('modal');
         document.getElementById('modal-title').innerText = title;
@@ -585,36 +569,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
-    function initialize() {
-        const urlParams = new URLSearchParams(window.location.search);
-        currentRoomId = urlParams.get('room');
-        const roleFromUrl = urlParams.get('role');
-
-        if (currentRoomId && roleFromUrl) {
-            socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            showScreen(playerWaitingScreen);
-        } else {
-            socket.emit('gmCreatesLobby');
-        }
-
-        document.body.addEventListener('contextmenu', (e) => { if (isTargeting) { e.preventDefault(); cancelTargeting(); } });
-        document.body.addEventListener('keydown', (e) => {
-            if (isTargeting && e.key === "Escape") { cancelTargeting(); }
-        });
-        
-        actionButtonsWrapper.addEventListener('click', handleActionClick);
-        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
-        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-        theaterBackBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
-        copyTheaterSpectatorLinkBtn.addEventListener('click', () => {
-            if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copyTheaterSpectatorLinkBtn);
-        });
-
-        window.addEventListener('resize', scaleGame);
-        scaleGame();
-        setupTheaterEventListeners();
-        initializeGlobalKeyListeners();
-    }
     
     socket.on('initialData', (data) => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [] };
@@ -642,6 +596,76 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('assignRole', (data) => { myRole = data.role; myPlayerKey = data.playerKey || null; isGm = data.isGm || myRole === 'gm'; });
     socket.on('playSound', (soundFile) => { new Audio(`sons/${soundFile}`).play(); });
     socket.on('error', (err) => { alert(err.message); window.location.reload(); });
+
+    socket.on('gameUpdate', (gameState) => {
+        oldGameState = currentGameState;
+        currentGameState = gameState;
+        
+        allScreens.forEach(s => s.classList.remove('active'));
+        document.getElementById('initiative-ui')?.classList.add('hidden');
+
+        if (!gameState.mode || gameState.mode === 'lobby') {
+            defeatAnimationPlayed.clear();
+            stagedNpcs = [];
+
+            if (isGm) {
+                showScreen(gmInitialLobby);
+                updateGmLobbyUI(gameState);
+            } else {
+                const myPlayerData = gameState.connectedPlayers[socket.id];
+                if (myRole === 'player' && myPlayerData && !myPlayerData.selectedCharacter) {
+                    showScreen(selectionScreen);
+                    renderPlayerCharacterSelection(gameState.unavailableCharacters);
+                } else {
+                    showScreen(playerWaitingScreen);
+                    let message = "Aguardando o Mestre iniciar o jogo...";
+                    if (myRole === 'player' && myPlayerData && myPlayerData.selectedCharacter) {
+                        message = "Personagem enviado! Aguardando o Mestre...";
+                    } else if (myRole === 'spectator') {
+                        message = "Aguardando como espectador...";
+                    }
+                    document.getElementById('player-waiting-message').innerText = message;
+                }
+            }
+        } else if (gameState.mode === 'adventure') {
+            handleAdventureMode(gameState);
+        } else if (gameState.mode === 'theater') {
+            showScreen(theaterScreen);
+            renderTheaterMode(gameState);
+        }
+    });
+
+    function initialize() {
+        const urlParams = new URLSearchParams(window.location.search);
+        currentRoomId = urlParams.get('room');
+        const roleFromUrl = urlParams.get('role');
+
+        if (currentRoomId && roleFromUrl) {
+            socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
+            // CORREÇÃO: Mostra a tela de espera INICIALMENTE. O 'gameUpdate' vai corrigir para a tela de seleção se necessário.
+            showScreen(playerWaitingScreen); 
+        } else {
+            socket.emit('gmCreatesLobby');
+        }
+
+        document.body.addEventListener('contextmenu', (e) => { if (isTargeting) { e.preventDefault(); cancelTargeting(); } });
+        document.body.addEventListener('keydown', (e) => {
+            if (isTargeting && e.key === "Escape") { cancelTargeting(); }
+        });
+        
+        actionButtonsWrapper.addEventListener('click', handleActionClick);
+        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
+        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
+        theaterBackBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
+        copyTheaterSpectatorLinkBtn.addEventListener('click', () => {
+            if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copyTheaterSpectatorLinkBtn);
+        });
+
+        window.addEventListener('resize', scaleGame);
+        scaleGame();
+        setupTheaterEventListeners();
+        initializeGlobalKeyListeners();
+    }
     
-    initialize();
+    initialize(); // Ponto de entrada do script
 });
