@@ -4,7 +4,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require('uuid');
-const fs = require('fs');
+const fs =require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,7 +24,6 @@ try {
     const npcNames = characters.npcs || [];
     npcNames.forEach(nome => { ALL_NPCS[nome] = { agi: 2, res: 3 }; });
 
-    // Carregar cenários
     const scenarioPath = 'public/images/mapas/cenarios externos/';
     ALL_SCENARIOS = fs.readdirSync(scenarioPath).filter(file => file.endsWith('.png') || file.endsWith('.jpg'));
 
@@ -45,13 +44,12 @@ function createNewAdventureState() {
     };
 }
 
-// NOVO ESTADO PARA O MODO TEATRO
 function createNewTheaterState(gmId) {
     return {
         mode: 'theater',
         gmId: gmId,
         scenario: 'mapas/cenarios externos/externo (1).png',
-        characters: {}, // Armazenará personagens na cena
+        characters: {},
     };
 }
 
@@ -134,7 +132,6 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
     });
 
-    // Envia todas as informações necessárias de uma vez
     const fullCharacterList = {
         players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })),
         npcs: Object.keys(ALL_NPCS).map(name => ({ name, img: `images/lutadores/${name}.png` }))
@@ -169,9 +166,7 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId] || !action || !action.type) return;
         const room = games[roomId];
         const state = room.state;
-        const playerKey = socket.id;
         
-        // Ações do GM que não dependem do modo
         if (action.type === 'gmStartsTheater') {
             room.state = createNewTheaterState(state.gmId);
         } else if (action.type === 'gmStartsAdventure') {
@@ -188,8 +183,8 @@ io.on('connection', (socket) => {
             room.state = newState;
         }
 
-        // Ações específicas do modo Aventura
-        if (state.mode === 'adventure') {
+        // CORREÇÃO APLICADA AQUI
+        if (state.mode === 'lobby') {
             switch (action.type) {
                 case 'playerSelectsCharacter':
                     if (state.phase === 'waiting_players') {
@@ -199,6 +194,9 @@ io.on('connection', (socket) => {
                         logMessage(state, `Jogador selecionou ${action.character.nome}.`);
                     }
                     break;
+            }
+        } else if (state.mode === 'adventure') {
+            switch (action.type) {
                 case 'gmConfirmParty':
                     if (state.phase === 'party_setup') {
                         action.playerStats.forEach(pStat => {
@@ -215,7 +213,7 @@ io.on('connection', (socket) => {
                 case 'gmStartBattle':
                     if (state.phase === 'npc_setup') {
                         action.npcs.forEach((npcConfig, index) => {
-                            const npcId = `npc_${uuidv4().substring(0, 4)}_${index}`; // ID único para permitir duplicatas
+                            const npcId = `npc_${uuidv4().substring(0, 4)}_${index}`;
                             state.fighters.npcs[npcId] = createNewFighterState({ id: npcId, ...npcConfig });
                         });
                         logMessage(state, `Os combatentes estão prontos! Rolem a iniciativa!`, 'log-turn');
@@ -223,7 +221,7 @@ io.on('connection', (socket) => {
                     }
                     break;
                 case 'roll_initiative':
-                    // ... (código de iniciativa permanece o mesmo)
+                    // (código de iniciativa sem alterações)
                     break;
                 case 'attack':
                     const attacker = getFighter(state, action.attackerKey);
@@ -237,10 +235,9 @@ io.on('connection', (socket) => {
                     break;
             }
         } 
-        // Ações específicas do modo Teatro
         else if (state.mode === 'theater') {
             const isGm = socket.id === state.gmId;
-            if (!isGm) return; // Apenas o GM pode controlar o teatro
+            if (!isGm) return;
 
             switch (action.type) {
                 case 'theaterAddCharacter': {
@@ -258,9 +255,8 @@ io.on('connection', (socket) => {
                         state.characters[id].x = x;
                         state.characters[id].y = y;
                     }
-                    // Emite apenas para os outros, não para quem moveu
                     socket.to(roomId).emit('gameUpdate', room.state);
-                    return; // Retorna para evitar a emissão global no final
+                    return;
                 }
                 case 'theaterUpdateCharacter': {
                      const { id, updates } = action;
@@ -280,7 +276,6 @@ io.on('connection', (socket) => {
             }
         }
 
-        // Emissão global no final de cada ação
         if (state.phase !== 'gameover' || !games[roomId].gameOverSent) {
              io.to(roomId).emit('gameUpdate', room.state);
              if(state.phase === 'gameover') { games[roomId].gameOverSent = true; }
