@@ -76,7 +76,7 @@ function executeAttack(state, attackerKey, defenderKey, io, roomId) {
     if (attackValue >= defenseValue) {
         logMessage(state, "Acertou!", 'log-hit');
         io.to(roomId).emit('triggerHitAnimation', { defenderKey });
-        io.to(roomId).emit('playSound', 'baseforte01.mp3'); // <-- SOM DE ACERTO
+        io.to(roomId).emit('playSound', 'baseforte01.mp3');
         defender.hp = Math.max(0, defender.hp - ATTACK_MOVE.damage);
         logMessage(state, `${defender.nome} sofre ${ATTACK_MOVE.damage} de dano!`, 'log-hit');
         if (defender.hp <= 0) {
@@ -85,19 +85,30 @@ function executeAttack(state, attackerKey, defenderKey, io, roomId) {
         }
     } else {
         logMessage(state, "Errou!", 'log-miss');
-        io.to(roomId).emit('playSound', 'Esquiva.mp3'); // <-- SOM DE ERRO
+        io.to(roomId).emit('playSound', 'Esquiva.mp3');
     }
 }
 
 function advanceTurn(state, io, roomId) {
     if (state.phase !== 'battle') return;
     const lastPlayerId = state.turnOrder.shift();
-    if (getFighter(state, lastPlayerId) && getFighter(state, lastPlayerId).status === 'active') {
+    const lastFighter = getFighter(state, lastPlayerId);
+    if (lastFighter && lastFighter.status === 'active') {
         state.turnOrder.push(lastPlayerId);
     }
-    state.turnOrder = state.turnOrder.filter(id => getFighter(state, id) && getFighter(state, id).status === 'active');
-    if (checkGameOver(state)) { io.to(roomId).emit('gameUpdate', state); return; }
-    if (state.turnOrder.length === 0) { return; }
+    state.turnOrder = state.turnOrder.filter(id => {
+        const fighter = getFighter(state, id);
+        return fighter && fighter.status === 'active';
+    });
+    if (checkGameOver(state)) {
+        io.to(roomId).emit('gameUpdate', state); 
+        return; 
+    }
+    if (state.turnOrder.length === 0) {
+        // Isso pode acontecer se o último personagem em combate se derrotar, por exemplo.
+        // A checagem de game over já teria pego isso, mas é uma segurança.
+        return; 
+    }
     const allHaveActed = state.turnOrder.every(id => getFighter(state, id).hasActed);
     if (allHaveActed) {
         state.currentRound++;
@@ -108,6 +119,7 @@ function advanceTurn(state, io, roomId) {
     const newAttacker = getFighter(state, state.activeCharacterKey);
     logMessage(state, `É a vez de ${newAttacker.nome}.`, 'log-info');
 }
+
 
 io.on('connection', (socket) => {
     socket.on('gmCreatesLobby', () => {
@@ -235,11 +247,9 @@ io.on('connection', (socket) => {
                 executeAttack(state, attackerKey, action.targetKey, io, roomId);
                 if (attacker) { attacker.hasActed = true; }
 
-                setTimeout(() => {
-                    advanceTurn(state, io, roomId);
-                    io.to(roomId).emit('gameUpdate', room.state);
-                }, 700);
-                return;
+                // AJUSTE CRÍTICO: Removido o setTimeout. A lógica agora é síncrona e robusta.
+                advanceTurn(state, io, roomId);
+                break; // Permite que a atualização final seja enviada
 
             case 'end_turn':
                 const actorKey = action.actorKey;
@@ -247,7 +257,13 @@ io.on('connection', (socket) => {
                 advanceTurn(state, io, roomId);
                 break;
         }
-        io.to(roomId).emit('gameUpdate', room.state);
+        // Uma única atualização é enviada ao final de cada ação, garantindo consistência.
+        if (state.phase !== 'gameover' || !games[roomId].gameOverSent) {
+             io.to(roomId).emit('gameUpdate', room.state);
+             if(state.phase === 'gameover') {
+                 games[roomId].gameOverSent = true;
+             }
+        }
     });
     socket.on('disconnect', () => { /* ... */ });
 });
