@@ -12,15 +12,27 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-let LUTA_CHARACTERS = {};
-const PLAYABLE_CHARACTERS = ['Ryu', 'Yobu', 'Nathan', 'Okami'];
+let LUTA_CHARACTERS = {}; // Manteremos o nome para compatibilidade, mas agora armazena NPCs
+let PLAYABLE_CHARACTERS = []; // Será preenchido dinamicamente
 const MAX_PLAYERS = 4;
 
 try {
-    const lutadoresData = fs.readFileSync('lutadores.json', 'utf8');
-    const lutadoresNomes = lutadoresData.replace(/[\[\]]/g, '').split(',').map(name => name.replace(/"/g, '').trim()).filter(name => name);
-    lutadoresNomes.forEach(nome => { LUTA_CHARACTERS[nome] = { agi: 2, res: 3 }; });
-} catch (error) { console.error('Erro ao carregar lutadores.json:', error); }
+    // AJUSTE: Lendo o novo arquivo 'characters.json'
+    const charactersData = fs.readFileSync('characters.json', 'utf8');
+    const characters = JSON.parse(charactersData);
+
+    // AJUSTE: Populando as listas dinamicamente
+    PLAYABLE_CHARACTERS = characters.players || [];
+    const npcNames = characters.npcs || [];
+    
+    // Popula a lista de NPCs com stats padrão
+    npcNames.forEach(nome => {
+        LUTA_CHARACTERS[nome] = { agi: 2, res: 3 };
+    });
+
+} catch (error) {
+    console.error('Erro ao carregar characters.json:', error);
+}
 
 const games = {};
 const ATTACK_MOVE = { damage: 5 };
@@ -105,8 +117,6 @@ function advanceTurn(state, io, roomId) {
         return; 
     }
     if (state.turnOrder.length === 0) {
-        // Isso pode acontecer se o último personagem em combate se derrotar, por exemplo.
-        // A checagem de game over já teria pego isso, mas é uma segurança.
         return; 
     }
     const allHaveActed = state.turnOrder.every(id => getFighter(state, id).hasActed);
@@ -132,7 +142,16 @@ io.on('connection', (socket) => {
         socket.emit('roomCreated', newRoomId);
         io.to(socket.id).emit('gameUpdate', newState);
     });
-    socket.emit('availableFighters', { p1: LUTA_CHARACTERS, playable: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/${name}.png` })) });
+
+    // AJUSTE: Constrói os dados para o cliente com os caminhos corretos das imagens
+    socket.emit('availableFighters', { 
+        p1: LUTA_CHARACTERS, // p1 agora são os NPCs para o GM
+        playable: PLAYABLE_CHARACTERS.map(name => ({
+            name,
+            img: `images/players/${name}.png` // Caminho correto para a imagem do jogador
+        })) 
+    });
+
     socket.on('playerJoinsLobby', ({ roomId, role }) => {
         const room = games[roomId];
         if (!room) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
@@ -247,9 +266,8 @@ io.on('connection', (socket) => {
                 executeAttack(state, attackerKey, action.targetKey, io, roomId);
                 if (attacker) { attacker.hasActed = true; }
 
-                // AJUSTE CRÍTICO: Removido o setTimeout. A lógica agora é síncrona e robusta.
                 advanceTurn(state, io, roomId);
-                break; // Permite que a atualização final seja enviada
+                break;
 
             case 'end_turn':
                 const actorKey = action.actorKey;
@@ -257,7 +275,6 @@ io.on('connection', (socket) => {
                 advanceTurn(state, io, roomId);
                 break;
         }
-        // Uma única atualização é enviada ao final de cada ação, garantindo consistência.
         if (state.phase !== 'gameover' || !games[roomId].gameOverSent) {
              io.to(roomId).emit('gameUpdate', room.state);
              if(state.phase === 'gameover') {
