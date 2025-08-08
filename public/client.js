@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
 
     // Dados do Jogo
-    let ALL_CHARACTERS = { players: [], npcs: [] };
+    let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
     let stagedNpcs = [];
 
@@ -342,8 +342,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             theaterCharList.appendChild(mini);
         };
-        ALL_CHARACTERS.players.forEach(char => createMini(char.name, char.img));
-        ALL_CHARACTERS.npcs.forEach(char => createMini(char.name, char.img));
+        // CORREÇÃO: Combinar todos os tipos de personagens para exibir no painel
+        const allMinis = [
+            ...(ALL_CHARACTERS.players || []),
+            ...(ALL_CHARACTERS.npcs || []),
+            ...(ALL_CHARACTERS.dynamic || [])
+        ];
+        allMinis.forEach(char => createMini(char.name, char.img));
     }
 
     function renderTheaterMode(state) {
@@ -351,20 +356,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const dataToRender = isGm ? currentScenarioState : state.publicState;
         if (!dataToRender || !dataToRender.scenario) return;
 
-        const img = new Image();
-        img.onload = () => {
-            theaterBackgroundImage.src = img.src;
-            const worldContainer = document.getElementById('theater-world-container');
-            if (worldContainer) {
-                worldContainer.style.width = `${img.naturalWidth}px`;
-                worldContainer.style.height = `${img.naturalHeight}px`;
-            }
-            if (isGm && currentScenarioState && (currentScenarioState.scenarioWidth !== img.naturalWidth || currentScenarioState.scenarioHeight !== img.naturalHeight)) {
-                socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
-            }
-            updateTheaterZoom();
-        };
-        img.src = `images/${dataToRender.scenario}`;
+        // Apenas troca a imagem se ela for diferente da atual para evitar recargas desnecessárias
+        if (theaterBackgroundImage.src.split('/').pop() !== dataToRender.scenario.split('/').pop()) {
+            const img = new Image();
+            img.onload = () => {
+                theaterBackgroundImage.src = img.src;
+                const worldContainer = document.getElementById('theater-world-container');
+                if (worldContainer) {
+                    worldContainer.style.width = `${img.naturalWidth}px`;
+                    worldContainer.style.height = `${img.naturalHeight}px`;
+                }
+                if (isGm && currentScenarioState && (currentScenarioState.scenarioWidth !== img.naturalWidth || currentScenarioState.scenarioHeight !== img.naturalHeight)) {
+                    socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
+                }
+                updateTheaterZoom();
+            };
+            img.src = `images/${dataToRender.scenario}`;
+        }
         
         const theaterScreenEl = document.getElementById('theater-screen'); 
         const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
@@ -541,7 +549,17 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     
         theaterBackgroundViewport.addEventListener('mousedown', (e) => { /* ... Lógica de arrastar ... */ });
-        theaterBackgroundViewport.addEventListener('wheel', (e) => { /* ... Lógica de zoom ... */ }, { passive: false });
+        
+        // CORREÇÃO: Implementando a lógica de zoom com o scroll do mouse
+        theaterBackgroundViewport.addEventListener('wheel', (e) => {
+            if (!isGm) return;
+            e.preventDefault();
+            const zoomIntensity = 0.1;
+            const delta = e.deltaY > 0 ? -zoomIntensity : zoomIntensity;
+            const newScale = currentScenarioScale + delta;
+            currentScenarioScale = Math.min(Math.max(newScale, 0.2), 5.0); // Limita o zoom entre 20% e 500%
+            updateTheaterZoom();
+        }, { passive: false });
     }
 
     function initializeGlobalKeyListeners() {
@@ -562,11 +580,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     
     socket.on('initialData', (data) => {
-        ALL_CHARACTERS = data.characters || { players: [], npcs: [] };
+        ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
-        if (isGm && currentGameState && currentGameState.mode === 'theater') {
-            initializeTheaterMode();
-        }
+        // A inicialização do modo teatro agora é feita no 'gameUpdate'
     });
     
     socket.on('roomCreated', (roomId) => {
@@ -586,9 +602,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('assignRole', (data) => { myRole = data.role; myPlayerKey = data.playerKey || null; isGm = data.isGm || myRole === 'gm'; });
     socket.on('playSound', (soundFile) => { new Audio(`sons/${soundFile}`).play(); });
-    socket.on('error', (err) => { alert(err.message); window.location.reload(); });
+    socket.on('error', (err) => { showInfoModal("Erro", err.message); setTimeout(() => window.location.href = window.location.origin, 3000); });
 
     socket.on('gameUpdate', (gameState) => {
+        const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
+
         oldGameState = currentGameState;
         currentGameState = gameState;
         
@@ -621,6 +639,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (gameState.mode === 'adventure') {
             handleAdventureMode(gameState);
         } else if (gameState.mode === 'theater') {
+            // CORREÇÃO: Chamar a inicialização do painel ao entrar no modo
+            if (isGm && justEnteredTheater) {
+                initializeTheaterMode();
+            }
             showScreen(theaterScreen);
             renderTheaterMode(gameState);
         }
@@ -639,6 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen(playerWaitingScreen); // Mostra espera para espectador
             }
         } else {
+            document.getElementById('gm-initial-lobby').querySelector('h1').textContent = "Criando seu Lobby...";
             socket.emit('gmCreatesLobby');
         }
 
