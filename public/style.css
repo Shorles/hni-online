@@ -169,10 +169,53 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 /* MODAL */
 #modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
-#modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 800px; position: relative; }
+#modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 80%; max-height: 80%; position: relative; display: flex; flex-direction: column;}
 #modal-title { margin-top: 0; font-size: 1.5em; }
-#modal-text { margin: 15px 0; text-align: left; }
+#modal-text { margin: 15px 0; text-align: left; flex-grow: 1; display: flex; flex-direction: column;}
 #modal-button { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
+
+/* --- ESTILOS ADICIONADOS PARA O MODAL DE CENÁRIO --- */
+.category-tab-btn {
+    background-color: #555;
+    color: white;
+    padding: 8px 15px;
+    border: 1px solid #777;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.category-tab-btn.active, .category-tab-btn:hover {
+    background-color: #007bff;
+    border-color: #0056b3;
+}
+.scenario-card {
+    width: 150px; /* Largura fixa para cada card */
+    background-color: #333;
+    border: 2px solid #555;
+    border-radius: 8px;
+    overflow: hidden; /* Garante que a imagem não saia dos cantos arredondados */
+    cursor: pointer;
+    transition: border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+.scenario-card:hover {
+    border-color: #ffeb3b;
+}
+.scenario-card img {
+    width: 100%;
+    height: 100px; /* Altura fixa para a imagem */
+    object-fit: cover; /* Garante que a imagem preencha o espaço sem distorcer */
+}
+.scenario-card .scenario-name {
+    font-size: 0.9em;
+    padding: 8px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 
 /* RESPONSIVIDADE (com Modo Cenário) */
 @media screen and (max-width: 800px) {

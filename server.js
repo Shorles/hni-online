@@ -129,13 +129,15 @@ io.on('connection', (socket) => {
         const state = room.state;
         const isGm = socket.id === state.gmId;
 
-        // Ações de transição de modo
+        // --- Ações Globais / de Transição de Modo (Apenas GM) ---
         if (isGm) {
             if (action.type === 'gmStartsTheater') {
                 const lobbyCache = { ...state };
                 room.state = createNewTheaterState(state.gmId, 'mapas/cenarios externos/externo (1).png');
                 room.state.lobbyCache = lobbyCache;
-            } else if (action.type === 'gmStartsAdventure') {
+                io.to(roomId).emit('gameUpdate', room.state); return;
+            }
+            if (action.type === 'gmStartsAdventure') {
                 const lobbyCache = { ...state };
                 let newState = createNewAdventureState();
                 newState.gmId = state.gmId;
@@ -148,12 +150,15 @@ io.on('connection', (socket) => {
                     }
                 }
                 room.state = newState;
-            } else if (action.type === 'gmGoesBackToLobby') {
+                io.to(roomId).emit('gameUpdate', room.state); return;
+            }
+            if (action.type === 'gmGoesBackToLobby') {
                 if (state.lobbyCache) room.state = state.lobbyCache;
+                io.to(roomId).emit('gameUpdate', room.state); return;
             }
         }
-        
-        // Ações dentro de cada modo
+
+        // --- Ações Específicas de Cada Modo ---
         switch (state.mode) {
             case 'lobby':
                 if (action.type === 'playerSelectsCharacter') {
@@ -165,9 +170,7 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
-
             case 'adventure':
-                // (Código do modo Aventura permanece o mesmo)
                 if (isGm && action.type === 'gmConfirmParty' && state.phase === 'party_setup') {
                     action.playerStats.forEach(pStat => {
                         if (state.fighters.players[pStat.id]) {
@@ -181,13 +184,11 @@ io.on('connection', (socket) => {
                     logMessage(state, `Grupo confirmado! GM está preparando os inimigos...`);
                 }
                 break;
-
             case 'theater':
                 if (isGm) {
                     const currentScenarioState = state.scenarioStates[state.currentScenario];
                     if (!currentScenarioState) break;
                     
-                    // CORREÇÃO: Restaurando toda a lógica de manipulação do modo cenário
                     switch (action.type) {
                         case 'changeScenario':
                             if (action.scenario && typeof action.scenario === 'string') {
@@ -200,12 +201,10 @@ io.on('connection', (socket) => {
                                 }
                             }
                             break;
-                        
                         case 'update_scenario_dims':
                             currentScenarioState.scenarioWidth = action.width;
                             currentScenarioState.scenarioHeight = action.height;
                             break;
-
                         case 'updateToken':
                             currentScenarioState.isStaging = true;
                             const tokenData = action.token;
@@ -219,10 +218,11 @@ io.on('connection', (socket) => {
                                 Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
                             } else {
                                 currentScenarioState.tokens[tokenData.id] = tokenData;
-                                currentScenarioState.tokenOrder.push(tokenData.id);
+                                if (!currentScenarioState.tokenOrder.includes(tokenData.id)) {
+                                    currentScenarioState.tokenOrder.push(tokenData.id);
+                                }
                             }
                             break;
-
                         case 'changeTokenOrder':
                             const { tokenId, direction } = action;
                             const currentIndex = currentScenarioState.tokenOrder.indexOf(tokenId);
@@ -237,20 +237,21 @@ io.on('connection', (socket) => {
                                 currentScenarioState.tokenOrder.splice(newIndex, 0, tokenId);
                             }
                             break;
-
                         case 'updateGlobalScale':
                             currentScenarioState.isStaging = true;
                             currentScenarioState.globalTokenScale = action.scale;
                             break;
-
                         case 'publish_stage':
-                            state.publicState = JSON.parse(JSON.stringify(currentScenarioState)); // Deep copy
+                            state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                            state.publicState.isStaging = false;
                             currentScenarioState.isStaging = false;
+                            logMessage(state, 'Cena publicada para os jogadores.');
                             break;
                     }
                 }
                 break;
         }
+
         io.to(roomId).emit('gameUpdate', room.state);
     });
 
