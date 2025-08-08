@@ -9,8 +9,6 @@
 <body>
 
 <div id="game-wrapper">
-
-    <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
     
     <!-- TELA INICIAL DO LOBBY DO GM -->
     <div id="gm-initial-lobby" class="screen active">
@@ -34,7 +32,7 @@
         </div>
         <div class="mode-buttons-container">
             <button id="start-adventure-btn" class="mode-btn">Iniciar Aventura</button>
-            <button id="start-theater-btn" class="mode-btn">Modo Teatro</button>
+            <button id="start-theater-btn" class="mode-btn">Modo Cenário</button>
         </div>
     </div>
     
@@ -73,62 +71,54 @@
 
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
-        
-        <div id="fight-scene-characters">
-            <!-- Personagens serão inseridos aqui pelo client.js -->
-        </div>
-
-        <div id="turn-order-sidebar" class="hidden">
-            <!-- Ordem de turno será inserida aqui -->
-        </div>
-
+        <div id="fight-scene-characters"></div>
+        <div id="turn-order-sidebar" class="hidden"></div>
         <div id="fight-log-container">
             <h2 id="round-info">ROUND 1</h2>
             <div id="fight-log"></div>
         </div>
-
         <div id="initiative-ui" class="hidden">
             <button id="player-roll-initiative-btn" class="initiative-btn hidden">Rolar Iniciativa</button>
             <button id="gm-roll-initiative-btn" class="initiative-btn hidden">Rolar para Inimigos</button>
         </div>
-
-        <div id="targeting-indicator" class="hidden">
-            Selecione um alvo! (Clique direito ou ESC para cancelar)
-        </div>
-
-        <div id="action-buttons-wrapper">
-            <!-- Botões de ação serão inseridos aqui pelo client.js -->
-        </div>
+        <div id="targeting-indicator" class="hidden">Selecione um alvo! (Clique direito ou ESC para cancelar)</div>
+        <div id="action-buttons-wrapper"></div>
     </div>
 
-    <!-- TELA DO MODO TEATRO (NOVA) -->
+    <!-- MODO CENÁRIO (DO JOGO ANTIGO) -->
     <div id="theater-screen" class="screen">
-        <div id="theater-main-scene">
-            <!-- Personagens arrastáveis aparecerão aqui -->
+        <div id="theater-background-viewport">
+            <div id="theater-world-container">
+                <img id="theater-background-image" src="" alt="Cenário do Teatro">
+                <div id="theater-token-container"></div>
+                <div id="selection-box" class="hidden"></div>
+            </div>
         </div>
-        <div id="theater-sidebar">
-            <div class="theater-sidebar-section">
+        <button id="copy-theater-spectator-link" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
+        <button id="toggle-gm-panel-btn" class="toggle-gm-panel-btn hidden" title="Mostrar/Ocultar Painel">☰</button>
+        <div id="theater-gm-panel" class="hidden">
+            <div class="panel-section">
                 <h4>Personagens</h4>
-                <div id="theater-character-list" class="theater-list">
-                    <!-- Lista de todos os personagens para adicionar à cena -->
-                </div>
+                <div id="theater-char-list"></div>
             </div>
-            <div class="theater-sidebar-section">
-                <h4>Cenários</h4>
-                <div id="theater-scenario-list" class="theater-list">
-                    <!-- Lista de cenários para escolher -->
-                </div>
+            <div class="panel-section">
+                <h4>Controles Gerais</h4>
+                <label for="theater-global-scale">Escala Global:</label>
+                <input type="range" id="theater-global-scale" min="0.2" max="3" step="0.1" value="1">
+                <button id="theater-change-scenario-btn">Mudar Cenário</button>
+                <button id="theater-publish-btn" class="hidden">Publicar Cena</button>
+            </div>
+             <div class="panel-section" id="theater-gm-legend">
+                <h4>Atalhos (GM)</h4>
+                <p><b>G:</b> Seleção em Grupo</p>
+                <p><b>F:</b> Virar Personagem</p>
+                <p><b>Setas ↑↓:</b> Mudar Camada</p>
+                <p><b>Delete:</b> Excluir</p>
+                <p><b>O (hover):</b> Resetar Tamanho</p>
             </div>
         </div>
-        <div id="theater-character-controls" class="hidden">
-             <button data-control="remove">Remover</button>
-             <button data-control="scale-up">Aumentar</button>
-             <button data-control="scale-down">Diminuir</button>
-             <button data-control="bring-front">Para Frente</button>
-             <button data-control="send-back">Para Trás</button>
-        </div>
+        <button id="theater-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
     </div>
-
 
     <!-- MODAL PADRÃO -->
     <div id="modal" class="hidden">
@@ -140,7 +130,6 @@
     </div>
     
     <div id="coords-display" class="hidden">X: 0, Y: 0</div>
-
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
