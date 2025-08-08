@@ -24,9 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentScenarioScale = 1.0;
     let isGroupSelectMode = false;
     let selectedTokens = new Set();
-    let isDraggingMap = false;
-    let lastDragX, lastDragY;
-
+    
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
     const gmInitialLobby = document.getElementById('gm-initial-lobby');
@@ -216,11 +214,113 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateUI(state) { /* ...código sem alterações... */ }
-    function createFighterElement(fighter, type, state, position) { /* ...código sem alterações... */ }
-    function renderInitiativeUI(state) { /* ...código sem alterações... */ }
-    function handleActionClick(event) { /* ...código sem alterações... */ }
-    function handleTargetClick(event) { /* ...código sem alterações... */ }
+    function updateUI(state) {
+        if (!state || !state.fighters) return;
+        gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
+        fightSceneCharacters.innerHTML = '';
+        
+        const PLAYER_POSITIONS = [ 
+            { left: '150px', top: '500px', zIndex: 14 }, { left: '250px', top: '400px', zIndex: 13 }, 
+            { left: '350px', top: '300px', zIndex: 12 }, { left: '450px', top: '200px', zIndex: 11 } 
+        ];
+        const NPC_POSITIONS = [ 
+            { left: '1000px', top: '500px', zIndex: 14 }, { left: '900px',  top: '400px', zIndex: 13 }, 
+            { left: '800px',  top: '300px', zIndex: 12 }, { left: '700px',  top: '200px', zIndex: 11 } 
+        ];
+        
+        const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
+        const fighterPositions = {};
+        Object.values(state.fighters.players).forEach((f, i) => fighterPositions[f.id] = PLAYER_POSITIONS[i]);
+        Object.values(state.fighters.npcs).forEach((f, i) => fighterPositions[f.id] = NPC_POSITIONS[i]);
+
+        allFighters.forEach(fighter => {
+            const isPlayer = !!state.fighters.players[fighter.id];
+            const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
+            fightSceneCharacters.appendChild(el);
+        });
+    }
+    
+    function createFighterElement(fighter, type, state, position) {
+        const container = document.createElement('div');
+        container.className = `char-container ${type}-char-container`;
+        container.id = fighter.id;
+        container.dataset.key = fighter.id;
+        Object.assign(container.style, position);
+
+        const oldFighterState = oldGameState ? (oldGameState.fighters.players[fighter.id] || oldGameState.fighters.npcs[fighter.id]) : null;
+        const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
+
+        if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
+            defeatAnimationPlayed.add(fighter.id);
+            container.classList.add(type === 'player' ? 'animate-defeat-player' : 'animate-defeat-npc');
+        } else if (fighter.status === 'down') {
+             container.classList.add(type === 'player' ? 'player-defeated-final' : 'npc-defeated-final');
+        }
+
+        if (fighter.status === 'active') {
+            if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
+            const activeFighter = state.fighters.players[state.activeCharacterKey] || state.fighters.npcs[state.activeCharacterKey];
+            if (activeFighter) {
+                const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
+                const isThisFighterPlayer = type === 'player';
+                if (isActiveFighterPlayer !== isThisFighterPlayer) container.classList.add('targetable');
+            }
+        }
+        
+        container.addEventListener('mouseenter', () => { if (isTargeting && container.classList.contains('targetable')) container.classList.add('target-hover'); });
+        container.addEventListener('mouseleave', () => container.classList.remove('target-hover'));
+        if(container.classList.contains('targetable')) container.addEventListener('click', handleTargetClick);
+
+        const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
+        container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
+        return container;
+    }
+
+    function renderInitiativeUI(state) {
+        const initiativeUI = document.getElementById('initiative-ui');
+        initiativeUI.classList.remove('hidden');
+        const playerRollBtn = document.getElementById('player-roll-initiative-btn');
+        if (myRole === 'player' && state.fighters.players[myPlayerKey] && !state.initiativeRolls[myPlayerKey]) {
+            playerRollBtn.classList.remove('hidden');
+            playerRollBtn.disabled = false;
+            playerRollBtn.onclick = () => { playerRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative' }); };
+        } else {
+            playerRollBtn.classList.add('hidden');
+        }
+        // Botão do GM foi removido pois a rolagem dele agora é automática
+        document.getElementById('gm-roll-initiative-btn').classList.add('hidden');
+    }
+
+    function handleActionClick(event) {
+        if (!currentGameState || currentGameState.mode !== 'adventure' || currentGameState.phase !== 'battle') return;
+        const activeFighterKey = currentGameState.activeCharacterKey;
+        const myFighter = myPlayerKey ? currentGameState.fighters.players[myPlayerKey] : null;
+        const canControl = (myFighter && myFighter.id === activeFighterKey) || (isGm && currentGameState.fighters.npcs[activeFighterKey]);
+        if (!canControl) return;
+        const target = event.target.closest('button'); 
+        if (!target || target.disabled) return;
+        const action = target.dataset.action;
+        if (action === 'attack') {
+            isTargeting = true;
+            targetingAttackerKey = activeFighterKey;
+            document.getElementById('targeting-indicator').classList.remove('hidden');
+            const isNpcTurn = !!currentGameState.fighters.npcs[activeFighterKey];
+            const targetSelector = isNpcTurn ? '.player-char-container.targetable' : '.npc-char-container.targetable';
+            document.querySelectorAll(targetSelector).forEach(el => el.classList.add('is-targeting'));
+        } else if (action === 'end_turn') {
+            socket.emit('playerAction', { type: 'end_turn', actorKey: activeFighterKey });
+        }
+    }
+
+    function handleTargetClick(event) {
+        if (!isTargeting || !targetingAttackerKey) return;
+        const targetContainer = event.target.closest('.char-container');
+        if (!targetContainer || !targetContainer.classList.contains('targetable')) return;
+        const targetKey = targetContainer.dataset.key;
+        socket.emit('playerAction', { type: 'attack', attackerKey: targetingAttackerKey, targetKey: targetKey });
+        cancelTargeting();
+    }
+
 
     // --- LÓGICA DO MODO CENÁRIO ---
 
@@ -268,18 +368,14 @@ document.addEventListener('DOMContentLoaded', () => {
             img.src = `images/${dataToRender.scenario}`;
         }
         
-        const theaterScreenEl = document.getElementById('theater-screen'); 
-        const toggleGmPanelBtn = document.getElementById('toggle-gm-panel-btn');
-        theaterGmPanel.classList.toggle('hidden', !isGm); 
-        toggleGmPanelBtn.classList.toggle('hidden', !isGm);
-        theaterBackBtn.classList.toggle('hidden', !isGm);
-        theaterPublishBtn.classList.toggle('hidden', !isGm || !currentScenarioState?.isStaging);
+        document.getElementById('theater-gm-panel').classList.toggle('hidden', !isGm);
+        document.getElementById('toggle-gm-panel-btn').classList.toggle('hidden', !isGm);
+        document.getElementById('theater-back-btn').classList.toggle('hidden', !isGm);
+        document.getElementById('theater-publish-btn').classList.toggle('hidden', !isGm || !currentScenarioState?.isStaging);
         
         if (isGm && currentScenarioState) {
             theaterGlobalScale.value = currentScenarioState.globalTokenScale || 1.0;
         }
-
-        if (!isGm) theaterScreenEl.classList.add('panel-hidden'); 
         
         theaterTokenContainer.innerHTML = '';
         const fragment = document.createDocumentFragment();
@@ -300,9 +396,6 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.dataset.flipped = String(!!tokenData.isFlipped);
             tokenEl.title = tokenData.charName;
             tokenEl.draggable = isGm;
-            if (isGm) {
-                if (selectedTokens.has(tokenId)) tokenEl.classList.add('selected');
-            }
             fragment.appendChild(tokenEl);
         });
         theaterTokenContainer.appendChild(fragment);
@@ -312,13 +405,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateTheaterZoom() {
         const dataToRender = (isGm && currentGameState?.scenarioStates) ? currentGameState.scenarioStates[currentGameState.currentScenario] : currentGameState?.publicState;
         if (!dataToRender) return;
-
         const globalTokenScale = dataToRender.globalTokenScale || 1.0;
         const worldContainer = document.getElementById('theater-world-container');
-        if (worldContainer) {
-           worldContainer.style.transform = `scale(${currentScenarioScale})`;
-        }
-        
+        if (worldContainer) worldContainer.style.transform = `scale(${currentScenarioScale})`;
         document.querySelectorAll('.theater-token').forEach(token => {
             const baseScale = parseFloat(token.dataset.scale) || 1;
             const isFlipped = token.dataset.flipped === 'true';
@@ -327,15 +416,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupTheaterEventListeners() {
-        document.getElementById('toggle-gm-panel-btn').addEventListener('click', () => { 
-            document.getElementById('theater-screen').classList.toggle('panel-hidden');
-        });
-    
-        theaterBackgroundViewport.addEventListener('dragover', (e) => { e.preventDefault(); });
+        document.getElementById('toggle-gm-panel-btn').addEventListener('click', () => document.getElementById('theater-screen').classList.toggle('panel-hidden'));
+        theaterBackgroundViewport.addEventListener('dragover', (e) => e.preventDefault());
     
         const getGameScale = () => {
             const transform = window.getComputedStyle(gameWrapper).transform;
-            return (transform === 'none') ? 1 : new DOMMatrix(transform).a; 
+            return (transform === 'none') ? 1 : new DOMMatrix(transform).a;
         };
 
         const screenToWorldCoords = (e) => {
@@ -360,7 +446,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 socket.emit('playerAction', { 
                     type: 'updateToken', 
                     token: { 
-                        id: `token-${uuidv4()}`, charName: data.charName, img: data.img, 
+                        // CORREÇÃO: Usando um gerador de ID simples e que funciona no cliente
+                        id: `token-${Date.now()}-${Math.floor(Math.random() * 1000)}`, 
+                        charName: data.charName, img: data.img, 
                         x: worldX - (tokenBaseWidth * tokenScale / 2), 
                         y: worldY - (tokenBaseWidth * tokenScale / 2), 
                         scale: tokenScale, isFlipped: false 
@@ -369,28 +457,20 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) { console.error("Erro ao processar o drop:", error); }
         });
     
-        theaterGlobalScale.addEventListener('input', () => {
-             if(isGm) socket.emit('playerAction', { type: 'updateGlobalScale', scale: parseFloat(theaterGlobalScale.value) });
-        });
+        theaterGlobalScale.addEventListener('input', () => { if(isGm) socket.emit('playerAction', { type: 'updateGlobalScale', scale: parseFloat(theaterGlobalScale.value) }); });
+        theaterPublishBtn.addEventListener('click', () => { if(isGm) socket.emit('playerAction', { type: 'publish_stage' }); });
         
-        theaterPublishBtn.addEventListener('click', () => {
-             if(isGm) socket.emit('playerAction', { type: 'publish_stage' });
-        });
-
         theaterChangeScenarioBtn.onclick = () => {
             const modalHtml = `
                 <div id="modal-tabs-container" style="display: flex; gap: 10px; margin-bottom: 15px; justify-content: center; flex-wrap: wrap;"></div>
                 <div id="modal-scenarios-container" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; max-height: 400px; overflow-y: auto;"></div>`;
             showInfoModal("Mudar Cenário", modalHtml);
-            document.getElementById('modal-button').classList.add('hidden'); // Oculta o botão OK padrão
-            //... resto da lógica do modal...
+            document.getElementById('modal-button').classList.add('hidden');
             const tabsContainer = document.getElementById('modal-tabs-container');
             const scenariosContainer = document.getElementById('modal-scenarios-container');
-
             const renderCategory = (categoryName) => {
                 scenariosContainer.innerHTML = '';
-                const scenarios = ALL_SCENARIOS[categoryName] || [];
-                scenarios.forEach(fileName => {
+                (ALL_SCENARIOS[categoryName] || []).forEach(fileName => {
                     const fullPath = `mapas/${categoryName}/${fileName}`;
                     const card = document.createElement('div');
                     card.className = 'scenario-card';
@@ -428,8 +508,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
     }
 
-    function initializeGlobalKeyListeners() { /* ...código sem alterações... */ }
-
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     
     socket.on('initialData', (data) => {
@@ -458,7 +536,6 @@ document.addEventListener('DOMContentLoaded', () => {
         isGm = !!data.isGm;
     });
 
-    socket.on('playSound', (soundFile) => { new Audio(`sons/${soundFile}`).play(); });
     socket.on('error', (err) => { showInfoModal("Erro", err.message); setTimeout(() => window.location.href = window.location.origin, 3000); });
 
     socket.on('gameUpdate', (gameState) => {
@@ -522,12 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', scaleGame);
         scaleGame();
         setupTheaterEventListeners();
-        // initializeGlobalKeyListeners(); // O código desta função está ok, mas removo a chamada para simplificar
     }
     
-    // Adicionando a biblioteca UUID para o cliente
-    const script = document.createElement('script');
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuid.min.js";
-    script.onload = initialize;
-    document.head.appendChild(script);
+    initialize();
 });
