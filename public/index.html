@@ -34,6 +34,8 @@
         </div>
         <div class="mode-buttons-container">
             <button id="start-adventure-btn" class="mode-btn">Iniciar Aventura</button>
+            <!-- BOTÃO NOVO -->
+            <button id="start-theater-btn" class="mode-btn">Modo Teatro</button>
         </div>
     </div>
     
@@ -48,8 +50,13 @@
     <!-- Tela para o GM selecionar os NPCs e definir stats -->
     <div id="gm-npc-setup-screen" class="screen">
         <h1>Montar Encontro</h1>
-        <p>Selecione de 1 a 4 inimigos e defina seus atributos.</p>
+        <p>Clique nos inimigos abaixo para adicioná-los à batalha (máximo 4).</p>
         <div id="npc-selection-area" class="npc-selection-container"></div>
+        <!-- ÁREA DE PREPARAÇÃO PARA NPCS REPETIDOS -->
+        <div id="npc-staging-area-container">
+            <h3>Inimigos na Batalha:</h3>
+            <div id="npc-staging-area"></div>
+        </div>
         <button id="gm-start-battle-btn" class="mode-btn">Iniciar Batalha!</button>
     </div>
 
@@ -95,6 +102,35 @@
             <!-- Botões de ação serão inseridos aqui pelo client.js -->
         </div>
     </div>
+
+    <!-- TELA DO MODO TEATRO (NOVA) -->
+    <div id="theater-screen" class="screen">
+        <div id="theater-main-scene">
+            <!-- Personagens arrastáveis aparecerão aqui -->
+        </div>
+        <div id="theater-sidebar">
+            <div class="theater-sidebar-section">
+                <h4>Personagens</h4>
+                <div id="theater-character-list" class="theater-list">
+                    <!-- Lista de todos os personagens para adicionar à cena -->
+                </div>
+            </div>
+            <div class="theater-sidebar-section">
+                <h4>Cenários</h4>
+                <div id="theater-scenario-list" class="theater-list">
+                    <!-- Lista de cenários para escolher -->
+                </div>
+            </div>
+        </div>
+        <div id="theater-character-controls" class="hidden">
+             <button data-control="remove">Remover</button>
+             <button data-control="scale-up">Aumentar</button>
+             <button data-control="scale-down">Diminuir</button>
+             <button data-control="bring-front">Para Frente</button>
+             <button data-control="send-back">Para Trás</button>
+        </div>
+    </div>
+
 
     <!-- MODAL PADRÃO -->
     <div id="modal" class="hidden">
