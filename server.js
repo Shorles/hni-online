@@ -105,6 +105,9 @@ function checkGameOver(state) {
 }
 
 function advanceTurn(state) {
+    // Se já houver vencedor, não avança o turno
+    if (state.winner) return;
+
     let nextIndex = state.turnIndex;
     let attempts = 0;
     do {
@@ -130,25 +133,35 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
     const target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
     
-    const hit = true;
-    if (hit) {
-        const damage = ATTACK_MOVE.damage;
-        target.hp = Math.max(0, target.hp - damage);
-        logMessage(state, `${attacker.nome} ataca ${target.nome} e causa ${damage} de dano!`, 'hit');
-        io.to(roomId).emit('characterHit', { targetKey: target.id });
+    const hit = true; // Regra atual: sempre acerta
+    let damageDealt = 0;
 
+    if (hit) {
+        damageDealt = ATTACK_MOVE.damage;
+        target.hp = Math.max(0, target.hp - damageDealt);
+        logMessage(state, `${attacker.nome} ataca ${target.nome} e causa ${damageDealt} de dano!`, 'hit');
+        
         if (target.hp === 0) {
             target.status = 'down';
             logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
-            checkGameOver(state);
+            // A verificação de fim de jogo é feita após o ataque
         }
     } else {
         logMessage(state, `${attacker.nome} ataca ${target.nome}, mas erra!`, 'miss');
     }
     
-    if (!state.winner) {
-        advanceTurn(state);
-    }
+    // Emite o resultado do ataque para animações no cliente
+    io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit, damage: damageDealt });
+
+    // Atraso para dar tempo para a animação antes de verificar o fim de jogo e avançar o turno
+    setTimeout(() => {
+        checkGameOver(state);
+        if (!state.winner) {
+            advanceTurn(state);
+        }
+        // Envia a atualização final do estado do jogo
+        io.to(roomId).emit('gameUpdate', state);
+    }, 1000); // 1 segundo de atraso
 }
 
 function startBattle(state) {
@@ -202,8 +215,9 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId] || !action || !action.type) return;
         
         const room = games[roomId];
-        const state = room.state; // Referência ao estado atual
+        let state = room.state; // Use 'let' para permitir reatribuição
         const isGm = socket.id === state.gmId;
+        let shouldUpdate = true; // Flag para controlar o envio de 'gameUpdate'
 
         // Ação global de GM para voltar ao Lobby
         if (isGm && action.type === 'gmGoesBackToLobby') {
@@ -211,15 +225,14 @@ io.on('connection', (socket) => {
                 room.state = state.lobbyCache;
                 io.to(roomId).emit('gameUpdate', room.state);
             }
-            return; // Interrompe o processamento aqui
+            return;
         }
 
-        // Usar room.state.mode garante que estamos sempre verificando o modo mais atual
-        switch (room.state.mode) {
+        switch (state.mode) {
             case 'lobby':
                 if (isGm) {
                     if (action.type === 'gmStartsAdventure') {
-                        const lobbyCache = JSON.parse(JSON.stringify(state)); // Deep copy
+                        const lobbyCache = JSON.parse(JSON.stringify(state));
                         const newState = createNewAdventureState(state.gmId, lobbyCache);
                         for (const sId in state.connectedPlayers) {
                             const playerData = state.connectedPlayers[sId];
@@ -230,17 +243,19 @@ io.on('connection', (socket) => {
                         }
                         room.state = newState;
                     } else if (action.type === 'gmStartsTheater') {
-                        const lobbyCache = JSON.parse(JSON.stringify(state)); // Deep copy
+                        const lobbyCache = JSON.parse(JSON.stringify(state));
                         room.state = createNewTheaterState(state.gmId, 'mapas/cenarios externos/externo (1).png', lobbyCache);
                     }
                 }
 
                 if (action.type === 'playerSelectsCharacter' && state.connectedPlayers[socket.id]) {
                     if (state.unavailableCharacters.includes(action.character.nome)) {
-                        socket.emit('characterUnavailable', action.character.nome);
-                        return; // Não envia gameUpdate
+                        const mySelection = state.connectedPlayers[socket.id].selectedCharacter;
+                        if (!mySelection || mySelection.nome !== action.character.nome) {
+                            socket.emit('characterUnavailable', action.character.nome);
+                            return;
+                        }
                     }
-                    // Des-seleciona o antigo se houver
                     const currentPlayer = state.connectedPlayers[socket.id];
                     if(currentPlayer.selectedCharacter){
                         state.unavailableCharacters = state.unavailableCharacters.filter(c => c !== currentPlayer.selectedCharacter.nome);
@@ -310,6 +325,7 @@ io.on('connection', (socket) => {
                     case 'attack':
                          if (state.phase === 'battle' && action.attackerKey === state.activeCharacterKey) {
                             executeAttack(state, roomId, action.attackerKey, action.targetKey);
+                            shouldUpdate = false; // A atualização será enviada pelo executeAttack após o timeout
                          }
                         break;
                     case 'end_turn':
@@ -363,7 +379,9 @@ io.on('connection', (socket) => {
                 break;
         }
 
-        io.to(roomId).emit('gameUpdate', room.state);
+        if (shouldUpdate) {
+            io.to(roomId).emit('gameUpdate', room.state);
+        }
     });
 
     socket.on('disconnect', () => {
@@ -373,14 +391,12 @@ io.on('connection', (socket) => {
             const playerInfo = room.state.connectedPlayers ? room.state.connectedPlayers[socket.id] : null;
 
             if (playerInfo) {
-                // Se era o GM, o jogo acaba (simplificação)
                 if (socket.id === room.state.gmId) {
                     io.to(roomId).emit('error', { message: 'O Mestre desconectou. O jogo foi encerrado.' });
                     delete games[roomId];
                     return;
                 }
 
-                // Libera o personagem selecionado
                 if (playerInfo.selectedCharacter) {
                     room.state.unavailableCharacters = room.state.unavailableCharacters.filter(
                         name => name !== playerInfo.selectedCharacter.nome
@@ -391,12 +407,12 @@ io.on('connection', (socket) => {
                 delete room.sockets[socket.id];
                 delete room.state.connectedPlayers[socket.id];
 
-                // Se era um jogador no meio de uma aventura, marca como 'desconectado'
                 if(room.state.mode === 'adventure' && room.state.fighters.players[socket.id]){
-                    room.state.fighters.players[socket.id].status = 'disconnected';
-                    logMessage(room.state, `${room.state.fighters.players[socket.id].nome} desconectou e foi removido da batalha.`);
-                    // Se for o turno dele, avança
-                    if(room.state.activeCharacterKey === socket.id && !room.state.winner){
+                    const fighter = room.state.fighters.players[socket.id];
+                    fighter.status = 'disconnected';
+                    logMessage(room.state, `${fighter.nome} desconectou e foi removido da batalha.`);
+                    
+                    if(room.state.activeCharacterKey === socket.id){
                         advanceTurn(room.state);
                     }
                     checkGameOver(room.state);
