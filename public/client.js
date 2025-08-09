@@ -20,12 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let targetingAttackerKey = null;
 
     // Variáveis do Modo Cenário
-    let localWorldScale = 1.0; // CORRIGIDO: Zoom local para o modo cenário
-    let isGroupSelectMode = false;
     let selectedTokens = new Set();
+    let hoveredTokenId = null;
     let isDragging = false;
-    let dragTarget = null;
-    let dragOffsets = new Map(); // Para mover múltiplos tokens
+    let dragStartPos = { x: 0, y: 0 };
+    let dragOffsets = new Map();
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -38,8 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterWorldContainer = document.getElementById('theater-world-container');
     const theaterCharList = document.getElementById('theater-char-list');
     const theaterGlobalScale = document.getElementById('theater-global-scale');
-    const selectionBox = document.getElementById('selection-box');
     const initiativeUI = document.getElementById('initiative-ui');
+    const modal = document.getElementById('modal');
 
 
     // --- FUNÇÕES DE UTILIDADE ---
@@ -54,14 +53,12 @@ document.addEventListener('DOMContentLoaded', () => {
         allScreens.forEach(screen => screen.classList.toggle('active', screen === screenToShow));
     }
 
-    function showInfoModal(title, text) {
-        const modal = document.getElementById('modal');
-        const modalButton = document.getElementById('modal-button');
+    function showInfoModal(title, text, showButton = true) {
         document.getElementById('modal-title').innerText = title;
         document.getElementById('modal-text').innerHTML = text;
+        document.getElementById('modal-button').classList.toggle('hidden', !showButton);
         modal.classList.remove('hidden');
-        modalButton.classList.remove('hidden');
-        modalButton.onclick = () => modal.classList.add('hidden');
+        document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
     }
 
     function copyToClipboard(text, element) {
@@ -262,6 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
         container.id = fighter.id;
         container.dataset.key = fighter.id;
         Object.assign(container.style, position);
+        // CORRIGIDO: Atribui z-index baseado na posição Y para layering
+        container.style.zIndex = parseInt(position.top, 10);
 
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
@@ -364,7 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DO MODO CENÁRIO ---
     function initializeTheaterMode() {
-        localWorldScale = 1.0;
         theaterWorldContainer.style.transform = `scale(1)`;
         theaterBackgroundViewport.scrollLeft = 0;
         theaterBackgroundViewport.scrollTop = 0;
@@ -392,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!dataToRender || !dataToRender.scenario) return;
 
         const scenarioUrl = `images/${dataToRender.scenario}`;
-        if (theaterBackgroundImage.src.split('/').pop() !== scenarioUrl.split('/').pop()) {
+        if (!theaterBackgroundImage.src.includes(dataToRender.scenario)) {
             const img = new Image();
             img.onload = () => {
                 theaterBackgroundImage.src = img.src;
@@ -412,7 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         theaterTokenContainer.innerHTML = '';
         const fragment = document.createDocumentFragment();
-        (dataToRender.tokenOrder || []).forEach((tokenId, index) => {
+        (dataToRender.tokenOrder || []).forEach((tokenId) => {
             const tokenData = dataToRender.tokens[tokenId];
             if (!tokenData) return;
             const tokenEl = document.createElement('img');
@@ -421,78 +419,73 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.src = tokenData.img;
             tokenEl.style.left = `${tokenData.x}px`;
             tokenEl.style.top = `${tokenData.y}px`;
-            tokenEl.style.zIndex = index;
+            tokenEl.style.zIndex = tokenData.y;
             tokenEl.dataset.scale = tokenData.scale || 1.0;
             tokenEl.dataset.flipped = String(!!tokenData.isFlipped);
             tokenEl.title = tokenData.charName;
             
             const globalTokenScale = dataToRender.globalTokenScale || 1.0;
-            const baseScale = parseFloat(tokenEl.dataset.scale) || 1;
+            const baseScale = parseFloat(tokenEl.dataset.scale);
             const isFlipped = tokenEl.dataset.flipped === 'true';
             tokenEl.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
             
-            if (isGm && selectedTokens.has(tokenId)) tokenEl.classList.add('selected');
+            if (isGm) {
+                if (selectedTokens.has(tokenId)) tokenEl.classList.add('selected');
+                tokenEl.addEventListener('mouseenter', () => hoveredTokenId = tokenId);
+                tokenEl.addEventListener('mouseleave', () => hoveredTokenId = null);
+            }
             fragment.appendChild(tokenEl);
         });
         theaterTokenContainer.appendChild(fragment);
     }
     
-    function setupTheaterEventListeners() {
-        const getGameScale = () => (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a;
-        const screenToWorldCoords = (e) => {
-            const gameScale = getGameScale();
-            const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-            const scrollLeft = theaterBackgroundViewport.scrollLeft;
-            const scrollTop = theaterBackgroundViewport.scrollTop;
-
-            return {
-                worldX: (e.clientX - viewportRect.left) / (gameScale * localWorldScale) + scrollLeft / localWorldScale,
-                worldY: (e.clientY - viewportRect.top) / (gameScale * localWorldScale) + scrollTop / localWorldScale
-            };
+    function screenToWorldCoords(e) {
+        const rect = theaterWorldContainer.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
         };
+    };
 
+    function setupTheaterEventListeners() {
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             if (!isGm || e.button !== 0) return;
             
             const tokenElement = e.target.closest('.theater-token');
-            if (tokenElement) {
-                isDragging = true;
-                dragTarget = tokenElement;
+            isDragging = true;
+            dragStartPos = { x: e.clientX, y: e.clientY };
 
-                if (!e.ctrlKey && !selectedTokens.has(dragTarget.id)) {
+            if (tokenElement) {
+                if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) {
                     selectedTokens.clear();
-                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                }
+                if (e.ctrlKey && selectedTokens.has(tokenElement.id)) {
+                    selectedTokens.delete(tokenElement.id);
+                } else {
+                    selectedTokens.add(tokenElement.id);
                 }
                 
-                if (e.ctrlKey) {
-                    if (selectedTokens.has(dragTarget.id)) selectedTokens.delete(dragTarget.id);
-                    else selectedTokens.add(dragTarget.id);
-                } else {
-                    selectedTokens.add(dragTarget.id);
-                }
-
-                renderTheaterMode(currentGameState);
-
-                const { worldX, worldY } = screenToWorldCoords(e);
                 dragOffsets.clear();
                 selectedTokens.forEach(id => {
                     const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
                     if(tokenData) {
-                        dragOffsets.set(id, { x: worldX - tokenData.x, y: worldY - tokenData.y });
+                        dragOffsets.set(id, { x: dragStartPos.x - tokenData.x, y: dragStartPos.y - tokenData.y });
                     }
                 });
+                renderTheaterMode(currentGameState);
             }
         });
 
         window.addEventListener('mousemove', (e) => {
             if (!isGm || !isDragging) return;
             e.preventDefault();
-            const { worldX, worldY } = screenToWorldCoords(e);
-            dragOffsets.forEach((offset, id) => {
+            
+            selectedTokens.forEach(id => {
                 const tokenEl = document.getElementById(id);
-                if (tokenEl) {
-                    tokenEl.style.left = `${worldX - offset.x}px`;
-                    tokenEl.style.top = `${worldY - offset.y}px`;
+                const offset = dragOffsets.get(id);
+                if (tokenEl && offset) {
+                    tokenEl.style.left = `${e.clientX - offset.x}px`;
+                    tokenEl.style.top = `${e.clientY - offset.y}px`;
                 }
             });
         });
@@ -500,9 +493,12 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', (e) => {
             if (!isGm || !isDragging) return;
             isDragging = false;
-            const { worldX, worldY } = screenToWorldCoords(e);
-            dragOffsets.forEach((offset, id) => {
-                socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: worldX - offset.x, y: worldY - offset.y } });
+            
+            selectedTokens.forEach(id => {
+                const offset = dragOffsets.get(id);
+                if(offset) {
+                    socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: e.clientX - offset.x, y: e.clientY - offset.y } });
+                }
             });
         });
 
@@ -511,67 +507,95 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isGm) return;
             try {
                 const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                const { worldX, worldY } = screenToWorldCoords(e);
+                const coords = screenToWorldCoords(e);
                 const tokenWidth = 200; // base width
-                socket.emit('playerAction', { type: 'updateToken', token: { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: worldX - tokenWidth / 2, y: worldY - tokenWidth / 2, scale: 1.0, isFlipped: false }});
+                socket.emit('playerAction', { type: 'updateToken', token: { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: coords.x - (tokenWidth / 2), y: coords.y - (tokenWidth / 2), scale: 1.0, isFlipped: false }});
             } catch (error) { console.error("Drop error:", error); }
         });
 
-        theaterBackgroundViewport.addEventListener('dragover', (e) => {
-            e.preventDefault();
-        });
+        theaterBackgroundViewport.addEventListener('dragover', (e) => e.preventDefault());
 
-        // Event listener para o Zoom do Cenário
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            
-            const zoomIntensity = 0.1;
-            const scroll = e.deltaY < 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
-            const newScale = Math.max(0.2, Math.min(localWorldScale * scroll, 5));
-
-            const rect = theaterBackgroundViewport.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            const mousePointTo = {
-                x: (mouseX + theaterBackgroundViewport.scrollLeft) / localWorldScale,
-                y: (mouseY + theaterBackgroundViewport.scrollTop) / localWorldScale,
-            };
-
-            localWorldScale = newScale;
-            theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
-            
-            theaterBackgroundViewport.scrollLeft = mousePointTo.x * localWorldScale - mouseX;
-            theaterBackgroundViewport.scrollTop = mousePointTo.y * localWorldScale - mouseY;
-
+            if (!isGm) return;
+            const targetTokenId = hoveredTokenId; // Use hovered token
+            if (targetTokenId && selectedTokens.has(targetTokenId)) {
+                e.preventDefault();
+                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[targetTokenId];
+                if (tokenData) {
+                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.1 : 0.1);
+                    // Aplica a todos os selecionados
+                    selectedTokens.forEach(id => {
+                        socket.emit('playerAction', { type: 'updateToken', token: { id: id, scale: Math.max(0.1, newScale) }});
+                    });
+                }
+            }
         }, { passive: false });
+
+        theaterGlobalScale.addEventListener('input', (e) => {
+             if (!isGm) return;
+             socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
+        });
     }
 
     function initializeGlobalKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
-
-            if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape'){
-                cancelTargeting();
-                return;
-            }
-
+            if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape'){ cancelTargeting(); return; }
             if (currentGameState.mode !== 'theater' || !isGm) return;
             
             const focusedEl = document.activeElement;
             if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA') return;
             
-            if (e.key.toLowerCase() === 'f' && selectedTokens.size > 0) {
+            const targetId = hoveredTokenId || (selectedTokens.size === 1 ? selectedTokens.values().next().value : null);
+
+            if (e.key.toLowerCase() === 'f' && targetId) {
                 e.preventDefault();
-                selectedTokens.forEach(tokenId => {
-                    const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[tokenId];
-                    if (tokenData) socket.emit('playerAction', { type: 'updateToken', token: { id: tokenId, isFlipped: !tokenData.isFlipped } });
-                });
+                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[targetId];
+                if(tokenData) socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, isFlipped: !tokenData.isFlipped } });
+            } else if (e.key.toLowerCase() === 'o' && targetId) {
+                e.preventDefault();
+                socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, scale: 1.0 } });
             } else if (e.key === 'Delete' && selectedTokens.size > 0) {
                 e.preventDefault();
                 socket.emit('playerAction', { type: 'updateToken', token: { remove: true, ids: Array.from(selectedTokens) } });
                 selectedTokens.clear();
             }
+        });
+    }
+
+    function showScenarioSelectionModal() {
+        let content = '<div class="category-tabs">';
+        const categories = Object.keys(ALL_SCENARIOS);
+        categories.forEach((cat, index) => {
+            content += `<button class="category-tab-btn ${index === 0 ? 'active' : ''}" data-category="${cat}">${cat.replace(/_/g, ' ')}</button>`;
+        });
+        content += '</div>';
+
+        categories.forEach((cat, index) => {
+            content += `<div class="scenarios-grid ${index === 0 ? 'active' : ''}" id="grid-${cat}">`;
+            ALL_SCENARIOS[cat].forEach(scenarioPath => {
+                const scenarioName = scenarioPath.split('/').pop().replace('.png','').replace('.jpg','');
+                content += `<div class="scenario-card" data-path="mapas/${scenarioPath}"><img src="images/mapas/${scenarioPath}" alt="${scenarioName}"><div class="scenario-name">${scenarioName}</div></div>`;
+            });
+            content += '</div>';
+        });
+
+        showInfoModal('Mudar Cenário', content, false);
+
+        document.querySelectorAll('.category-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.category-tab-btn, .scenarios-grid').forEach(el => el.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(`grid-${btn.dataset.category}`).classList.add('active');
+            });
+        });
+
+        document.querySelectorAll('.scenario-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const scenario = card.dataset.path.replace('mapas/','');
+                socket.emit('playerAction', { type: 'changeScenario', scenario: scenario });
+                modal.classList.add('hidden');
+            });
         });
     }
 
@@ -599,7 +623,6 @@ document.addEventListener('DOMContentLoaded', () => {
         isGm = !!data.isGm;
     });
 
-    // NOVO: Listener para animações de ataque
     socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
         const attackerEl = document.getElementById(attackerKey);
         const targetEl = document.getElementById(targetKey);
@@ -611,15 +634,15 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => attackerEl.classList.remove(animClass), 500);
         }
         if (targetEl && hit) {
-            targetEl.classList.add('is-hit-flash');
-            setTimeout(() => targetEl.classList.remove('is-hit-flash'), 400);
+            const img = targetEl.querySelector('.fighter-img-ingame');
+            if (img) {
+                img.classList.add('is-hit-flash');
+                setTimeout(() => img.classList.remove('is-hit-flash'), 400);
+            }
         }
     });
 
-
-    socket.on('error', (data) => {
-        showInfoModal('Erro', data.message);
-    });
+    socket.on('error', (data) => showInfoModal('Erro', data.message));
 
     socket.on('gameUpdate', (gameState) => {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
@@ -631,13 +654,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // CORRIGIDO: Gerencia o background do jogo
         if (gameState.mode === 'adventure' && gameState.scenario) {
              gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
-        } else {
+        } else if (gameState.mode === 'lobby') {
              gameWrapper.style.backgroundImage = `url('images/mapas/cenarios externos/externo (1).png')`;
+        } else {
+            gameWrapper.style.backgroundImage = 'none';
         }
-
 
         switch(gameState.mode) {
             case 'lobby':
@@ -691,6 +714,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         document.getElementById('theater-back-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
+        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
         
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();

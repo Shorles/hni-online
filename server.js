@@ -35,7 +35,7 @@ try {
     scenarioCategories.forEach(category => {
         const path = `public/images/mapas/${category}/`;
         if (fs.existsSync(path)) {
-            ALL_SCENARIOS[category] = fs.readdirSync(path).filter(file => file.endsWith('.png') || file.endsWith('.jpg'));
+            ALL_SCENARIOS[category] = fs.readdirSync(path).filter(file => file.endsWith('.png') || file.endsWith('.jpg')).map(file => `${category}/${file}`);
         }
     });
 
@@ -61,12 +61,13 @@ function createNewTheaterState(gmId, initialScenario, lobbyCache) {
         mode: 'theater', gmId: gmId, log: [{ text: "Modo Cenário iniciado."}], currentScenario: initialScenario,
         scenarioStates: {}, publicState: {}, lobbyCache: lobbyCache
     };
-    theaterState.scenarioStates[initialScenario] = {
-        scenario: initialScenario, scenarioWidth: null, scenarioHeight: null, tokens: {},
+    const initialScenarioPath = `mapas/${initialScenario}`;
+    theaterState.scenarioStates[initialScenarioPath] = {
+        scenario: initialScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {},
         tokenOrder: [], globalTokenScale: 1.0, isStaging: true,
     };
     theaterState.publicState = {
-        scenario: initialScenario, tokens: {}, tokenOrder: [], globalTokenScale: 1.0
+        scenario: initialScenarioPath, tokens: {}, tokenOrder: [], globalTokenScale: 1.0
     };
     return theaterState;
 }
@@ -105,7 +106,6 @@ function checkGameOver(state) {
 }
 
 function advanceTurn(state) {
-    // Se já houver vencedor, não avança o turno
     if (state.winner) return;
 
     let nextIndex = state.turnIndex;
@@ -133,7 +133,7 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
     const target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
     
-    const hit = true; // Regra atual: sempre acerta
+    const hit = true;
     let damageDealt = 0;
 
     if (hit) {
@@ -144,24 +144,20 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
         if (target.hp === 0) {
             target.status = 'down';
             logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
-            // A verificação de fim de jogo é feita após o ataque
         }
     } else {
         logMessage(state, `${attacker.nome} ataca ${target.nome}, mas erra!`, 'miss');
     }
     
-    // Emite o resultado do ataque para animações no cliente
     io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit, damage: damageDealt });
 
-    // Atraso para dar tempo para a animação antes de verificar o fim de jogo e avançar o turno
     setTimeout(() => {
         checkGameOver(state);
         if (!state.winner) {
             advanceTurn(state);
         }
-        // Envia a atualização final do estado do jogo
         io.to(roomId).emit('gameUpdate', state);
-    }, 1000); // 1 segundo de atraso
+    }, 1000);
 }
 
 function startBattle(state) {
@@ -215,11 +211,10 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId] || !action || !action.type) return;
         
         const room = games[roomId];
-        let state = room.state; // Use 'let' para permitir reatribuição
+        let state = room.state;
         const isGm = socket.id === state.gmId;
-        let shouldUpdate = true; // Flag para controlar o envio de 'gameUpdate'
+        let shouldUpdate = true;
 
-        // Ação global de GM para voltar ao Lobby
         if (isGm && action.type === 'gmGoesBackToLobby') {
             if (state.lobbyCache) {
                 room.state = state.lobbyCache;
@@ -233,18 +228,17 @@ io.on('connection', (socket) => {
                 if (isGm) {
                     if (action.type === 'gmStartsAdventure') {
                         const lobbyCache = JSON.parse(JSON.stringify(state));
-                        const newState = createNewAdventureState(state.gmId, lobbyCache);
+                        room.state = createNewAdventureState(state.gmId, lobbyCache);
                         for (const sId in state.connectedPlayers) {
                             const playerData = state.connectedPlayers[sId];
                             if (playerData.selectedCharacter && playerData.role === 'player') {
-                                newState.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img, res: 3, agi: 2 });
+                                room.state.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img, res: 3, agi: 2 });
                                 io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
                             }
                         }
-                        room.state = newState;
                     } else if (action.type === 'gmStartsTheater') {
                         const lobbyCache = JSON.parse(JSON.stringify(state));
-                        room.state = createNewTheaterState(state.gmId, 'mapas/cenarios externos/externo (1).png', lobbyCache);
+                        room.state = createNewTheaterState(state.gmId, 'cenarios externos/externo (1).png', lobbyCache);
                     }
                 }
 
@@ -325,7 +319,7 @@ io.on('connection', (socket) => {
                     case 'attack':
                          if (state.phase === 'battle' && action.attackerKey === state.activeCharacterKey) {
                             executeAttack(state, roomId, action.attackerKey, action.targetKey);
-                            shouldUpdate = false; // A atualização será enviada pelo executeAttack após o timeout
+                            shouldUpdate = false;
                          }
                         break;
                     case 'end_turn':
@@ -342,10 +336,11 @@ io.on('connection', (socket) => {
                      if(currentScenarioState) {
                         switch (action.type) {
                             case 'changeScenario':
+                                const newScenarioPath = `mapas/${action.scenario}`;
                                 if (action.scenario && typeof action.scenario === 'string') {
-                                    state.currentScenario = action.scenario;
-                                    if (!state.scenarioStates[action.scenario]) {
-                                        state.scenarioStates[action.scenario] = { scenario: action.scenario, scenarioWidth: null, scenarioHeight: null, tokens: {}, tokenOrder: [], globalTokenScale: currentScenarioState.globalTokenScale || 1.0, isStaging: true, };
+                                    state.currentScenario = newScenarioPath;
+                                    if (!state.scenarioStates[newScenarioPath]) {
+                                        state.scenarioStates[newScenarioPath] = { scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, tokenOrder: [], globalTokenScale: currentScenarioState.globalTokenScale || 1.0, isStaging: true, };
                                     }
                                 }
                                 break;
@@ -365,7 +360,8 @@ io.on('connection', (socket) => {
                                 }
                                 break;
                             case 'updateGlobalScale':
-                                currentScenarioState.isStaging = true; currentScenarioState.globalTokenScale = action.scale;
+                                currentScenarioState.isStaging = true; 
+                                currentScenarioState.globalTokenScale = action.scale;
                                 break;
                             case 'publish_stage':
                                 state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
