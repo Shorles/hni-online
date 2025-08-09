@@ -80,11 +80,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getFighter(state, key) {
+        if (!state || !state.fighters) return null;
         return state.fighters.players[key] || state.fighters.npcs[key];
     }
     
     // --- LÓGICA DO MODO AVENTURA ---
-
     function handleAdventureMode(gameState) {
         const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
@@ -98,10 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
                 showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
-            } else if(gameState.phase === 'initiative_roll') {
-                 showScreen(fightScreen); updateUI(gameState); renderInitiativeUI(gameState);
             } else {
-                showScreen(fightScreen); updateUI(gameState);
+                showScreen(fightScreen); 
+                updateUI(gameState);
+                if (gameState.phase === 'initiative_roll') {
+                    renderInitiativeUI(gameState);
+                }
             }
         }
     }
@@ -125,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const confirmBtn = document.getElementById('confirm-selection-btn');
         charListContainer.innerHTML = '';
         confirmBtn.disabled = true;
-        ALL_CHARACTERS.players.forEach(data => {
+        (ALL_CHARACTERS.players || []).forEach(data => {
             const card = document.createElement('div');
             card.className = 'char-card';
             card.dataset.name = data.name;
@@ -178,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderNpcSelectionForGm() {
         const npcArea = document.getElementById('npc-selection-area');
         npcArea.innerHTML = '';
-        ALL_CHARACTERS.npcs.forEach(npcData => {
+        (ALL_CHARACTERS.npcs || []).forEach(npcData => {
             const card = document.createElement('div');
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
@@ -217,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
         gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`;
         fightSceneCharacters.innerHTML = '';
         document.getElementById('round-info').textContent = `ROUND ${state.currentRound}`;
-        document.getElementById('fight-log').innerHTML = state.log.map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
+        document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
         const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' } ];
@@ -248,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.dataset.key = fighter.id;
         Object.assign(container.style, position);
 
-        const oldFighterState = oldGameState ? (oldGameState.fighters.players[fighter.id] || oldGameState.fighters.npcs[fighter.id]) : null;
+        const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
 
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
@@ -307,7 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentGameState || currentGameState.mode !== 'adventure' || currentGameState.phase !== 'battle') return;
         const activeFighterKey = currentGameState.activeCharacterKey;
         const myFighter = myPlayerKey ? getFighter(currentGameState, myPlayerKey) : null;
-        const canControl = (myFighter && myFighter.id === activeFighterKey) || (isGm && getFighter(currentGameState, activeFighterKey) && !!currentGameState.fighters.npcs[activeFighterKey]);
+        const activeFighterData = getFighter(currentGameState, activeFighterKey);
+        const canControl = (myFighter && myFighter.id === activeFighterKey) || (isGm && activeFighterData && !!currentGameState.fighters.npcs[activeFighterKey]);
         if (!canControl) return;
         const target = event.target.closest('button'); 
         if (!target || target.disabled) return;
@@ -505,8 +508,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && token && token.matches(':hover')) {
                 e.preventDefault();
                 const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[token.id];
-                const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.1 : 0.1);
-                socket.emit('playerAction', { type: 'updateToken', token: { id: token.id, scale: Math.max(0.1, newScale) }});
+                if (tokenData) {
+                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.1 : 0.1);
+                    socket.emit('playerAction', { type: 'updateToken', token: { id: token.id, scale: Math.max(0.1, newScale) }});
+                }
             }
         }, { passive: false });
     }
@@ -584,10 +589,11 @@ document.addEventListener('DOMContentLoaded', () => {
         oldGameState = currentGameState;
         currentGameState = gameState;
         
-        const iAmTheGm = (socket.id === gameState.gmId);
+        // CORREÇÃO DEFINITIVA: A verificação de GM é feita DENTRO da lógica, usando o gameState.
+        const iAmTheGmInThisState = (socket.id === gameState.gmId);
         
         if (!gameState.mode || gameState.mode === 'lobby') {
-            if (iAmTheGm) {
+            if (iAmTheGmInThisState) {
                 showScreen(document.getElementById('gm-initial-lobby'));
                 updateGmLobbyUI(gameState);
             } else {
@@ -619,7 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlRoomId = urlParams.get('room');
         const urlRole = urlParams.get('role');
 
-        showScreen(document.getElementById('loading-screen')); // Tela inicial padrão
+        showScreen(document.getElementById('loading-screen')); 
 
         if (urlRoomId && urlRole) {
             socket.emit('playerJoinsLobby', { roomId: urlRoomId, role: urlRole });
