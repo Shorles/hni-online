@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let targetingAttackerKey = null;
 
     // Variáveis do Modo Cenário
+    let localWorldScale = 1.0; // Zoom local do mapa
     let selectedTokens = new Set();
     let hoveredTokenId = null;
     let isDragging = false;
@@ -259,7 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
         container.id = fighter.id;
         container.dataset.key = fighter.id;
         Object.assign(container.style, position);
-        // CORRIGIDO: Atribui z-index baseado na posição Y para layering
         container.style.zIndex = parseInt(position.top, 10);
 
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
@@ -363,6 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DO MODO CENÁRIO ---
     function initializeTheaterMode() {
+        localWorldScale = 1.0;
         theaterWorldContainer.style.transform = `scale(1)`;
         theaterBackgroundViewport.scrollLeft = 0;
         theaterBackgroundViewport.scrollTop = 0;
@@ -387,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTheaterMode(state) {
         const currentScenarioState = state.scenarioStates?.[state.currentScenario];
         const dataToRender = isGm ? currentScenarioState : state.publicState;
+
         if (!dataToRender || !dataToRender.scenario) return;
 
         const scenarioUrl = `images/${dataToRender.scenario}`;
@@ -394,6 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = new Image();
             img.onload = () => {
                 theaterBackgroundImage.src = img.src;
+                // No modo cenário, a imagem de fundo define as dimensões do mundo
                 theaterWorldContainer.style.width = `${img.naturalWidth}px`;
                 theaterWorldContainer.style.height = `${img.naturalHeight}px`;
                 if (isGm) socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
@@ -419,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.src = tokenData.img;
             tokenEl.style.left = `${tokenData.x}px`;
             tokenEl.style.top = `${tokenData.y}px`;
-            tokenEl.style.zIndex = tokenData.y;
+            tokenEl.style.zIndex = Math.round(tokenData.y); // Usa Y para z-index
             tokenEl.dataset.scale = tokenData.scale || 1.0;
             tokenEl.dataset.flipped = String(!!tokenData.isFlipped);
             tokenEl.title = tokenData.charName;
@@ -440,10 +443,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function screenToWorldCoords(e) {
-        const rect = theaterWorldContainer.getBoundingClientRect();
+        const gameScale = (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a;
+        const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
+        const scrollLeft = theaterBackgroundViewport.scrollLeft;
+        const scrollTop = theaterBackgroundViewport.scrollTop;
+
         return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
+            x: (e.clientX - viewportRect.left) / (gameScale * localWorldScale) + scrollLeft / localWorldScale,
+            y: (e.clientY - viewportRect.top) / (gameScale * localWorldScale) + scrollTop / localWorldScale
         };
     };
 
@@ -452,10 +459,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isGm || e.button !== 0) return;
             
             const tokenElement = e.target.closest('.theater-token');
-            isDragging = true;
             dragStartPos = { x: e.clientX, y: e.clientY };
 
             if (tokenElement) {
+                isDragging = true;
                 if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) {
                     selectedTokens.clear();
                 }
@@ -467,9 +474,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 dragOffsets.clear();
                 selectedTokens.forEach(id => {
-                    const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
-                    if(tokenData) {
-                        dragOffsets.set(id, { x: dragStartPos.x - tokenData.x, y: dragStartPos.y - tokenData.y });
+                    const el = document.getElementById(id);
+                    if (el) {
+                       dragOffsets.set(id, { x: dragStartPos.x - el.offsetLeft, y: dragStartPos.y - el.offsetTop });
                     }
                 });
                 renderTheaterMode(currentGameState);
@@ -480,13 +487,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isGm || !isDragging) return;
             e.preventDefault();
             
-            selectedTokens.forEach(id => {
-                const tokenEl = document.getElementById(id);
-                const offset = dragOffsets.get(id);
-                if (tokenEl && offset) {
-                    tokenEl.style.left = `${e.clientX - offset.x}px`;
-                    tokenEl.style.top = `${e.clientY - offset.y}px`;
-                }
+            // CORRIGIDO: Bug do "ghosting"
+            requestAnimationFrame(() => {
+                selectedTokens.forEach(id => {
+                    const tokenEl = document.getElementById(id);
+                    const offset = dragOffsets.get(id);
+                    if (tokenEl && offset) {
+                        tokenEl.style.left = `${e.clientX - offset.x}px`;
+                        tokenEl.style.top = `${e.clientY - offset.y}px`;
+                    }
+                });
             });
         });
 
@@ -516,19 +526,27 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterBackgroundViewport.addEventListener('dragover', (e) => e.preventDefault());
 
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
-            if (!isGm) return;
-            const targetTokenId = hoveredTokenId; // Use hovered token
-            if (targetTokenId && selectedTokens.has(targetTokenId)) {
-                e.preventDefault();
-                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[targetTokenId];
-                if (tokenData) {
-                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.1 : 0.1);
-                    // Aplica a todos os selecionados
-                    selectedTokens.forEach(id => {
-                        socket.emit('playerAction', { type: 'updateToken', token: { id: id, scale: Math.max(0.1, newScale) }});
-                    });
-                }
-            }
+             // CORRIGIDO: Zoom do mapa local
+            e.preventDefault();
+            
+            const zoomIntensity = 0.1;
+            const scroll = e.deltaY < 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+            const newScale = Math.max(0.2, Math.min(localWorldScale * scroll, 5));
+
+            const rect = theaterBackgroundViewport.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const mousePointTo = {
+                x: (mouseX + theaterBackgroundViewport.scrollLeft) / localWorldScale,
+                y: (mouseY + theaterBackgroundViewport.scrollTop) / localWorldScale,
+            };
+
+            localWorldScale = newScale;
+            theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
+            
+            theaterBackgroundViewport.scrollLeft = mousePointTo.x * localWorldScale - mouseX;
+            theaterBackgroundViewport.scrollTop = mousePointTo.y * localWorldScale - mouseY;
         }, { passive: false });
 
         theaterGlobalScale.addEventListener('input', (e) => {
@@ -575,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             content += `<div class="scenarios-grid ${index === 0 ? 'active' : ''}" id="grid-${cat}">`;
             ALL_SCENARIOS[cat].forEach(scenarioPath => {
                 const scenarioName = scenarioPath.split('/').pop().replace('.png','').replace('.jpg','');
-                content += `<div class="scenario-card" data-path="mapas/${scenarioPath}"><img src="images/mapas/${scenarioPath}" alt="${scenarioName}"><div class="scenario-name">${scenarioName}</div></div>`;
+                content += `<div class="scenario-card" data-path="${scenarioPath}"><img src="images/mapas/${scenarioPath}" alt="${scenarioName}"><div class="scenario-name">${scenarioName}</div></div>`;
             });
             content += '</div>';
         });
@@ -592,7 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.querySelectorAll('.scenario-card').forEach(card => {
             card.addEventListener('click', () => {
-                const scenario = card.dataset.path.replace('mapas/','');
+                const scenario = card.dataset.path;
                 socket.emit('playerAction', { type: 'changeScenario', scenario: scenario });
                 modal.classList.add('hidden');
             });
@@ -678,7 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         showScreen(document.getElementById('player-waiting-screen'));
                         const msgEl = document.getElementById('player-waiting-message');
                         if(msgEl) {
-                            if (myPlayerData?.role === 'player' && myPlayerData?.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
+                            if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
                             else if (myPlayerData?.role === 'spectator') msgEl.innerText = "Aguardando como espectador...";
                             else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
                         }
@@ -715,6 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         document.getElementById('theater-back-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
+        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
         
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();

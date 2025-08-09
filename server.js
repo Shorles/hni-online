@@ -62,7 +62,6 @@ function createNewTheaterState(gmId, initialScenario, lobbyCache) {
         scenarioStates: {}, publicState: {}, lobbyCache: lobbyCache
     };
     const initialScenarioPath = `mapas/${initialScenario}`;
-    // CORRIGIDO: Usa o caminho completo como 'currentScenario' e como chave no 'scenarioStates'
     theaterState.currentScenario = initialScenarioPath;
     theaterState.scenarioStates[initialScenarioPath] = {
         scenario: initialScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {},
@@ -342,8 +341,10 @@ io.on('connection', (socket) => {
                                 if (action.scenario && typeof action.scenario === 'string') {
                                     state.currentScenario = newScenarioPath;
                                     if (!state.scenarioStates[newScenarioPath]) {
-                                        state.scenarioStates[newScenarioPath] = { scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, tokenOrder: [], globalTokenScale: currentScenarioState.globalTokenScale || 1.0, isStaging: true, };
+                                        const oldScenarioState = state.scenarioStates[Object.keys(state.scenarioStates)[0]] || { globalTokenScale: 1.0 };
+                                        state.scenarioStates[newScenarioPath] = { scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, tokenOrder: [], globalTokenScale: oldScenarioState.globalTokenScale, isStaging: true, };
                                     }
+                                    logMessage(state, 'GM está preparando um novo cenário...');
                                 }
                                 break;
                             case 'update_scenario_dims':
@@ -360,10 +361,20 @@ io.on('connection', (socket) => {
                                     currentScenarioState.tokens[tokenData.id] = tokenData;
                                     if (!currentScenarioState.tokenOrder.includes(tokenData.id)) currentScenarioState.tokenOrder.push(tokenData.id);
                                 }
+                                // CORRIGIDO: Se a cena já foi publicada, atualiza o publicState em tempo real.
+                                if (!currentScenarioState.isStaging) {
+                                    state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    state.publicState.isStaging = false;
+                                }
                                 break;
                             case 'updateGlobalScale':
                                 currentScenarioState.isStaging = true; 
                                 currentScenarioState.globalTokenScale = action.scale;
+                                 // CORRIGIDO: Se a cena já foi publicada, atualiza o publicState em tempo real.
+                                if (!currentScenarioState.isStaging) {
+                                    state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    state.publicState.isStaging = false;
+                                }
                                 break;
                             case 'publish_stage':
                                 state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
