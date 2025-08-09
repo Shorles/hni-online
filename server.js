@@ -58,10 +58,12 @@ function createNewAdventureState(gmId, lobbyCache) {
 
 function createNewTheaterState(gmId, initialScenario, lobbyCache) {
     const theaterState = {
-        mode: 'theater', gmId: gmId, log: [{ text: "Modo Cenário iniciado."}], currentScenario: initialScenario,
+        mode: 'theater', gmId: gmId, log: [{ text: "Modo Cenário iniciado."}],
         scenarioStates: {}, publicState: {}, lobbyCache: lobbyCache
     };
     const initialScenarioPath = `mapas/${initialScenario}`;
+    // CORRIGIDO: Usa o caminho completo como 'currentScenario' e como chave no 'scenarioStates'
+    theaterState.currentScenario = initialScenarioPath;
     theaterState.scenarioStates[initialScenarioPath] = {
         scenario: initialScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {},
         tokenOrder: [], globalTokenScale: 1.0, isStaging: true,
