@@ -589,34 +589,45 @@ document.addEventListener('DOMContentLoaded', () => {
         oldGameState = currentGameState;
         currentGameState = gameState;
         
-        // CORREÇÃO DEFINITIVA: A verificação de GM é feita DENTRO da lógica, usando o gameState.
-        const iAmTheGmInThisState = (socket.id === gameState.gmId);
-        
-        if (!gameState.mode || gameState.mode === 'lobby') {
-            if (iAmTheGmInThisState) {
-                showScreen(document.getElementById('gm-initial-lobby'));
-                updateGmLobbyUI(gameState);
-            } else {
-                const myPlayerData = gameState.connectedPlayers?.[socket.id];
-                if (myRole === 'player' && myPlayerData && !myPlayerData.selectedCharacter) {
-                    showScreen(document.getElementById('selection-screen'));
-                    renderPlayerCharacterSelection(gameState.unavailableCharacters);
+        if (!gameState || !gameState.mode) {
+            showScreen(document.getElementById('loading-screen'));
+            return;
+        }
+
+        switch(gameState.mode) {
+            case 'lobby':
+                defeatAnimationPlayed.clear();
+                stagedNpcs = [];
+                const iAmTheGm = (socket.id === gameState.gmId);
+                if (iAmTheGm) {
+                    showScreen(document.getElementById('gm-initial-lobby'));
+                    updateGmLobbyUI(gameState);
                 } else {
-                    showScreen(document.getElementById('player-waiting-screen'));
-                    const msgEl = document.getElementById('player-waiting-message');
-                    if(msgEl) {
-                        if (myRole === 'player' && myPlayerData?.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
-                        else if (myRole === 'spectator') msgEl.innerText = "Aguardando como espectador...";
-                        else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
+                    const myPlayerData = gameState.connectedPlayers?.[socket.id];
+                    if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter) {
+                        showScreen(document.getElementById('selection-screen'));
+                        renderPlayerCharacterSelection(gameState.unavailableCharacters);
+                    } else {
+                        showScreen(document.getElementById('player-waiting-screen'));
+                        const msgEl = document.getElementById('player-waiting-message');
+                        if(msgEl) {
+                            if (myPlayerData?.role === 'player' && myPlayerData?.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
+                            else if (myPlayerData?.role === 'spectator') msgEl.innerText = "Aguardando como espectador...";
+                            else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
+                        }
                     }
                 }
-            }
-        } else if (gameState.mode === 'adventure') {
-            handleAdventureMode(gameState);
-        } else if (gameState.mode === 'theater') {
-            if (isGm && justEnteredTheater) initializeTheaterMode();
-            showScreen(document.getElementById('theater-screen'));
-            renderTheaterMode(gameState);
+                break;
+            case 'adventure':
+                handleAdventureMode(gameState);
+                break;
+            case 'theater':
+                if (isGm && justEnteredTheater) initializeTheaterMode();
+                showScreen(document.getElementById('theater-screen'));
+                renderTheaterMode(gameState);
+                break;
+            default:
+                showScreen(document.getElementById('loading-screen'));
         }
     });
 
