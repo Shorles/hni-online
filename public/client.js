@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedTokens = new Set();
     let hoveredTokenId = null;
     let isDragging = false;
+    let isPanning = false;
     let dragStartPos = { x: 0, y: 0 };
     let dragOffsets = new Map();
     let isGroupSelectMode = false;
@@ -390,6 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTheaterMode(state) {
+        if (isDragging) return; // CORRIGIDO: Impede re-renderização durante o arrastar para evitar "ghosting"
         const currentScenarioState = state.scenarioStates?.[state.currentScenario];
         const dataToRender = isGm ? currentScenarioState : state.publicState;
         if (!dataToRender || !dataToRender.scenario) return;
@@ -444,25 +446,20 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterTokenContainer.appendChild(fragment);
     }
     
-    function screenToWorldCoords(e) {
-        const gameScale = (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a;
-        const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-        const worldX = (e.clientX - viewportRect.left) / gameScale;
-        const worldY = (e.clientY - viewportRect.top) / gameScale;
-        return { x: worldX, y: worldY };
+    function getGameScale() {
+        return (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a;
     }
     
     function setupTheaterEventListeners() {
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             if (!isGm || e.button !== 0) return;
             const tokenElement = e.target.closest('.theater-token');
-            const worldCoords = screenToWorldCoords(e);
-            dragStartPos = worldCoords;
+            dragStartPos = { x: e.clientX, y: e.clientY };
 
             if (isGroupSelectMode && !tokenElement) {
                 isSelectingBox = true;
-                selectionBoxStartPos = { x: worldCoords.x + theaterBackgroundViewport.scrollLeft, y: worldCoords.y + theaterBackgroundViewport.scrollTop };
-                Object.assign(selectionBox.style, { left: `${selectionBoxStartPos.x}px`, top: `${selectionBoxStartPos.y}px`, width: '0px', height: '0px' });
+                selectionBoxStartPos = { x: e.clientX, y: e.clientY };
+                Object.assign(selectionBox.style, { left: `${(e.clientX / getGameScale()) - (theaterBackgroundViewport.getBoundingClientRect().left / getGameScale())}px`, top: `${(e.clientY / getGameScale()) - (theaterBackgroundViewport.getBoundingClientRect().top / getGameScale())}px`, width: '0px', height: '0px' });
                 selectionBox.classList.remove('hidden');
                 return;
             }
@@ -477,60 +474,72 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     selectedTokens.add(tokenElement.id);
                 }
-                renderTheaterMode(currentGameState);
                 
                 dragOffsets.clear();
                 selectedTokens.forEach(id => {
-                    const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
-                    if(tokenData) {
-                        dragOffsets.set(id, { x: dragStartPos.x - tokenData.x, y: dragStartPos.y - tokenData.y });
+                    const el = document.getElementById(id);
+                    if (el) {
+                       dragOffsets.set(id, { x: dragStartPos.x - el.getBoundingClientRect().left, y: dragStartPos.y - el.getBoundingClientRect().top });
                     }
                 });
-            } else {
-                if (selectedTokens.size > 0) {
+                renderTheaterMode(currentGameState);
+            } else if (!isGroupSelectMode) {
+                 if (selectedTokens.size > 0) {
                     selectedTokens.clear();
                     renderTheaterMode(currentGameState);
                 }
+                isPanning = true;
             }
         });
 
         window.addEventListener('mousemove', (e) => {
             if (!isGm) return;
-            e.preventDefault();
-            const worldCoords = screenToWorldCoords(e);
-
             if (isDragging) {
+                e.preventDefault();
                 requestAnimationFrame(() => {
                     selectedTokens.forEach(id => {
                         const tokenEl = document.getElementById(id);
                         const offset = dragOffsets.get(id);
                         if (tokenEl && offset) {
-                            tokenEl.style.left = `${worldCoords.x - offset.x}px`;
-                            tokenEl.style.top = `${worldCoords.y - offset.y}px`;
+                            const newLeft = (e.clientX - offset.x) / getGameScale() / localWorldScale;
+                            const newTop = (e.clientY - offset.y) / getGameScale() / localWorldScale;
+                            tokenEl.style.left = `${newLeft}px`;
+                            tokenEl.style.top = `${newTop}px`;
                         }
                     });
                 });
             } else if (isSelectingBox) {
-                const currentX = worldCoords.x + theaterBackgroundViewport.scrollLeft;
-                const currentY = worldCoords.y + theaterBackgroundViewport.scrollTop;
-                const left = Math.min(currentX, selectionBoxStartPos.x);
-                const top = Math.min(currentY, selectionBoxStartPos.y);
-                const width = Math.abs(currentX - selectionBoxStartPos.x);
-                const height = Math.abs(currentY - selectionBoxStartPos.y);
+                 e.preventDefault();
+                const gameScale = getGameScale();
+                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
+                const currentX = (e.clientX - viewportRect.left) / gameScale;
+                const currentY = (e.clientY - viewportRect.top) / gameScale;
+                const startX = (selectionBoxStartPos.x - viewportRect.left) / gameScale;
+                const startY = (selectionBoxStartPos.y - viewportRect.top) / gameScale;
+
+                const left = Math.min(currentX, startX);
+                const top = Math.min(currentY, startY);
+                const width = Math.abs(currentX - startX);
+                const height = Math.abs(currentY - startY);
                 Object.assign(selectionBox.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+            } else if (isPanning) {
+                 e.preventDefault();
+                 theaterBackgroundViewport.scrollLeft -= e.movementX;
+                 theaterBackgroundViewport.scrollTop -= e.movementY;
             }
         });
 
         window.addEventListener('mouseup', (e) => {
             if (!isGm) return;
-            const worldCoords = screenToWorldCoords(e);
-            
             if (isDragging) {
                 isDragging = false;
+                const gameScale = getGameScale();
                 selectedTokens.forEach(id => {
                     const offset = dragOffsets.get(id);
                     if(offset) {
-                        socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: worldCoords.x - offset.x, y: worldCoords.y - offset.y } });
+                        const finalX = ((e.clientX - offset.x) / gameScale / localWorldScale) + theaterBackgroundViewport.scrollLeft / localWorldScale;
+                        const finalY = ((e.clientY - offset.y) / gameScale / localWorldScale) + theaterBackgroundViewport.scrollTop / localWorldScale;
+                        socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: finalX, y: finalY } });
                     }
                 });
             } else if (isSelectingBox) {
@@ -542,11 +551,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.theater-token').forEach(token => {
                     const tokenRect = token.getBoundingClientRect();
                     if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
-                         selectedTokens.add(token.id);
+                         if (e.ctrlKey && selectedTokens.has(token.id)) {
+                             selectedTokens.delete(token.id);
+                         } else {
+                             selectedTokens.add(token.id);
+                         }
                     }
                 });
                 renderTheaterMode(currentGameState);
             }
+            isPanning = false;
         });
 
         theaterBackgroundViewport.addEventListener('drop', (e) => {
@@ -554,9 +568,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isGm) return;
             try {
                 const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                const coords = screenToWorldCoords(e);
                 const tokenWidth = 200;
-                socket.emit('playerAction', { type: 'updateToken', token: { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: coords.x - (tokenWidth / 2) + theaterBackgroundViewport.scrollLeft, y: coords.y - (tokenWidth / 2) + theaterBackgroundViewport.scrollTop, scale: 1.0, isFlipped: false }});
+                const gameScale = getGameScale();
+                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
+                const finalX = ((e.clientX - viewportRect.left) / gameScale / localWorldScale) + theaterBackgroundViewport.scrollLeft / localWorldScale - (tokenWidth / 2);
+                const finalY = ((e.clientY - viewportRect.top) / gameScale / localWorldScale) + theaterBackgroundViewport.scrollTop / localWorldScale - (tokenWidth / 2);
+                socket.emit('playerAction', { type: 'updateToken', token: { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: finalX, y: finalY, scale: 1.0, isFlipped: false }});
             } catch (error) { console.error("Drop error:", error); }
         });
 
@@ -565,9 +582,8 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
             if (!isGm) return;
             e.preventDefault();
-            const targetTokenId = hoveredTokenId;
-            if (targetTokenId && selectedTokens.has(targetTokenId)) {
-                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[targetTokenId];
+            if (hoveredTokenId && selectedTokens.has(hoveredTokenId)) {
+                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[hoveredTokenId];
                 if (tokenData) {
                     const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.1 : 0.1);
                     selectedTokens.forEach(id => {
@@ -575,20 +591,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             } else {
-                 const zoomIntensity = 0.1;
-                const scroll = e.deltaY < 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
-                const newScale = Math.max(0.2, Math.min(localWorldScale * scroll, 5));
+                const zoomIntensity = 0.1;
+                const scrollDirection = e.deltaY < 0 ? 1 : -1;
+                const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
+                
                 const rect = theaterBackgroundViewport.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
+
+                const worldX = (mouseX + theaterBackgroundViewport.scrollLeft) / localWorldScale;
+                const worldY = (mouseY + theaterBackgroundViewport.scrollTop) / localWorldScale;
                 
-                theaterWorldContainer.style.transformOrigin = `${mouseX + theaterBackgroundViewport.scrollLeft}px ${mouseY + theaterBackgroundViewport.scrollTop}px`;
                 localWorldScale = newScale;
                 theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
+                
+                theaterBackgroundViewport.scrollLeft = worldX * localWorldScale - mouseX;
+                theaterBackgroundViewport.scrollTop = worldY * localWorldScale - mouseY;
             }
         }, { passive: false });
 
-        theaterGlobalScale.addEventListener('input', (e) => {
+        theaterGlobalScale.addEventListener('change', (e) => { // Use 'change' to only fire when user is done
              if (!isGm) return;
              socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
         });
