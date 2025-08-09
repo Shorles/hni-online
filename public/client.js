@@ -598,8 +598,8 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'lobby':
                 defeatAnimationPlayed.clear();
                 stagedNpcs = [];
-                const iAmTheGm = (socket.id === gameState.gmId);
-                if (iAmTheGm) {
+                // CORREÇÃO FINAL: Esta lógica robusta resolve a tela travada
+                if (socket.id === gameState.gmId) {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
                 } else {
