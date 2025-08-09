@@ -165,9 +165,19 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 #initiative-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 11; }
 .initiative-btn { padding: 15px 30px; font-size: 1.5em; font-weight: bold; cursor: pointer; border: 3px solid #ffeb3b; border-radius: 10px; background-color: rgba(0,0,0,0.7); color: #ffeb3b; text-shadow: 1px 1px 2px black; }
 .initiative-btn:disabled { background-color: rgba(100,100,100,0.7); color: #888; border-color: #888; cursor: not-allowed; }
-.npc-char-container.targetable, .player-char-container.targetable { cursor: crosshair; }
-.npc-char-container.is-targeting, .player-char-container.is-targeting { filter: drop-shadow(0px 0px 15px red); }
-.target-hover { filter: drop-shadow(0px 0px 20px #ffffff) !important; transform: scale(1.1); transition: transform 0.2s ease, filter 0.2s ease; }
+
+.char-container.targetable { cursor: crosshair; }
+.char-container.is-targeting {
+    outline: 3px solid red;
+    box-shadow: 0 0 20px red;
+    border-radius: 15px; /* Adiciona um raio para o outline parecer melhor */
+}
+.char-container.targetable.target-hover { 
+    filter: drop-shadow(0px 0px 20px #ffffff) !important; 
+    transform: scale(1.1); 
+    transition: transform 0.2s ease, filter 0.2s ease; 
+}
+
 #targeting-indicator { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); background-color: rgba(220, 53, 69, 0.9); color: white; padding: 10px 25px; border-radius: 8px; font-weight: bold; z-index: 100; pointer-events: none; }
 #coords-display { position: absolute; top: 20px; right: 20px; background-color: rgba(0,0,0,0.8); color: #ffeb3b; padding: 5px 10px; border-radius: 5px; font-family: monospace; font-size: 1em; z-index: 9999; pointer-events: none; }
 

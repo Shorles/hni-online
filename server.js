@@ -47,19 +47,19 @@ function rollD6() { return Math.floor(Math.random() * 6) + 1; }
 
 function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_players', gmId: gmId, connectedPlayers: {}, unavailableCharacters: [], log: [{ text: "Lobby criado. Aguardando jogadores..." }], }; }
 
-function createNewAdventureState() {
+function createNewAdventureState(gmId, lobbyCache) {
     return {
         mode: 'adventure', fighters: { players: {}, npcs: {} }, winner: null, reason: null, currentRound: 1,
         activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
         scenario: 'mapas/cenarios externos/externo (1).png',
-        gmId: null, lobbyCache: null, log: [{ text: "Aguardando jogadores formarem o grupo..." }]
+        gmId: gmId, lobbyCache: lobbyCache, log: [{ text: "Aguardando jogadores formarem o grupo..." }]
     };
 }
 
-function createNewTheaterState(gmId, initialScenario) {
+function createNewTheaterState(gmId, initialScenario, lobbyCache) {
     const theaterState = {
         mode: 'theater', gmId: gmId, log: [{ text: "Modo Cenário iniciado."}], currentScenario: initialScenario,
-        scenarioStates: {}, publicState: {}, lobbyCache: null
+        scenarioStates: {}, publicState: {}, lobbyCache: lobbyCache
     };
     theaterState.scenarioStates[initialScenario] = {
         scenario: initialScenario, scenarioWidth: null, scenarioHeight: null, tokens: {},
@@ -200,43 +200,57 @@ io.on('connection', (socket) => {
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId] || !action || !action.type) return;
+        
         const room = games[roomId];
-        let state = room.state;
+        const state = room.state; // Referência ao estado atual
         const isGm = socket.id === state.gmId;
 
-        // Ações de transição de modo
-        if (isGm) {
-            if (action.type === 'gmStartsTheater') {
-                const lobbyCache = { ...state };
-                room.state = createNewTheaterState(state.gmId, 'mapas/cenarios externos/externo (1).png');
-                room.state.lobbyCache = lobbyCache;
-            } else if (action.type === 'gmStartsAdventure') {
-                const lobbyCache = { ...state };
-                let newState = createNewAdventureState();
-                newState.gmId = state.gmId;
-                newState.lobbyCache = lobbyCache;
-                for (const sId in state.connectedPlayers) {
-                    const playerData = state.connectedPlayers[sId];
-                    if (playerData.selectedCharacter && playerData.role === 'player') {
-                        newState.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img, res: 3, agi: 2 });
-                        io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
+        // Ação global de GM para voltar ao Lobby
+        if (isGm && action.type === 'gmGoesBackToLobby') {
+            if (state.lobbyCache) {
+                room.state = state.lobbyCache;
+                io.to(roomId).emit('gameUpdate', room.state);
+            }
+            return; // Interrompe o processamento aqui
+        }
+
+        // Usar room.state.mode garante que estamos sempre verificando o modo mais atual
+        switch (room.state.mode) {
+            case 'lobby':
+                if (isGm) {
+                    if (action.type === 'gmStartsAdventure') {
+                        const lobbyCache = JSON.parse(JSON.stringify(state)); // Deep copy
+                        const newState = createNewAdventureState(state.gmId, lobbyCache);
+                        for (const sId in state.connectedPlayers) {
+                            const playerData = state.connectedPlayers[sId];
+                            if (playerData.selectedCharacter && playerData.role === 'player') {
+                                newState.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img, res: 3, agi: 2 });
+                                io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
+                            }
+                        }
+                        room.state = newState;
+                    } else if (action.type === 'gmStartsTheater') {
+                        const lobbyCache = JSON.parse(JSON.stringify(state)); // Deep copy
+                        room.state = createNewTheaterState(state.gmId, 'mapas/cenarios externos/externo (1).png', lobbyCache);
                     }
                 }
-                room.state = newState;
-            } else if (action.type === 'gmGoesBackToLobby') {
-                if (state.lobbyCache) room.state = state.lobbyCache;
-            }
-        }
-        
-        switch (state.mode) {
-            case 'lobby':
+
                 if (action.type === 'playerSelectsCharacter' && state.connectedPlayers[socket.id]) {
-                    if (state.unavailableCharacters.includes(action.character.nome)) { socket.emit('characterUnavailable', action.character.nome); return; }
+                    if (state.unavailableCharacters.includes(action.character.nome)) {
+                        socket.emit('characterUnavailable', action.character.nome);
+                        return; // Não envia gameUpdate
+                    }
+                    // Des-seleciona o antigo se houver
+                    const currentPlayer = state.connectedPlayers[socket.id];
+                    if(currentPlayer.selectedCharacter){
+                        state.unavailableCharacters = state.unavailableCharacters.filter(c => c !== currentPlayer.selectedCharacter.nome);
+                    }
                     state.unavailableCharacters.push(action.character.nome);
-                    state.connectedPlayers[socket.id].selectedCharacter = action.character;
+                    currentPlayer.selectedCharacter = action.character;
                     logMessage(state, `Jogador selecionou ${action.character.nome}.`);
                 }
                 break;
+
             case 'adventure':
                 if (isGm) {
                     switch (action.type) {
@@ -305,6 +319,7 @@ io.on('connection', (socket) => {
                         break;
                 }
                 break;
+
             case 'theater':
                  if (isGm) {
                      const currentScenarioState = state.scenarioStates[state.currentScenario];
@@ -351,7 +366,46 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('gameUpdate', room.state);
     });
 
-    socket.on('disconnect', () => { /* ...código original sem alterações... */ });
+    socket.on('disconnect', () => {
+        const roomId = socket.currentRoomId;
+        if (roomId && games[roomId]) {
+            const room = games[roomId];
+            const playerInfo = room.state.connectedPlayers ? room.state.connectedPlayers[socket.id] : null;
+
+            if (playerInfo) {
+                // Se era o GM, o jogo acaba (simplificação)
+                if (socket.id === room.state.gmId) {
+                    io.to(roomId).emit('error', { message: 'O Mestre desconectou. O jogo foi encerrado.' });
+                    delete games[roomId];
+                    return;
+                }
+
+                // Libera o personagem selecionado
+                if (playerInfo.selectedCharacter) {
+                    room.state.unavailableCharacters = room.state.unavailableCharacters.filter(
+                        name => name !== playerInfo.selectedCharacter.nome
+                    );
+                }
+                
+                logMessage(room.state, `Um ${playerInfo.role} desconectou-se.`);
+                delete room.sockets[socket.id];
+                delete room.state.connectedPlayers[socket.id];
+
+                // Se era um jogador no meio de uma aventura, marca como 'desconectado'
+                if(room.state.mode === 'adventure' && room.state.fighters.players[socket.id]){
+                    room.state.fighters.players[socket.id].status = 'disconnected';
+                    logMessage(room.state, `${room.state.fighters.players[socket.id].nome} desconectou e foi removido da batalha.`);
+                    // Se for o turno dele, avança
+                    if(room.state.activeCharacterKey === socket.id && !room.state.winner){
+                        advanceTurn(room.state);
+                    }
+                    checkGameOver(room.state);
+                }
+
+                io.to(roomId).emit('gameUpdate', room.state);
+            }
+        }
+    });
 });
 
 const PORT = process.env.PORT || 3000;
