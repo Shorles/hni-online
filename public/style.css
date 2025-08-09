@@ -44,7 +44,7 @@ body {
     justify-content: normal;
     align-items: normal;
     position: relative;
-    background: transparent; /* CORREÇÃO: Usa o fundo do wrapper */
+    background-color: #222; /* Fundo de emergência */
 }
 #fight-screen.active, #theater-screen.active {
     display: block;
@@ -53,8 +53,11 @@ body {
 h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bottom: 20px; }
 .gm-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; width: 90%; max-width: 1100px; }
 .gm-links-container > div {
-    background-color: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 8px;
-    flex: 1; min-width: 400px;
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 8px;
+    flex: 1; 
+    min-width: 400px;
 }
 .share-link { background-color: #fff; color: #000; padding: 10px 20px; font-family: monospace; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 10px; border: 2px dashed #ffeb3b; display: inline-block; word-break: break-all; }
 #gm-lobby-status-container { background-color: rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 15px; width: 90%; max-width: 1100px; max-height: 180px; overflow-y: auto; }
@@ -182,6 +185,3 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .scenario-card:hover { border-color: #ffeb3b; }
 .scenario-card img { width: 100%; height: 100px; object-fit: cover; }
 .scenario-card .scenario-name { font-size: 0.9em; padding: 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* RESPONSIVIDADE (com Modo Cenário) */
-@media screen and (max-width: 800px) { /* ...código sem alterações... */ }

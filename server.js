@@ -52,7 +52,7 @@ function createNewAdventureState() {
         mode: 'adventure', fighters: { players: {}, npcs: {} }, winner: null, reason: null, currentRound: 1,
         activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
         scenario: 'mapas/cenarios externos/externo (1).png',
-        gmId: null, lobbyCache: null
+        gmId: null, lobbyCache: null, log: [{ text: "Aguardando jogadores formarem o grupo..." }]
     };
 }
 
@@ -76,16 +76,15 @@ function createNewFighterState(data) {
     const agi = parseInt(data.agi, 10) || 1;
     return {
         id: data.id,
-        nome: data.nome || data.name, // CORREÇÃO: Aceita 'name' ou 'nome'
+        nome: data.nome || data.name,
         img: data.img, agi: agi, res: res, hpMax: res * 5, hp: res * 5, status: 'active'
     };
 }
 
 function logMessage(state, text, type = 'info') {
-    if (state && state.log) {
-        state.log.unshift({ text, type, time: new Date().toLocaleTimeString() });
-        if (state.log.length > 100) state.log.pop();
-    }
+    if (!state.log) state.log = [];
+    state.log.unshift({ text, type, time: new Date().toLocaleTimeString() });
+    if (state.log.length > 100) state.log.pop();
 }
 
 // --- Funções de Lógica de Jogo (Modo Aventura) ---
@@ -172,9 +171,31 @@ function startBattle(state) {
 
 // --- Conexão Socket.IO ---
 io.on('connection', (socket) => {
-    socket.on('gmCreatesLobby', () => { /* ...código sem alterações... */ });
-    socket.emit('initialData', { /* ...código sem alterações... */ });
-    socket.on('playerJoinsLobby', ({ roomId, role }) => { /* ...código sem alterações... */ });
+    socket.on('gmCreatesLobby', () => {
+        const roomId = uuidv4();
+        socket.join(roomId);
+        socket.currentRoomId = roomId;
+        games[roomId] = { state: createNewLobbyState(socket.id), sockets: { [socket.id]: { role: 'gm' } } };
+        socket.emit('assignRole', { isGm: true, role: 'gm' });
+        socket.emit('roomCreated', roomId);
+        io.to(roomId).emit('gameUpdate', games[roomId].state);
+    });
+
+    socket.emit('initialData', { characters: { players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), npcs: Object.keys(ALL_NPCS).map(name => ({ name, img: `images/lutadores/${name}.png` })), dynamic: DYNAMIC_CHARACTERS }, scenarios: ALL_SCENARIOS });
+
+    socket.on('playerJoinsLobby', ({ roomId, role }) => {
+        if (!games[roomId]) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
+        if (Object.values(games[roomId].state.connectedPlayers).filter(p => p.role === 'player').length >= MAX_PLAYERS && role === 'player') {
+             socket.emit('error', { message: 'A sala está cheia.' }); return;
+        }
+        socket.join(roomId);
+        socket.currentRoomId = roomId;
+        games[roomId].sockets[socket.id] = { role: role };
+        games[roomId].state.connectedPlayers[socket.id] = { role: role, selectedCharacter: null };
+        logMessage(games[roomId].state, `Um ${role} conectou-se.`);
+        socket.emit('assignRole', { role: role });
+        io.to(roomId).emit('gameUpdate', games[roomId].state);
+    });
 
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
@@ -183,14 +204,56 @@ io.on('connection', (socket) => {
         let state = room.state;
         const isGm = socket.id === state.gmId;
 
-        if (isGm) { /* ...código de transição de modo sem alterações... */ }
+        // Ações de transição de modo
+        if (isGm) {
+            if (action.type === 'gmStartsTheater') {
+                const lobbyCache = { ...state };
+                room.state = createNewTheaterState(state.gmId, 'mapas/cenarios externos/externo (1).png');
+                room.state.lobbyCache = lobbyCache;
+            } else if (action.type === 'gmStartsAdventure') {
+                const lobbyCache = { ...state };
+                let newState = createNewAdventureState();
+                newState.gmId = state.gmId;
+                newState.lobbyCache = lobbyCache;
+                for (const sId in state.connectedPlayers) {
+                    const playerData = state.connectedPlayers[sId];
+                    if (playerData.selectedCharacter && playerData.role === 'player') {
+                        newState.fighters.players[sId] = createNewFighterState({ id: sId, nome: playerData.selectedCharacter.nome, img: playerData.selectedCharacter.img, res: 3, agi: 2 });
+                        io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
+                    }
+                }
+                room.state = newState;
+            } else if (action.type === 'gmGoesBackToLobby') {
+                if (state.lobbyCache) room.state = state.lobbyCache;
+            }
+        }
         
         switch (state.mode) {
-            case 'lobby': /* ...código sem alterações... */ break;
+            case 'lobby':
+                if (action.type === 'playerSelectsCharacter' && state.connectedPlayers[socket.id]) {
+                    if (state.unavailableCharacters.includes(action.character.nome)) { socket.emit('characterUnavailable', action.character.nome); return; }
+                    state.unavailableCharacters.push(action.character.nome);
+                    state.connectedPlayers[socket.id].selectedCharacter = action.character;
+                    logMessage(state, `Jogador selecionou ${action.character.nome}.`);
+                }
+                break;
             case 'adventure':
                 if (isGm) {
                     switch (action.type) {
-                        case 'gmConfirmParty': /* ...código sem alterações... */ break;
+                        case 'gmConfirmParty':
+                            if (state.phase === 'party_setup') {
+                                action.playerStats.forEach(pStat => {
+                                    if (state.fighters.players[pStat.id]) {
+                                       const player = state.fighters.players[pStat.id];
+                                       player.agi = parseInt(pStat.agi, 10) || 1;
+                                       player.res = Math.max(1, parseInt(pStat.res, 10) || 1);
+                                       player.hpMax = player.res * 5; player.hp = player.hpMax;
+                                    }
+                                });
+                                state.phase = 'npc_setup';
+                                logMessage(state, `Grupo confirmado! GM está preparando os inimigos...`);
+                            }
+                            break;
                         case 'gmStartBattle':
                             if (state.phase === 'npc_setup' && action.npcs && action.npcs.length > 0) {
                                 action.npcs.forEach(npcData => {
@@ -224,7 +287,7 @@ io.on('connection', (socket) => {
                            }
                            
                            const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
-                           const allRolled = allFighters.every(f => state.initiativeRolls[f.id]);
+                           const allRolled = allFighters.every(f => f.status === 'active' ? state.initiativeRolls[f.id] : true);
                            if (allRolled) {
                                startBattle(state);
                            }
@@ -243,14 +306,52 @@ io.on('connection', (socket) => {
                 }
                 break;
             case 'theater':
-                 if (isGm) { /* ...código do modo cenário sem alterações... */ }
+                 if (isGm) {
+                     const currentScenarioState = state.scenarioStates[state.currentScenario];
+                     if(currentScenarioState) {
+                        switch (action.type) {
+                            case 'changeScenario':
+                                if (action.scenario && typeof action.scenario === 'string') {
+                                    state.currentScenario = action.scenario;
+                                    if (!state.scenarioStates[action.scenario]) {
+                                        state.scenarioStates[action.scenario] = { scenario: action.scenario, scenarioWidth: null, scenarioHeight: null, tokens: {}, tokenOrder: [], globalTokenScale: currentScenarioState.globalTokenScale || 1.0, isStaging: true, };
+                                    }
+                                }
+                                break;
+                            case 'update_scenario_dims':
+                                currentScenarioState.scenarioWidth = action.width; currentScenarioState.scenarioHeight = action.height;
+                                break;
+                            case 'updateToken':
+                                currentScenarioState.isStaging = true;
+                                const tokenData = action.token;
+                                if (tokenData.remove && tokenData.ids) {
+                                    tokenData.ids.forEach(id => { delete currentScenarioState.tokens[id]; currentScenarioState.tokenOrder = currentScenarioState.tokenOrder.filter(i => i !== id); });
+                                } else if (currentScenarioState.tokens[tokenData.id]) {
+                                    Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
+                                } else {
+                                    currentScenarioState.tokens[tokenData.id] = tokenData;
+                                    if (!currentScenarioState.tokenOrder.includes(tokenData.id)) currentScenarioState.tokenOrder.push(tokenData.id);
+                                }
+                                break;
+                            case 'updateGlobalScale':
+                                currentScenarioState.isStaging = true; currentScenarioState.globalTokenScale = action.scale;
+                                break;
+                            case 'publish_stage':
+                                state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                state.publicState.isStaging = false;
+                                currentScenarioState.isStaging = false;
+                                logMessage(state, 'Cena publicada para os jogadores.');
+                                break;
+                        }
+                     }
+                 }
                 break;
         }
 
         io.to(roomId).emit('gameUpdate', room.state);
     });
 
-    socket.on('disconnect', () => { /* ...código sem alterações... */ });
+    socket.on('disconnect', () => { /* ...código original sem alterações... */ });
 });
 
 const PORT = process.env.PORT || 3000;

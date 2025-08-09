@@ -598,7 +598,6 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'lobby':
                 defeatAnimationPlayed.clear();
                 stagedNpcs = [];
-                // CORREÇÃO FINAL: Esta lógica robusta resolve a tela travada
                 if (socket.id === gameState.gmId) {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
