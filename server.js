@@ -68,7 +68,7 @@ function createNewTheaterState(gmId, initialScenario, lobbyCache) {
         tokenOrder: [], globalTokenScale: 1.0, isStaging: true,
     };
     theaterState.publicState = {
-        scenario: initialScenarioPath, tokens: {}, tokenOrder: [], globalTokenScale: 1.0
+        scenario: initialScenarioPath, tokens: {}, tokenOrder: [], globalTokenScale: 1.0, isStaging: true,
     };
     return theaterState;
 }
@@ -262,6 +262,7 @@ io.on('connection', (socket) => {
                 break;
 
             case 'adventure':
+                // Nenhuma mudança no modo aventura
                 if (isGm) {
                     switch (action.type) {
                         case 'gmConfirmParty':
@@ -341,46 +342,51 @@ io.on('connection', (socket) => {
                                 if (action.scenario && typeof action.scenario === 'string') {
                                     state.currentScenario = newScenarioPath;
                                     if (!state.scenarioStates[newScenarioPath]) {
-                                        const oldScenarioState = state.scenarioStates[Object.keys(state.scenarioStates)[0]] || { globalTokenScale: 1.0 };
-                                        state.scenarioStates[newScenarioPath] = { scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, tokenOrder: [], globalTokenScale: oldScenarioState.globalTokenScale, isStaging: true, };
+                                        state.scenarioStates[newScenarioPath] = { 
+                                            scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, 
+                                            tokenOrder: [], globalTokenScale: 1.0, isStaging: true 
+                                        };
                                     }
                                     logMessage(state, 'GM está preparando um novo cenário...');
                                 }
                                 break;
                             case 'update_scenario_dims':
-                                currentScenarioState.scenarioWidth = action.width; currentScenarioState.scenarioHeight = action.height;
+                                currentScenarioState.scenarioWidth = action.width; 
+                                currentScenarioState.scenarioHeight = action.height;
                                 break;
                             case 'updateToken':
-                                currentScenarioState.isStaging = true;
                                 const tokenData = action.token;
                                 if (tokenData.remove && tokenData.ids) {
-                                    tokenData.ids.forEach(id => { delete currentScenarioState.tokens[id]; currentScenarioState.tokenOrder = currentScenarioState.tokenOrder.filter(i => i !== id); });
+                                    tokenData.ids.forEach(id => { 
+                                        delete currentScenarioState.tokens[id]; 
+                                        currentScenarioState.tokenOrder = currentScenarioState.tokenOrder.filter(i => i !== id); 
+                                    });
                                 } else if (currentScenarioState.tokens[tokenData.id]) {
                                     Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
                                 } else {
                                     currentScenarioState.tokens[tokenData.id] = tokenData;
-                                    if (!currentScenarioState.tokenOrder.includes(tokenData.id)) currentScenarioState.tokenOrder.push(tokenData.id);
+                                    if (!currentScenarioState.tokenOrder.includes(tokenData.id)) {
+                                        currentScenarioState.tokenOrder.push(tokenData.id);
+                                    }
                                 }
-                                // CORRIGIDO: Se a cena já foi publicada, atualiza o publicState em tempo real.
                                 if (!currentScenarioState.isStaging) {
                                     state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
                                     state.publicState.isStaging = false;
                                 }
                                 break;
                             case 'updateGlobalScale':
-                                currentScenarioState.isStaging = true; 
                                 currentScenarioState.globalTokenScale = action.scale;
-                                 // CORRIGIDO: Se a cena já foi publicada, atualiza o publicState em tempo real.
                                 if (!currentScenarioState.isStaging) {
-                                    state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    state.publicState.isStaging = false;
+                                    state.publicState.globalTokenScale = action.scale;
                                 }
                                 break;
                             case 'publish_stage':
-                                state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                state.publicState.isStaging = false;
-                                currentScenarioState.isStaging = false;
-                                logMessage(state, 'Cena publicada para os jogadores.');
+                                if (currentScenarioState.isStaging) {
+                                    currentScenarioState.isStaging = false;
+                                    state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    state.publicState.isStaging = false;
+                                    logMessage(state, 'Cena publicada para os jogadores.');
+                                }
                                 break;
                         }
                      }
