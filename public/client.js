@@ -86,21 +86,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DO MODO AVENTURA ---
 
     function handleAdventureMode(gameState) {
+        const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
             switch (gameState.phase) {
                 case 'party_setup': showScreen(document.getElementById('gm-party-setup-screen')); updateGmPartySetupScreen(gameState); break;
                 case 'npc_setup': showScreen(document.getElementById('gm-npc-setup-screen')); if (!oldGameState || oldGameState.phase !== 'npc_setup') { stagedNpcs = []; renderNpcSelectionForGm(); } break;
-                case 'initiative_roll': showScreen(document.getElementById('fight-screen')); updateUI(gameState); renderInitiativeUI(gameState); break;
-                default: showScreen(document.getElementById('fight-screen')); updateUI(gameState);
+                case 'initiative_roll': showScreen(fightScreen); updateUI(gameState); renderInitiativeUI(gameState); break;
+                default: showScreen(fightScreen); updateUI(gameState);
             }
         } else {
             if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
                 showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
             } else if(gameState.phase === 'initiative_roll') {
-                 showScreen(document.getElementById('fight-screen')); updateUI(gameState); renderInitiativeUI(gameState);
+                 showScreen(fightScreen); updateUI(gameState); renderInitiativeUI(gameState);
             } else {
-                showScreen(document.getElementById('fight-screen')); updateUI(gameState);
+                showScreen(fightScreen); updateUI(gameState);
             }
         }
     }
@@ -235,8 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeFighter = state.phase === 'battle' ? getFighter(state, state.activeCharacterKey) : null;
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && activeFighter && !!state.fighters.npcs[activeFighter.id]);
         actionButtonsWrapper.innerHTML = `
-            <button class="action-btn" data-action="attack" ${!canControl ? 'disabled' : ''}>Atacar</button>
-            <button class="end-turn-btn" data-action="end_turn" ${!canControl ? 'disabled' : ''}>Encerrar Turno</button>
+            <button class="action-btn" data-action="attack" ${!canControl || state.winner ? 'disabled' : ''}>Atacar</button>
+            <button class="end-turn-btn" data-action="end_turn" ${!canControl || state.winner ? 'disabled' : ''}>Encerrar Turno</button>
         `;
     }
     
@@ -583,8 +584,10 @@ document.addEventListener('DOMContentLoaded', () => {
         oldGameState = currentGameState;
         currentGameState = gameState;
         
+        const iAmTheGm = (socket.id === gameState.gmId);
+        
         if (!gameState.mode || gameState.mode === 'lobby') {
-            if (isGm) {
+            if (iAmTheGm) {
                 showScreen(document.getElementById('gm-initial-lobby'));
                 updateGmLobbyUI(gameState);
             } else {
