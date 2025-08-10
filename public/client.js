@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let oldGameState = null;
     let defeatAnimationPlayed = new Set();
     const socket = io();
-    let myRoomId = null; // CORREÇÃO: Variável para guardar o ID da sala
+    let myRoomId = null; 
 
     // Dados do Jogo
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
@@ -774,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
         myRole = data.role;
         myPlayerKey = data.playerKey || null;
         isGm = !!data.isGm;
-        myRoomId = data.roomId; // CORREÇÃO: Armazena o ID da sala
+        myRoomId = data.roomId;
     });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
@@ -796,6 +796,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     socket.on('gameUpdate', (gameState) => {
+        // CORREÇÃO: Impede que o update mude a tela de quem ainda está escolhendo o papel.
+        if (document.getElementById('role-selection-screen').classList.contains('active')) {
+            return;
+        }
+
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
         currentGameState = gameState;
