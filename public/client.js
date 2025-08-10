@@ -91,16 +91,32 @@ document.addEventListener('DOMContentLoaded', () => {
         return state.fighters.players[key] || state.fighters.npcs[key];
     }
     
-    // --- LÓGICA DO MODO AVENTURA (INTOCADO) ---
+    // --- LÓGICA DO MODO AVENTURA (RESTAURADA E INTOCADA) ---
     function handleAdventureMode(gameState) {
         const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
             switch (gameState.phase) {
-                case 'party_setup': showScreen(document.getElementById('gm-party-setup-screen')); updateGmPartySetupScreen(gameState); break;
-                case 'npc_setup': showScreen(document.getElementById('gm-npc-setup-screen')); if (!oldGameState || oldGameState.phase !== 'npc_setup') { stagedNpcs = []; renderNpcSelectionForGm(); } break;
-                case 'initiative_roll': showScreen(fightScreen); updateAdventureUI(gameState); renderInitiativeUI(gameState); break;
+                case 'party_setup': 
+                    showScreen(document.getElementById('gm-party-setup-screen')); 
+                    updateGmPartySetupScreen(gameState); 
+                    break;
+                case 'npc_setup': 
+                    showScreen(document.getElementById('gm-npc-setup-screen')); 
+                    if (!oldGameState || oldGameState.phase !== 'npc_setup') { 
+                        stagedNpcs = []; 
+                        renderNpcSelectionForGm(); 
+                    } 
+                    break;
+                case 'initiative_roll': 
+                    showScreen(fightScreen); 
+                    updateAdventureUI(gameState); 
+                    renderInitiativeUI(gameState); 
+                    break;
                 case 'battle':
-                default: showScreen(fightScreen); initiativeUI.classList.add('hidden'); updateAdventureUI(gameState);
+                default: 
+                    showScreen(fightScreen); 
+                    initiativeUI.classList.add('hidden');
+                    updateAdventureUI(gameState);
             }
         } else {
             if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
@@ -264,17 +280,14 @@ document.addEventListener('DOMContentLoaded', () => {
         container.dataset.key = fighter.id;
         Object.assign(container.style, position);
         container.style.zIndex = parseInt(position.top, 10);
-
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
-
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
             defeatAnimationPlayed.add(fighter.id);
             container.classList.add(type === 'player' ? 'animate-defeat-player' : 'animate-defeat-npc');
         } else if (fighter.status === 'down') {
              container.classList.add(type === 'player' ? 'player-defeated-final' : 'npc-defeated-final');
         }
-
         if (fighter.status === 'active') {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
             const activeFighter = getFighter(state, state.activeCharacterKey);
@@ -286,11 +299,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        
         if(container.classList.contains('targetable')) {
             container.addEventListener('click', handleTargetClick);
         }
-
         const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
         container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
@@ -465,11 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 dragOffsets.clear();
-                const gameScale = getGameScale();
                 selectedTokens.forEach(id => {
-                    const el = document.getElementById(id);
                     const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
-                    if (el && tokenData) {
+                    if (tokenData) {
                        dragOffsets.set(id, { 
                            startX: tokenData.x,
                            startY: tokenData.y
@@ -494,7 +503,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const gameScale = getGameScale();
                     const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
                     const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
-
                     selectedTokens.forEach(id => {
                         const tokenEl = document.getElementById(id);
                         const initialPos = dragOffsets.get(id);
@@ -531,7 +539,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const gameScale = getGameScale();
                 const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
                 const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
-
                 selectedTokens.forEach(id => {
                     const initialPos = dragOffsets.get(id);
                     if(initialPos) {
@@ -593,14 +600,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const scrollDirection = e.deltaY < 0 ? 1 : -1;
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
                 const rect = theaterBackgroundViewport.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                const worldX = (mouseX + theaterBackgroundViewport.scrollLeft) / localWorldScale;
-                const worldY = (mouseY + theaterBackgroundViewport.scrollTop) / localWorldScale;
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const worldX = (centerX + theaterBackgroundViewport.scrollLeft) / localWorldScale;
+                const worldY = (centerY + theaterBackgroundViewport.scrollTop) / localWorldScale;
                 localWorldScale = newScale;
                 theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
-                theaterBackgroundViewport.scrollLeft = worldX * localWorldScale - mouseX;
-                theaterBackgroundViewport.scrollTop = worldY * localWorldScale - mouseY;
+                theaterBackgroundViewport.scrollLeft = worldX * localWorldScale - centerX;
+                theaterBackgroundViewport.scrollTop = worldY * localWorldScale - centerY;
             }
         }, { passive: false });
 
