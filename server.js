@@ -54,7 +54,6 @@ function createNewAdventureState(gmId, connectedPlayers) {
         scenario: 'mapas/cenarios externos/externo (1).png',
         gmId: gmId, log: [{ text: "Aguardando jogadores formarem o grupo..." }]
     };
-    // Preenche os jogadores que já selecionaram personagens
     for (const sId in connectedPlayers) {
         const playerData = connectedPlayers[sId];
         if (playerData.selectedCharacter && playerData.role === 'player') {
@@ -158,7 +157,7 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
         if (!state.winner) {
             advanceTurn(state);
         }
-        io.to(roomId).emit('gameUpdate', state);
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     }, 1000);
 }
 
@@ -178,12 +177,19 @@ function startBattle(state) {
     advanceTurn(state);
 }
 
+// CORREÇÃO: Função para sempre enviar o estado completo com a lista de jogadores.
+function getFullState(room) {
+    if (!room) return null;
+    const activeState = room.gameModes[room.activeMode];
+    // Adiciona a lista de jogadores do lobby ao estado que será enviado
+    return { ...activeState, connectedPlayers: room.gameModes.lobby.connectedPlayers };
+}
+
 io.on('connection', (socket) => {
     socket.on('gmCreatesLobby', () => {
         const roomId = uuidv4();
         socket.join(roomId);
         socket.currentRoomId = roomId;
-        // Alteração: Nova estrutura de estado para o jogo
         games[roomId] = {
             sockets: { [socket.id]: { role: 'gm' } },
             activeMode: 'lobby',
@@ -193,9 +199,10 @@ io.on('connection', (socket) => {
                 theater: null
             }
         };
-        socket.emit('assignRole', { isGm: true, role: 'gm' });
+        // CORREÇÃO: Envia o roomId para o GM
+        socket.emit('assignRole', { isGm: true, role: 'gm', roomId: roomId });
         socket.emit('roomCreated', roomId);
-        io.to(roomId).emit('gameUpdate', games[roomId].gameModes.lobby);
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     });
 
     socket.emit('initialData', { characters: { players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), npcs: Object.keys(ALL_NPCS).map(name => ({ name, img: `images/lutadores/${name}.png` })), dynamic: DYNAMIC_CHARACTERS }, scenarios: ALL_SCENARIOS });
@@ -223,8 +230,9 @@ io.on('connection', (socket) => {
         room.sockets[socket.id] = { role: finalRole };
         lobbyState.connectedPlayers[socket.id] = { role: finalRole, selectedCharacter: null };
         logMessage(lobbyState, `Um ${finalRole} conectou-se.`);
-        socket.emit('assignRole', { role: finalRole });
-        io.to(roomId).emit('gameUpdate', room.gameModes[room.activeMode]);
+        // CORREÇÃO: Envia o roomId para o jogador
+        socket.emit('assignRole', { role: finalRole, roomId: roomId });
+        io.to(roomId).emit('gameUpdate', getFullState(room));
     });
 
     socket.on('playerAction', (action) => {
@@ -235,12 +243,11 @@ io.on('connection', (socket) => {
         const isGm = socket.id === room.gameModes.lobby.gmId;
         let activeState = room.gameModes[room.activeMode];
         let shouldUpdate = true;
-
-        // Ações que independem do modo de jogo
+        
         if (isGm) {
             if (action.type === 'gmGoesBackToLobby') {
                 room.activeMode = 'lobby';
-                io.to(roomId).emit('gameUpdate', room.gameModes.lobby);
+                io.to(roomId).emit('gameUpdate', getFullState(room));
                 return;
             }
             if (action.type === 'gmSwitchesMode') {
@@ -253,7 +260,7 @@ io.on('connection', (socket) => {
                      }
                 }
                 room.activeMode = targetMode;
-                io.to(roomId).emit('gameUpdate', room.gameModes[targetMode]);
+                io.to(roomId).emit('gameUpdate', getFullState(room));
                 return;
             }
         }
@@ -266,13 +273,11 @@ io.on('connection', (socket) => {
                             room.gameModes.adventure = createNewAdventureState(activeState.gmId, activeState.connectedPlayers);
                         }
                         room.activeMode = 'adventure';
-                        activeState = room.gameModes.adventure;
                     } else if (action.type === 'gmStartsTheater') {
                          if (!room.gameModes.theater) {
                             room.gameModes.theater = createNewTheaterState(activeState.gmId, 'cenarios externos/externo (1).png');
                         }
                         room.activeMode = 'theater';
-                        activeState = room.gameModes.theater;
                     }
                 }
                 if (action.type === 'playerSelectsCharacter' && activeState.connectedPlayers[socket.id]) {
@@ -423,21 +428,19 @@ io.on('connection', (socket) => {
                 break;
         }
         if (shouldUpdate) {
-            io.to(roomId).emit('gameUpdate', activeState);
+            io.to(roomId).emit('gameUpdate', getFullState(room));
         }
     });
 
     socket.on('disconnect', () => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId]) return;
-
         const room = games[roomId];
         const lobbyState = room.gameModes.lobby;
         if (!lobbyState || !lobbyState.connectedPlayers) {
             console.error(`Estado de lobby inválido no disconnect para a sala: ${roomId}`);
             return;
         }
-        
         const playerInfo = lobbyState.connectedPlayers[socket.id];
         if (playerInfo) {
             logMessage(lobbyState, `Um ${playerInfo.role} desconectou.`);
@@ -445,19 +448,15 @@ io.on('connection', (socket) => {
                 lobbyState.unavailableCharacters = lobbyState.unavailableCharacters.filter(c => c !== playerInfo.selectedCharacter.nome);
             }
         }
-        
         delete room.sockets[socket.id];
         delete lobbyState.connectedPlayers[socket.id];
-
         const adventureState = room.gameModes.adventure;
         if (adventureState && adventureState.fighters.players[socket.id]) {
             adventureState.fighters.players[socket.id].status = 'disconnected';
             logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
             checkGameOver(adventureState);
         }
-
-        io.to(roomId).emit('gameUpdate', room.gameModes[room.activeMode]);
-        
+        io.to(roomId).emit('gameUpdate', getFullState(room));
         if (Object.keys(room.sockets).length === 0) {
             delete games[roomId];
             console.log(`Sala ${roomId} vazia e removida.`);
