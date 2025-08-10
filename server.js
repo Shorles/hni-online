@@ -193,19 +193,41 @@ io.on('connection', (socket) => {
 
     socket.emit('initialData', { characters: { players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), npcs: Object.keys(ALL_NPCS).map(name => ({ name, img: `images/lutadores/${name}.png` })), dynamic: DYNAMIC_CHARACTERS }, scenarios: ALL_SCENARIOS });
 
-    socket.on('playerJoinsLobby', ({ roomId, role }) => {
-        if (!games[roomId]) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
-        if (Object.values(games[roomId].state.connectedPlayers).filter(p => p.role === 'player').length >= MAX_PLAYERS && role === 'player') {
-             socket.emit('error', { message: 'A sala está cheia.' }); return;
+    // Alterado: Novo fluxo de conexão
+    socket.on('playerJoinsLobby', ({ roomId }) => {
+        if (!games[roomId]) { 
+            socket.emit('error', { message: 'Sala não encontrada.' }); 
+            return; 
         }
         socket.join(roomId);
         socket.currentRoomId = roomId;
-        games[roomId].sockets[socket.id] = { role: role };
-        games[roomId].state.connectedPlayers[socket.id] = { role: role, selectedCharacter: null };
-        logMessage(games[roomId].state, `Um ${role} conectou-se.`);
-        socket.emit('assignRole', { role: role });
+
+        const currentPlayers = Object.values(games[roomId].state.connectedPlayers).filter(p => p.role === 'player').length;
+        const isFull = currentPlayers >= MAX_PLAYERS;
+        
+        socket.emit('promptForRole', { isFull: isFull });
+    });
+    
+    // Novo: Evento para o jogador escolher seu papel
+    socket.on('playerChoosesRole', ({ role }) => {
+        const roomId = socket.currentRoomId;
+        if (!roomId || !games[roomId]) return;
+
+        let finalRole = role;
+        const currentPlayers = Object.values(games[roomId].state.connectedPlayers).filter(p => p.role === 'player').length;
+
+        if (finalRole === 'player' && currentPlayers >= MAX_PLAYERS) {
+            finalRole = 'spectator';
+        }
+
+        games[roomId].sockets[socket.id] = { role: finalRole };
+        games[roomId].state.connectedPlayers[socket.id] = { role: finalRole, selectedCharacter: null };
+        logMessage(games[roomId].state, `Um ${finalRole} conectou-se.`);
+        
+        socket.emit('assignRole', { role: finalRole });
         io.to(roomId).emit('gameUpdate', games[roomId].state);
     });
+
 
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
@@ -262,7 +284,6 @@ io.on('connection', (socket) => {
                 break;
 
             case 'adventure':
-                // --- LÓGICA DO MODO AVENTURA RESTAURADA ---
                 const actor = action.actorKey ? getFighter(state, action.actorKey) : null;
                 const canControl = actor && ((isGm && state.fighters.npcs[actor.id]) || (socket.id === actor.id));
 
@@ -285,7 +306,6 @@ io.on('connection', (socket) => {
                     case 'gmStartBattle':
                         if (isGm && state.phase === 'npc_setup' && action.npcs) {
                              if (action.npcs.length === 0) {
-                                // Não fazer nada ou enviar um erro? Por enquanto, apenas ignora.
                                 shouldUpdate = false;
                                 break;
                             }
@@ -375,7 +395,7 @@ io.on('connection', (socket) => {
                                     state.publicState.isStaging = false;
                                 }
                                 break;
-                            case 'updateTokenOrder': // AÇÃO PARA CAMADAS
+                            case 'updateTokenOrder':
                                 if(action.order && Array.isArray(action.order)) {
                                     currentScenarioState.tokenOrder = action.order;
                                     if (!currentScenarioState.isStaging) {
@@ -410,13 +430,11 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const roomId = socket.currentRoomId;
-        // CORREÇÃO: Adicionada verificação robusta para prevenir crash.
         if (!roomId || !games[roomId]) {
             return;
         }
 
         const room = games[roomId];
-        // CORREÇÃO: Garante que o estado e os jogadores conectados existam antes de prosseguir.
         if (!room.state || !room.state.connectedPlayers) {
             console.error(`Estado de sala inválido no disconnect para a sala: ${roomId}`);
             return;
@@ -442,7 +460,6 @@ io.on('connection', (socket) => {
 
         io.to(roomId).emit('gameUpdate', room.state);
         
-        // Se a sala ficar vazia, remove-a.
         if (Object.keys(room.sockets).length === 0) {
             delete games[roomId];
             console.log(`Sala ${roomId} vazia e removida.`);

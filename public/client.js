@@ -272,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         renderActionButtons(state);
-        renderTurnOrderUI(state); // Adicionada chamada para renderizar a barra de turnos
+        renderTurnOrderUI(state); 
     }
     
     function createFighterElement(fighter, type, state, position) {
@@ -358,7 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTurnOrderUI(state) {
-        // Se não for fase de batalha ou iniciativa, esconde a barra
         if (state.phase !== 'battle' && state.phase !== 'initiative_roll') {
             turnOrderSidebar.classList.add('hidden');
             return;
@@ -367,19 +366,16 @@ document.addEventListener('DOMContentLoaded', () => {
         turnOrderSidebar.innerHTML = '';
         turnOrderSidebar.classList.remove('hidden');
 
-        // Cria uma lista de lutadores na ordem do turno atual
         const orderedFighters = state.turnOrder
             .slice(state.turnIndex)
             .concat(state.turnOrder.slice(0, state.turnIndex))
             .map(id => getFighter(state, id))
             .filter(f => f && f.status === 'active');
 
-        // Renderiza cada lutador na barra
         orderedFighters.forEach((fighter, index) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
             
-            // Destaca o primeiro da lista (turno ativo)
             if (index === 0) {
                 card.classList.add('active-turn-indicator');
             }
@@ -753,16 +749,35 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_SCENARIOS = data.scenarios || {};
     });
     socket.on('roomCreated', (roomId) => {
+        // Alterado: Unificado em um único link
         if (isGm) {
             const baseUrl = window.location.origin;
-            const playerLinkEl = document.getElementById('gm-link-player');
-            const spectatorLinkEl = document.getElementById('gm-link-spectator');
-            const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
-            const spectatorUrl = `${baseUrl}?room=${roomId}&role=spectator`;
-            if (playerLinkEl) { playerLinkEl.textContent = playerUrl; playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl); }
-            if (spectatorLinkEl) { spectatorLinkEl.textContent = spectatorUrl; spectatorLinkEl.onclick = () => copyToClipboard(spectatorUrl, spectatorLinkEl); }
+            const inviteLinkEl = document.getElementById('gm-link-invite');
+            const inviteUrl = `${baseUrl}?room=${roomId}`;
+            if (inviteLinkEl) { 
+                inviteLinkEl.textContent = inviteUrl; 
+                inviteLinkEl.onclick = () => copyToClipboard(inviteUrl, inviteLinkEl); 
+            }
         }
     });
+
+    // Novo: Listener para o servidor pedir a escolha do papel
+    socket.on('promptForRole', ({ isFull }) => {
+        const roleSelectionScreen = document.getElementById('role-selection-screen');
+        const joinAsPlayerBtn = document.getElementById('join-as-player-btn');
+        const roomFullMessage = document.getElementById('room-full-message');
+
+        if (isFull) {
+            joinAsPlayerBtn.disabled = true;
+            roomFullMessage.textContent = 'A sala de jogadores está cheia. Você pode entrar como espectador.';
+            roomFullMessage.classList.remove('hidden');
+        } else {
+            joinAsPlayerBtn.disabled = false;
+            roomFullMessage.classList.add('hidden');
+        }
+        showScreen(roleSelectionScreen);
+    });
+
     socket.on('assignRole', (data) => {
         myRole = data.role;
         myPlayerKey = data.playerKey || null;
@@ -802,7 +817,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gameWrapper.style.backgroundImage = 'none';
         }
 
-        turnOrderSidebar.classList.add('hidden'); // Esconde a barra por padrão
+        turnOrderSidebar.classList.add('hidden'); 
 
         switch(gameState.mode) {
             case 'lobby':
@@ -843,13 +858,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
-        const urlRole = urlParams.get('role');
+        
         showScreen(document.getElementById('loading-screen')); 
-        if (urlRoomId && urlRole) {
-            socket.emit('playerJoinsLobby', { roomId: urlRoomId, role: urlRole });
+
+        // Alterado: Novo fluxo de entrada
+        if (urlRoomId) {
+            socket.emit('playerJoinsLobby', { roomId: urlRoomId });
         } else {
             socket.emit('gmCreatesLobby');
         }
+
+        // Novo: Listeners para os botões de escolha de papel
+        document.getElementById('join-as-player-btn').addEventListener('click', () => {
+            socket.emit('playerChoosesRole', { role: 'player' });
+            showScreen(document.getElementById('loading-screen'));
+        });
+        document.getElementById('join-as-spectator-btn').addEventListener('click', () => {
+            socket.emit('playerChoosesRole', { role: 'spectator' });
+            showScreen(document.getElementById('loading-screen'));
+        });
+
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         document.getElementById('theater-back-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));

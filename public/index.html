@@ -19,15 +19,12 @@
     <!-- TELA INICIAL DO LOBBY DO GM -->
     <div id="gm-initial-lobby" class="screen">
         <h1>Lobby do Mestre</h1>
-        <p>Envie os links abaixo para os jogadores e espectadores.</p>
+        <p>Envie o link de convite para os participantes.</p>
         <div class="gm-links-container">
+            <!-- Alteração: Unificado em um único link -->
             <div>
-                <h3>Link do Jogador (Até 4):</h3>
-                <div id="gm-link-player" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-            <div>
-                <h3>Link de Espectador:</h3>
-                <div id="gm-link-spectator" class="share-link" title="Clique para copiar">Gerando...</div>
+                <h3>Link de Convite:</h3>
+                <div id="gm-link-invite" class="share-link" title="Clique para copiar">Gerando...</div>
             </div>
         </div>
         <div id="gm-lobby-status-container">
@@ -40,6 +37,17 @@
         </div>
     </div>
     
+    <!-- TELA DE ESCOLHA DE PAPEL (NOVO) -->
+    <div id="role-selection-screen" class="screen">
+        <h1>Bem-vindo!</h1>
+        <p>Como você deseja entrar na sala?</p>
+        <div class="mode-buttons-container">
+            <button id="join-as-player-btn" class="mode-btn">Jogar</button>
+            <button id="join-as-spectator-btn" class="mode-btn">Assistir</button>
+        </div>
+        <p id="room-full-message" class="hidden" style="margin-top: 20px; color: #ffc107;"></p>
+    </div>
+
     <!-- Tela para o GM confirmar o grupo e definir stats -->
     <div id="gm-party-setup-screen" class="screen">
         <h1>Definir Atributos do Grupo</h1>
@@ -76,7 +84,6 @@
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
         <div id="fight-scene-characters"></div>
-        <!-- Alteração: Removida a classe 'hidden' para que a barra de turnos possa ser estilizada e exibida -->
         <div id="turn-order-sidebar"></div>
         <div id="fight-log-container">
             <h2 id="round-info">ROUND 1</h2>
