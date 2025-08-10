@@ -371,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterWorldContainer.style.transform = `scale(1)`;
         theaterBackgroundViewport.scrollLeft = 0;
         theaterBackgroundViewport.scrollTop = 0;
+
         theaterCharList.innerHTML = '';
         const createMini = (data) => {
             const mini = document.createElement('div');
