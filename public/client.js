@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return state.fighters.players[key] || state.fighters.npcs[key];
     }
     
-    // --- LÓGICA DO MODO AVENTURA ---
+    // --- LÓGICA DO MODO AVENTURA (SEM ALTERAÇÕES) ---
     function handleAdventureMode(gameState) {
         const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
@@ -482,14 +482,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 dragOffsets.clear();
-                const gameScale = getGameScale();
                 selectedTokens.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) {
-                       const rect = el.getBoundingClientRect();
                        dragOffsets.set(id, { 
-                           x: dragStartPos.x - rect.left, 
-                           y: dragStartPos.y - rect.top 
+                           x: dragStartPos.x - el.getBoundingClientRect().left, 
+                           y: dragStartPos.y - el.getBoundingClientRect().top 
                        });
                     }
                 });
@@ -508,14 +506,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDragging) {
                 e.preventDefault();
                 requestAnimationFrame(() => {
+                    const gameScale = getGameScale();
                     selectedTokens.forEach(id => {
                         const tokenEl = document.getElementById(id);
                         const offset = dragOffsets.get(id);
                         if (tokenEl && offset) {
-                            const gameScale = getGameScale();
-                            const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                            const newLeft = (e.clientX - viewportRect.left) / gameScale - (offset.x / gameScale) + theaterBackgroundViewport.scrollLeft;
-                            const newTop = (e.clientY - viewportRect.top) / gameScale - (offset.y / gameScale) + theaterBackgroundViewport.scrollTop;
+                            const newLeft = (e.clientX - offset.x) / gameScale;
+                            const newTop = (e.clientY - offset.y) / gameScale;
                             tokenEl.style.left = `${newLeft}px`;
                             tokenEl.style.top = `${newTop}px`;
                         }
@@ -549,9 +546,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
                 selectedTokens.forEach(id => {
                     const offset = dragOffsets.get(id);
-                    if(offset) {
-                        const finalX = ((e.clientX - viewportRect.left - offset.x) / gameScale + theaterBackgroundViewport.scrollLeft) / localWorldScale;
-                        const finalY = ((e.clientY - viewportRect.top - offset.y) / gameScale + theaterBackgroundViewport.scrollTop) / localWorldScale;
+                    const tokenEl = document.getElementById(id); // Pega o elemento para ter a posição visual final
+                    if(offset && tokenEl) {
+                        // Usa a posição visual do elemento, que é a mais precisa
+                        const finalLeft = tokenEl.offsetLeft;
+                        const finalTop = tokenEl.offsetTop;
+
+                        // Converte a posição visual (que está em pixels da tela) para a posição no "mundo"
+                        const worldX = (finalLeft - theaterBackgroundViewport.scrollLeft) / localWorldScale;
+                        const worldY = (finalTop - theaterBackgroundViewport.scrollTop) / localWorldScale;
+                        
                         socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: finalX, y: finalY } });
                     }
                 });
