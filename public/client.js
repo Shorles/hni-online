@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return state.fighters.players[key] || state.fighters.npcs[key];
     }
     
-    // --- LÓGICA DO MODO AVENTURA (RESTAURADA E INTOCADA) ---
+    // --- LÓGICA DO MODO AVENTURA (INTOCADA) ---
     function handleAdventureMode(gameState) {
         const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelTargeting();
     }
     
-    // --- LÓGICA DO MODO CENÁRIO (REFEITA) ---
+    // --- LÓGICA DO MODO CENÁRIO ---
     function initializeTheaterMode() {
         localWorldScale = 1.0;
         theaterWorldContainer.style.transform = `scale(1)`;
@@ -548,18 +548,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } else if (isSelectingBox) {
+                // --- CORREÇÃO DE LÓGICA ---
+                // Mede a caixa de seleção ANTES de escondê-la.
+                const boxRect = selectionBox.getBoundingClientRect();
+                
                 isSelectingBox = false;
                 selectionBox.classList.add('hidden');
-                if (!e.ctrlKey) selectedTokens.clear();
                 
-                const boxRect = selectionBox.getBoundingClientRect();
+                if (!e.ctrlKey) {
+                    selectedTokens.clear();
+                }
+                
                 document.querySelectorAll('.theater-token').forEach(token => {
                     const tokenRect = token.getBoundingClientRect();
+                    // A verificação de colisão (interseção)
                     if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
                          if (e.ctrlKey && selectedTokens.has(token.id)) {
-                             selectedTokens.delete(token.id);
+                             selectedTokens.delete(token.id); // Desseleciona se já estiver selecionado com Ctrl
                          } else {
-                             selectedTokens.add(token.id);
+                             selectedTokens.add(token.id); // Seleciona
                          }
                     }
                 });
@@ -596,25 +603,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             } else {
-                // --- LÓGICA DE ZOOM CORRIGIDA ---
                 const zoomIntensity = 0.05;
                 const scrollDirection = e.deltaY < 0 ? 1 : -1;
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
                 
                 const rect = theaterBackgroundViewport.getBoundingClientRect();
-                // Posição do mouse relativa à viewport
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
 
-                // Coordenadas do mundo sob o ponteiro do mouse ANTES do zoom
                 const worldX = (mouseX + theaterBackgroundViewport.scrollLeft) / localWorldScale;
                 const worldY = (mouseY + theaterBackgroundViewport.scrollTop) / localWorldScale;
 
-                // Aplica a nova escala
                 localWorldScale = newScale;
                 theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
                 
-                // Calcula a nova posição de scroll para manter o ponto do mundo sob o mouse
                 const newScrollLeft = worldX * localWorldScale - mouseX;
                 const newScrollTop = worldY * localWorldScale - mouseY;
 

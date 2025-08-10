@@ -410,9 +410,18 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const roomId = socket.currentRoomId;
-        if (!roomId || !games[roomId]) return;
+        // CORREÇÃO: Adicionada verificação robusta para prevenir crash.
+        if (!roomId || !games[roomId]) {
+            return;
+        }
 
         const room = games[roomId];
+        // CORREÇÃO: Garante que o estado e os jogadores conectados existam antes de prosseguir.
+        if (!room.state || !room.state.connectedPlayers) {
+            console.error(`Estado de sala inválido no disconnect para a sala: ${roomId}`);
+            return;
+        }
+        
         const playerInfo = room.state.connectedPlayers[socket.id];
         
         if (playerInfo) {
@@ -425,7 +434,7 @@ io.on('connection', (socket) => {
         delete room.sockets[socket.id];
         delete room.state.connectedPlayers[socket.id];
 
-        if (room.state.mode === 'adventure' && room.state.fighters.players[socket.id]) {
+        if (room.state.mode === 'adventure' && room.state.fighters && room.state.fighters.players[socket.id]) {
             room.state.fighters.players[socket.id].status = 'disconnected';
             logMessage(room.state, `${room.state.fighters.players[socket.id].nome} foi desconectado.`);
             checkGameOver(room.state);
@@ -433,8 +442,10 @@ io.on('connection', (socket) => {
 
         io.to(roomId).emit('gameUpdate', room.state);
         
+        // Se a sala ficar vazia, remove-a.
         if (Object.keys(room.sockets).length === 0) {
             delete games[roomId];
+            console.log(`Sala ${roomId} vazia e removida.`);
         }
     });
 });
