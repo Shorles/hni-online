@@ -391,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTheaterMode(state) {
-        if (isDragging) return; // CORRIGIDO: Impede re-renderização durante o arrastar para evitar "ghosting"
+        if (isDragging) return;
         const currentScenarioState = state.scenarioStates?.[state.currentScenario];
         const dataToRender = isGm ? currentScenarioState : state.publicState;
         if (!dataToRender || !dataToRender.scenario) return;
@@ -459,7 +459,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGroupSelectMode && !tokenElement) {
                 isSelectingBox = true;
                 selectionBoxStartPos = { x: e.clientX, y: e.clientY };
-                Object.assign(selectionBox.style, { left: `${(e.clientX / getGameScale()) - (theaterBackgroundViewport.getBoundingClientRect().left / getGameScale())}px`, top: `${(e.clientY / getGameScale()) - (theaterBackgroundViewport.getBoundingClientRect().top / getGameScale())}px`, width: '0px', height: '0px' });
+                const gameScale = getGameScale();
+                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
+                const startX = (e.clientX - viewportRect.left) / gameScale;
+                const startY = (e.clientY - viewportRect.top) / gameScale;
+                Object.assign(selectionBox.style, { left: `${startX}px`, top: `${startY}px`, width: '0px', height: '0px' });
                 selectionBox.classList.remove('hidden');
                 return;
             }
@@ -484,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 renderTheaterMode(currentGameState);
             } else if (!isGroupSelectMode) {
-                 if (selectedTokens.size > 0) {
+                if (selectedTokens.size > 0) {
                     selectedTokens.clear();
                     renderTheaterMode(currentGameState);
                 }
@@ -494,6 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.addEventListener('mousemove', (e) => {
             if (!isGm) return;
+            
             if (isDragging) {
                 e.preventDefault();
                 requestAnimationFrame(() => {
@@ -501,8 +506,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         const tokenEl = document.getElementById(id);
                         const offset = dragOffsets.get(id);
                         if (tokenEl && offset) {
-                            const newLeft = (e.clientX - offset.x) / getGameScale() / localWorldScale;
-                            const newTop = (e.clientY - offset.y) / getGameScale() / localWorldScale;
+                            const newLeft = (e.clientX - offset.x) / getGameScale();
+                            const newTop = (e.clientY - offset.y) / getGameScale();
                             tokenEl.style.left = `${newLeft}px`;
                             tokenEl.style.top = `${newTop}px`;
                         }
@@ -516,7 +521,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currentY = (e.clientY - viewportRect.top) / gameScale;
                 const startX = (selectionBoxStartPos.x - viewportRect.left) / gameScale;
                 const startY = (selectionBoxStartPos.y - viewportRect.top) / gameScale;
-
                 const left = Math.min(currentX, startX);
                 const top = Math.min(currentY, startY);
                 const width = Math.abs(currentX - startX);
@@ -610,7 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, { passive: false });
 
-        theaterGlobalScale.addEventListener('change', (e) => { // Use 'change' to only fire when user is done
+        theaterGlobalScale.addEventListener('change', (e) => {
              if (!isGm) return;
              socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
         });
