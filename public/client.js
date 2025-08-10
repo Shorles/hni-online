@@ -78,9 +78,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function copyToClipboard(text, element) {
         if (!element) return;
         navigator.clipboard.writeText(text).then(() => {
-            const originalText = element.textContent || '🔗';
-            element.textContent = 'Copiado!';
-            setTimeout(() => { element.textContent = originalText; }, 2000);
+            // Alterado para funcionar com ícones e texto
+            const originalHTML = element.innerHTML;
+            element.innerHTML = 'Copiado!';
+            element.style.fontSize = '14px'; // Ajuste para o texto caber
+            setTimeout(() => { 
+                element.innerHTML = originalHTML; 
+                element.style.fontSize = '24px';
+            }, 2000);
         });
     }
 
@@ -791,10 +796,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
         currentGameState = gameState;
+
         if (!gameState || !gameState.mode) {
             showScreen(document.getElementById('loading-screen'));
             return;
         }
+
+        // --- CORREÇÃO DO BUG DE ENTRADA ---
+        const myPlayerData = gameState.connectedPlayers?.[socket.id];
+        // Se eu sou um jogador, ainda não escolhi um personagem, e não estou já na tela de seleção...
+        if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter && !document.getElementById('selection-screen').classList.contains('active')) {
+            // ...então me mande para a tela de seleção, não importa o modo de jogo atual.
+            showScreen(document.getElementById('selection-screen'));
+            renderPlayerCharacterSelection(gameState.unavailableCharacters);
+            return; // Impede que o resto da função rode e troque a tela.
+        }
+        
         if (gameState.mode === 'adventure' && gameState.scenario) {
              gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
         } else if (gameState.mode === 'lobby') {
@@ -826,7 +843,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
                 } else {
-                    const myPlayerData = gameState.connectedPlayers?.[socket.id];
                     if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter) {
                         showScreen(document.getElementById('selection-screen'));
                         renderPlayerCharacterSelection(gameState.unavailableCharacters);
@@ -881,9 +897,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
         
-        // Listener para o botão flutuante de troca de modo
         floatingSwitchModeBtn.addEventListener('click', () => {
             socket.emit('playerAction', { type: 'gmSwitchesMode' });
+        });
+
+        // Adicionado: Event listener para o botão flutuante de convite
+        floatingInviteBtn.addEventListener('click', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomId = urlParams.get('room') || currentGameState?.gmId; // Fallback para caso precise
+             if (roomId) {
+                const inviteUrl = `${window.location.origin}?room=${roomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
         });
 
         setupTheaterEventListeners();
