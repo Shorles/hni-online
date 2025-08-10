@@ -371,7 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterWorldContainer.style.transform = `scale(1)`;
         theaterBackgroundViewport.scrollLeft = 0;
         theaterBackgroundViewport.scrollTop = 0;
-
         theaterCharList.innerHTML = '';
         const createMini = (data) => {
             const mini = document.createElement('div');
@@ -597,18 +596,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             } else {
+                // --- LÓGICA DE ZOOM CORRIGIDA ---
                 const zoomIntensity = 0.05;
                 const scrollDirection = e.deltaY < 0 ? 1 : -1;
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
+                
                 const rect = theaterBackgroundViewport.getBoundingClientRect();
-                const centerX = rect.width / 2;
-                const centerY = rect.height / 2;
-                const worldX = (centerX + theaterBackgroundViewport.scrollLeft) / localWorldScale;
-                const worldY = (centerY + theaterBackgroundViewport.scrollTop) / localWorldScale;
+                // Posição do mouse relativa à viewport
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                // Coordenadas do mundo sob o ponteiro do mouse ANTES do zoom
+                const worldX = (mouseX + theaterBackgroundViewport.scrollLeft) / localWorldScale;
+                const worldY = (mouseY + theaterBackgroundViewport.scrollTop) / localWorldScale;
+
+                // Aplica a nova escala
                 localWorldScale = newScale;
                 theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
-                theaterBackgroundViewport.scrollLeft = worldX * localWorldScale - centerX;
-                theaterBackgroundViewport.scrollTop = worldY * localWorldScale - centerY;
+                
+                // Calcula a nova posição de scroll para manter o ponto do mundo sob o mouse
+                const newScrollLeft = worldX * localWorldScale - mouseX;
+                const newScrollTop = worldY * localWorldScale - mouseY;
+
+                theaterBackgroundViewport.scrollLeft = newScrollLeft;
+                theaterBackgroundViewport.scrollTop = newScrollTop;
             }
         }, { passive: false });
 

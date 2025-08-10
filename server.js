@@ -262,7 +262,79 @@ io.on('connection', (socket) => {
                 break;
 
             case 'adventure':
-                // Nenhuma alteração aqui
+                // --- LÓGICA DO MODO AVENTURA RESTAURADA ---
+                const actor = action.actorKey ? getFighter(state, action.actorKey) : null;
+                const canControl = actor && ((isGm && state.fighters.npcs[actor.id]) || (socket.id === actor.id));
+
+                switch (action.type) {
+                    case 'gmConfirmParty':
+                        if (isGm && state.phase === 'party_setup' && action.playerStats) {
+                            action.playerStats.forEach(stats => {
+                                if (state.fighters.players[stats.id]) {
+                                    const res = Math.max(1, stats.res);
+                                    Object.assign(state.fighters.players[stats.id], {
+                                        agi: stats.agi, res: res, hpMax: res * 5, hp: res * 5
+                                    });
+                                }
+                            });
+                            state.phase = 'npc_setup';
+                            logMessage(state, 'GM confirmou o grupo. Prepare o encontro!');
+                        }
+                        break;
+                    
+                    case 'gmStartBattle':
+                        if (isGm && state.phase === 'npc_setup' && action.npcs) {
+                             if (action.npcs.length === 0) {
+                                // Não fazer nada ou enviar um erro? Por enquanto, apenas ignora.
+                                shouldUpdate = false;
+                                break;
+                            }
+                            action.npcs.forEach((npcData, i) => {
+                                const npcId = `npc-${i}-${Date.now()}`;
+                                state.fighters.npcs[npcId] = createNewFighterState({ ...npcData, id: npcId });
+                            });
+                            state.phase = 'initiative_roll';
+                            logMessage(state, 'Inimigos em posição! Rolem as iniciativas!');
+                        }
+                        break;
+
+                    case 'roll_initiative':
+                        if (state.phase === 'initiative_roll') {
+                            let allRollsDone = false;
+                            if (action.isGmRoll && isGm) {
+                                Object.values(state.fighters.npcs).forEach(npc => {
+                                    if (npc.status === 'active' && !state.initiativeRolls[npc.id]) {
+                                        state.initiativeRolls[npc.id] = rollD6();
+                                    }
+                                });
+                            } else if (!action.isGmRoll && state.fighters.players[socket.id] && !state.initiativeRolls[socket.id]) {
+                                state.initiativeRolls[socket.id] = rollD6();
+                            }
+
+                            const activeFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)].filter(f => f.status === 'active');
+                            if (activeFighters.every(f => state.initiativeRolls[f.id])) {
+                                startBattle(state);
+                            }
+                        }
+                        break;
+                    
+                    case 'attack':
+                        if (state.phase === 'battle' && action.attackerKey === state.activeCharacterKey) {
+                             const attacker = getFighter(state, action.attackerKey);
+                             const isNpcTurn = !!state.fighters.npcs[attacker.id];
+                             if ((isGm && isNpcTurn) || (!isNpcTurn && socket.id === action.attackerKey)) {
+                                 executeAttack(state, roomId, action.attackerKey, action.targetKey);
+                                 shouldUpdate = false; 
+                             }
+                        }
+                        break;
+
+                    case 'end_turn':
+                        if (state.phase === 'battle' && action.actorKey === state.activeCharacterKey && canControl) {
+                            advanceTurn(state);
+                        }
+                        break;
+                }
                 break;
 
             case 'theater':
@@ -337,7 +409,33 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        // Lógica de disconnect permanece a mesma
+        const roomId = socket.currentRoomId;
+        if (!roomId || !games[roomId]) return;
+
+        const room = games[roomId];
+        const playerInfo = room.state.connectedPlayers[socket.id];
+        
+        if (playerInfo) {
+            logMessage(room.state, `Um ${playerInfo.role} desconectou.`);
+            if (playerInfo.selectedCharacter) {
+                room.state.unavailableCharacters = room.state.unavailableCharacters.filter(c => c !== playerInfo.selectedCharacter.nome);
+            }
+        }
+        
+        delete room.sockets[socket.id];
+        delete room.state.connectedPlayers[socket.id];
+
+        if (room.state.mode === 'adventure' && room.state.fighters.players[socket.id]) {
+            room.state.fighters.players[socket.id].status = 'disconnected';
+            logMessage(room.state, `${room.state.fighters.players[socket.id].nome} foi desconectado.`);
+            checkGameOver(room.state);
+        }
+
+        io.to(roomId).emit('gameUpdate', room.state);
+        
+        if (Object.keys(room.sockets).length === 0) {
+            delete games[roomId];
+        }
     });
 });
 
