@@ -262,7 +262,7 @@ io.on('connection', (socket) => {
                 break;
 
             case 'adventure':
-                // Nenhuma mudança no modo aventura
+                // Nenhuma alteração aqui
                 break;
 
             case 'theater':
@@ -303,7 +303,7 @@ io.on('connection', (socket) => {
                                     state.publicState.isStaging = false;
                                 }
                                 break;
-                            case 'updateTokenOrder': // NOVA AÇÃO PARA CAMADAS
+                            case 'updateTokenOrder': // AÇÃO PARA CAMADAS
                                 if(action.order && Array.isArray(action.order)) {
                                     currentScenarioState.tokenOrder = action.order;
                                     if (!currentScenarioState.isStaging) {
