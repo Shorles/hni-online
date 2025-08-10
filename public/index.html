@@ -21,7 +21,6 @@
         <h1>Lobby do Mestre</h1>
         <p>Envie o link de convite para os participantes.</p>
         <div class="gm-links-container">
-            <!-- Alteração: Unificado em um único link -->
             <div>
                 <h3>Link de Convite:</h3>
                 <div id="gm-link-invite" class="share-link" title="Clique para copiar">Gerando...</div>
@@ -37,7 +36,7 @@
         </div>
     </div>
     
-    <!-- TELA DE ESCOLHA DE PAPEL (NOVO) -->
+    <!-- TELA DE ESCOLHA DE PAPEL -->
     <div id="role-selection-screen" class="screen">
         <h1>Bem-vindo!</h1>
         <p>Como você deseja entrar na sala?</p>
@@ -141,6 +140,12 @@
         </div>
     </div>
     
+    <!-- BOTÕES FLUTUANTES (NOVO) -->
+    <div id="floating-buttons-container" class="hidden">
+        <button id="floating-invite-btn" title="Convidar Jogador">✉️</button>
+        <button id="floating-switch-mode-btn" title="Mudar Modo de Jogo">🔄</button>
+    </div>
+
 </div>
 
 <script src="/socket.io/socket.io.js"></script>

@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById('modal');
     const selectionBox = document.getElementById('selection-box');
     const turnOrderSidebar = document.getElementById('turn-order-sidebar');
+    const floatingButtonsContainer = document.getElementById('floating-buttons-container');
+    const floatingInviteBtn = document.getElementById('floating-invite-btn');
+    const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
 
 
     // --- FUNÇÕES DE UTILIDADE ---
@@ -362,29 +365,23 @@ document.addEventListener('DOMContentLoaded', () => {
             turnOrderSidebar.classList.add('hidden');
             return;
         }
-
         turnOrderSidebar.innerHTML = '';
         turnOrderSidebar.classList.remove('hidden');
-
         const orderedFighters = state.turnOrder
             .slice(state.turnIndex)
             .concat(state.turnOrder.slice(0, state.turnIndex))
             .map(id => getFighter(state, id))
             .filter(f => f && f.status === 'active');
-
         orderedFighters.forEach((fighter, index) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
-            
             if (index === 0) {
                 card.classList.add('active-turn-indicator');
             }
-
             const img = document.createElement('img');
             img.src = fighter.img;
             img.alt = fighter.nome;
             img.title = fighter.nome;
-
             card.appendChild(img);
             turnOrderSidebar.appendChild(card);
         });
@@ -584,14 +581,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             } else if (isSelectingBox) {
                 const boxRect = selectionBox.getBoundingClientRect();
-                
                 isSelectingBox = false;
                 selectionBox.classList.add('hidden');
-                
                 if (!e.ctrlKey) {
                     selectedTokens.clear();
                 }
-                
                 document.querySelectorAll('.theater-token').forEach(token => {
                     const tokenRect = token.getBoundingClientRect();
                     if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
@@ -638,20 +632,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const zoomIntensity = 0.05;
                 const scrollDirection = e.deltaY < 0 ? 1 : -1;
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
-                
                 const rect = theaterBackgroundViewport.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
-
                 const worldX = (mouseX + theaterBackgroundViewport.scrollLeft) / localWorldScale;
                 const worldY = (mouseY + theaterBackgroundViewport.scrollTop) / localWorldScale;
-
                 localWorldScale = newScale;
                 theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
-                
                 const newScrollLeft = worldX * localWorldScale - mouseX;
                 const newScrollTop = worldY * localWorldScale - mouseY;
-
                 theaterBackgroundViewport.scrollLeft = newScrollLeft;
                 theaterBackgroundViewport.scrollTop = newScrollTop;
             }
@@ -749,7 +738,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_SCENARIOS = data.scenarios || {};
     });
     socket.on('roomCreated', (roomId) => {
-        // Alterado: Unificado em um único link
         if (isGm) {
             const baseUrl = window.location.origin;
             const inviteLinkEl = document.getElementById('gm-link-invite');
@@ -761,12 +749,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Novo: Listener para o servidor pedir a escolha do papel
     socket.on('promptForRole', ({ isFull }) => {
         const roleSelectionScreen = document.getElementById('role-selection-screen');
         const joinAsPlayerBtn = document.getElementById('join-as-player-btn');
         const roomFullMessage = document.getElementById('room-full-message');
-
         if (isFull) {
             joinAsPlayerBtn.disabled = true;
             roomFullMessage.textContent = 'A sala de jogadores está cheia. Você pode entrar como espectador.';
@@ -817,7 +803,20 @@ document.addEventListener('DOMContentLoaded', () => {
             gameWrapper.style.backgroundImage = 'none';
         }
 
-        turnOrderSidebar.classList.add('hidden'); 
+        turnOrderSidebar.classList.add('hidden');
+        floatingButtonsContainer.classList.add('hidden');
+
+        if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
+            floatingButtonsContainer.classList.remove('hidden');
+            const switchBtn = document.getElementById('floating-switch-mode-btn');
+            if(gameState.mode === 'adventure') {
+                switchBtn.innerHTML = '🎭';
+                switchBtn.title = 'Mudar para Modo Cenário';
+            } else {
+                switchBtn.innerHTML = '⚔️';
+                switchBtn.title = 'Mudar para Modo Aventura';
+            }
+        }
 
         switch(gameState.mode) {
             case 'lobby':
@@ -861,14 +860,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         showScreen(document.getElementById('loading-screen')); 
 
-        // Alterado: Novo fluxo de entrada
         if (urlRoomId) {
             socket.emit('playerJoinsLobby', { roomId: urlRoomId });
         } else {
             socket.emit('gmCreatesLobby');
         }
 
-        // Novo: Listeners para os botões de escolha de papel
         document.getElementById('join-as-player-btn').addEventListener('click', () => {
             socket.emit('playerChoosesRole', { role: 'player' });
             showScreen(document.getElementById('loading-screen'));
@@ -883,6 +880,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('theater-back-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
+        
+        // Listener para o botão flutuante de troca de modo
+        floatingSwitchModeBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'gmSwitchesMode' });
+        });
+
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
         window.addEventListener('resize', scaleGame);
