@@ -89,7 +89,10 @@ function logMessage(state, text, type = 'info') {
     if (state.log.length > 100) state.log.pop();
 }
 
-function getFighter(state, key) { return state.fighters.players[key] || state.fighters.npcs[key]; }
+// --- Funções de Lógica de Jogo (Modo Aventura) ---
+function getFighter(state, key) {
+    return state.fighters.players[key] || state.fighters.npcs[key];
+}
 
 function checkGameOver(state) {
     const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
@@ -105,6 +108,7 @@ function checkGameOver(state) {
 
 function advanceTurn(state) {
     if (state.winner) return;
+
     let nextIndex = state.turnIndex;
     let attempts = 0;
     do {
@@ -119,6 +123,7 @@ function advanceTurn(state) {
         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
     }
     state.turnIndex = nextIndex;
+
     state.activeCharacterKey = state.turnOrder[state.turnIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
@@ -131,10 +136,12 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
     
     const hit = true;
     let damageDealt = 0;
+
     if (hit) {
         damageDealt = ATTACK_MOVE.damage;
         target.hp = Math.max(0, target.hp - damageDealt);
         logMessage(state, `${attacker.nome} ataca ${target.nome} e causa ${damageDealt} de dano!`, 'hit');
+        
         if (target.hp === 0) {
             target.status = 'down';
             logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
@@ -147,7 +154,9 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
 
     setTimeout(() => {
         checkGameOver(state);
-        if (!state.winner) { advanceTurn(state); }
+        if (!state.winner) {
+            advanceTurn(state);
+        }
         io.to(roomId).emit('gameUpdate', state);
     }, 1000);
 }
@@ -162,6 +171,7 @@ function startBattle(state) {
             return b.agi - a.agi;
         })
         .map(f => f.id);
+    
     state.phase = 'battle';
     state.turnIndex = -1;
     state.currentRound = 1;
@@ -169,6 +179,7 @@ function startBattle(state) {
     advanceTurn(state);
 }
 
+// --- Conexão Socket.IO ---
 io.on('connection', (socket) => {
     socket.on('gmCreatesLobby', () => {
         const roomId = uuidv4();
@@ -206,7 +217,10 @@ io.on('connection', (socket) => {
         let shouldUpdate = true;
 
         if (isGm && action.type === 'gmGoesBackToLobby') {
-            if (state.lobbyCache) { room.state = state.lobbyCache; io.to(roomId).emit('gameUpdate', room.state); }
+            if (state.lobbyCache) {
+                room.state = state.lobbyCache;
+                io.to(roomId).emit('gameUpdate', room.state);
+            }
             return;
         }
 
@@ -289,6 +303,14 @@ io.on('connection', (socket) => {
                                     state.publicState.isStaging = false;
                                 }
                                 break;
+                            case 'updateTokenOrder': // NOVA AÇÃO PARA CAMADAS
+                                if(action.order && Array.isArray(action.order)) {
+                                    currentScenarioState.tokenOrder = action.order;
+                                    if (!currentScenarioState.isStaging) {
+                                        state.publicState.tokenOrder = action.order;
+                                    }
+                                }
+                                break;
                             case 'updateGlobalScale':
                                 currentScenarioState.globalTokenScale = action.scale;
                                 if (!currentScenarioState.isStaging) {
@@ -303,24 +325,6 @@ io.on('connection', (socket) => {
                                     logMessage(state, 'Cena publicada para os jogadores.');
                                 }
                                 break;
-                            // NOVO: Handler para mudar a camada dos tokens
-                            case 'changeTokenLayer':
-                                const { tokenId, direction } = action;
-                                const currentIndex = currentScenarioState.tokenOrder.indexOf(tokenId);
-                                if (currentIndex === -1) break;
-
-                                const newIndex = direction === 'up' ? Math.max(0, currentIndex - 1) : Math.min(currentScenarioState.tokenOrder.length - 1, currentIndex + 1);
-                                
-                                if (newIndex !== currentIndex) {
-                                    const [item] = currentScenarioState.tokenOrder.splice(currentIndex, 1);
-                                    currentScenarioState.tokenOrder.splice(newIndex, 0, item);
-                                }
-
-                                if (!currentScenarioState.isStaging) {
-                                    state.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    state.publicState.isStaging = false;
-                                }
-                                break;
                         }
                      }
                  }
@@ -332,7 +336,9 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('disconnect', () => { /* Código de disconnect sem alterações */ });
+    socket.on('disconnect', () => {
+        // Lógica de disconnect permanece a mesma
+    });
 });
 
 const PORT = process.env.PORT || 3000;
