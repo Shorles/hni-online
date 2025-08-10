@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return state.fighters.players[key] || state.fighters.npcs[key];
     }
     
-    // --- LÓGICA DO MODO AVENTURA (SEM ALTERAÇÕES) ---
+    // --- LÓGICA DO MODO AVENTURA (INTOCADO) ---
     function handleAdventureMode(gameState) {
         const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
@@ -137,19 +137,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const confirmBtn = document.getElementById('confirm-selection-btn');
         charListContainer.innerHTML = '';
         confirmBtn.disabled = true;
-
         let myCurrentSelection = currentGameState?.connectedPlayers?.[socket.id]?.selectedCharacter?.nome;
-
         (ALL_CHARACTERS.players || []).forEach(data => {
             const card = document.createElement('div');
             card.className = 'char-card';
             card.dataset.name = data.name;
             card.dataset.img = data.img;
             card.innerHTML = `<img src="${data.img}" alt="${data.name}"><div class="char-name">${data.name}</div>`;
-            
             const isUnavailable = unavailable.includes(data.name);
             const isMySelection = myCurrentSelection === data.name;
-
             if (isMySelection) {
                 card.classList.add('selected');
                 confirmBtn.disabled = false;
@@ -157,7 +153,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.classList.add('disabled');
                 card.innerHTML += `<div class="char-unavailable-overlay">SELECIONADO</div>`;
             }
-
             if (!isUnavailable || isMySelection) {
                 card.addEventListener('click', () => {
                     document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
@@ -183,7 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const partyList = document.getElementById('gm-party-list');
         partyList.innerHTML = '';
         if(!state.fighters || !state.fighters.players) return;
-
         Object.values(state.fighters.players).forEach(player => {
             const playerDiv = document.createElement('div');
             playerDiv.className = 'party-member-card';
@@ -283,7 +277,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (fighter.status === 'active') {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
-            
             const activeFighter = getFighter(state, state.activeCharacterKey);
             if (activeFighter && activeFighter.status === 'active') {
                 const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
@@ -306,13 +299,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderActionButtons(state) {
         actionButtonsWrapper.innerHTML = '';
         if(state.phase !== 'battle' || !!state.winner) return;
-
         const activeFighter = getFighter(state, state.activeCharacterKey);
         if (!activeFighter) return;
-
         const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
-
         const attackBtn = document.createElement('button');
         attackBtn.className = 'action-btn';
         attackBtn.textContent = 'Atacar';
@@ -322,7 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
             targetingAttackerKey = state.activeCharacterKey;
             document.getElementById('targeting-indicator').classList.remove('hidden');
         });
-
         const endTurnBtn = document.createElement('button');
         endTurnBtn.className = 'end-turn-btn';
         endTurnBtn.textContent = 'Encerrar Turno';
@@ -330,7 +319,6 @@ document.addEventListener('DOMContentLoaded', () => {
         endTurnBtn.addEventListener('click', () => {
             socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey });
         });
-
         actionButtonsWrapper.appendChild(attackBtn);
         actionButtonsWrapper.appendChild(endTurnBtn);
     }
@@ -339,16 +327,13 @@ document.addEventListener('DOMContentLoaded', () => {
         initiativeUI.classList.remove('hidden');
         const playerRollBtn = document.getElementById('player-roll-initiative-btn');
         const gmRollBtn = document.getElementById('gm-roll-initiative-btn');
-        
         playerRollBtn.classList.add('hidden');
         gmRollBtn.classList.add('hidden');
-
         if (myRole === 'player' && state.fighters.players[myPlayerKey] && !state.initiativeRolls[myPlayerKey]) {
             playerRollBtn.classList.remove('hidden'); 
             playerRollBtn.disabled = false;
             playerRollBtn.onclick = () => { playerRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative' }); };
         }
-        
         if (isGm) {
             const npcsNeedToRoll = Object.values(state.fighters.npcs).some(npc => npc.status === 'active' && !state.initiativeRolls[npc.id]);
             if (npcsNeedToRoll) {
@@ -363,20 +348,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isTargeting || !targetingAttackerKey) return;
         const targetContainer = event.target.closest('.char-container.targetable');
         if (!targetContainer) return;
-
         actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
         const targetKey = targetContainer.dataset.key;
         socket.emit('playerAction', { type: 'attack', attackerKey: targetingAttackerKey, targetKey: targetKey });
         cancelTargeting();
     }
     
-    // --- LÓGICA DO MODO CENÁRIO ---
+    // --- LÓGICA DO MODO CENÁRIO (REFEITA) ---
     function initializeTheaterMode() {
         localWorldScale = 1.0;
         theaterWorldContainer.style.transform = `scale(1)`;
         theaterBackgroundViewport.scrollLeft = 0;
         theaterBackgroundViewport.scrollTop = 0;
-
         theaterCharList.innerHTML = '';
         const createMini = (data) => {
             const mini = document.createElement('div');
@@ -482,12 +465,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 dragOffsets.clear();
+                const gameScale = getGameScale();
                 selectedTokens.forEach(id => {
                     const el = document.getElementById(id);
-                    if (el) {
+                    const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
+                    if (el && tokenData) {
                        dragOffsets.set(id, { 
-                           x: dragStartPos.x - el.getBoundingClientRect().left, 
-                           y: dragStartPos.y - el.getBoundingClientRect().top 
+                           startX: tokenData.x,
+                           startY: tokenData.y
                        });
                     }
                 });
@@ -507,14 +492,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 requestAnimationFrame(() => {
                     const gameScale = getGameScale();
+                    const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
+                    const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
+
                     selectedTokens.forEach(id => {
                         const tokenEl = document.getElementById(id);
-                        const offset = dragOffsets.get(id);
-                        if (tokenEl && offset) {
-                            const newLeft = (e.clientX - offset.x) / gameScale;
-                            const newTop = (e.clientY - offset.y) / gameScale;
-                            tokenEl.style.left = `${newLeft}px`;
-                            tokenEl.style.top = `${newTop}px`;
+                        const initialPos = dragOffsets.get(id);
+                        if (tokenEl && initialPos) {
+                            tokenEl.style.left = `${initialPos.startX + deltaX}px`;
+                            tokenEl.style.top = `${initialPos.startY + deltaY}px`;
                         }
                     });
                 });
@@ -543,19 +529,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDragging) {
                 isDragging = false;
                 const gameScale = getGameScale();
-                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                selectedTokens.forEach(id => {
-                    const offset = dragOffsets.get(id);
-                    const tokenEl = document.getElementById(id); // Pega o elemento para ter a posição visual final
-                    if(offset && tokenEl) {
-                        // Usa a posição visual do elemento, que é a mais precisa
-                        const finalLeft = tokenEl.offsetLeft;
-                        const finalTop = tokenEl.offsetTop;
+                const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
+                const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
 
-                        // Converte a posição visual (que está em pixels da tela) para a posição no "mundo"
-                        const worldX = (finalLeft - theaterBackgroundViewport.scrollLeft) / localWorldScale;
-                        const worldY = (finalTop - theaterBackgroundViewport.scrollTop) / localWorldScale;
-                        
+                selectedTokens.forEach(id => {
+                    const initialPos = dragOffsets.get(id);
+                    if(initialPos) {
+                        const finalX = initialPos.startX + deltaX;
+                        const finalY = initialPos.startY + deltaY;
                         socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: finalX, y: finalY } });
                     }
                 });
@@ -611,17 +592,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const zoomIntensity = 0.05;
                 const scrollDirection = e.deltaY < 0 ? 1 : -1;
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
-                
                 const rect = theaterBackgroundViewport.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
-
                 const worldX = (mouseX + theaterBackgroundViewport.scrollLeft) / localWorldScale;
                 const worldY = (mouseY + theaterBackgroundViewport.scrollTop) / localWorldScale;
-                
                 localWorldScale = newScale;
                 theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
-                
                 theaterBackgroundViewport.scrollLeft = worldX * localWorldScale - mouseX;
                 theaterBackgroundViewport.scrollTop = worldY * localWorldScale - mouseY;
             }
@@ -688,7 +665,6 @@ document.addEventListener('DOMContentLoaded', () => {
             content += `<button class="category-tab-btn ${index === 0 ? 'active' : ''}" data-category="${cat}">${cat.replace(/_/g, ' ')}</button>`;
         });
         content += '</div>';
-
         categories.forEach((cat, index) => {
             content += `<div class="scenarios-grid ${index === 0 ? 'active' : ''}" id="grid-${cat}">`;
             ALL_SCENARIOS[cat].forEach(scenarioPath => {
@@ -697,9 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             content += '</div>';
         });
-
         showInfoModal('Mudar Cenário', content, false);
-
         document.querySelectorAll('.category-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.category-tab-btn, .scenarios-grid').forEach(el => el.classList.remove('active'));
@@ -707,7 +681,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById(`grid-${btn.dataset.category}`).classList.add('active');
             });
         });
-
         document.querySelectorAll('.scenario-card').forEach(card => {
             card.addEventListener('click', () => {
                 const scenario = card.dataset.path;
@@ -722,7 +695,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
     });
-
     socket.on('roomCreated', (roomId) => {
         if (isGm) {
             const baseUrl = window.location.origin;
@@ -734,17 +706,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (spectatorLinkEl) { spectatorLinkEl.textContent = spectatorUrl; spectatorLinkEl.onclick = () => copyToClipboard(spectatorUrl, spectatorLinkEl); }
         }
     });
-
     socket.on('assignRole', (data) => {
         myRole = data.role;
         myPlayerKey = data.playerKey || null;
         isGm = !!data.isGm;
     });
-
     socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
         const attackerEl = document.getElementById(attackerKey);
         const targetEl = document.getElementById(targetKey);
-
         if (attackerEl) {
             const isPlayer = attackerEl.classList.contains('player-char-container');
             const animClass = isPlayer ? 'is-attacking-player' : 'is-attacking-npc';
@@ -759,19 +728,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
-
     socket.on('error', (data) => showInfoModal('Erro', data.message));
-
     socket.on('gameUpdate', (gameState) => {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
         currentGameState = gameState;
-        
         if (!gameState || !gameState.mode) {
             showScreen(document.getElementById('loading-screen'));
             return;
         }
-
         if (gameState.mode === 'adventure' && gameState.scenario) {
              gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
         } else if (gameState.mode === 'lobby') {
@@ -779,7 +744,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             gameWrapper.style.backgroundImage = 'none';
         }
-
         switch(gameState.mode) {
             case 'lobby':
                 defeatAnimationPlayed.clear();
@@ -820,21 +784,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
         const urlRole = urlParams.get('role');
-
         showScreen(document.getElementById('loading-screen')); 
-
         if (urlRoomId && urlRole) {
             socket.emit('playerJoinsLobby', { roomId: urlRoomId, role: urlRole });
         } else {
             socket.emit('gmCreatesLobby');
         }
-
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         document.getElementById('theater-back-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
-        
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
         window.addEventListener('resize', scaleGame);
