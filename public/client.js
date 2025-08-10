@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const initiativeUI = document.getElementById('initiative-ui');
     const modal = document.getElementById('modal');
     const selectionBox = document.getElementById('selection-box');
+    const turnOrderSidebar = document.getElementById('turn-order-sidebar');
 
 
     // --- FUNÇÕES DE UTILIDADE ---
@@ -91,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return state.fighters.players[key] || state.fighters.npcs[key];
     }
     
-    // --- LÓGICA DO MODO AVENTURA (INTOCADA) ---
+    // --- LÓGICA DO MODO AVENTURA ---
     function handleAdventureMode(gameState) {
         const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
@@ -271,6 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         renderActionButtons(state);
+        renderTurnOrderUI(state); // Adicionada chamada para renderizar a barra de turnos
     }
     
     function createFighterElement(fighter, type, state, position) {
@@ -353,6 +355,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 gmRollBtn.onclick = () => { gmRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative', isGmRoll: true }); };
             }
         }
+    }
+
+    function renderTurnOrderUI(state) {
+        // Se não for fase de batalha ou iniciativa, esconde a barra
+        if (state.phase !== 'battle' && state.phase !== 'initiative_roll') {
+            turnOrderSidebar.classList.add('hidden');
+            return;
+        }
+
+        turnOrderSidebar.innerHTML = '';
+        turnOrderSidebar.classList.remove('hidden');
+
+        // Cria uma lista de lutadores na ordem do turno atual
+        const orderedFighters = state.turnOrder
+            .slice(state.turnIndex)
+            .concat(state.turnOrder.slice(0, state.turnIndex))
+            .map(id => getFighter(state, id))
+            .filter(f => f && f.status === 'active');
+
+        // Renderiza cada lutador na barra
+        orderedFighters.forEach((fighter, index) => {
+            const card = document.createElement('div');
+            card.className = 'turn-order-card';
+            
+            // Destaca o primeiro da lista (turno ativo)
+            if (index === 0) {
+                card.classList.add('active-turn-indicator');
+            }
+
+            const img = document.createElement('img');
+            img.src = fighter.img;
+            img.alt = fighter.nome;
+            img.title = fighter.nome;
+
+            card.appendChild(img);
+            turnOrderSidebar.appendChild(card);
+        });
     }
 
     function handleTargetClick(event) {
@@ -548,8 +587,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } else if (isSelectingBox) {
-                // --- CORREÇÃO DE LÓGICA ---
-                // Mede a caixa de seleção ANTES de escondê-la.
                 const boxRect = selectionBox.getBoundingClientRect();
                 
                 isSelectingBox = false;
@@ -561,12 +598,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 document.querySelectorAll('.theater-token').forEach(token => {
                     const tokenRect = token.getBoundingClientRect();
-                    // A verificação de colisão (interseção)
                     if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
                          if (e.ctrlKey && selectedTokens.has(token.id)) {
-                             selectedTokens.delete(token.id); // Desseleciona se já estiver selecionado com Ctrl
+                             selectedTokens.delete(token.id);
                          } else {
-                             selectedTokens.add(token.id); // Seleciona
+                             selectedTokens.add(token.id);
                          }
                     }
                 });
@@ -765,6 +801,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             gameWrapper.style.backgroundImage = 'none';
         }
+
+        turnOrderSidebar.classList.add('hidden'); // Esconde a barra por padrão
+
         switch(gameState.mode) {
             case 'lobby':
                 defeatAnimationPlayed.clear();
