@@ -69,7 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-title').innerText = title;
         document.getElementById('modal-text').innerHTML = text;
         
-        // Limpa botões de confirmação se existirem
         const oldButtons = document.getElementById('modal-content').querySelector('.modal-button-container');
         if(oldButtons) oldButtons.remove();
         
@@ -176,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen(fightScreen);
                 updateAdventureUI(gameState);
                 initiativeUI.classList.add('hidden');
-                actionButtonsWrapper.innerHTML = ''; // Limpa botões de ação para quem está esperando
+                actionButtonsWrapper.innerHTML = ''; 
                 document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
             }
             else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
@@ -408,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const gmRollBtn = document.getElementById('gm-roll-initiative-btn');
         playerRollBtn.classList.add('hidden');
         gmRollBtn.classList.add('hidden');
-        if (myRole === 'player' && state.fighters.players[myPlayerKey] && !state.initiativeRolls[myPlayerKey]) {
+        if (myRole === 'player' && getFighter(state, myPlayerKey) && !state.initiativeRolls[myPlayerKey]) {
             playerRollBtn.classList.remove('hidden'); 
             playerRollBtn.disabled = false;
             playerRollBtn.onclick = () => { playerRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative' }); };
@@ -566,58 +565,57 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function setupTheaterEventListeners() {
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
-            if (!isGm || e.button !== 0) return;
-            const tokenElement = e.target.closest('.theater-token');
+            if (e.button !== 0) return;
             dragStartPos = { x: e.clientX, y: e.clientY };
 
-            if (isGroupSelectMode && !tokenElement) {
-                isSelectingBox = true;
-                selectionBoxStartPos = { x: e.clientX, y: e.clientY };
-                const gameScale = getGameScale();
-                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                const startX = (e.clientX - viewportRect.left) / gameScale;
-                const startY = (e.clientY - viewportRect.top) / gameScale;
-                Object.assign(selectionBox.style, { left: `${startX}px`, top: `${startY}px`, width: '0px', height: '0px' });
-                selectionBox.classList.remove('hidden');
-                return;
-            }
+            if (isGm) {
+                const tokenElement = e.target.closest('.theater-token');
+                if (isGroupSelectMode && !tokenElement) {
+                    isSelectingBox = true;
+                    selectionBoxStartPos = { x: e.clientX, y: e.clientY };
+                    const gameScale = getGameScale();
+                    const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
+                    const startX = (e.clientX - viewportRect.left) / gameScale;
+                    const startY = (e.clientY - viewportRect.top) / gameScale;
+                    Object.assign(selectionBox.style, { left: `${startX}px`, top: `${startY}px`, width: '0px', height: '0px' });
+                    selectionBox.classList.remove('hidden');
+                    return;
+                }
 
-            if (tokenElement) {
-                isDragging = true;
-                if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) {
-                    selectedTokens.clear();
-                    selectedTokens.add(tokenElement.id);
-                } else if (e.ctrlKey) {
-                    if (selectedTokens.has(tokenElement.id)) {
-                        selectedTokens.delete(tokenElement.id);
-                    } else {
+                if (tokenElement) {
+                    isDragging = true;
+                    if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) {
+                        selectedTokens.clear();
                         selectedTokens.add(tokenElement.id);
+                    } else if (e.ctrlKey) {
+                        if (selectedTokens.has(tokenElement.id)) {
+                            selectedTokens.delete(tokenElement.id);
+                        } else {
+                            selectedTokens.add(tokenElement.id);
+                        }
                     }
-                }
-                
-                dragOffsets.clear();
-                selectedTokens.forEach(id => {
-                    const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
-                    if (tokenData) {
-                       dragOffsets.set(id, { 
-                           startX: tokenData.x,
-                           startY: tokenData.y
-                       });
-                    }
-                });
-                renderTheaterMode(currentGameState);
-            } else if (!isGroupSelectMode) {
-                if (selectedTokens.size > 0) {
-                    selectedTokens.clear();
+                    dragOffsets.clear();
+                    selectedTokens.forEach(id => {
+                        const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
+                        if (tokenData) {
+                           dragOffsets.set(id, { startX: tokenData.x, startY: tokenData.y });
+                        }
+                    });
                     renderTheaterMode(currentGameState);
+                } else if (!isGroupSelectMode) {
+                    if (selectedTokens.size > 0) {
+                        selectedTokens.clear();
+                        renderTheaterMode(currentGameState);
+                    }
+                    isPanning = true;
                 }
+            } else {
                 isPanning = true;
             }
         });
 
         window.addEventListener('mousemove', (e) => {
-            if (!isGm) return;
-            if (isDragging) {
+            if (isGm && isDragging) {
                 e.preventDefault();
                 requestAnimationFrame(() => {
                     const gameScale = getGameScale();
@@ -632,7 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 });
-            } else if (isSelectingBox) {
+            } else if (isGm && isSelectingBox) {
                 e.preventDefault();
                 const gameScale = getGameScale();
                 const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
@@ -653,8 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         window.addEventListener('mouseup', (e) => {
-            if (!isGm) return;
-            if (isDragging) {
+            if (isGm && isDragging) {
                 isDragging = false;
                 const gameScale = getGameScale();
                 const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
@@ -667,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: finalX, y: finalY } });
                     }
                 });
-            } else if (isSelectingBox) {
+            } else if (isGm && isSelectingBox) {
                 const boxRect = selectionBox.getBoundingClientRect();
                 isSelectingBox = false;
                 selectionBox.classList.add('hidden');
@@ -706,9 +703,8 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterBackgroundViewport.addEventListener('dragover', (e) => e.preventDefault());
 
         theaterBackgroundViewport.addEventListener('wheel', (e) => {
-            if (!isGm) return;
             e.preventDefault();
-            if (hoveredTokenId && selectedTokens.has(hoveredTokenId)) {
+            if (isGm && hoveredTokenId && selectedTokens.has(hoveredTokenId)) {
                 const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[hoveredTokenId];
                 if (tokenData) {
                     const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.1 : 0.1);
@@ -901,7 +897,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter && !document.getElementById('selection-screen').classList.contains('active')) {
             showScreen(document.getElementById('selection-screen'));
-            // CORREÇÃO: Passa a lista correta de personagens indisponíveis
             const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
             renderPlayerCharacterSelection(unavailable);
             return; 
