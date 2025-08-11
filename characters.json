@@ -7,11 +7,14 @@
 "Orc Barbaro"
   ],
   "npcs": [
-"Goblin",
-"Orc",
+"Goblin M",
+"Goblin F",
+"Orc M",
+"Orc F",
 "Esqueleto",
 "Goblin Xamã",
-"Zumbi",
+"Zumbi M",
+"Zumbi F",
 "Aranha",
 "Cobra",
 "Cobra Boss",

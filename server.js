@@ -53,7 +53,7 @@ function createNewAdventureState(gmId, connectedPlayers) {
         activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
         scenario: 'mapas/cenarios externos/externo (1).png',
         gmId: gmId, log: [{ text: "Aguardando jogadores formarem o grupo..." }],
-        waitingPlayers: {} // Adicionado para jogadores que entram no meio da batalha
+        waitingPlayers: {} 
     };
     for (const sId in connectedPlayers) {
         const playerData = connectedPlayers[sId];
@@ -242,7 +242,6 @@ io.on('connection', (socket) => {
         let activeState = room.gameModes[room.activeMode];
         let shouldUpdate = true;
         
-        // --- AÇÕES GLOBAIS (GM) ---
         if (isGm) {
             if (action.type === 'gmGoesBackToLobby') {
                 room.activeMode = 'lobby';
@@ -263,13 +262,10 @@ io.on('connection', (socket) => {
                 return;
             }
         }
-
-        // --- AÇÃO DE SELECIONAR PERSONAGEM (Pode ocorrer em qualquer modo) ---
+        
         if (action.type === 'playerSelectsCharacter') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (!playerInfo) return;
-
-            // Atualiza a seleção no estado mestre (lobby)
             if (lobbyState.unavailableCharacters.includes(action.character.nome)) {
                  const mySelection = playerInfo.selectedCharacter;
                  if (!mySelection || mySelection.nome !== action.character.nome) {
@@ -284,14 +280,12 @@ io.on('connection', (socket) => {
             playerInfo.selectedCharacter = action.character;
             logMessage(lobbyState, `Jogador selecionou ${action.character.nome}.`);
             
-            // Se a seleção ocorreu durante uma batalha...
             if(room.activeMode === 'adventure' && ['battle', 'initiative_roll'].includes(room.gameModes.adventure.phase)) {
                 room.gameModes.adventure.waitingPlayers[socket.id] = action.character;
                 io.to(lobbyState.gmId).emit('gmPromptToAdmit', { playerId: socket.id, character: action.character });
             }
         }
 
-        // --- AÇÕES POR MODO ---
         switch (room.activeMode) {
             case 'lobby':
                 if (isGm) {
@@ -320,10 +314,20 @@ io.on('connection', (socket) => {
                                 const newPlayerId = action.playerId;
                                 const character = adventureState.waitingPlayers[newPlayerId];
                                 adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
-                                adventureState.turnOrder.push(newPlayerId);
+                                
+                                // CORREÇÃO: Lógica para adicionar na iniciativa ou no fim da fila
+                                if (adventureState.phase === 'battle') {
+                                    adventureState.turnOrder.push(newPlayerId);
+                                }
+                                // Se a fase for 'initiative_roll', apenas adicionamos o lutador.
+                                // O client.js irá automaticamente pedir para ele rolar a iniciativa.
+
                                 logMessage(adventureState, `${character.nome} entrou na batalha!`);
+                                delete adventureState.waitingPlayers[action.playerId];
+                            } else {
+                                // CORREÇÃO: Se não for admitido, não faz nada, ele permanece na lista de espera.
+                                logMessage(adventureState, `O Mestre decidiu que ${adventureState.waitingPlayers[action.playerId].nome} aguardará.`);
                             }
-                            delete adventureState.waitingPlayers[action.playerId];
                         }
                         break;
                     case 'gmConfirmParty':
@@ -475,10 +479,15 @@ io.on('connection', (socket) => {
         delete room.sockets[socket.id];
         delete lobbyState.connectedPlayers[socket.id];
         const adventureState = room.gameModes.adventure;
-        if (adventureState && adventureState.fighters.players[socket.id]) {
-            adventureState.fighters.players[socket.id].status = 'disconnected';
-            logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
-            checkGameOver(adventureState);
+        if (adventureState) {
+            if (adventureState.fighters.players[socket.id]) {
+                adventureState.fighters.players[socket.id].status = 'disconnected';
+                logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
+                checkGameOver(adventureState);
+            }
+            if (adventureState.waitingPlayers[socket.id]) {
+                delete adventureState.waitingPlayers[socket.id];
+            }
         }
         io.to(roomId).emit('gameUpdate', getFullState(room));
         if (Object.keys(room.sockets).length === 0) {
