@@ -10,6 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let defeatAnimationPlayed = new Set();
     const socket = io();
     let myRoomId = null; 
+    
+    // Alteração: Flag para garantir que os dados iniciais foram recebidos
+    let initialDataReceived = false;
 
     // Dados do Jogo
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
@@ -51,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingInviteBtn = document.getElementById('floating-invite-btn');
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
-    // Alteração: ID mais genérico para o botão de voltar
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
 
     // --- FUNÇÕES DE UTILIDADE ---
@@ -76,7 +78,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
     }
     
-    // Alteração: Permite customizar os textos dos botões de confirmação
     function showConfirmationModal(title, text, onConfirm, confirmText = 'Sim', cancelText = 'Não') {
         const modalContent = document.getElementById('modal-content');
         const modalText = document.getElementById('modal-text');
@@ -817,6 +818,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('initialData', (data) => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
+        // Alteração: Confirma que os dados essenciais foram recebidos
+        initialDataReceived = true;
     });
     socket.on('roomCreated', (roomId) => {
         if (isGm) {
@@ -859,7 +862,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Alteração: Novo listener para a escolha do tipo de aventura
     socket.on('promptForAdventureType', () => {
         if (!isGm) return;
         showConfirmationModal(
@@ -892,9 +894,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
+    
     socket.on('gameUpdate', (gameState) => {
-        // Alteração CRÍTICA: Removido o bloqueio que impedia a atualização da tela
-        // e causava o bug da seleção de personagem.
+        // Alteração: Garante que os dados de personagens/cenários existam antes de renderizar qualquer tela.
+        if (!initialDataReceived) {
+            return;
+        }
         
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -992,7 +997,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-        // Alteração: Adiciona o listener para o botão de voltar ao lobby
         backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
