@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingButtonsContainer = document.getElementById('floating-buttons-container');
     const floatingInviteBtn = document.getElementById('floating-invite-btn');
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
+    const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
 
 
     // --- FUNÇÕES DE UTILIDADE ---
@@ -67,19 +68,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function showInfoModal(title, text, showButton = true) {
         document.getElementById('modal-title').innerText = title;
         document.getElementById('modal-text').innerHTML = text;
+        
+        // Limpa botões de confirmação se existirem
+        const oldButtons = document.getElementById('modal-content').querySelector('.modal-button-container');
+        if(oldButtons) oldButtons.remove();
+        
         document.getElementById('modal-button').classList.toggle('hidden', !showButton);
         modal.classList.remove('hidden');
         document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
     }
     
-    // Nova função para criar um modal de confirmação (Sim/Não)
     function showConfirmationModal(title, text, onConfirm) {
+        const modalContent = document.getElementById('modal-content');
         const modalText = document.getElementById('modal-text');
         document.getElementById('modal-title').innerText = title;
         modalText.innerHTML = `<p>${text}</p>`;
 
-        // Limpa botões antigos se houver
-        const oldButtons = modalText.parentNode.querySelector('.modal-button-container');
+        const oldButtons = modalContent.querySelector('.modal-button-container');
         if(oldButtons) oldButtons.remove();
         
         const buttonContainer = document.createElement('div');
@@ -101,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         buttonContainer.appendChild(confirmBtn);
         buttonContainer.appendChild(cancelBtn);
-        modalText.parentNode.appendChild(buttonContainer);
+        modalContent.appendChild(buttonContainer);
 
         document.getElementById('modal-button').classList.add('hidden');
         modal.classList.remove('hidden');
@@ -165,13 +170,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
             }
         } else {
-            // Se o jogador é um player, selecionou personagem, mas não está na lista de lutadores, ele é um espectador aguardando
             const myPlayerData = gameState.connectedPlayers?.[socket.id];
             const amIInTheFight = !!getFighter(gameState, myPlayerKey);
             if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter && !amIInTheFight) {
                 showScreen(fightScreen);
                 updateAdventureUI(gameState);
                 initiativeUI.classList.add('hidden');
+                actionButtonsWrapper.innerHTML = ''; // Limpa botões de ação para quem está esperando
                 document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
             }
             else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
@@ -242,7 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
         
-        // Se a partida já começou, vai para a tela de espera. A lógica do gameUpdate vai redirecionar se necessário.
         if (currentGameState && currentGameState.mode !== 'lobby') {
              showScreen(document.getElementById('player-waiting-screen'));
              document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
@@ -333,7 +337,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         renderActionButtons(state);
-        renderTurnOrderUI(state); 
+        renderTurnOrderUI(state);
+        renderWaitingPlayers(state);
     }
     
     function createFighterElement(fighter, type, state, position) {
@@ -444,6 +449,31 @@ document.addEventListener('DOMContentLoaded', () => {
             turnOrderSidebar.appendChild(card);
         });
     }
+
+    function renderWaitingPlayers(state) {
+        waitingPlayersSidebar.innerHTML = '';
+        const waiting = state.waitingPlayers || {};
+        if (Object.keys(waiting).length === 0) {
+            waitingPlayersSidebar.classList.add('hidden');
+            return;
+        }
+        waitingPlayersSidebar.classList.remove('hidden');
+        for (const playerId in waiting) {
+            const character = waiting[playerId];
+            const card = document.createElement('div');
+            card.className = 'waiting-player-card';
+            card.innerHTML = `<img src="${character.img}" alt="${character.nome}"><p>${character.nome}</p>`;
+            if (isGm) {
+                card.classList.add('gm-clickable');
+                card.title = `Clique para admitir ${character.nome} na batalha`;
+                card.onclick = () => {
+                    socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted: true });
+                };
+            }
+            waitingPlayersSidebar.appendChild(card);
+        }
+    }
+
 
     function handleTargetClick(event) {
         if (!isTargeting || !targetingAttackerKey) return;
@@ -829,7 +859,6 @@ document.addEventListener('DOMContentLoaded', () => {
         myRoomId = data.roomId;
     });
 
-    // Novo: Listener para o Mestre decidir se admite um jogador
     socket.on('gmPromptToAdmit', ({ playerId, character }) => {
         if (!isGm) return;
         showConfirmationModal('Novo Jogador', `${character.nome} deseja entrar na batalha. Permitir?`, (admitted) => {
@@ -872,7 +901,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter && !document.getElementById('selection-screen').classList.contains('active')) {
             showScreen(document.getElementById('selection-screen'));
-            renderPlayerCharacterSelection(gameState.unavailableCharacters);
+            // CORREÇÃO: Passa a lista correta de personagens indisponíveis
+            const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
+            renderPlayerCharacterSelection(unavailable);
             return; 
         }
         
@@ -886,6 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         turnOrderSidebar.classList.add('hidden');
         floatingButtonsContainer.classList.add('hidden');
+        waitingPlayersSidebar.classList.add('hidden');
 
         if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
             floatingButtonsContainer.classList.remove('hidden');
@@ -909,7 +941,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter) {
                         showScreen(document.getElementById('selection-screen'));
-                        renderPlayerCharacterSelection(gameState.unavailableCharacters);
+                        const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
+                        renderPlayerCharacterSelection(unavailable);
                     } else {
                         showScreen(document.getElementById('player-waiting-screen'));
                         const msgEl = document.getElementById('player-waiting-message');
