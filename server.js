@@ -22,8 +22,8 @@ try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
     const characters = JSON.parse(charactersData);
     PLAYABLE_CHARACTERS = characters.players || [];
-    const npcNames = characters.npcs || [];
-    npcNames.forEach(nome => { ALL_NPCS[nome] = { agi: 2, res: 3 }; });
+    // Alteração: Carrega ALL_NPCS como objeto diretamente
+    ALL_NPCS = characters.npcs || {}; 
 
     const dynamicCharPath = 'public/images/personagens/';
     if (fs.existsSync(dynamicCharPath)) {
@@ -82,13 +82,22 @@ function createNewTheaterState(gmId, initialScenario) {
     return theaterState;
 }
 
+// Alteração: Garantir valores padrão para agi, res e scale
 function createNewFighterState(data) {
-    const res = Math.max(1, parseInt(data.res, 10) || 1);
-    const agi = parseInt(data.agi, 10) || 1;
+    const agi = data.agi !== undefined ? parseInt(data.agi, 10) : 2; // Default AGI para 2
+    const res = data.res !== undefined ? parseInt(data.res, 10) : 3; // Default RES para 3
+    const scale = data.scale !== undefined ? parseFloat(data.scale) : 1.0; // Default Scale para 1.0
+
     return {
         id: data.id,
         nome: data.nome || data.name,
-        img: data.img, agi: agi, res: res, hpMax: res * 5, hp: res * 5, status: 'active'
+        img: data.img,
+        agi: agi,
+        res: res,
+        hpMax: res * 5, 
+        hp: res * 5,
+        status: 'active',
+        scale: scale, // Adicionado scale
     };
 }
 
@@ -196,14 +205,27 @@ io.on('connection', (socket) => {
                 lobby: createNewLobbyState(socket.id),
                 adventure: null,
                 theater: null
-            }
+            },
+            adventureCache: null // Adicionado para guardar o estado da aventura
         };
         socket.emit('assignRole', { isGm: true, role: 'gm', roomId: roomId });
         socket.emit('roomCreated', roomId);
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     });
 
-    socket.emit('initialData', { characters: { players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), npcs: Object.keys(ALL_NPCS).map(name => ({ name, img: `images/lutadores/${name}.png` })), dynamic: DYNAMIC_CHARACTERS }, scenarios: ALL_SCENARIOS });
+    // Alteração: Inclui a escala nos dados de NPC enviados ao cliente
+    socket.emit('initialData', { 
+        characters: { 
+            players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), 
+            npcs: Object.keys(ALL_NPCS).map(name => ({ 
+                name, 
+                img: `images/lutadores/${name}.png`, 
+                scale: ALL_NPCS[name].scale || 1.0 // Adiciona scale aqui
+            })), 
+            dynamic: DYNAMIC_CHARACTERS 
+        }, 
+        scenarios: ALL_SCENARIOS 
+    });
 
     socket.on('playerJoinsLobby', ({ roomId }) => {
         if (!games[roomId]) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
@@ -244,11 +266,22 @@ io.on('connection', (socket) => {
         
         if (isGm) {
             if (action.type === 'gmGoesBackToLobby') {
+                // Ao sair da aventura, salva o estado atual
+                if (room.activeMode === 'adventure') {
+                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                }
                 room.activeMode = 'lobby';
                 io.to(roomId).emit('gameUpdate', getFullState(room));
                 return;
             }
             if (action.type === 'gmSwitchesMode') {
+                // Ao mudar de modo, salva o estado do modo atual
+                if (room.activeMode === 'adventure') {
+                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                } else if (room.activeMode === 'theater') {
+                    // Futuramente, se tiver cache para theater, salvaria aqui
+                }
+
                 const targetMode = room.activeMode === 'adventure' ? 'theater' : 'adventure';
                 if (!room.gameModes[targetMode]) {
                      if (targetMode === 'adventure') {
@@ -281,7 +314,12 @@ io.on('connection', (socket) => {
             logMessage(lobbyState, `Jogador selecionou ${action.character.nome}.`);
             
             if(room.activeMode === 'adventure' && ['battle', 'initiative_roll'].includes(room.gameModes.adventure.phase)) {
-                room.gameModes.adventure.waitingPlayers[socket.id] = action.character;
+                // Passa a escala do personagem para o waitingPlayers
+                const selectedCharData = Object.values(ALL_CHARACTERS.players).find(p => p.name === action.character.nome);
+                room.gameModes.adventure.waitingPlayers[socket.id] = { 
+                    ...action.character, 
+                    scale: selectedCharData ? (ALL_NPCS[selectedCharData.name]?.scale || 1.0) : 1.0 // Garante que scale seja passado
+                };
                 io.to(lobbyState.gmId).emit('gmPromptToAdmit', { playerId: socket.id, character: action.character });
             }
         }
@@ -315,12 +353,14 @@ io.on('connection', (socket) => {
                                 const character = adventureState.waitingPlayers[newPlayerId];
                                 
                                 io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
+                                // Cria o lutador com os dados completos (incluindo escala)
                                 adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
                                 
                                 if (adventureState.phase === 'battle') {
-                                    // CORREÇÃO: Insere o jogador no final do round atual
-                                    adventureState.turnOrder.splice(adventureState.turnIndex, 0, newPlayerId);
-                                    adventureState.turnIndex++; // Mantém o turno no jogador correto
+                                    // Insere o jogador no final do round atual, mas antes do próximo personagem
+                                    const currentTurnIndex = adventureState.turnIndex;
+                                    adventureState.turnOrder.splice(currentTurnIndex + 1, 0, newPlayerId);
+                                    // O turnIndex não precisa ser ajustado se o novo player for inserido *depois* do atual
                                 }
                                 
                                 logMessage(adventureState, `${character.nome} entrou na batalha!`);
@@ -348,8 +388,13 @@ io.on('connection', (socket) => {
                         if (isGm && adventureState.phase === 'npc_setup' && action.npcs) {
                              if (action.npcs.length === 0) { shouldUpdate = false; break; }
                             action.npcs.forEach((npcData, i) => {
-                                const npcId = `npc-${i}-${Date.now()}`;
-                                adventureState.fighters.npcs[npcId] = createNewFighterState({ ...npcData, id: npcId });
+                                // Garante que a escala é passada para createNewFighterState
+                                const npcObj = ALL_NPCS[npcData.name] || {};
+                                adventureState.fighters.npcs[npcData.id] = createNewFighterState({ 
+                                    ...npcData, 
+                                    id: npcData.id, 
+                                    scale: npcObj.scale || 1.0 
+                                });
                             });
                             adventureState.phase = 'initiative_roll';
                             logMessage(adventureState, 'Inimigos em posição! Rolem as iniciativas!');

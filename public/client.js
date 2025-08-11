@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingInviteBtn = document.getElementById('floating-invite-btn');
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
-
+    const backToLobbyBtn = document.getElementById('theater-back-btn'); // Renomeado para uso geral
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -68,10 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function showInfoModal(title, text, showButton = true) {
         document.getElementById('modal-title').innerText = title;
         document.getElementById('modal-text').innerHTML = text;
-        
         const oldButtons = document.getElementById('modal-content').querySelector('.modal-button-container');
         if(oldButtons) oldButtons.remove();
-        
         document.getElementById('modal-button').classList.toggle('hidden', !showButton);
         modal.classList.remove('hidden');
         document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
@@ -82,35 +80,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalText = document.getElementById('modal-text');
         document.getElementById('modal-title').innerText = title;
         modalText.innerHTML = `<p>${text}</p>`;
-
         const oldButtons = modalContent.querySelector('.modal-button-container');
         if(oldButtons) oldButtons.remove();
-        
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'modal-button-container';
-
         const confirmBtn = document.createElement('button');
         confirmBtn.textContent = 'Sim';
         confirmBtn.onclick = () => {
             onConfirm(true);
             modal.classList.add('hidden');
         };
-
         const cancelBtn = document.createElement('button');
         cancelBtn.textContent = 'Não';
         cancelBtn.onclick = () => {
             onConfirm(false);
             modal.classList.add('hidden');
         };
-
         buttonContainer.appendChild(confirmBtn);
         buttonContainer.appendChild(cancelBtn);
         modalContent.appendChild(buttonContainer);
-
         document.getElementById('modal-button').classList.add('hidden');
         modal.classList.remove('hidden');
     }
-
 
     function getGameScale() {
         return (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a;
@@ -284,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
                 if (stagedNpcs.length < 4) {
-                    stagedNpcs.push({ ...npcData, agi: 2, res: 3 });
+                    stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); // Adiciona um ID único
                     renderNpcStagingArea();
                 } else { alert("Você pode adicionar no máximo 4 inimigos."); }
             });
@@ -340,11 +331,18 @@ document.addEventListener('DOMContentLoaded', () => {
         renderWaitingPlayers(state);
     }
     
+    // Alteração: Aplica o 'scale' do personagem
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
         container.id = fighter.id;
         container.dataset.key = fighter.id;
+
+        const baseSize = 150;
+        const characterScale = fighter.scale || 1.0;
+        const finalSize = baseSize * characterScale;
+        container.style.width = `${finalSize}px`;
+
         Object.assign(container.style, position);
         container.style.zIndex = parseInt(position.top, 10);
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
@@ -370,7 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.addEventListener('click', handleTargetClick);
         }
         const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
-        container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
+        container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame" style="width: ${finalSize}px; height: ${finalSize}px;"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
     
@@ -473,7 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     function handleTargetClick(event) {
         if (!isTargeting || !targetingAttackerKey) return;
         const targetContainer = event.target.closest('.char-container.targetable');
@@ -527,7 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('theater-gm-panel').classList.toggle('hidden', !isGm);
         document.getElementById('toggle-gm-panel-btn').classList.toggle('hidden', !isGm);
-        document.getElementById('theater-back-btn').classList.toggle('hidden', !isGm);
         document.getElementById('theater-publish-btn').classList.toggle('hidden', !isGm || !currentScenarioState?.isStaging);
         
         if (isGm && currentScenarioState) theaterGlobalScale.value = currentScenarioState.globalTokenScale || 1.0;
@@ -913,9 +909,11 @@ document.addEventListener('DOMContentLoaded', () => {
         turnOrderSidebar.classList.add('hidden');
         floatingButtonsContainer.classList.add('hidden');
         waitingPlayersSidebar.classList.add('hidden');
+        backToLobbyBtn.classList.add('hidden');
 
         if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
             floatingButtonsContainer.classList.remove('hidden');
+            backToLobbyBtn.classList.remove('hidden');
             const switchBtn = document.getElementById('floating-switch-mode-btn');
             if(gameState.mode === 'adventure') {
                 switchBtn.innerHTML = '🎭';
@@ -985,7 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-        document.getElementById('theater-back-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
+        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
         
