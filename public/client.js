@@ -51,7 +51,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingInviteBtn = document.getElementById('floating-invite-btn');
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
-    const backToLobbyBtn = document.getElementById('theater-back-btn'); // Renomeado para uso geral
+    // Alteração: ID mais genérico para o botão de voltar
+    const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -75,7 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
     }
     
-    function showConfirmationModal(title, text, onConfirm) {
+    // Alteração: Permite customizar os textos dos botões de confirmação
+    function showConfirmationModal(title, text, onConfirm, confirmText = 'Sim', cancelText = 'Não') {
         const modalContent = document.getElementById('modal-content');
         const modalText = document.getElementById('modal-text');
         document.getElementById('modal-title').innerText = title;
@@ -85,13 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const buttonContainer = document.createElement('div');
         buttonContainer.className = 'modal-button-container';
         const confirmBtn = document.createElement('button');
-        confirmBtn.textContent = 'Sim';
+        confirmBtn.textContent = confirmText;
         confirmBtn.onclick = () => {
             onConfirm(true);
             modal.classList.add('hidden');
         };
         const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = 'Não';
+        cancelBtn.textContent = cancelText;
         cancelBtn.onclick = () => {
             onConfirm(false);
             modal.classList.add('hidden');
@@ -143,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'npc_setup': 
                     showScreen(document.getElementById('gm-npc-setup-screen')); 
-                    if (!oldGameState || oldGameState.phase !== 'npc_setup') { 
+                    if (!oldGameState || oldGameState.phase !== 'npc_setup' || !oldGameState.fighters.npcs || Object.keys(oldGameState.fighters.npcs).length === 0) {
                         stagedNpcs = []; 
                         renderNpcSelectionForGm(); 
                     } 
@@ -275,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
                 if (stagedNpcs.length < 4) {
-                    stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); // Adiciona um ID único
+                    stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); 
                     renderNpcStagingArea();
                 } else { alert("Você pode adicionar no máximo 4 inimigos."); }
             });
@@ -331,7 +333,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderWaitingPlayers(state);
     }
     
-    // Alteração: Aplica o 'scale' do personagem
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
@@ -857,6 +858,21 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted });
         });
     });
+    
+    // Alteração: Novo listener para a escolha do tipo de aventura
+    socket.on('promptForAdventureType', () => {
+        if (!isGm) return;
+        showConfirmationModal(
+            'Retornar à Aventura',
+            'Deseja continuar a aventura anterior ou começar uma nova batalha?',
+            (continuar) => {
+                const choice = continuar ? 'continue' : 'new';
+                socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice });
+            },
+            'Continuar Batalha',
+            'Nova Batalha'
+        );
+    });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
         const attackerEl = document.getElementById(attackerKey);
@@ -877,10 +893,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     socket.on('gameUpdate', (gameState) => {
-        if (document.getElementById('role-selection-screen').classList.contains('active')) {
-            return;
-        }
-
+        // Alteração CRÍTICA: Removido o bloqueio que impedia a atualização da tela
+        // e causava o bug da seleção de personagem.
+        
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
         currentGameState = gameState;
@@ -891,12 +906,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
-        if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter && !document.getElementById('selection-screen').classList.contains('active')) {
-            showScreen(document.getElementById('selection-screen'));
-            const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
-            renderPlayerCharacterSelection(unavailable);
-            return; 
-        }
         
         if (gameState.mode === 'adventure' && gameState.scenario) {
              gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
@@ -983,6 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
+        // Alteração: Adiciona o listener para o botão de voltar ao lobby
         backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
