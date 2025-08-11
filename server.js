@@ -314,13 +314,15 @@ io.on('connection', (socket) => {
                                 const newPlayerId = action.playerId;
                                 const character = adventureState.waitingPlayers[newPlayerId];
                                 
-                                // CORREÇÃO: Envia o assignRole para o novo jogador saber seu ID de batalha
                                 io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
-                                
                                 adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
+                                
                                 if (adventureState.phase === 'battle') {
-                                    adventureState.turnOrder.push(newPlayerId);
+                                    // CORREÇÃO: Insere o jogador no final do round atual
+                                    adventureState.turnOrder.splice(adventureState.turnIndex, 0, newPlayerId);
+                                    adventureState.turnIndex++; // Mantém o turno no jogador correto
                                 }
+                                
                                 logMessage(adventureState, `${character.nome} entrou na batalha!`);
                                 delete adventureState.waitingPlayers[action.playerId];
                             } else {
