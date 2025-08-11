@@ -71,6 +71,42 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
         document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
     }
+    
+    // Nova função para criar um modal de confirmação (Sim/Não)
+    function showConfirmationModal(title, text, onConfirm) {
+        const modalText = document.getElementById('modal-text');
+        document.getElementById('modal-title').innerText = title;
+        modalText.innerHTML = `<p>${text}</p>`;
+
+        // Limpa botões antigos se houver
+        const oldButtons = modalText.parentNode.querySelector('.modal-button-container');
+        if(oldButtons) oldButtons.remove();
+        
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'modal-button-container';
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = 'Sim';
+        confirmBtn.onclick = () => {
+            onConfirm(true);
+            modal.classList.add('hidden');
+        };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Não';
+        cancelBtn.onclick = () => {
+            onConfirm(false);
+            modal.classList.add('hidden');
+        };
+
+        buttonContainer.appendChild(confirmBtn);
+        buttonContainer.appendChild(cancelBtn);
+        modalText.parentNode.appendChild(buttonContainer);
+
+        document.getElementById('modal-button').classList.add('hidden');
+        modal.classList.remove('hidden');
+    }
+
 
     function getGameScale() {
         return (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a;
@@ -118,18 +154,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     } 
                     break;
                 case 'initiative_roll': 
-                    showScreen(fightScreen); 
-                    updateAdventureUI(gameState); 
-                    renderInitiativeUI(gameState); 
-                    break;
                 case 'battle':
                 default: 
                     showScreen(fightScreen); 
-                    initiativeUI.classList.add('hidden');
                     updateAdventureUI(gameState);
+                    if (gameState.phase === 'initiative_roll') {
+                        renderInitiativeUI(gameState);
+                    } else {
+                        initiativeUI.classList.add('hidden');
+                    }
             }
         } else {
-            if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
+            // Se o jogador é um player, selecionou personagem, mas não está na lista de lutadores, ele é um espectador aguardando
+            const myPlayerData = gameState.connectedPlayers?.[socket.id];
+            const amIInTheFight = !!getFighter(gameState, myPlayerKey);
+            if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter && !amIInTheFight) {
+                showScreen(fightScreen);
+                updateAdventureUI(gameState);
+                initiativeUI.classList.add('hidden');
+                document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
+            }
+            else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
                 showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
             } else {
@@ -196,8 +241,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selectedCard) { alert('Por favor, selecione um personagem!'); return; }
         const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
-        showScreen(document.getElementById('player-waiting-screen'));
-        document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+        
+        // Se a partida já começou, vai para a tela de espera. A lógica do gameUpdate vai redirecionar se necessário.
+        if (currentGameState && currentGameState.mode !== 'lobby') {
+             showScreen(document.getElementById('player-waiting-screen'));
+             document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
+        } else {
+             showScreen(document.getElementById('player-waiting-screen'));
+             document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+        }
     }
 
     function updateGmPartySetupScreen(state) {
@@ -777,6 +829,14 @@ document.addEventListener('DOMContentLoaded', () => {
         myRoomId = data.roomId;
     });
 
+    // Novo: Listener para o Mestre decidir se admite um jogador
+    socket.on('gmPromptToAdmit', ({ playerId, character }) => {
+        if (!isGm) return;
+        showConfirmationModal('Novo Jogador', `${character.nome} deseja entrar na batalha. Permitir?`, (admitted) => {
+            socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted });
+        });
+    });
+
     socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
         const attackerEl = document.getElementById(attackerKey);
         const targetEl = document.getElementById(targetKey);
@@ -796,7 +856,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     socket.on('gameUpdate', (gameState) => {
-        // CORREÇÃO: Impede que o update mude a tela de quem ainda está escolhendo o papel.
         if (document.getElementById('role-selection-screen').classList.contains('active')) {
             return;
         }
@@ -805,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
         oldGameState = currentGameState;
         currentGameState = gameState;
 
-        if (!gameState || !gameState.mode) {
+        if (!gameState || !gameState.mode || !gameState.connectedPlayers) {
             showScreen(document.getElementById('loading-screen'));
             return;
         }

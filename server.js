@@ -52,7 +52,8 @@ function createNewAdventureState(gmId, connectedPlayers) {
         mode: 'adventure', fighters: { players: {}, npcs: {} }, winner: null, reason: null, currentRound: 1,
         activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
         scenario: 'mapas/cenarios externos/externo (1).png',
-        gmId: gmId, log: [{ text: "Aguardando jogadores formarem o grupo..." }]
+        gmId: gmId, log: [{ text: "Aguardando jogadores formarem o grupo..." }],
+        waitingPlayers: {} // Adicionado para jogadores que entram no meio da batalha
     };
     for (const sId in connectedPlayers) {
         const playerData = connectedPlayers[sId];
@@ -177,11 +178,9 @@ function startBattle(state) {
     advanceTurn(state);
 }
 
-// CORREÇÃO: Função para sempre enviar o estado completo com a lista de jogadores.
 function getFullState(room) {
     if (!room) return null;
     const activeState = room.gameModes[room.activeMode];
-    // Adiciona a lista de jogadores do lobby ao estado que será enviado
     return { ...activeState, connectedPlayers: room.gameModes.lobby.connectedPlayers };
 }
 
@@ -199,7 +198,6 @@ io.on('connection', (socket) => {
                 theater: null
             }
         };
-        // CORREÇÃO: Envia o roomId para o GM
         socket.emit('assignRole', { isGm: true, role: 'gm', roomId: roomId });
         socket.emit('roomCreated', roomId);
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
@@ -230,7 +228,6 @@ io.on('connection', (socket) => {
         room.sockets[socket.id] = { role: finalRole };
         lobbyState.connectedPlayers[socket.id] = { role: finalRole, selectedCharacter: null };
         logMessage(lobbyState, `Um ${finalRole} conectou-se.`);
-        // CORREÇÃO: Envia o roomId para o jogador
         socket.emit('assignRole', { role: finalRole, roomId: roomId });
         io.to(roomId).emit('gameUpdate', getFullState(room));
     });
@@ -240,10 +237,12 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId] || !action || !action.type) return;
         
         const room = games[roomId];
-        const isGm = socket.id === room.gameModes.lobby.gmId;
+        const lobbyState = room.gameModes.lobby;
+        const isGm = socket.id === lobbyState.gmId;
         let activeState = room.gameModes[room.activeMode];
         let shouldUpdate = true;
         
+        // --- AÇÕES GLOBAIS (GM) ---
         if (isGm) {
             if (action.type === 'gmGoesBackToLobby') {
                 room.activeMode = 'lobby';
@@ -254,9 +253,9 @@ io.on('connection', (socket) => {
                 const targetMode = room.activeMode === 'adventure' ? 'theater' : 'adventure';
                 if (!room.gameModes[targetMode]) {
                      if (targetMode === 'adventure') {
-                        room.gameModes.adventure = createNewAdventureState(room.gameModes.lobby.gmId, room.gameModes.lobby.connectedPlayers);
+                        room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                      } else {
-                        room.gameModes.theater = createNewTheaterState(room.gameModes.lobby.gmId, 'cenarios externos/externo (1).png');
+                        room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                      }
                 }
                 room.activeMode = targetMode;
@@ -264,7 +263,35 @@ io.on('connection', (socket) => {
                 return;
             }
         }
-        
+
+        // --- AÇÃO DE SELECIONAR PERSONAGEM (Pode ocorrer em qualquer modo) ---
+        if (action.type === 'playerSelectsCharacter') {
+            const playerInfo = lobbyState.connectedPlayers[socket.id];
+            if (!playerInfo) return;
+
+            // Atualiza a seleção no estado mestre (lobby)
+            if (lobbyState.unavailableCharacters.includes(action.character.nome)) {
+                 const mySelection = playerInfo.selectedCharacter;
+                 if (!mySelection || mySelection.nome !== action.character.nome) {
+                     socket.emit('characterUnavailable', action.character.nome);
+                     return;
+                 }
+            }
+            if(playerInfo.selectedCharacter){
+                lobbyState.unavailableCharacters = lobbyState.unavailableCharacters.filter(c => c !== playerInfo.selectedCharacter.nome);
+            }
+            lobbyState.unavailableCharacters.push(action.character.nome);
+            playerInfo.selectedCharacter = action.character;
+            logMessage(lobbyState, `Jogador selecionou ${action.character.nome}.`);
+            
+            // Se a seleção ocorreu durante uma batalha...
+            if(room.activeMode === 'adventure' && ['battle', 'initiative_roll'].includes(room.gameModes.adventure.phase)) {
+                room.gameModes.adventure.waitingPlayers[socket.id] = action.character;
+                io.to(lobbyState.gmId).emit('gmPromptToAdmit', { playerId: socket.id, character: action.character });
+            }
+        }
+
+        // --- AÇÕES POR MODO ---
         switch (room.activeMode) {
             case 'lobby':
                 if (isGm) {
@@ -280,83 +307,80 @@ io.on('connection', (socket) => {
                         room.activeMode = 'theater';
                     }
                 }
-                if (action.type === 'playerSelectsCharacter' && activeState.connectedPlayers[socket.id]) {
-                    if (activeState.unavailableCharacters.includes(action.character.nome)) {
-                        const mySelection = activeState.connectedPlayers[socket.id].selectedCharacter;
-                        if (!mySelection || mySelection.nome !== action.character.nome) {
-                            socket.emit('characterUnavailable', action.character.nome);
-                            return;
-                        }
-                    }
-                    const currentPlayer = activeState.connectedPlayers[socket.id];
-                    if(currentPlayer.selectedCharacter){
-                        activeState.unavailableCharacters = activeState.unavailableCharacters.filter(c => c !== currentPlayer.selectedCharacter.nome);
-                    }
-                    activeState.unavailableCharacters.push(action.character.nome);
-                    currentPlayer.selectedCharacter = action.character;
-                    logMessage(activeState, `Jogador selecionou ${action.character.nome}.`);
-                }
                 break;
 
             case 'adventure':
-                const actor = action.actorKey ? getFighter(activeState, action.actorKey) : null;
-                const canControl = actor && ((isGm && activeState.fighters.npcs[actor.id]) || (socket.id === actor.id));
+                const adventureState = activeState;
+                const actor = action.actorKey ? getFighter(adventureState, action.actorKey) : null;
+                const canControl = actor && ((isGm && adventureState.fighters.npcs[actor.id]) || (socket.id === actor.id));
                 switch (action.type) {
+                    case 'gmDecidesOnAdmission':
+                        if (isGm && action.playerId && adventureState.waitingPlayers[action.playerId]) {
+                            if (action.admitted) {
+                                const newPlayerId = action.playerId;
+                                const character = adventureState.waitingPlayers[newPlayerId];
+                                adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
+                                adventureState.turnOrder.push(newPlayerId);
+                                logMessage(adventureState, `${character.nome} entrou na batalha!`);
+                            }
+                            delete adventureState.waitingPlayers[action.playerId];
+                        }
+                        break;
                     case 'gmConfirmParty':
-                        if (isGm && activeState.phase === 'party_setup' && action.playerStats) {
+                        if (isGm && adventureState.phase === 'party_setup' && action.playerStats) {
                             action.playerStats.forEach(stats => {
-                                if (activeState.fighters.players[stats.id]) {
+                                if (adventureState.fighters.players[stats.id]) {
                                     const res = Math.max(1, stats.res);
-                                    Object.assign(activeState.fighters.players[stats.id], {
+                                    Object.assign(adventureState.fighters.players[stats.id], {
                                         agi: stats.agi, res: res, hpMax: res * 5, hp: res * 5
                                     });
                                 }
                             });
-                            activeState.phase = 'npc_setup';
-                            logMessage(activeState, 'GM confirmou o grupo. Prepare o encontro!');
+                            adventureState.phase = 'npc_setup';
+                            logMessage(adventureState, 'GM confirmou o grupo. Prepare o encontro!');
                         }
                         break;
                     case 'gmStartBattle':
-                        if (isGm && activeState.phase === 'npc_setup' && action.npcs) {
+                        if (isGm && adventureState.phase === 'npc_setup' && action.npcs) {
                              if (action.npcs.length === 0) { shouldUpdate = false; break; }
                             action.npcs.forEach((npcData, i) => {
                                 const npcId = `npc-${i}-${Date.now()}`;
-                                activeState.fighters.npcs[npcId] = createNewFighterState({ ...npcData, id: npcId });
+                                adventureState.fighters.npcs[npcId] = createNewFighterState({ ...npcData, id: npcId });
                             });
-                            activeState.phase = 'initiative_roll';
-                            logMessage(activeState, 'Inimigos em posição! Rolem as iniciativas!');
+                            adventureState.phase = 'initiative_roll';
+                            logMessage(adventureState, 'Inimigos em posição! Rolem as iniciativas!');
                         }
                         break;
                     case 'roll_initiative':
-                        if (activeState.phase === 'initiative_roll') {
+                        if (adventureState.phase === 'initiative_roll') {
                             if (action.isGmRoll && isGm) {
-                                Object.values(activeState.fighters.npcs).forEach(npc => {
-                                    if (npc.status === 'active' && !activeState.initiativeRolls[npc.id]) {
-                                        activeState.initiativeRolls[npc.id] = rollD6();
+                                Object.values(adventureState.fighters.npcs).forEach(npc => {
+                                    if (npc.status === 'active' && !adventureState.initiativeRolls[npc.id]) {
+                                        adventureState.initiativeRolls[npc.id] = rollD6();
                                     }
                                 });
-                            } else if (!action.isGmRoll && activeState.fighters.players[socket.id] && !activeState.initiativeRolls[socket.id]) {
-                                activeState.initiativeRolls[socket.id] = rollD6();
+                            } else if (!action.isGmRoll && adventureState.fighters.players[socket.id] && !adventureState.initiativeRolls[socket.id]) {
+                                adventureState.initiativeRolls[socket.id] = rollD6();
                             }
-                            const activeFighters = [...Object.values(activeState.fighters.players), ...Object.values(activeState.fighters.npcs)].filter(f => f.status === 'active');
-                            if (activeFighters.every(f => activeState.initiativeRolls[f.id])) {
-                                startBattle(activeState);
+                            const activeFighters = [...Object.values(adventureState.fighters.players), ...Object.values(adventureState.fighters.npcs)].filter(f => f.status === 'active');
+                            if (activeFighters.every(f => adventureState.initiativeRolls[f.id])) {
+                                startBattle(adventureState);
                             }
                         }
                         break;
                     case 'attack':
-                        if (activeState.phase === 'battle' && action.attackerKey === activeState.activeCharacterKey) {
-                             const attacker = getFighter(activeState, action.attackerKey);
-                             const isNpcTurn = !!activeState.fighters.npcs[attacker.id];
+                        if (adventureState.phase === 'battle' && action.attackerKey === adventureState.activeCharacterKey) {
+                             const attacker = getFighter(adventureState, action.attackerKey);
+                             const isNpcTurn = !!adventureState.fighters.npcs[attacker.id];
                              if ((isGm && isNpcTurn) || (!isNpcTurn && socket.id === action.attackerKey)) {
-                                 executeAttack(activeState, roomId, action.attackerKey, action.targetKey);
+                                 executeAttack(adventureState, roomId, action.attackerKey, action.targetKey);
                                  shouldUpdate = false; 
                              }
                         }
                         break;
                     case 'end_turn':
-                        if (activeState.phase === 'battle' && action.actorKey === activeState.activeCharacterKey && canControl) {
-                            advanceTurn(activeState);
+                        if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey && canControl) {
+                            advanceTurn(adventureState);
                         }
                         break;
                 }
