@@ -313,19 +313,17 @@ io.on('connection', (socket) => {
                             if (action.admitted) {
                                 const newPlayerId = action.playerId;
                                 const character = adventureState.waitingPlayers[newPlayerId];
-                                adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
                                 
-                                // CORREÇÃO: Lógica para adicionar na iniciativa ou no fim da fila
+                                // CORREÇÃO: Envia o assignRole para o novo jogador saber seu ID de batalha
+                                io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
+                                
+                                adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
                                 if (adventureState.phase === 'battle') {
                                     adventureState.turnOrder.push(newPlayerId);
                                 }
-                                // Se a fase for 'initiative_roll', apenas adicionamos o lutador.
-                                // O client.js irá automaticamente pedir para ele rolar a iniciativa.
-
                                 logMessage(adventureState, `${character.nome} entrou na batalha!`);
                                 delete adventureState.waitingPlayers[action.playerId];
                             } else {
-                                // CORREÇÃO: Se não for admitido, não faz nada, ele permanece na lista de espera.
                                 logMessage(adventureState, `O Mestre decidiu que ${adventureState.waitingPlayers[action.playerId].nome} aguardará.`);
                             }
                         }
