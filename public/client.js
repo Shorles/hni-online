@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let myRoomId = null; 
 
     let coordsModeActive = false;
-
     let clientFlowState = 'initializing';
     const gameStateQueue = [];
 
@@ -58,6 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
     const coordsDisplay = document.getElementById('coords-display');
+    // NOVO: Elementos do modal de cheats
+    const cheatModal = document.getElementById('cheat-modal');
+    const cheatModalCloseBtn = document.getElementById('cheat-modal-close-btn');
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -278,10 +280,11 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                if (stagedNpcs.length < 4) {
+                // NOVO: Aumenta o limite para 5
+                if (stagedNpcs.length < 5) {
                     stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); 
                     renderNpcStagingArea();
-                } else { alert("Você pode adicionar no máximo 4 inimigos."); }
+                } else { alert("Você pode adicionar no máximo 5 inimigos."); }
             });
             npcArea.appendChild(card);
         });
@@ -316,7 +319,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' } ];
+        // NOVO: Adicionada a 5ª posição para inimigos
+        const NPC_POSITIONS = [ { left: '1000px', top: '500px', zIndex: 600 }, { left: '900px',  top: '400px', zIndex: 500 }, { left: '800px',  top: '300px', zIndex: 400 }, { left: '700px',  top: '200px', zIndex: 300 }, { left: '950px', top: '250px', zIndex: 350 }];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
@@ -345,16 +349,24 @@ document.addEventListener('DOMContentLoaded', () => {
         
         Object.assign(container.style, position);
         container.style.transform = `scale(${characterScale})`;
-        container.style.zIndex = parseInt(position.top, 10);
+        // Usa o zIndex da posição, se definido, senão usa o padrão.
+        container.style.zIndex = position.zIndex || parseInt(position.top, 10);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
+        const wasJustFled = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'fled';
+        
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
             defeatAnimationPlayed.add(fighter.id);
             container.classList.add(type === 'player' ? 'animate-defeat-player' : 'animate-defeat-npc');
         } else if (fighter.status === 'down') {
              container.classList.add(type === 'player' ? 'player-defeated-final' : 'npc-defeated-final');
+        } else if (wasJustFled) {
+             container.classList.add(type === 'player' ? 'is-fleeing-player' : 'is-fleeing-npc');
+        } else if (fighter.status === 'fled') {
+             container.classList.add('fled-final');
         }
+
         if (fighter.status === 'active') {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
             const activeFighter = getFighter(state, state.activeCharacterKey);
@@ -381,6 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeFighter) return;
         const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
+        
         const attackBtn = document.createElement('button');
         attackBtn.className = 'action-btn';
         attackBtn.textContent = 'Atacar';
@@ -390,6 +403,16 @@ document.addEventListener('DOMContentLoaded', () => {
             targetingAttackerKey = state.activeCharacterKey;
             document.getElementById('targeting-indicator').classList.remove('hidden');
         });
+
+        // NOVO: Botão de Fuga
+        const fleeBtn = document.createElement('button');
+        fleeBtn.className = 'flee-btn';
+        fleeBtn.textContent = 'Fugir';
+        fleeBtn.disabled = !canControl;
+        fleeBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey });
+        });
+        
         const endTurnBtn = document.createElement('button');
         endTurnBtn.className = 'end-turn-btn';
         endTurnBtn.textContent = 'Encerrar Turno';
@@ -397,7 +420,9 @@ document.addEventListener('DOMContentLoaded', () => {
         endTurnBtn.addEventListener('click', () => {
             socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey });
         });
+
         actionButtonsWrapper.appendChild(attackBtn);
+        actionButtonsWrapper.appendChild(fleeBtn);
         actionButtonsWrapper.appendChild(endTurnBtn);
     }
 
@@ -430,14 +455,13 @@ document.addEventListener('DOMContentLoaded', () => {
         turnOrderSidebar.innerHTML = '';
         turnOrderSidebar.classList.remove('hidden');
         const orderedFighters = state.turnOrder
-            .slice(state.turnIndex)
-            .concat(state.turnOrder.slice(0, state.turnIndex))
             .map(id => getFighter(state, id))
             .filter(f => f && f.status === 'active');
         orderedFighters.forEach((fighter, index) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
-            if (index === 0) {
+            // Destaca o personagem ativo (o primeiro da lista renderizada)
+            if (fighter.id === state.activeCharacterKey) {
                 card.classList.add('active-turn-indicator');
             }
             const img = document.createElement('img');
@@ -737,6 +761,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeGlobalKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
+
+            // Fecha o modal de cheats se estiver aberto
+            if (cheatModal.classList.contains('active') && (e.key.toLowerCase() === 'c' || e.key === 'Escape')) {
+                e.preventDefault();
+                cheatModal.classList.remove('active');
+                return;
+            }
+            
             if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape'){ cancelTargeting(); return; }
             
             const focusedEl = document.activeElement;
@@ -746,6 +778,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 coordsModeActive = !coordsModeActive;
                 coordsDisplay.classList.toggle('hidden', !coordsModeActive);
+            }
+
+            // NOVO: Atalho da tecla 'C' para o modal de cheats
+            if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'c') {
+                e.preventDefault();
+                populateCheatModal();
+                cheatModal.classList.add('active');
             }
 
             if (currentGameState.mode !== 'theater' || !isGm) return;
@@ -788,7 +827,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // CORREÇÃO: Lógica de posicionamento da janela de coordenadas
         window.addEventListener('mousemove', (e) => {
             if (!coordsModeActive) return;
 
@@ -798,11 +836,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const mouseX = e.clientX;
             const mouseY = e.clientY;
 
-            // Calcula a posição do mouse relativa ao gameWrapper (espaço de 1280x720)
             const gameX = Math.round((mouseX - rect.left) / gameScale);
             const gameY = Math.round((mouseY - rect.top) / gameScale);
 
-            // Posiciona a janela de coordenadas usando as coordenadas calculadas do jogo
+            // Posiciona a janela de coordenadas relativa ao #game-wrapper
             coordsDisplay.style.left = `${gameX + 15}px`;
             coordsDisplay.style.top = `${gameY + 15}px`;
 
@@ -842,6 +879,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // NOVO: Função para popular o modal de cheats
+    function populateCheatModal() {
+        const listEl = document.getElementById('cheat-add-npc-list');
+        listEl.innerHTML = '';
+        if (!currentGameState || !currentGameState.fighters) return;
+
+        const currentNpcCount = Object.values(currentGameState.fighters.npcs).filter(n => n.status !== 'down' && n.status !== 'fled').length;
+        const canAddMore = currentNpcCount < 5;
+
+        if (!canAddMore) {
+            listEl.innerHTML = '<p>A batalha já está com o número máximo de inimigos.</p>';
+            return;
+        }
+
+        ALL_CHARACTERS.npcs.forEach(npcData => {
+            const card = document.createElement('div');
+            card.className = 'cheat-npc-card';
+            card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><p>${npcData.name}</p>`;
+            card.addEventListener('click', () => {
+                socket.emit('playerAction', { type: 'gmAddMonster', npc: npcData });
+                cheatModal.classList.remove('active');
+            });
+            listEl.appendChild(card);
+        });
+    }
+
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -1050,6 +1113,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
                 copyToClipboard(inviteUrl, floatingInviteBtn);
             }
+        });
+        
+        // NOVO: Listener para fechar o modal de cheats
+        cheatModalCloseBtn.addEventListener('click', () => {
+            cheatModal.classList.remove('active');
         });
 
         setupTheaterEventListeners();
