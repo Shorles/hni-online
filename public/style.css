@@ -141,7 +141,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 #theater-screen.panel-hidden #theater-gm-panel { right: -250px; }
 #theater-screen.panel-hidden #theater-background-viewport { width: 100%; }
 #theater-screen.panel-hidden .toggle-gm-panel-btn { right: 0; }
-#theater-back-btn { position: absolute; top: 20px; left: 20px; z-index: 5; }
 
 /* --- TELA DE LUTA --- */
 #fight-scene-characters { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -227,7 +226,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     box-shadow: 0 0 15px #ffeb3b;
 }
 
-/* --- BARRA DE JOGADORES EM ESPERA (NOVO) --- */
+/* --- BARRA DE JOGADORES EM ESPERA --- */
 #waiting-players-sidebar {
     position: absolute;
     top: 20px;
@@ -235,7 +234,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     width: 100px;
     background-color: rgba(0, 0, 0, 0.6);
     border-radius: 10px;
-    border: 2px solid #17a2b8; /* Cor diferente para diferenciar */
+    border: 2px solid #17a2b8;
     padding: 10px;
     display: flex;
     flex-direction: column;
@@ -260,7 +259,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     width: 60px;
     height: 60px;
     object-fit: contain;
-    border-radius: 5px; /* Quadrado para diferenciar */
+    border-radius: 5px;
     border: 3px solid #888;
     background-color: #333;
     transition: all 0.3s ease-in-out;
@@ -273,6 +272,30 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 
 /* --- BOTÕES FLUTUANTES --- */
+.back-btn {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 2px solid #ffeb3b;
+    background-color: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s ease-in-out;
+    z-index: 2000;
+}
+.back-btn:hover {
+    background-color: #ffeb3b;
+    color: #000;
+    transform: scale(1.1);
+}
+
 #floating-buttons-container {
     position: absolute;
     bottom: 20px;

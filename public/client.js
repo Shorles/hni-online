@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     let myRoomId = null; 
 
-    // Alteração Definitiva: Lógica robusta para enfileirar updates
     let hasInitialData = false;
     const gameStateQueue = [];
 
@@ -166,17 +165,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             const myPlayerData = gameState.connectedPlayers?.[socket.id];
             const amIInTheFight = !!getFighter(gameState, myPlayerKey);
+
+            // Se eu sou um jogador, já escolhi meu personagem, mas ainda não estou na luta (aguardando GM)
             if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter && !amIInTheFight) {
-                showScreen(fightScreen);
-                updateAdventureUI(gameState);
-                initiativeUI.classList.add('hidden');
-                actionButtonsWrapper.innerHTML = ''; 
+                showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
             }
+            // Se o GM está preparando as coisas, todos esperam
             else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
                 showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
-            } else {
+            } 
+            // Senão, mostra a tela de luta (seja como jogador na luta, ou espectador)
+            else {
                 showScreen(fightScreen); 
                 updateAdventureUI(gameState);
                 if (gameState.phase === 'initiative_roll') {
@@ -241,11 +242,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
         socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
         
+        showScreen(document.getElementById('player-waiting-screen'));
         if (currentGameState && currentGameState.mode !== 'lobby') {
-             showScreen(document.getElementById('player-waiting-screen'));
              document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
         } else {
-             showScreen(document.getElementById('player-waiting-screen'));
              document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
         }
     }
@@ -828,6 +828,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         
+        // ALTERAÇÃO: Lógica de seleção de personagem movida para o topo para ser prioritária.
+        // Se eu sou um jogador e ainda não escolhi um personagem, MOSTRE A TELA DE SELEÇÃO.
+        // Isso corrige o bug de entrar no meio de um jogo e não ver os personagens.
+        if (myRole === 'player' && (!myPlayerData || !myPlayerData.selectedCharacter)) {
+            showScreen(document.getElementById('selection-screen'));
+            const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
+            renderPlayerCharacterSelection(unavailable);
+            return; // Impede que o resto da função de renderização seja executado.
+        }
+        
+        // --- Lógica de renderização normal ---
+        
         if (gameState.mode === 'adventure' && gameState.scenario) {
              gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
         } else if (gameState.mode === 'lobby') {
@@ -858,22 +870,17 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'lobby':
                 defeatAnimationPlayed.clear();
                 stagedNpcs = [];
-                if (socket.id === gameState.gmId) {
+                if (isGm) {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
                 } else {
-                    if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter) {
-                        showScreen(document.getElementById('selection-screen'));
-                        const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
-                        renderPlayerCharacterSelection(unavailable);
-                    } else {
-                        showScreen(document.getElementById('player-waiting-screen'));
-                        const msgEl = document.getElementById('player-waiting-message');
-                        if(msgEl) {
-                            if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
-                            else if (myPlayerData?.role === 'spectator') msgEl.innerText = "Aguardando como espectador...";
-                            else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
-                        }
+                    // Se não for GM e já passou da seleção de personagem, vai para a tela de espera.
+                    showScreen(document.getElementById('player-waiting-screen'));
+                    const msgEl = document.getElementById('player-waiting-message');
+                    if(msgEl) {
+                        if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
+                        else if (myPlayerData?.role === 'spectator') msgEl.innerText = "Aguardando como espectador...";
+                        else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
                     }
                 }
                 break;
@@ -897,20 +904,17 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_SCENARIOS = data.scenarios || {};
         hasInitialData = true;
         
-        // Processa qualquer atualização que chegou antes dos dados iniciais
         while(gameStateQueue.length > 0) {
-            const state = gameStateQueue.shift(); // Pega o primeiro da fila
+            const state = gameStateQueue.shift();
             renderGame(state);
         }
     });
 
     socket.on('gameUpdate', (gameState) => {
-        // Se os dados iniciais ainda não chegaram, guarda o update na fila.
         if (!hasInitialData) {
             gameStateQueue.push(gameState);
             return;
         }
-        // Se os dados já chegaram, renderiza o jogo imediatamente.
         renderGame(gameState);
     });
 

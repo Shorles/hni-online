@@ -82,7 +82,6 @@
 
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
-        <!-- Novo: Container para jogadores em espera -->
         <div id="waiting-players-sidebar"></div> 
         <div id="fight-scene-characters"></div>
         <div id="turn-order-sidebar"></div>
@@ -141,10 +140,10 @@
         </div>
     </div>
     
-    <!-- BOTÕES FLUTUANTES (E BOTÃO DE VOLTAR) -->
+    <!-- BOTÕES FLUTUANTES -->
+    <!-- Alteração: O botão de voltar foi movido para fora do contêiner para evitar conflitos de estilo e posicionamento. -->
+    <button id="back-to-lobby-btn" class="back-btn hidden" title="Voltar ao Lobby">⌂</button>
     <div id="floating-buttons-container" class="hidden">
-        <!-- Alteração: ID do botão de voltar para ser mais genérico -->
-        <button id="back-to-lobby-btn" class="back-btn" title="Voltar ao Lobby">⌂</button>
         <button id="floating-invite-btn" title="Convidar Jogador">✉️</button>
         <button id="floating-switch-mode-btn" title="Mudar Modo de Jogo">🔄</button>
     </div>
