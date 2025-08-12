@@ -11,8 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     let myRoomId = null; 
 
-    let hasInitialData = false;
-    const gameStateQueue = [];
+    // ALTERAÇÃO: Introdução do estado de fluxo do cliente para corrigir o bug de "atropelamento"
+    let clientFlowState = 'initializing'; // Possíveis estados: 'initializing', 'choosing_role', 'in_game'
+    const gameStateQueue = []; // Fila para atualizações que chegam cedo demais
 
     // Dados do Jogo
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
@@ -166,17 +167,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const myPlayerData = gameState.connectedPlayers?.[socket.id];
             const amIInTheFight = !!getFighter(gameState, myPlayerKey);
 
-            // Se eu sou um jogador, já escolhi meu personagem, mas ainda não estou na luta (aguardando GM)
             if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter && !amIInTheFight) {
                 showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
             }
-            // Se o GM está preparando as coisas, todos esperam
             else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
                 showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
             } 
-            // Senão, mostra a tela de luta (seja como jogador na luta, ou espectador)
             else {
                 showScreen(fightScreen); 
                 updateAdventureUI(gameState);
@@ -828,17 +826,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         
-        // ALTERAÇÃO: Lógica de seleção de personagem movida para o topo para ser prioritária.
         // Se eu sou um jogador e ainda não escolhi um personagem, MOSTRE A TELA DE SELEÇÃO.
-        // Isso corrige o bug de entrar no meio de um jogo e não ver os personagens.
         if (myRole === 'player' && (!myPlayerData || !myPlayerData.selectedCharacter)) {
             showScreen(document.getElementById('selection-screen'));
             const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
             renderPlayerCharacterSelection(unavailable);
-            return; // Impede que o resto da função de renderização seja executado.
+            return; 
         }
-        
-        // --- Lógica de renderização normal ---
         
         if (gameState.mode === 'adventure' && gameState.scenario) {
              gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
@@ -874,7 +868,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
                 } else {
-                    // Se não for GM e já passou da seleção de personagem, vai para a tela de espera.
                     showScreen(document.getElementById('player-waiting-screen'));
                     const msgEl = document.getElementById('player-waiting-message');
                     if(msgEl) {
@@ -902,7 +895,6 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('initialData', (data) => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
-        hasInitialData = true;
         
         while(gameStateQueue.length > 0) {
             const state = gameStateQueue.shift();
@@ -911,14 +903,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => {
-        if (!hasInitialData) {
-            gameStateQueue.push(gameState);
+        // Se o estado de fluxo do cliente ainda não permite, não renderize nada.
+        if (clientFlowState === 'choosing_role') {
             return;
         }
         renderGame(gameState);
     });
 
     socket.on('roomCreated', (roomId) => {
+        myRoomId = roomId;
         if (isGm) {
             const baseUrl = window.location.origin;
             const inviteLinkEl = document.getElementById('gm-link-invite');
@@ -931,6 +924,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('promptForRole', ({ isFull }) => {
+        // ALTERAÇÃO: Trava o fluxo aqui, garantindo que o usuário veja esta tela.
+        clientFlowState = 'choosing_role';
         const roleSelectionScreen = document.getElementById('role-selection-screen');
         const joinAsPlayerBtn = document.getElementById('join-as-player-btn');
         const roomFullMessage = document.getElementById('room-full-message');
@@ -950,6 +945,8 @@ document.addEventListener('DOMContentLoaded', () => {
         myPlayerKey = data.playerKey || null;
         isGm = !!data.isGm;
         myRoomId = data.roomId;
+        // ALTERAÇÃO: Libera o fluxo para começar a receber atualizações normais do jogo.
+        clientFlowState = 'in_game';
     });
 
     socket.on('gmPromptToAdmit', ({ playerId, character }) => {
