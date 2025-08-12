@@ -17,7 +17,6 @@ let PLAYABLE_CHARACTERS = [];
 let DYNAMIC_CHARACTERS = [];
 let ALL_SCENARIOS = {};
 const MAX_PLAYERS = 4;
-// NOVO: Constante para o número máximo de inimigos.
 const MAX_NPCS = 5;
 
 try {
@@ -99,6 +98,8 @@ function createNewFighterState(data) {
     const scale = data.scale !== undefined ? parseFloat(data.scale) : 1.0;
     const hpMax = res * 5;
     const hp = data.hp !== undefined ? data.hp : hpMax;
+    // NOVO: Verifica se o HP é 0 para definir o status inicial.
+    const status = hp <= 0 ? 'down' : 'active';
 
     return {
         id: data.id,
@@ -108,7 +109,7 @@ function createNewFighterState(data) {
         res: res,
         hpMax: hpMax, 
         hp: hp,
-        status: 'active',
+        status: status,
         scale: scale,
     };
 }
@@ -141,7 +142,6 @@ function getFighter(state, key) {
 }
 
 function checkGameOver(state) {
-    // ALTERAÇÃO: A verificação agora ignora personagens que fugiram ('fled')
     const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
     const activeNpcs = Object.values(state.fighters.npcs).filter(n => n.status === 'active');
     if (activePlayers.length === 0) {
@@ -438,7 +438,6 @@ io.on('connection', (socket) => {
                             logMessage(adventureState, 'Inimigos em posição! Rolem as iniciativas!');
                         }
                         break;
-                    // NOVO: Ação para adicionar monstro no meio da batalha
                     case 'gmAddMonster':
                         if(isGm && adventureState.phase === 'battle' && action.npc) {
                             const currentNpcCount = Object.values(adventureState.fighters.npcs).filter(n => n.status !== 'down' && n.status !== 'fled').length;
@@ -483,20 +482,17 @@ io.on('connection', (socket) => {
                              }
                         }
                         break;
-                    // NOVO: Ação de fuga
                     case 'flee':
                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey && canControl) {
                             const fighter = getFighter(adventureState, action.actorKey);
                             if (fighter) {
                                 fighter.status = 'fled';
                                 logMessage(adventureState, `${fighter.nome} fugiu da batalha!`);
-                                // Remove o personagem da ordem de turno para que ele não seja mais selecionado
                                 adventureState.turnOrder = adventureState.turnOrder.filter(id => id !== action.actorKey);
-                                // Ajusta o índice do turno se necessário, para não pular o próximo personagem
                                 if(adventureState.turnIndex >= adventureState.turnOrder.length) {
-                                    adventureState.turnIndex = -1; // Força o avanço para o início do próximo round se for o último a agir
+                                    adventureState.turnIndex = -1;
                                 } else {
-                                     adventureState.turnIndex--; // Compensa o avanço que virá a seguir
+                                     adventureState.turnIndex--;
                                 }
                                 checkGameOver(adventureState);
                                 if (!adventureState.winner) {

@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
     const coordsDisplay = document.getElementById('coords-display');
-    // NOVO: Elementos do modal de cheats
     const cheatModal = document.getElementById('cheat-modal');
     const cheatModalCloseBtn = document.getElementById('cheat-modal-close-btn');
 
@@ -280,8 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                // NOVO: Aumenta o limite para 5
-                if (stagedNpcs.length < 5) {
+                if (stagedNpcs.length < 5) { // Aumenta o limite para 5
                     stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); 
                     renderNpcStagingArea();
                 } else { alert("Você pode adicionar no máximo 5 inimigos."); }
@@ -319,8 +317,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        // NOVO: Adicionada a 5ª posição para inimigos
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px', zIndex: 600 }, { left: '900px',  top: '400px', zIndex: 500 }, { left: '800px',  top: '300px', zIndex: 400 }, { left: '700px',  top: '200px', zIndex: 300 }, { left: '950px', top: '250px', zIndex: 350 }];
+        // NOVO: Adicionada a 5ª posição para inimigos com zIndex corrigido
+        const NPC_POSITIONS = [ 
+            { left: '1000px', top: '500px', zIndex: 600 }, 
+            { left: '900px',  top: '400px', zIndex: 500 }, 
+            { left: '800px',  top: '300px', zIndex: 400 }, 
+            { left: '700px',  top: '200px', zIndex: 300 }, 
+            { left: '1150px', top: '350px', zIndex: 350 } // Pos. 5: atrás de 1 e 2, na frente de 3 e 4
+        ];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
@@ -328,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(state.fighters.npcs).forEach((f, i) => fighterPositions[f.id] = NPC_POSITIONS[i]);
 
         allFighters.forEach(fighter => {
-            if(fighter.status === 'disconnected') return;
+            if(fighter.status === 'disconnected') return; // Ignora personagens desconectados
             const isPlayer = !!state.fighters.players[fighter.id];
             const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
             fightSceneCharacters.appendChild(el);
@@ -348,10 +352,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const characterScale = fighter.scale || 1.0;
         
         Object.assign(container.style, position);
-        container.style.transform = `scale(${characterScale})`;
-        // Usa o zIndex da posição, se definido, senão usa o padrão.
-        container.style.zIndex = position.zIndex || parseInt(position.top, 10);
-        
+        // CORREÇÃO: Aplica a escala via custom property para uso nas animações
+        container.style.setProperty('--character-scale', characterScale);
+        container.style.transform = `scale(${characterScale})`; // Escala inicial
+        container.style.zIndex = position.zIndex || parseInt(position.top, 10); // Usa zIndex da posição ou calcula
+
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
         const wasJustFled = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'fled';
@@ -404,7 +409,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('targeting-indicator').classList.remove('hidden');
         });
 
-        // NOVO: Botão de Fuga
         const fleeBtn = document.createElement('button');
         fleeBtn.className = 'flee-btn';
         fleeBtn.textContent = 'Fugir';
@@ -456,11 +460,10 @@ document.addEventListener('DOMContentLoaded', () => {
         turnOrderSidebar.classList.remove('hidden');
         const orderedFighters = state.turnOrder
             .map(id => getFighter(state, id))
-            .filter(f => f && f.status === 'active');
+            .filter(f => f && f.status === 'active'); // Filtra apenas ativos
         orderedFighters.forEach((fighter, index) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
-            // Destaca o personagem ativo (o primeiro da lista renderizada)
             if (fighter.id === state.activeCharacterKey) {
                 card.classList.add('active-turn-indicator');
             }
@@ -762,7 +765,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
 
-            // Fecha o modal de cheats se estiver aberto
             if (cheatModal.classList.contains('active') && (e.key.toLowerCase() === 'c' || e.key === 'Escape')) {
                 e.preventDefault();
                 cheatModal.classList.remove('active');
@@ -780,7 +782,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 coordsDisplay.classList.toggle('hidden', !coordsModeActive);
             }
 
-            // NOVO: Atalho da tecla 'C' para o modal de cheats
             if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'c') {
                 e.preventDefault();
                 populateCheatModal();
@@ -839,7 +840,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const gameX = Math.round((mouseX - rect.left) / gameScale);
             const gameY = Math.round((mouseY - rect.top) / gameScale);
 
-            // Posiciona a janela de coordenadas relativa ao #game-wrapper
             coordsDisplay.style.left = `${gameX + 15}px`;
             coordsDisplay.style.top = `${gameY + 15}px`;
 
@@ -879,21 +879,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // NOVO: Função para popular o modal de cheats
     function populateCheatModal() {
         const listEl = document.getElementById('cheat-add-npc-list');
         listEl.innerHTML = '';
-        if (!currentGameState || !currentGameState.fighters) return;
+        if (!currentGameState || !currentGameState.fighters || !currentGameState.fighters.npcs) {
+            listEl.innerHTML = '<p>Não foi possível carregar a lista de inimigos.</p>';
+            return;
+        }
 
         const currentNpcCount = Object.values(currentGameState.fighters.npcs).filter(n => n.status !== 'down' && n.status !== 'fled').length;
         const canAddMore = currentNpcCount < 5;
 
         if (!canAddMore) {
-            listEl.innerHTML = '<p>A batalha já está com o número máximo de inimigos.</p>';
+            listEl.innerHTML = '<p>A batalha já está com o número máximo de inimigos (5).</p>';
             return;
         }
 
-        ALL_CHARACTERS.npcs.forEach(npcData => {
+        (ALL_CHARACTERS.npcs || []).forEach(npcData => {
             const card = document.createElement('div');
             card.className = 'cheat-npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><p>${npcData.name}</p>`;
@@ -1115,7 +1117,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // NOVO: Listener para fechar o modal de cheats
         cheatModalCloseBtn.addEventListener('click', () => {
             cheatModal.classList.remove('active');
         });
