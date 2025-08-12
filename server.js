@@ -17,6 +17,8 @@ let PLAYABLE_CHARACTERS = [];
 let DYNAMIC_CHARACTERS = [];
 let ALL_SCENARIOS = {};
 const MAX_PLAYERS = 4;
+// NOVO: Constante para o número máximo de inimigos.
+const MAX_NPCS = 5;
 
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
@@ -139,10 +141,11 @@ function getFighter(state, key) {
 }
 
 function checkGameOver(state) {
+    // ALTERAÇÃO: A verificação agora ignora personagens que fugiram ('fled')
     const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
     const activeNpcs = Object.values(state.fighters.npcs).filter(n => n.status === 'active');
     if (activePlayers.length === 0) {
-        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados.';
+        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados ou fugiram.';
         logMessage(state, 'Fim da batalha! Os inimigos venceram.', 'game_over');
     } else if (activeNpcs.length === 0) {
         state.winner = 'players'; state.reason = 'Todos os inimigos foram derrotados.';
@@ -326,14 +329,12 @@ io.on('connection', (socket) => {
                      room.activeMode = 'theater';
                 }
             }
-            // CORREÇÃO: Lógica para pular a tela de atributos ao iniciar uma nova luta.
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                     room.adventureCache = null; 
-                } else { // 'new'
+                } else {
                     const newAdventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                    // Pula a fase de configuração do grupo, mantendo o HP salvo.
                     newAdventure.phase = 'npc_setup';
                     logMessage(newAdventure, 'Iniciando um novo encontro com o grupo existente.');
                     room.gameModes.adventure = newAdventure;
@@ -437,6 +438,24 @@ io.on('connection', (socket) => {
                             logMessage(adventureState, 'Inimigos em posição! Rolem as iniciativas!');
                         }
                         break;
+                    // NOVO: Ação para adicionar monstro no meio da batalha
+                    case 'gmAddMonster':
+                        if(isGm && adventureState.phase === 'battle' && action.npc) {
+                            const currentNpcCount = Object.values(adventureState.fighters.npcs).filter(n => n.status !== 'down' && n.status !== 'fled').length;
+                            if (currentNpcCount < MAX_NPCS) {
+                                const npcData = action.npc;
+                                const npcId = `npc-${Date.now()}`;
+                                const npcObj = ALL_NPCS[npcData.name] || {};
+                                adventureState.fighters.npcs[npcId] = createNewFighterState({
+                                    ...npcData,
+                                    id: npcId,
+                                    scale: npcObj.scale || 1.0
+                                });
+                                adventureState.turnOrder.push(npcId);
+                                logMessage(adventureState, `${npcData.name} foi adicionado à batalha!`);
+                            }
+                        }
+                        break;
                     case 'roll_initiative':
                         if (adventureState.phase === 'initiative_roll') {
                             if (action.isGmRoll && isGm) {
@@ -462,6 +481,28 @@ io.on('connection', (socket) => {
                                  executeAttack(adventureState, roomId, action.attackerKey, action.targetKey);
                                  shouldUpdate = false; 
                              }
+                        }
+                        break;
+                    // NOVO: Ação de fuga
+                    case 'flee':
+                        if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey && canControl) {
+                            const fighter = getFighter(adventureState, action.actorKey);
+                            if (fighter) {
+                                fighter.status = 'fled';
+                                logMessage(adventureState, `${fighter.nome} fugiu da batalha!`);
+                                // Remove o personagem da ordem de turno para que ele não seja mais selecionado
+                                adventureState.turnOrder = adventureState.turnOrder.filter(id => id !== action.actorKey);
+                                // Ajusta o índice do turno se necessário, para não pular o próximo personagem
+                                if(adventureState.turnIndex >= adventureState.turnOrder.length) {
+                                    adventureState.turnIndex = -1; // Força o avanço para o início do próximo round se for o último a agir
+                                } else {
+                                     adventureState.turnIndex--; // Compensa o avanço que virá a seguir
+                                }
+                                checkGameOver(adventureState);
+                                if (!adventureState.winner) {
+                                    advanceTurn(adventureState);
+                                }
+                            }
                         }
                         break;
                     case 'end_turn':

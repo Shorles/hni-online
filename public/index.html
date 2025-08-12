@@ -58,7 +58,7 @@
     <!-- Tela para o GM selecionar os NPCs e definir stats -->
     <div id="gm-npc-setup-screen" class="screen">
         <h1>Montar Encontro</h1>
-        <p>Clique nos inimigos abaixo para adicioná-los à batalha (máximo 4).</p>
+        <p>Clique nos inimigos abaixo para adicioná-los à batalha (máximo 5).</p>
         <div id="npc-selection-area" class="npc-selection-container"></div>
         <div id="npc-staging-area-container">
             <h3>Inimigos na Batalha:</h3>
@@ -140,6 +140,19 @@
         </div>
     </div>
     
+    <!-- NOVO: Modal de Cheats do GM -->
+    <div id="cheat-modal" class="screen">
+        <div id="modal-content">
+            <h3 id="modal-title">Painel de Cheats (GM)</h3>
+            <div id="modal-text">
+                <h4>Adicionar Inimigo à Batalha</h4>
+                <p>Clique em um inimigo para adicioná-lo a um slot vago.</p>
+                <div id="cheat-add-npc-list" class="cheat-npc-list"></div>
+            </div>
+            <button id="cheat-modal-close-btn">Fechar</button>
+        </div>
+    </div>
+
     <!-- BOTÕES FLUTUANTES -->
     <button id="back-to-lobby-btn" class="back-btn hidden" title="Voltar ao Lobby">⌂</button>
     <div id="floating-buttons-container" class="hidden">
@@ -147,7 +160,6 @@
         <button id="floating-switch-mode-btn" title="Mudar Modo de Jogo">🔄</button>
     </div>
 
-    <!-- NOVO: Janela de Coordenadas -->
     <div id="coords-display" class="hidden"></div>
 
 </div>
