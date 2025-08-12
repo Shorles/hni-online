@@ -4,22 +4,24 @@
     "Elfa Arqueira",
     "Anão Barbaro",
     "Humana Maga",
-"Orc Barbaro"
+    "Orc Barbaro"
   ],
-  "npcs": [
-"Goblin M": {},
-"Goblin F": {},
-"Orc M": {},
-"Orc F": {},
-"Esqueleto": {},
-"Goblin Xamã": {},
-"Zumbi M": {},
-"Zumbi F": {},
-"Aranha": {},
-"Cobra": {"scale":0.3},
-"Cobra Boss": {},
-"Rato": {},
-"Ratazana": {},
-"Fantasma": {},
-  ]
+  "npcs": {
+    "Goblin M": {},
+    "Goblin F": {},
+    "Orc M": {},
+    "Orc F": {},
+    "Esqueleto": {},
+    "Goblin Xamã": {},
+    "Zumbi M": {},
+    "Zumbi F": {},
+    "Aranha": {},
+    "Cobra": {"scale": 0.3},
+    "Cobra Boss": {},
+    "Rato": {},
+    "Ratazana": {},
+    "Fantasma": {},
+    "Mumia M": {},
+    "Mumia F": {}
+  }
 }
