@@ -326,12 +326,17 @@ io.on('connection', (socket) => {
                      room.activeMode = 'theater';
                 }
             }
+            // CORREÇÃO: Lógica para pular a tela de atributos ao iniciar uma nova luta.
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                     room.adventureCache = null; 
-                } else {
-                    room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                } else { // 'new'
+                    const newAdventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                    // Pula a fase de configuração do grupo, mantendo o HP salvo.
+                    newAdventure.phase = 'npc_setup';
+                    logMessage(newAdventure, 'Iniciando um novo encontro com o grupo existente.');
+                    room.gameModes.adventure = newAdventure;
                 }
                 room.activeMode = 'adventure';
             }
@@ -355,9 +360,7 @@ io.on('connection', (socket) => {
             logMessage(lobbyState, `Jogador selecionou ${action.character.nome}.`);
             
             if(room.activeMode === 'adventure' && room.gameModes.adventure) {
-                room.gameModes.adventure.waitingPlayers[socket.id] = { 
-                    ...action.character
-                };
+                room.gameModes.adventure.waitingPlayers[socket.id] = { ...action.character };
                 io.to(lobbyState.gmId).emit('gmPromptToAdmit', { playerId: socket.id, character: action.character });
             }
         }
@@ -380,7 +383,7 @@ io.on('connection', (socket) => {
 
             case 'adventure':
                 const adventureState = activeState;
-                if (!adventureState) break; // Safety check for adventure state
+                if (!adventureState) break;
                 const actor = action.actorKey ? getFighter(adventureState, action.actorKey) : null;
                 const canControl = actor && ((isGm && adventureState.fighters.npcs[actor.id]) || (socket.id === actor.id));
                 switch (action.type) {
@@ -393,9 +396,7 @@ io.on('connection', (socket) => {
                                 io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
                                 adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
                                 
-                                // CORREÇÃO: Lógica de inserção na ordem de turno.
                                 if (adventureState.phase === 'battle') {
-                                    // Adiciona o jogador ao final absoluto da fila de turnos.
                                     adventureState.turnOrder.push(newPlayerId);
                                 } 
                                 
@@ -403,7 +404,6 @@ io.on('connection', (socket) => {
                                 delete adventureState.waitingPlayers[action.playerId];
                             } else {
                                 logMessage(adventureState, `O Mestre decidiu que ${character.nome} aguardará.`);
-                                // O jogador permanece na lista de espera, a UI do GM o mostrará lá.
                             }
                         }
                         break;
@@ -473,7 +473,6 @@ io.on('connection', (socket) => {
                 break;
 
             case 'theater':
-                 // CORREÇÃO: Adicionada verificação de segurança para prevenir crash no servidor.
                  if (isGm && activeState && activeState.scenarioStates && activeState.currentScenario) {
                      const currentScenarioState = activeState.scenarioStates[activeState.currentScenario];
                      if(currentScenarioState) {
