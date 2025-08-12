@@ -11,8 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     let myRoomId = null; 
     
-    // Alteração: Flag para garantir que os dados iniciais foram recebidos
+    // Alteração: Lógica para resolver a condição de corrida de forma robusta
     let initialDataReceived = false;
+    let queuedGameState = null;
 
     // Dados do Jogo
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
@@ -814,13 +815,105 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Nova Função Central de Renderização ---
+    function processGameUpdate(gameState) {
+        const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
+        oldGameState = currentGameState;
+        currentGameState = gameState;
+
+        if (!gameState || !gameState.mode || !gameState.connectedPlayers) {
+            showScreen(document.getElementById('loading-screen'));
+            return;
+        }
+
+        const myPlayerData = gameState.connectedPlayers?.[socket.id];
+        
+        if (gameState.mode === 'adventure' && gameState.scenario) {
+             gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
+        } else if (gameState.mode === 'lobby') {
+             gameWrapper.style.backgroundImage = `url('images/mapas/cenarios externos/externo (1).png')`;
+        } else {
+            gameWrapper.style.backgroundImage = 'none';
+        }
+
+        turnOrderSidebar.classList.add('hidden');
+        floatingButtonsContainer.classList.add('hidden');
+        waitingPlayersSidebar.classList.add('hidden');
+        backToLobbyBtn.classList.add('hidden');
+
+        if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
+            floatingButtonsContainer.classList.remove('hidden');
+            backToLobbyBtn.classList.remove('hidden');
+            const switchBtn = document.getElementById('floating-switch-mode-btn');
+            if(gameState.mode === 'adventure') {
+                switchBtn.innerHTML = '🎭';
+                switchBtn.title = 'Mudar para Modo Cenário';
+            } else {
+                switchBtn.innerHTML = '⚔️';
+                switchBtn.title = 'Mudar para Modo Aventura';
+            }
+        }
+
+        switch(gameState.mode) {
+            case 'lobby':
+                defeatAnimationPlayed.clear();
+                stagedNpcs = [];
+                if (socket.id === gameState.gmId) {
+                    showScreen(document.getElementById('gm-initial-lobby'));
+                    updateGmLobbyUI(gameState);
+                } else {
+                    if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter) {
+                        showScreen(document.getElementById('selection-screen'));
+                        const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
+                        renderPlayerCharacterSelection(unavailable);
+                    } else {
+                        showScreen(document.getElementById('player-waiting-screen'));
+                        const msgEl = document.getElementById('player-waiting-message');
+                        if(msgEl) {
+                            if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
+                            else if (myPlayerData?.role === 'spectator') msgEl.innerText = "Aguardando como espectador...";
+                            else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
+                        }
+                    }
+                }
+                break;
+            case 'adventure':
+                handleAdventureMode(gameState);
+                break;
+            case 'theater':
+                if (justEnteredTheater) initializeTheaterMode();
+                showScreen(document.getElementById('theater-screen'));
+                renderTheaterMode(gameState);
+                break;
+            default:
+                showScreen(document.getElementById('loading-screen'));
+        }
+    }
+
+
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
-        // Alteração: Confirma que os dados essenciais foram recebidos
         initialDataReceived = true;
+        
+        // Se uma atualização de jogo chegou antes, processe-a agora.
+        if (queuedGameState) {
+            processGameUpdate(queuedGameState);
+            queuedGameState = null;
+        }
     });
+
+    socket.on('gameUpdate', (gameState) => {
+        // Se os dados iniciais ainda não chegaram, guarde o estado para depois.
+        if (!initialDataReceived) {
+            queuedGameState = gameState;
+            return;
+        }
+        // Se os dados já chegaram, processe imediatamente.
+        processGameUpdate(gameState);
+    });
+
     socket.on('roomCreated', (roomId) => {
         if (isGm) {
             const baseUrl = window.location.origin;
@@ -895,84 +988,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
-    socket.on('gameUpdate', (gameState) => {
-        // Alteração: Garante que os dados de personagens/cenários existam antes de renderizar qualquer tela.
-        if (!initialDataReceived) {
-            return;
-        }
-        
-        const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
-        oldGameState = currentGameState;
-        currentGameState = gameState;
-
-        if (!gameState || !gameState.mode || !gameState.connectedPlayers) {
-            showScreen(document.getElementById('loading-screen'));
-            return;
-        }
-
-        const myPlayerData = gameState.connectedPlayers?.[socket.id];
-        
-        if (gameState.mode === 'adventure' && gameState.scenario) {
-             gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
-        } else if (gameState.mode === 'lobby') {
-             gameWrapper.style.backgroundImage = `url('images/mapas/cenarios externos/externo (1).png')`;
-        } else {
-            gameWrapper.style.backgroundImage = 'none';
-        }
-
-        turnOrderSidebar.classList.add('hidden');
-        floatingButtonsContainer.classList.add('hidden');
-        waitingPlayersSidebar.classList.add('hidden');
-        backToLobbyBtn.classList.add('hidden');
-
-        if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
-            floatingButtonsContainer.classList.remove('hidden');
-            backToLobbyBtn.classList.remove('hidden');
-            const switchBtn = document.getElementById('floating-switch-mode-btn');
-            if(gameState.mode === 'adventure') {
-                switchBtn.innerHTML = '🎭';
-                switchBtn.title = 'Mudar para Modo Cenário';
-            } else {
-                switchBtn.innerHTML = '⚔️';
-                switchBtn.title = 'Mudar para Modo Aventura';
-            }
-        }
-
-        switch(gameState.mode) {
-            case 'lobby':
-                defeatAnimationPlayed.clear();
-                stagedNpcs = [];
-                if (socket.id === gameState.gmId) {
-                    showScreen(document.getElementById('gm-initial-lobby'));
-                    updateGmLobbyUI(gameState);
-                } else {
-                    if (myPlayerData?.role === 'player' && !myPlayerData.selectedCharacter) {
-                        showScreen(document.getElementById('selection-screen'));
-                        const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
-                        renderPlayerCharacterSelection(unavailable);
-                    } else {
-                        showScreen(document.getElementById('player-waiting-screen'));
-                        const msgEl = document.getElementById('player-waiting-message');
-                        if(msgEl) {
-                            if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
-                            else if (myPlayerData?.role === 'spectator') msgEl.innerText = "Aguardando como espectador...";
-                            else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
-                        }
-                    }
-                }
-                break;
-            case 'adventure':
-                handleAdventureMode(gameState);
-                break;
-            case 'theater':
-                if (justEnteredTheater) initializeTheaterMode();
-                showScreen(document.getElementById('theater-screen'));
-                renderTheaterMode(gameState);
-                break;
-            default:
-                showScreen(document.getElementById('loading-screen'));
-        }
-    });
 
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
