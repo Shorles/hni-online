@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     let myRoomId = null; 
 
-    // NOVO: Variável para controlar o modo de coordenadas
     let coordsModeActive = false;
 
     let clientFlowState = 'initializing';
@@ -58,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
-    // NOVO: Elemento da janela de coordenadas
     const coordsDisplay = document.getElementById('coords-display');
 
     // --- FUNÇÕES DE UTILIDADE ---
@@ -343,12 +341,9 @@ document.addEventListener('DOMContentLoaded', () => {
         container.id = fighter.id;
         container.dataset.key = fighter.id;
 
-        const baseSize = 150;
         const characterScale = fighter.scale || 1.0;
-        const finalSize = baseSize * characterScale;
         
         Object.assign(container.style, position);
-        // Aplica a escala ao contêiner, não apenas à imagem, para que a posição seja correta.
         container.style.transform = `scale(${characterScale})`;
         container.style.zIndex = parseInt(position.top, 10);
         
@@ -747,7 +742,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const focusedEl = document.activeElement;
             if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA') return;
 
-            // NOVO: Atalho da tecla 'T' para o modo de coordenadas.
             if (e.key.toLowerCase() === 't') {
                 e.preventDefault();
                 coordsModeActive = !coordsModeActive;
@@ -794,26 +788,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // NOVO: Listener para mover a janela de coordenadas
+        // CORREÇÃO: Lógica de posicionamento da janela de coordenadas
         window.addEventListener('mousemove', (e) => {
             if (!coordsModeActive) return;
 
             const gameScale = getGameScale();
             const rect = gameWrapper.getBoundingClientRect();
             
-            // Calcula a posição do mouse relativa à janela
             const mouseX = e.clientX;
             const mouseY = e.clientY;
 
-            // Calcula a posição do mouse relativa ao gameWrapper (área 1280x720)
+            // Calcula a posição do mouse relativa ao gameWrapper (espaço de 1280x720)
             const gameX = Math.round((mouseX - rect.left) / gameScale);
             const gameY = Math.round((mouseY - rect.top) / gameScale);
 
-            // Posiciona a janela de coordenadas perto do cursor
-            coordsDisplay.style.left = `${mouseX + 15}px`;
-            coordsDisplay.style.top = `${mouseY + 15}px`;
+            // Posiciona a janela de coordenadas usando as coordenadas calculadas do jogo
+            coordsDisplay.style.left = `${gameX + 15}px`;
+            coordsDisplay.style.top = `${gameY + 15}px`;
 
-            // Atualiza o texto com as coordenadas
             coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
         });
     }
