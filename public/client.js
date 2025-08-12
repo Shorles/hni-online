@@ -11,9 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     let myRoomId = null; 
 
-    // ALTERAÇÃO: Introdução do estado de fluxo do cliente para corrigir o bug de "atropelamento"
-    let clientFlowState = 'initializing'; // Possíveis estados: 'initializing', 'choosing_role', 'in_game'
-    const gameStateQueue = []; // Fila para atualizações que chegam cedo demais
+    // NOVO: Variável para controlar o modo de coordenadas
+    let coordsModeActive = false;
+
+    let clientFlowState = 'initializing';
+    const gameStateQueue = [];
 
     // Dados do Jogo
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
@@ -56,6 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
+    // NOVO: Elemento da janela de coordenadas
+    const coordsDisplay = document.getElementById('coords-display');
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -342,10 +346,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const baseSize = 150;
         const characterScale = fighter.scale || 1.0;
         const finalSize = baseSize * characterScale;
-        container.style.width = `${finalSize}px`;
-
+        
         Object.assign(container.style, position);
+        // Aplica a escala ao contêiner, não apenas à imagem, para que a posição seja correta.
+        container.style.transform = `scale(${characterScale})`;
         container.style.zIndex = parseInt(position.top, 10);
+        
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
@@ -369,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.addEventListener('click', handleTargetClick);
         }
         const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
-        container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame" style="width: ${finalSize}px; height: ${finalSize}px;"><div class="fighter-name-ingame">${fighter.nome}</div>`;
+        container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
     
@@ -737,10 +743,18 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
             if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape'){ cancelTargeting(); return; }
-            if (currentGameState.mode !== 'theater' || !isGm) return;
             
             const focusedEl = document.activeElement;
             if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA') return;
+
+            // NOVO: Atalho da tecla 'T' para o modo de coordenadas.
+            if (e.key.toLowerCase() === 't') {
+                e.preventDefault();
+                coordsModeActive = !coordsModeActive;
+                coordsDisplay.classList.toggle('hidden', !coordsModeActive);
+            }
+
+            if (currentGameState.mode !== 'theater' || !isGm) return;
             
             if(e.key.toLowerCase() === 'g') {
                 e.preventDefault();
@@ -779,6 +793,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+
+        // NOVO: Listener para mover a janela de coordenadas
+        window.addEventListener('mousemove', (e) => {
+            if (!coordsModeActive) return;
+
+            const gameScale = getGameScale();
+            const rect = gameWrapper.getBoundingClientRect();
+            
+            // Calcula a posição do mouse relativa à janela
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+
+            // Calcula a posição do mouse relativa ao gameWrapper (área 1280x720)
+            const gameX = Math.round((mouseX - rect.left) / gameScale);
+            const gameY = Math.round((mouseY - rect.top) / gameScale);
+
+            // Posiciona a janela de coordenadas perto do cursor
+            coordsDisplay.style.left = `${mouseX + 15}px`;
+            coordsDisplay.style.top = `${mouseY + 15}px`;
+
+            // Atualiza o texto com as coordenadas
+            coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
+        });
     }
 
     function showScenarioSelectionModal() {
@@ -813,7 +850,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // --- Função Central de Renderização ---
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -826,7 +862,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         
-        // Se eu sou um jogador e ainda não escolhi um personagem, MOSTRE A TELA DE SELEÇÃO.
         if (myRole === 'player' && (!myPlayerData || !myPlayerData.selectedCharacter)) {
             showScreen(document.getElementById('selection-screen'));
             const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
@@ -903,7 +938,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => {
-        // Se o estado de fluxo do cliente ainda não permite, não renderize nada.
         if (clientFlowState === 'choosing_role') {
             return;
         }
@@ -924,7 +958,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('promptForRole', ({ isFull }) => {
-        // ALTERAÇÃO: Trava o fluxo aqui, garantindo que o usuário veja esta tela.
         clientFlowState = 'choosing_role';
         const roleSelectionScreen = document.getElementById('role-selection-screen');
         const joinAsPlayerBtn = document.getElementById('join-as-player-btn');
@@ -945,7 +978,6 @@ document.addEventListener('DOMContentLoaded', () => {
         myPlayerKey = data.playerKey || null;
         isGm = !!data.isGm;
         myRoomId = data.roomId;
-        // ALTERAÇÃO: Libera o fluxo para começar a receber atualizações normais do jogo.
         clientFlowState = 'in_game';
     });
 

@@ -45,7 +45,6 @@ body {
     justify-content: normal;
     align-items: normal;
     position: relative;
-    /* CORREÇÃO: Permite que cliques "passem através" da tela de luta para os botões flutuantes abaixo. */
     pointer-events: none; 
 }
 #theater-screen {
@@ -147,7 +146,14 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 /* --- TELA DE LUTA --- */
 #fight-scene-characters { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 .player-char-container, .npc-char-container { position: absolute; display: flex; flex-direction: column; align-items: center; width: 150px; pointer-events: all; transition: transform 0.2s ease-out; }
-.fighter-img-ingame { width: 150px; height: 150px; object-fit: contain; filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.7)); }
+.fighter-img-ingame { 
+    width: 150px; 
+    height: 150px; 
+    object-fit: contain; 
+    filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.7));
+    /* CORREÇÃO: Faz a imagem escalar a partir da base, crescendo para cima. */
+    transform-origin: bottom center;
+}
 .health-bar-ingame { width: 100px; height: 15px; background-color: rgba(85, 85, 85, 0.7); border: 1px solid #000; border-radius: 5px; margin-bottom: 5px; position: relative; }
 .health-bar-ingame-fill { height: 100%; background-color: #28a745; border-radius: 5px; transition: width 0.5s ease-in-out; }
 .health-bar-ingame-text { position: absolute; width: 100%; text-align: center; top: -1px; font-size: 0.8em; font-weight: bold; color: white; text-shadow: 1px 1px 1px black; }
@@ -188,7 +194,21 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     transform: scale(1.1); 
 }
 #targeting-indicator { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); background-color: rgba(220, 53, 69, 0.9); color: white; padding: 10px 25px; border-radius: 8px; font-weight: bold; z-index: 100; pointer-events: none; }
-#coords-display { position: absolute; top: 20px; right: 20px; background-color: rgba(0,0,0,0.8); color: #ffeb3b; padding: 5px 10px; border-radius: 5px; font-family: monospace; font-size: 1em; z-index: 9999; pointer-events: none; }
+
+/* --- NOVO: Janela de Coordenadas --- */
+#coords-display { 
+    position: absolute; 
+    background-color: rgba(0,0,0,0.8); 
+    color: #ffeb3b; 
+    padding: 5px 10px; 
+    border-radius: 5px; 
+    font-family: monospace; 
+    font-size: 1.2em; 
+    /* z-index e pointer-events garantem que ele fique por cima e não bloqueie cliques */
+    z-index: 9999; 
+    pointer-events: none; 
+    line-height: 1.5;
+}
 
 /* --- BARRA DE ORDEM DE TURNO --- */
 #turn-order-sidebar {
@@ -292,7 +312,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     justify-content: center;
     align-items: center;
     transition: all 0.2s ease-in-out;
-    /* CORREÇÃO: Aumenta o z-index para garantir que fique acima de tudo */
     z-index: 9000;
 }
 .back-btn:hover {
@@ -308,7 +327,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     display: flex;
     flex-direction: column;
     gap: 10px;
-    /* CORREÇÃO: Aumenta o z-index para garantir que fique acima de tudo */
     z-index: 9000;
 }
 #floating-buttons-container button {
