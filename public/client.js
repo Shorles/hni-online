@@ -10,10 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let defeatAnimationPlayed = new Set();
     const socket = io();
     let myRoomId = null; 
-    
-    // Alteração: Lógica para resolver a condição de corrida de forma robusta
-    let initialDataReceived = false;
-    let queuedGameState = null;
+
+    // Alteração Definitiva: Lógica robusta para enfileirar updates
+    let hasInitialData = false;
+    const gameStateQueue = [];
 
     // Dados do Jogo
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
@@ -814,9 +814,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-
-    // --- Nova Função Central de Renderização ---
-    function processGameUpdate(gameState) {
+    
+    // --- Função Central de Renderização ---
+    function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
         currentGameState = gameState;
@@ -895,23 +895,23 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('initialData', (data) => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
-        initialDataReceived = true;
+        hasInitialData = true;
         
-        // Se uma atualização de jogo chegou antes, processe-a agora.
-        if (queuedGameState) {
-            processGameUpdate(queuedGameState);
-            queuedGameState = null;
+        // Processa qualquer atualização que chegou antes dos dados iniciais
+        while(gameStateQueue.length > 0) {
+            const state = gameStateQueue.shift(); // Pega o primeiro da fila
+            renderGame(state);
         }
     });
 
     socket.on('gameUpdate', (gameState) => {
-        // Se os dados iniciais ainda não chegaram, guarde o estado para depois.
-        if (!initialDataReceived) {
-            queuedGameState = gameState;
+        // Se os dados iniciais ainda não chegaram, guarda o update na fila.
+        if (!hasInitialData) {
+            gameStateQueue.push(gameState);
             return;
         }
-        // Se os dados já chegaram, processe imediatamente.
-        processGameUpdate(gameState);
+        // Se os dados já chegaram, renderiza o jogo imediatamente.
+        renderGame(gameState);
     });
 
     socket.on('roomCreated', (roomId) => {
