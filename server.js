@@ -310,14 +310,15 @@ io.on('connection', (socket) => {
                 return;
             }
             if (action.type === 'gmSwitchesMode') {
-                const targetMode = room.activeMode === 'adventure' ? 'theater' : 'adventure';
-                
-                if (room.activeMode === 'adventure') {
+                const fromMode = room.activeMode;
+                const toMode = fromMode === 'adventure' ? 'theater' : 'adventure';
+
+                if (fromMode === 'adventure') {
                     cachePlayerStats(room); 
                     room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
                 }
 
-                if (targetMode === 'adventure') {
+                if (toMode === 'adventure') {
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
                         shouldUpdate = false; 
@@ -325,7 +326,7 @@ io.on('connection', (socket) => {
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                         room.activeMode = 'adventure';
                     }
-                } else { 
+                } else if (toMode === 'theater') { 
                      if (!room.gameModes.theater) {
                         room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                      }
@@ -335,13 +336,13 @@ io.on('connection', (socket) => {
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
-                    room.adventureCache = null; 
                 } else {
                     const newAdventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                     newAdventure.phase = 'npc_setup';
                     logMessage(newAdventure, 'Iniciando um novo encontro com o grupo existente.');
                     room.gameModes.adventure = newAdventure;
                 }
+                room.adventureCache = null; // CORREÇÃO: Limpa o cache após ser usado
                 room.activeMode = 'adventure';
             }
         }

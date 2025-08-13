@@ -327,11 +327,34 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
-        Object.values(state.fighters.players).forEach((f, i) => fighterPositions[f.id] = PLAYER_POSITIONS[i]);
-        Object.values(state.fighters.npcs).forEach((f, i) => fighterPositions[f.id] = NPC_POSITIONS[i]);
+        
+        // Atribui posições aos jogadores
+        Object.values(state.fighters.players).forEach((f, i) => {
+            if (i < PLAYER_POSITIONS.length) fighterPositions[f.id] = PLAYER_POSITIONS[i];
+        });
+
+        // CORREÇÃO: Lógica de posicionamento de NPCs para evitar crashes.
+        // Isso garante que apenas os primeiros 5 NPCs (priorizando os ativos) recebam uma posição na tela.
+        const allNpcs = Object.values(state.fighters.npcs);
+        const activeNpcs = allNpcs.filter(n => n.status === 'active');
+        const inactiveNpcs = allNpcs.filter(n => n.status !== 'active' && n.status !== 'disconnected');
+        const npcsToPosition = [...activeNpcs, ...inactiveNpcs];
+
+        npcsToPosition.forEach((f, i) => {
+            if (i < NPC_POSITIONS.length) {
+                fighterPositions[f.id] = NPC_POSITIONS[i];
+            }
+        });
 
         allFighters.forEach(fighter => {
             if(fighter.status === 'disconnected') return;
+            
+            // CORREÇÃO: Garante que um personagem só seja renderizado se tiver uma posição.
+            // Isso previne o erro quando um 6º inimigo (ou mais) existe no estado do jogo.
+            if (!fighterPositions[fighter.id]) {
+                return;
+            }
+
             const isPlayer = !!state.fighters.players[fighter.id];
             const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
             fightSceneCharacters.appendChild(el);
@@ -353,7 +376,6 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.assign(container.style, position);
         container.style.setProperty('--character-scale', characterScale);
         container.style.transform = `scale(${characterScale})`;
-        // CORREÇÃO: z-index automático baseado na posição Y
         container.style.zIndex = parseInt(position.top, 10);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
