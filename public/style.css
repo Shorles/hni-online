@@ -358,7 +358,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     display: flex;
     flex-direction: column;
     gap: 10px;
-    z-index: 9000; /* CORREÇÃO: Garante que os botões fiquem acima de todos os outros elementos da tela */
+    z-index: 9000; 
     pointer-events: auto; 
 }
 #floating-buttons-container button {
@@ -414,4 +414,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .cheat-npc-card { background-color: #444; border: 2px solid #666; border-radius: 5px; padding: 10px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
 .cheat-npc-card:hover { border-color: #007bff; }
 .cheat-npc-card img { width: 60px; height: 60px; object-fit: contain; }
-.cheat-npc-card p { margin: 5px 0 0 0; font-size: 0.9em; }
+.cheat-npc-card p { margin: 5px 0 0 0; font-size: 0.9em; }Adicionei um inimigo novo e agora não consigo mais entrar no modo aventura.
+O jogo fica travado na tela de seleção do personagem.
+Tirei o inimigo do arquivo characters.json e voltou a funcionar.
+A imagem dele está na pasta certa, no mesmo formato e tamanho das outras.
+O que pode ser?
