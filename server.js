@@ -326,10 +326,11 @@ io.on('connection', (socket) => {
                 }
                 room.activeMode = 'lobby';
                 io.to(roomId).emit('gameUpdate', getFullState(room));
-                return;
+                return; // <-- Adicionado para finalizar a execução aqui.
             }
             if (action.type === 'gmSwitchesMode') {
                 if (room.activeMode === 'adventure') {
+                    // MUDANDO PARA O MODO CENÁRIO
                     if (room.gameModes.adventure) {
                         cachePlayerStats(room);
                         room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
@@ -340,9 +341,10 @@ io.on('connection', (socket) => {
                     }
                     room.activeMode = 'theater';
                 } else if (room.activeMode === 'theater') {
+                    // MUDANDO PARA O MODO AVENTURA
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
-                        shouldUpdate = false;
+                        return; // <-- CORREÇÃO: Emite o prompt e interrompe o processamento.
                     } else {
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                         room.activeMode = 'adventure';
@@ -382,6 +384,9 @@ io.on('connection', (socket) => {
                 io.to(lobbyState.gmId).emit('gmPromptToAdmit', { playerId: socket.id, character: action.character });
             }
         }
+
+        // Recarrega o activeState caso tenha sido modificado
+        activeState = room.gameModes[room.activeMode];
 
         switch (room.activeMode) {
             case 'lobby':
