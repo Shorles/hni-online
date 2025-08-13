@@ -332,7 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
              if (i < PLAYER_POSITIONS.length) fighterPositions[f.id] = PLAYER_POSITIONS[i];
         });
 
-        // CORREÇÃO: Posiciona os NPCs com base no seu `slot` fixo
         Object.values(state.fighters.npcs).forEach(npc => {
             if (npc.slot !== undefined && npc.slot < NPC_POSITIONS.length) {
                 fighterPositions[npc.id] = NPC_POSITIONS[npc.slot];
@@ -341,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         allFighters.forEach(fighter => {
             if(fighter.status === 'disconnected') return;
-            if (!fighterPositions[fighter.id]) return; // Não renderiza se não houver posição
+            if (!fighterPositions[fighter.id]) return; 
 
             const isPlayer = !!state.fighters.players[fighter.id];
             const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
@@ -791,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 coordsDisplay.classList.toggle('hidden', !coordsModeActive);
             }
 
-            // CORREÇÃO: Chama a nova função do modal de cheat
+            // CORREÇÃO: Chama a nova função do modal de cheat, que primeiro pede o slot
             if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'c') {
                 e.preventDefault();
                 showCheatSlotSelection();
@@ -890,7 +889,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // NOVO: Função para mostrar a lista de NPCs para um slot específico
     function showNpcListForCheatModal(slot) {
+        const modalTitle = document.getElementById('modal-title');
         const modalText = document.getElementById('modal-text');
+        
+        modalTitle.textContent = `Painel de Cheats (GM)`;
         modalText.innerHTML = `
             <h4>Adicionar Inimigo (Slot ${slot + 1})</h4>
             <p>Clique em um inimigo para adicioná-lo.</p>
@@ -912,7 +914,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // NOVO: Função principal do modal de cheat, que agora mostra a seleção de slots
     function showCheatSlotSelection() {
+        const modalTitle = document.getElementById('modal-title');
         const modalText = document.getElementById('modal-text');
+        
+        modalTitle.textContent = 'Painel de Cheats (GM)';
         modalText.innerHTML = '';
         
         if (!currentGameState || !currentGameState.fighters || !currentGameState.fighters.npcs) {
@@ -955,7 +960,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         cheatModal.classList.add('active');
     }
-
 
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
