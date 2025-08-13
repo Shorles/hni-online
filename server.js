@@ -154,6 +154,10 @@ function checkGameOver(state) {
 
 function advanceTurn(state) {
     if (state.winner) return;
+    if (state.turnOrder.length === 0) { // Safety check se todos fugiram
+        checkGameOver(state);
+        return;
+    }
     let nextIndex = state.turnIndex;
     let attempts = 0;
     do {
@@ -387,7 +391,6 @@ io.on('connection', (socket) => {
                 const actor = action.actorKey ? getFighter(adventureState, action.actorKey) : null;
                 const canControl = actor && ((isGm && adventureState.fighters.npcs[actor.id]) || (socket.id === actor.id));
                 
-                // CORREÇÃO: Lógica do 'gmAddMonster' movida para dentro do switch correto.
                 switch (action.type) {
                     case 'gmDecidesOnAdmission':
                         if (isGm && action.playerId && adventureState.waitingPlayers[action.playerId]) {

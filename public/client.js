@@ -318,11 +318,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
         const NPC_POSITIONS = [ 
-            { left: '1000px', top: '500px', zIndex: 600 }, 
-            { left: '900px',  top: '400px', zIndex: 500 }, 
-            { left: '800px',  top: '300px', zIndex: 400 }, 
-            { left: '700px',  top: '200px', zIndex: 300 }, 
-            { left: '1000px', top: '350px', zIndex: 350 } // CORREÇÃO: Posição do Inimigo 5
+            { left: '1000px', top: '500px' }, 
+            { left: '900px',  top: '400px' }, 
+            { left: '800px',  top: '300px' }, 
+            { left: '700px',  top: '200px' }, 
+            { left: '1000px', top: '350px' }
         ];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
@@ -353,7 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.assign(container.style, position);
         container.style.setProperty('--character-scale', characterScale);
         container.style.transform = `scale(${characterScale})`;
-        container.style.zIndex = position.zIndex || parseInt(position.top, 10);
+        // CORREÇÃO: z-index automático baseado na posição Y
+        container.style.zIndex = parseInt(position.top, 10);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
