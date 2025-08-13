@@ -156,7 +156,6 @@ function checkGameOver(state) {
     }
 }
 
-// CORREÇÃO: Função advanceTurn refeita para ser mais robusta
 function advanceTurn(state) {
     if (state.winner) return;
 
@@ -228,7 +227,7 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
 
 function startBattle(state) {
     state.turnOrder = Object.values(state.fighters.players).concat(Object.values(state.fighters.npcs))
-        .sort((a, b) => { // Ordena todos, mas só os ativos entrarão na lista final
+        .sort((a, b) => {
             const rollA = state.initiativeRolls[a.id] || 0;
             const rollB = state.initiativeRolls[b.id] || 0;
             if (rollB !== rollA) return rollB - rollA;
@@ -323,19 +322,18 @@ io.on('connection', (socket) => {
                 if (room.activeMode === 'adventure' && room.gameModes.adventure) {
                     cachePlayerStats(room); 
                     room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
-                    room.gameModes.adventure = null; // Limpa o estado ativo
+                    room.gameModes.adventure = null; 
                 }
                 room.activeMode = 'lobby';
                 io.to(roomId).emit('gameUpdate', getFullState(room));
                 return;
             }
-            // CORREÇÃO: Lógica de gmSwitchesMode refeita para ser mais clara e funcional
             if (action.type === 'gmSwitchesMode') {
                 if (room.activeMode === 'adventure') {
                     if (room.gameModes.adventure) {
                         cachePlayerStats(room);
                         room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
-                        room.gameModes.adventure = null; // Limpa o estado de aventura ativo
+                        room.gameModes.adventure = null; 
                     }
                     if (!room.gameModes.theater) {
                         room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
@@ -357,7 +355,7 @@ io.on('connection', (socket) => {
                 } else {
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                 }
-                room.adventureCache = null; // Limpa o cache após a decisão
+                room.adventureCache = null;
                 room.activeMode = 'adventure';
             }
         }
@@ -389,7 +387,7 @@ io.on('connection', (socket) => {
             case 'lobby':
                 if (isGm) {
                     if (action.type === 'gmStartsAdventure') {
-                        room.adventureCache = null; // Limpa cache antigo ao iniciar aventura do zero
+                        room.adventureCache = null;
                         room.gameModes.adventure = createNewAdventureState(activeState.gmId, activeState.connectedPlayers);
                         room.activeMode = 'adventure';
                     } else if (action.type === 'gmStartsTheater') {
@@ -640,4 +638,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));```
+server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
