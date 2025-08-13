@@ -118,7 +118,7 @@ function createNewFighterState(data, slot = null) {
 }
 
 function cachePlayerStats(room) {
-    if (room.activeMode !== 'adventure' || !room.gameModes.adventure) return;
+    if (!room.gameModes.adventure) return;
     const adventureState = room.gameModes.adventure;
     const lobbyState = room.gameModes.lobby;
 
@@ -156,27 +156,47 @@ function checkGameOver(state) {
     }
 }
 
+// CORREÇÃO: Função advanceTurn agora lida corretamente com a busca do próximo personagem
 function advanceTurn(state) {
     if (state.winner) return;
-    const activeTurnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
-    if (activeTurnOrder.length === 0) {
+
+    // Pega todos os IDs na ordem de turno, incluindo os inativos
+    const fullTurnOrder = state.turnOrder;
+    if (fullTurnOrder.length === 0) {
         checkGameOver(state);
         return;
     }
     
-    let currentTurnIndexInActive = activeTurnOrder.indexOf(state.activeCharacterKey);
-    let nextIndexInActive = (currentTurnIndexInActive + 1) % activeTurnOrder.length;
-    
-    if (nextIndexInActive < currentTurnIndexInActive && currentTurnIndexInActive !== -1) {
-        state.currentRound++;
-        logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
+    // Encontra o índice do personagem que acabou de jogar
+    let lastTurnIndex = fullTurnOrder.indexOf(state.activeCharacterKey);
+    if (lastTurnIndex === -1) { // Caso o personagem ativo tenha sido removido ou seja o início da batalha
+        lastTurnIndex = state.turnIndex;
     }
-    
-    state.activeCharacterKey = activeTurnOrder[nextIndexInActive];
-    state.turnIndex = state.turnOrder.indexOf(state.activeCharacterKey);
-    
-    const activeFighter = getFighter(state, state.activeCharacterKey);
-    logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
+
+    // Procura o próximo personagem ATIVO a partir da posição do último
+    let nextFighterFound = false;
+    for (let i = 1; i <= fullTurnOrder.length; i++) {
+        const nextIndex = (lastTurnIndex + i) % fullTurnOrder.length;
+        const nextFighterId = fullTurnOrder[nextIndex];
+        const nextFighter = getFighter(state, nextFighterId);
+
+        if (nextFighter && nextFighter.status === 'active') {
+            // Se demos uma volta completa na ordem de turnos, o round avança
+            if (nextIndex <= lastTurnIndex && state.activeCharacterKey !== null) {
+                state.currentRound++;
+                logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
+            }
+            state.turnIndex = nextIndex;
+            state.activeCharacterKey = nextFighterId;
+            logMessage(state, `É a vez de ${nextFighter.nome}.`, 'turn');
+            nextFighterFound = true;
+            break;
+        }
+    }
+
+    if (!nextFighterFound) {
+        checkGameOver(state);
+    }
 }
 
 
@@ -323,14 +343,12 @@ io.on('connection', (socket) => {
                         room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                     }
                     room.activeMode = 'theater';
-                // CORREÇÃO: A lógica para perguntar ao GM foi simplificada e corrigida
                 } else if (room.activeMode === 'theater') {
-                    // A única condição para perguntar é se existe uma batalha anterior salva no cache.
+                    // CORREÇÃO: Lógica simplificada e correta.
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
-                        shouldUpdate = false; // Aguarda a resposta do GM
+                        shouldUpdate = false;
                     } else {
-                        // Se não há cache, não há o que continuar. Inicia uma aventura nova.
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                         room.activeMode = 'adventure';
                     }
@@ -340,8 +358,6 @@ io.on('connection', (socket) => {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                 } else {
-                    // Ao escolher "Nova Batalha", o cache antigo é invalidado, e uma nova aventura é criada
-                    // A função createNewAdventureState já vai carregar os persistentStats (HP, etc)
                     room.adventureCache = null; 
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                 }
@@ -496,6 +512,7 @@ io.on('connection', (socket) => {
                              }
                         }
                         break;
+                    // CORREÇÃO: Lógica de fuga agora chama advanceTurn imediatamente e envia update
                     case 'flee':
                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey && canControl) {
                             const fighter = getFighter(adventureState, action.actorKey);
@@ -505,9 +522,9 @@ io.on('connection', (socket) => {
                                 checkGameOver(adventureState);
                                 if (!adventureState.winner) {
                                     advanceTurn(adventureState);
-                                } else {
-                                     io.to(roomId).emit('gameUpdate', getFullState(room));
                                 }
+                                io.to(roomId).emit('gameUpdate', getFullState(room)); // Envia o estado atualizado
+                                shouldUpdate = false; // Impede o update duplicado no final
                             }
                         }
                         break;
