@@ -53,19 +53,19 @@ body {
 
 
 #fight-screen {
-    background-color: transparent; 
+    background-color: transparent;
     padding: 0;
     justify-content: normal;
     align-items: normal;
     position: relative;
-    pointer-events: none; 
+    pointer-events: none;
 }
 #theater-screen {
     padding: 0;
     justify-content: normal;
     align-items: normal;
     position: relative;
-    background-color: #222; 
+    background-color: #222;
     pointer-events: none;
 }
 #fight-screen.active, #theater-screen.active {
@@ -78,7 +78,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     background-color: rgba(0, 0, 0, 0.3);
     padding: 15px;
     border-radius: 8px;
-    flex: 1; 
+    flex: 1;
     min-width: 400px;
 }
 .share-link { background-color: #fff; color: #000; padding: 10px 20px; font-family: monospace; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 10px; border: 2px dashed #ffeb3b; display: inline-block; word-break: break-all; }
@@ -112,16 +112,16 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .remove-staged-npc { position: absolute; top: -5px; right: -5px; background: #c82333; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-weight: bold; cursor: pointer; line-height: 18px; }
 
 /* --- MODO CENÁRIO --- */
-#theater-background-viewport { 
-    position: absolute; 
-    top: 0; 
-    left: 0; 
-    width: calc(100% - 250px); 
-    height: 100%; 
-    z-index: 1; 
-    transition: width 0.3s ease-in-out; 
-    overflow: hidden; 
-    cursor: grab; 
+#theater-background-viewport {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: calc(100% - 250px);
+    height: 100%;
+    z-index: 1;
+    transition: width 0.3s ease-in-out;
+    overflow: hidden;
+    cursor: grab;
     background-color: #333;
     user-select: none;
     -webkit-user-select: none;
@@ -160,20 +160,20 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 /* --- TELA DE LUTA --- */
 #fight-scene-characters { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-.player-char-container, .npc-char-container { 
-    position: absolute; 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    width: 150px; 
-    pointer-events: all; 
+.player-char-container, .npc-char-container {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 150px;
+    pointer-events: all;
     transition: all 0.5s ease-out;
     transform-origin: bottom center;
 }
-.fighter-img-ingame { 
-    width: 150px; 
-    height: 150px; 
-    object-fit: contain; 
+.fighter-img-ingame {
+    width: 150px;
+    height: 150px;
+    object-fit: contain;
     filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.7));
 }
 .health-bar-ingame { width: 100px; height: 15px; background-color: rgba(85, 85, 85, 0.7); border: 1px solid #000; border-radius: 5px; margin-bottom: 5px; position: relative; }
@@ -190,9 +190,9 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 @keyframes defeat-fade-out { 0%, 20% { opacity: 1; transform: scale(1.1); } 10%, 30% { opacity: 0.3; transform: scale(1); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.5); pointer-events: none; } }
 .npc-defeated-final { opacity: 0; pointer-events: none; }
 .is-attacking-player { animation: lunge-player 0.5s ease-in-out; }
-@keyframes lunge-player { 50% { transform: translateX(200px) scale(var(--character-scale)); } } 
+@keyframes lunge-player { 50% { transform: translateX(200px) scale(var(--character-scale)); } }
 .is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
-@keyframes lunge-npc { 50% { transform: translateX(-200px) scale(var(--character-scale)); } } 
+@keyframes lunge-npc { 50% { transform: translateX(-200px) scale(var(--character-scale)); } }
 
 .is-fleeing-player { animation: flee-player 1s forwards; }
 @keyframes flee-player { 100% { left: -200px; opacity: 0; } }
@@ -226,18 +226,18 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 #targeting-indicator { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); background-color: rgba(220, 53, 69, 0.9); color: white; padding: 10px 25px; border-radius: 8px; font-weight: bold; z-index: 100; pointer-events: none; }
 
-#coords-display { 
-    position: absolute; 
-    background-color: rgba(0,0,0,0.8); 
-    color: #ffeb3b; 
-    padding: 5px 10px; 
-    border-radius: 5px; 
-    font-family: monospace; 
-    font-size: 1.2em; 
-    z-index: 9999; 
-    pointer-events: none; 
+#coords-display {
+    position: absolute;
+    background-color: rgba(0,0,0,0.8);
+    color: #ffeb3b;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 1.2em;
+    z-index: 9999;
+    pointer-events: none;
     line-height: 1.5;
-    transform-origin: top left; 
+    transform-origin: top left;
 }
 
 /* --- BARRA DE ORDEM DE TURNO --- */
@@ -343,7 +343,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     align-items: center;
     transition: all 0.2s ease-in-out;
     z-index: 9000;
-    pointer-events: auto; 
+    pointer-events: auto;
 }
 .back-btn:hover {
     background-color: #ffeb3b;
@@ -358,8 +358,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     display: flex;
     flex-direction: column;
     gap: 10px;
-    z-index: 9000; 
-    pointer-events: auto; 
+    z-index: 9000;
+    pointer-events: auto;
 }
 #floating-buttons-container button {
     width: 50px;
@@ -387,7 +387,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .modal-content { background: #2b2b2b; padding: 30px; border-radius: 10px; text-align: center; border: 2px solid #fff; min-width: 400px; max-width: 80%; max-height: 80%; position: relative; display: flex; flex-direction: column;}
 .modal-title { margin-top: 0; font-size: 1.5em; }
 .modal-text { margin: 15px 0; text-align: left; flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto;}
-#modal-text p { text-align: center; } 
+.modal-text p { text-align: center; }
 .modal-button, #cheat-modal-close-btn { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #6c757d; color: white; border: none; border-radius: 5px; }
 .modal-button-container { display: flex; justify-content: center; gap: 20px; margin-top: 20px; }
 .modal-button-container button { padding: 10px 30px; font-size: 1.1em; cursor: pointer; border-radius: 5px; border: none; }
@@ -396,11 +396,11 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 
 /* --- ESTILOS ADICIONADOS PARA O MODAL DE CENÁRIO --- */
-#modal-text .category-tabs { display: flex; gap: 5px; flex-wrap: wrap; border-bottom: 2px solid #555; padding-bottom: 10px; margin-bottom: 10px; }
+.modal-text .category-tabs { display: flex; gap: 5px; flex-wrap: wrap; border-bottom: 2px solid #555; padding-bottom: 10px; margin-bottom: 10px; }
 .category-tab-btn { background-color: #555; color: white; padding: 8px 15px; border: 1px solid #777; border-radius: 5px 5px 0 0; cursor: pointer; transition: background-color 0.2s; border-bottom: none; }
 .category-tab-btn.active, .category-tab-btn:hover { background-color: #007bff; }
-#modal-text .scenarios-grid { display: none; flex-wrap: wrap; gap: 10px; justify-content: center; }
-#modal-text .scenarios-grid.active { display: flex; }
+.modal-text .scenarios-grid { display: none; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.modal-text .scenarios-grid.active { display: flex; }
 .scenario-card { width: 150px; background-color: #333; border: 2px solid #555; border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color 0.2s; display: flex; flex-direction: column; }
 .scenario-card:hover { border-color: #ffeb3b; }
 .scenario-card img { width: 100%; height: 100px; object-fit: cover; }
@@ -414,8 +414,4 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .cheat-npc-card { background-color: #444; border: 2px solid #666; border-radius: 5px; padding: 10px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
 .cheat-npc-card:hover { border-color: #007bff; }
 .cheat-npc-card img { width: 60px; height: 60px; object-fit: contain; }
-.cheat-npc-card p { margin: 5px 0 0 0; font-size: 0.9em; }Adicionei um inimigo novo e agora não consigo mais entrar no modo aventura.
-O jogo fica travado na tela de seleção do personagem.
-Tirei o inimigo do arquivo characters.json e voltou a funcionar.
-A imagem dele está na pasta certa, no mesmo formato e tamanho das outras.
-O que pode ser?
+.cheat-npc-card p { margin: 5px 0 0 0; font-size: 0.9em; }
