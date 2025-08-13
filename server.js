@@ -441,21 +441,29 @@ io.on('connection', (socket) => {
                             logMessage(adventureState, 'Inimigos em posição! Rolem as iniciativas!');
                         }
                         break;
+                    // CORREÇÃO: Lógica final para adicionar monstro, limpando o slot antes
                     case 'gmAddMonster':
                         if(isGm && adventureState.phase === 'battle' && action.npc && action.slot !== undefined) {
-                            const occupiedSlots = Object.values(adventureState.fighters.npcs).map(n => n.slot);
-                            if (!occupiedSlots.includes(action.slot)) {
-                                const npcData = action.npc;
-                                const npcId = `npc-${Date.now()}`;
-                                const npcObj = ALL_NPCS[npcData.name] || {};
-                                adventureState.fighters.npcs[npcId] = createNewFighterState({
-                                    ...npcData,
-                                    id: npcId,
-                                    scale: npcObj.scale || 1.0
-                                }, action.slot); 
-                                adventureState.turnOrder.push(npcId);
-                                logMessage(adventureState, `${npcData.name} foi adicionado à batalha no slot ${action.slot + 1}!`);
+                            const oldNpcInSlot = Object.values(adventureState.fighters.npcs).find(n => n.slot === action.slot);
+                            
+                            if (oldNpcInSlot && oldNpcInSlot.status === 'active') {
+                                 break; // Impede adicionar se o slot já tem um inimigo ativo
                             }
+
+                            if (oldNpcInSlot) {
+                                delete adventureState.fighters.npcs[oldNpcInSlot.id];
+                            }
+                            
+                            const npcData = action.npc;
+                            const npcId = `npc-${Date.now()}`;
+                            const npcObj = ALL_NPCS[npcData.name] || {};
+                            adventureState.fighters.npcs[npcId] = createNewFighterState({
+                                ...npcData,
+                                id: npcId,
+                                scale: npcObj.scale || 1.0
+                            }, action.slot); 
+                            adventureState.turnOrder.push(npcId);
+                            logMessage(adventureState, `${npcData.name} foi adicionado à batalha no slot ${action.slot + 1}!`);
                         }
                         break;
                     case 'roll_initiative':

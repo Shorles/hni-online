@@ -72,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
         allScreens.forEach(screen => screen.classList.toggle('active', screen === screenToShow));
     }
 
-    // CORREÇÃO: Usa querySelector para evitar conflito de ID
     function showInfoModal(title, text, showButton = true) {
         modal.querySelector('.modal-title').innerText = title;
         modal.querySelector('.modal-text').innerHTML = text;
@@ -84,7 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
         okButton.onclick = () => modal.classList.add('hidden');
     }
     
-    // CORREÇÃO: Usa querySelector para evitar conflito de ID
     function showConfirmationModal(title, text, onConfirm, confirmText = 'Sim', cancelText = 'Não') {
         const modalContent = modal.querySelector('.modal-content');
         const modalTextEl = modal.querySelector('.modal-text');
@@ -793,7 +791,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 coordsDisplay.classList.toggle('hidden', !coordsModeActive);
             }
 
-            // CORREÇÃO: Chama a nova função do modal de cheat, que primeiro pede o slot
             if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'c') {
                 e.preventDefault();
                 showCheatSlotSelection();
@@ -890,7 +887,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // CORREÇÃO: Usa o ID correto 'cheat-modal-text'
     function showNpcListForCheatModal(slot) {
         const modalTitle = document.getElementById('cheat-modal-title');
         const modalText = document.getElementById('cheat-modal-text');
@@ -915,7 +911,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // CORREÇÃO: Usa os IDs corretos 'cheat-modal-title' e 'cheat-modal-text'
     function showCheatSlotSelection() {
         const modalTitle = document.getElementById('cheat-modal-title');
         const modalText = document.getElementById('cheat-modal-text');
@@ -930,10 +925,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const MAX_NPC_SLOTS = 5;
-        const occupiedSlots = Object.values(currentGameState.fighters.npcs).map(n => n.slot);
+        // CORREÇÃO: Um slot está ocupado apenas se houver um inimigo ATIVO nele.
+        const activeOccupiedSlots = Object.values(currentGameState.fighters.npcs)
+            .filter(n => n.status === 'active')
+            .map(n => n.slot);
+
         const availableSlots = [];
         for (let i = 0; i < MAX_NPC_SLOTS; i++) {
-            if (!occupiedSlots.includes(i)) {
+            if (!activeOccupiedSlots.includes(i)) {
                 availableSlots.push(i);
             }
         }
@@ -941,7 +940,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (availableSlots.length === 0) {
             modalText.innerHTML = `
                 <h4>Adicionar Inimigo à Batalha</h4>
-                <p>A batalha já está com o número máximo de inimigos (5). Nenhum slot está vago.</p>
+                <p>Todos os slots estão ocupados por inimigos ativos.</p>
             `;
         } else {
             modalText.innerHTML = `
