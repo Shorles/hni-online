@@ -279,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                if (stagedNpcs.length < 5) { // Aumenta o limite para 5
+                if (stagedNpcs.length < 5) {
                     stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); 
                     renderNpcStagingArea();
                 } else { alert("Você pode adicionar no máximo 5 inimigos."); }
@@ -317,13 +317,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        // NOVO: Adicionada a 5ª posição para inimigos com zIndex corrigido
         const NPC_POSITIONS = [ 
             { left: '1000px', top: '500px', zIndex: 600 }, 
             { left: '900px',  top: '400px', zIndex: 500 }, 
             { left: '800px',  top: '300px', zIndex: 400 }, 
             { left: '700px',  top: '200px', zIndex: 300 }, 
-            { left: '1150px', top: '350px', zIndex: 350 } // Pos. 5: atrás de 1 e 2, na frente de 3 e 4
+            { left: '1000px', top: '350px', zIndex: 350 } // CORREÇÃO: Posição do Inimigo 5
         ];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
@@ -332,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(state.fighters.npcs).forEach((f, i) => fighterPositions[f.id] = NPC_POSITIONS[i]);
 
         allFighters.forEach(fighter => {
-            if(fighter.status === 'disconnected') return; // Ignora personagens desconectados
+            if(fighter.status === 'disconnected') return;
             const isPlayer = !!state.fighters.players[fighter.id];
             const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
             fightSceneCharacters.appendChild(el);
@@ -352,11 +351,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const characterScale = fighter.scale || 1.0;
         
         Object.assign(container.style, position);
-        // CORREÇÃO: Aplica a escala via custom property para uso nas animações
         container.style.setProperty('--character-scale', characterScale);
-        container.style.transform = `scale(${characterScale})`; // Escala inicial
-        container.style.zIndex = position.zIndex || parseInt(position.top, 10); // Usa zIndex da posição ou calcula
-
+        container.style.transform = `scale(${characterScale})`;
+        container.style.zIndex = position.zIndex || parseInt(position.top, 10);
+        
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
         const wasJustFled = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'fled';
@@ -460,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         turnOrderSidebar.classList.remove('hidden');
         const orderedFighters = state.turnOrder
             .map(id => getFighter(state, id))
-            .filter(f => f && f.status === 'active'); // Filtra apenas ativos
+            .filter(f => f && f.status === 'active'); 
         orderedFighters.forEach((fighter, index) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';

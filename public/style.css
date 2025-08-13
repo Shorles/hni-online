@@ -48,8 +48,8 @@ body {
     margin-top: 0;
     margin-bottom: 10px;
 }
-#npc-selection-area {
-    max-height: 380px; /* Aumentado de 300px (valor implícito) para 380px */
+.npc-selection-container {
+    max-height: 380px;
 }
 
 
@@ -105,7 +105,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 #confirm-selection-btn:hover:not(:disabled) { background-color: #ffeb3b; color: #000; }
 #confirm-selection-btn:disabled { background-color: #495057; color: #aaa; cursor: not-allowed; border-color: #6c757d; }
 
-#npc-staging-area-container { margin-top: 20px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; width: 80%; }
+#npc-staging-area-container { margin-top: 15px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; width: 80%; }
 #npc-staging-area { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; min-height: 50px; }
 .staged-npc { position: relative; }
 .staged-npc img { width: 50px; height: 50px; border-radius: 5px; border: 2px solid #aaa; }
@@ -127,7 +127,13 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+    /* CORREÇÃO: Permite que cliques passem para os botões flutuantes abaixo */
+    pointer-events: none;
 }
+#theater-background-viewport > * {
+    pointer-events: auto; /* Reativa eventos para os filhos */
+}
+
 #theater-background-viewport.group-select-mode { cursor: crosshair; }
 #theater-world-container { position: relative; transform-origin: 0 0; }
 #selection-box { position: absolute; border: 1px dashed #ffeb3b; background-color: rgba(255, 235, 59, 0.2); z-index: 9999; pointer-events: none; transform-origin: 0 0; }
@@ -167,7 +173,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     width: 150px; 
     pointer-events: all; 
     transition: all 0.5s ease-out;
-    /* CORREÇÃO: Define a origem da escala para a base do contêiner */
     transform-origin: bottom center;
 }
 .fighter-img-ingame { 
@@ -190,7 +195,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 @keyframes defeat-fade-out { 0%, 20% { opacity: 1; transform: scale(1.1); } 10%, 30% { opacity: 0.3; transform: scale(1); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.5); pointer-events: none; } }
 .npc-defeated-final { opacity: 0; pointer-events: none; }
 .is-attacking-player { animation: lunge-player 0.5s ease-in-out; }
-/* CORREÇÃO: Animação de ataque agora preserva a escala */
 @keyframes lunge-player { 50% { transform: translateX(200px) scale(var(--character-scale)); } } 
 .is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
 @keyframes lunge-npc { 50% { transform: translateX(-200px) scale(var(--character-scale)); } } 

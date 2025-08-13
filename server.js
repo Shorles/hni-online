@@ -98,7 +98,6 @@ function createNewFighterState(data) {
     const scale = data.scale !== undefined ? parseFloat(data.scale) : 1.0;
     const hpMax = res * 5;
     const hp = data.hp !== undefined ? data.hp : hpMax;
-    // NOVO: Verifica se o HP é 0 para definir o status inicial.
     const status = hp <= 0 ? 'down' : 'active';
 
     return {
@@ -387,6 +386,8 @@ io.on('connection', (socket) => {
                 if (!adventureState) break;
                 const actor = action.actorKey ? getFighter(adventureState, action.actorKey) : null;
                 const canControl = actor && ((isGm && adventureState.fighters.npcs[actor.id]) || (socket.id === actor.id));
+                
+                // CORREÇÃO: Lógica do 'gmAddMonster' movida para dentro do switch correto.
                 switch (action.type) {
                     case 'gmDecidesOnAdmission':
                         if (isGm && action.playerId && adventureState.waitingPlayers[action.playerId]) {
