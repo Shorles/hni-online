@@ -323,11 +323,14 @@ io.on('connection', (socket) => {
                         room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                     }
                     room.activeMode = 'theater';
+                // CORREÇÃO: A lógica para perguntar ao GM foi simplificada e corrigida
                 } else if (room.activeMode === 'theater') {
-                    if (room.adventureCache || room.gameModes.adventure) {
+                    // A única condição para perguntar é se existe uma batalha anterior salva no cache.
+                    if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
-                        shouldUpdate = false;
+                        shouldUpdate = false; // Aguarda a resposta do GM
                     } else {
+                        // Se não há cache, não há o que continuar. Inicia uma aventura nova.
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                         room.activeMode = 'adventure';
                     }
@@ -337,6 +340,8 @@ io.on('connection', (socket) => {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                 } else {
+                    // Ao escolher "Nova Batalha", o cache antigo é invalidado, e uma nova aventura é criada
+                    // A função createNewAdventureState já vai carregar os persistentStats (HP, etc)
                     room.adventureCache = null; 
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                 }
@@ -441,15 +446,13 @@ io.on('connection', (socket) => {
                             logMessage(adventureState, 'Inimigos em posição! Rolem as iniciativas!');
                         }
                         break;
-                    // CORREÇÃO: Lógica final para adicionar monstro, limpando o slot antes
                     case 'gmAddMonster':
                         if(isGm && adventureState.phase === 'battle' && action.npc && action.slot !== undefined) {
-                            const oldNpcInSlot = Object.values(adventureState.fighters.npcs).find(n => n.slot === action.slot);
+                            const activeNpcInSlot = Object.values(adventureState.fighters.npcs).find(n => n.slot === action.slot && n.status === 'active');
                             
-                            if (oldNpcInSlot && oldNpcInSlot.status === 'active') {
-                                 break; // Impede adicionar se o slot já tem um inimigo ativo
-                            }
+                            if (activeNpcInSlot) break; 
 
+                            const oldNpcInSlot = Object.values(adventureState.fighters.npcs).find(n => n.slot === action.slot);
                             if (oldNpcInSlot) {
                                 delete adventureState.fighters.npcs[oldNpcInSlot.id];
                             }
