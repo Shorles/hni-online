@@ -328,32 +328,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
         
-        // Atribui posições aos jogadores
         Object.values(state.fighters.players).forEach((f, i) => {
-            if (i < PLAYER_POSITIONS.length) fighterPositions[f.id] = PLAYER_POSITIONS[i];
+             if (i < PLAYER_POSITIONS.length) fighterPositions[f.id] = PLAYER_POSITIONS[i];
         });
 
-        // CORREÇÃO: Lógica de posicionamento de NPCs para evitar crashes.
-        // Isso garante que apenas os primeiros 5 NPCs (priorizando os ativos) recebam uma posição na tela.
-        const allNpcs = Object.values(state.fighters.npcs);
-        const activeNpcs = allNpcs.filter(n => n.status === 'active');
-        const inactiveNpcs = allNpcs.filter(n => n.status !== 'active' && n.status !== 'disconnected');
-        const npcsToPosition = [...activeNpcs, ...inactiveNpcs];
-
-        npcsToPosition.forEach((f, i) => {
-            if (i < NPC_POSITIONS.length) {
-                fighterPositions[f.id] = NPC_POSITIONS[i];
+        // CORREÇÃO: Posiciona os NPCs com base no seu `slot` fixo
+        Object.values(state.fighters.npcs).forEach(npc => {
+            if (npc.slot !== undefined && npc.slot < NPC_POSITIONS.length) {
+                fighterPositions[npc.id] = NPC_POSITIONS[npc.slot];
             }
         });
 
         allFighters.forEach(fighter => {
             if(fighter.status === 'disconnected') return;
-            
-            // CORREÇÃO: Garante que um personagem só seja renderizado se tiver uma posição.
-            // Isso previne o erro quando um 6º inimigo (ou mais) existe no estado do jogo.
-            if (!fighterPositions[fighter.id]) {
-                return;
-            }
+            if (!fighterPositions[fighter.id]) return; // Não renderiza se não houver posição
 
             const isPlayer = !!state.fighters.players[fighter.id];
             const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
@@ -803,10 +791,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 coordsDisplay.classList.toggle('hidden', !coordsModeActive);
             }
 
+            // CORREÇÃO: Chama a nova função do modal de cheat
             if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'c') {
                 e.preventDefault();
-                populateCheatModal();
-                cheatModal.classList.add('active');
+                showCheatSlotSelection();
             }
 
             if (currentGameState.mode !== 'theater' || !isGm) return;
@@ -900,33 +888,74 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function populateCheatModal() {
+    // NOVO: Função para mostrar a lista de NPCs para um slot específico
+    function showNpcListForCheatModal(slot) {
+        const modalText = document.getElementById('modal-text');
+        modalText.innerHTML = `
+            <h4>Adicionar Inimigo (Slot ${slot + 1})</h4>
+            <p>Clique em um inimigo para adicioná-lo.</p>
+            <div id="cheat-add-npc-list" class="cheat-npc-list"></div>
+        `;
         const listEl = document.getElementById('cheat-add-npc-list');
-        listEl.innerHTML = '';
-        if (!currentGameState || !currentGameState.fighters || !currentGameState.fighters.npcs) {
-            listEl.innerHTML = '<p>Não foi possível carregar a lista de inimigos.</p>';
-            return;
-        }
-
-        const currentNpcCount = Object.values(currentGameState.fighters.npcs).filter(n => n.status !== 'down' && n.status !== 'fled').length;
-        const canAddMore = currentNpcCount < 5;
-
-        if (!canAddMore) {
-            listEl.innerHTML = '<p>A batalha já está com o número máximo de inimigos (5).</p>';
-            return;
-        }
 
         (ALL_CHARACTERS.npcs || []).forEach(npcData => {
             const card = document.createElement('div');
             card.className = 'cheat-npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><p>${npcData.name}</p>`;
             card.addEventListener('click', () => {
-                socket.emit('playerAction', { type: 'gmAddMonster', npc: npcData });
+                socket.emit('playerAction', { type: 'gmAddMonster', npc: npcData, slot: slot });
                 cheatModal.classList.remove('active');
             });
             listEl.appendChild(card);
         });
     }
+
+    // NOVO: Função principal do modal de cheat, que agora mostra a seleção de slots
+    function showCheatSlotSelection() {
+        const modalText = document.getElementById('modal-text');
+        modalText.innerHTML = '';
+        
+        if (!currentGameState || !currentGameState.fighters || !currentGameState.fighters.npcs) {
+            modalText.innerHTML = '<p>Não foi possível carregar o estado do jogo.</p>';
+            cheatModal.classList.add('active');
+            return;
+        }
+
+        const MAX_NPC_SLOTS = 5;
+        // Um slot está ocupado se houver qualquer NPC (vivo, morto ou fugido) nele.
+        const occupiedSlots = Object.values(currentGameState.fighters.npcs).map(n => n.slot);
+        const availableSlots = [];
+        for (let i = 0; i < MAX_NPC_SLOTS; i++) {
+            if (!occupiedSlots.includes(i)) {
+                availableSlots.push(i);
+            }
+        }
+
+        if (availableSlots.length === 0) {
+            modalText.innerHTML = `
+                <h4>Adicionar Inimigo à Batalha</h4>
+                <p>A batalha já está com o número máximo de inimigos (5). Nenhum slot está vago.</p>
+            `;
+        } else {
+            modalText.innerHTML = `
+                <h4>Adicionar Inimigo à Batalha</h4>
+                <p>Escolha um slot vago para adicionar o novo inimigo:</p>
+                <div id="cheat-slot-selection" class="cheat-slot-selection"></div>
+            `;
+            const slotContainer = document.getElementById('cheat-slot-selection');
+            availableSlots.forEach(slot => {
+                const btn = document.createElement('button');
+                btn.className = 'slot-selection-btn';
+                btn.textContent = `Slot ${slot + 1}`;
+                btn.onclick = () => {
+                    showNpcListForCheatModal(slot);
+                };
+                slotContainer.appendChild(btn);
+            });
+        }
+        cheatModal.classList.add('active');
+    }
+
 
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
