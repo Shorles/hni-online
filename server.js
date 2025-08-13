@@ -156,24 +156,21 @@ function checkGameOver(state) {
     }
 }
 
-// CORREÇÃO: Função advanceTurn agora lida corretamente com a busca do próximo personagem
+// CORREÇÃO: Função advanceTurn refeita para ser mais robusta
 function advanceTurn(state) {
     if (state.winner) return;
 
-    // Pega todos os IDs na ordem de turno, incluindo os inativos
     const fullTurnOrder = state.turnOrder;
     if (fullTurnOrder.length === 0) {
         checkGameOver(state);
         return;
     }
     
-    // Encontra o índice do personagem que acabou de jogar
     let lastTurnIndex = fullTurnOrder.indexOf(state.activeCharacterKey);
-    if (lastTurnIndex === -1) { // Caso o personagem ativo tenha sido removido ou seja o início da batalha
+    if (lastTurnIndex === -1) {
         lastTurnIndex = state.turnIndex;
     }
 
-    // Procura o próximo personagem ATIVO a partir da posição do último
     let nextFighterFound = false;
     for (let i = 1; i <= fullTurnOrder.length; i++) {
         const nextIndex = (lastTurnIndex + i) % fullTurnOrder.length;
@@ -181,7 +178,6 @@ function advanceTurn(state) {
         const nextFighter = getFighter(state, nextFighterId);
 
         if (nextFighter && nextFighter.status === 'active') {
-            // Se demos uma volta completa na ordem de turnos, o round avança
             if (nextIndex <= lastTurnIndex && state.activeCharacterKey !== null) {
                 state.currentRound++;
                 logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
@@ -232,8 +228,7 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
 
 function startBattle(state) {
     state.turnOrder = Object.values(state.fighters.players).concat(Object.values(state.fighters.npcs))
-        .filter(f => f.status === 'active')
-        .sort((a, b) => {
+        .sort((a, b) => { // Ordena todos, mas só os ativos entrarão na lista final
             const rollA = state.initiativeRolls[a.id] || 0;
             const rollB = state.initiativeRolls[b.id] || 0;
             if (rollB !== rollA) return rollB - rollA;
@@ -328,23 +323,25 @@ io.on('connection', (socket) => {
                 if (room.activeMode === 'adventure' && room.gameModes.adventure) {
                     cachePlayerStats(room); 
                     room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                    room.gameModes.adventure = null; // Limpa o estado ativo
                 }
                 room.activeMode = 'lobby';
                 io.to(roomId).emit('gameUpdate', getFullState(room));
                 return;
             }
+            // CORREÇÃO: Lógica de gmSwitchesMode refeita para ser mais clara e funcional
             if (action.type === 'gmSwitchesMode') {
                 if (room.activeMode === 'adventure') {
                     if (room.gameModes.adventure) {
                         cachePlayerStats(room);
                         room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                        room.gameModes.adventure = null; // Limpa o estado de aventura ativo
                     }
                     if (!room.gameModes.theater) {
                         room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                     }
                     room.activeMode = 'theater';
                 } else if (room.activeMode === 'theater') {
-                    // CORREÇÃO: Lógica simplificada e correta.
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
                         shouldUpdate = false;
@@ -358,9 +355,9 @@ io.on('connection', (socket) => {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                 } else {
-                    room.adventureCache = null; 
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                 }
+                room.adventureCache = null; // Limpa o cache após a decisão
                 room.activeMode = 'adventure';
             }
         }
@@ -392,7 +389,7 @@ io.on('connection', (socket) => {
             case 'lobby':
                 if (isGm) {
                     if (action.type === 'gmStartsAdventure') {
-                        if(room.adventureCache) room.adventureCache = null;
+                        room.adventureCache = null; // Limpa cache antigo ao iniciar aventura do zero
                         room.gameModes.adventure = createNewAdventureState(activeState.gmId, activeState.connectedPlayers);
                         room.activeMode = 'adventure';
                     } else if (action.type === 'gmStartsTheater') {
@@ -512,7 +509,6 @@ io.on('connection', (socket) => {
                              }
                         }
                         break;
-                    // CORREÇÃO: Lógica de fuga agora chama advanceTurn imediatamente e envia update
                     case 'flee':
                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey && canControl) {
                             const fighter = getFighter(adventureState, action.actorKey);
@@ -523,8 +519,8 @@ io.on('connection', (socket) => {
                                 if (!adventureState.winner) {
                                     advanceTurn(adventureState);
                                 }
-                                io.to(roomId).emit('gameUpdate', getFullState(room)); // Envia o estado atualizado
-                                shouldUpdate = false; // Impede o update duplicado no final
+                                io.to(roomId).emit('gameUpdate', getFullState(room));
+                                shouldUpdate = false;
                             }
                         }
                         break;
@@ -644,4 +640,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));```
