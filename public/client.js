@@ -72,21 +72,24 @@ document.addEventListener('DOMContentLoaded', () => {
         allScreens.forEach(screen => screen.classList.toggle('active', screen === screenToShow));
     }
 
+    // CORREÇÃO: Usa querySelector para evitar conflito de ID
     function showInfoModal(title, text, showButton = true) {
-        document.getElementById('modal-title').innerText = title;
-        document.getElementById('modal-text').innerHTML = text;
-        const oldButtons = document.getElementById('modal-content').querySelector('.modal-button-container');
+        modal.querySelector('.modal-title').innerText = title;
+        modal.querySelector('.modal-text').innerHTML = text;
+        const oldButtons = modal.querySelector('.modal-button-container');
         if(oldButtons) oldButtons.remove();
-        document.getElementById('modal-button').classList.toggle('hidden', !showButton);
+        const okButton = modal.querySelector('.modal-button');
+        okButton.classList.toggle('hidden', !showButton);
         modal.classList.remove('hidden');
-        document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
+        okButton.onclick = () => modal.classList.add('hidden');
     }
     
+    // CORREÇÃO: Usa querySelector para evitar conflito de ID
     function showConfirmationModal(title, text, onConfirm, confirmText = 'Sim', cancelText = 'Não') {
-        const modalContent = document.getElementById('modal-content');
-        const modalText = document.getElementById('modal-text');
-        document.getElementById('modal-title').innerText = title;
-        modalText.innerHTML = `<p>${text}</p>`;
+        const modalContent = modal.querySelector('.modal-content');
+        const modalTextEl = modal.querySelector('.modal-text');
+        modal.querySelector('.modal-title').innerText = title;
+        modalTextEl.innerHTML = `<p>${text}</p>`;
         const oldButtons = modalContent.querySelector('.modal-button-container');
         if(oldButtons) oldButtons.remove();
         const buttonContainer = document.createElement('div');
@@ -106,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         buttonContainer.appendChild(confirmBtn);
         buttonContainer.appendChild(cancelBtn);
         modalContent.appendChild(buttonContainer);
-        document.getElementById('modal-button').classList.add('hidden');
+        modal.querySelector('.modal-button').classList.add('hidden');
         modal.classList.remove('hidden');
     }
 
@@ -773,7 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
 
-            if (cheatModal.classList.contains('active') && (e.key.toLowerCase() === 'c' || e.key === 'Escape')) {
+            if (cheatModal.classList.contains('active') && (e.key === 'Escape')) {
                 e.preventDefault();
                 cheatModal.classList.remove('active');
                 return;
@@ -887,10 +890,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // NOVO: Função para mostrar a lista de NPCs para um slot específico
+    // CORREÇÃO: Usa o ID correto 'cheat-modal-text'
     function showNpcListForCheatModal(slot) {
-        const modalTitle = document.getElementById('modal-title');
-        const modalText = document.getElementById('modal-text');
+        const modalTitle = document.getElementById('cheat-modal-title');
+        const modalText = document.getElementById('cheat-modal-text');
         
         modalTitle.textContent = `Painel de Cheats (GM)`;
         modalText.innerHTML = `
@@ -912,10 +915,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // NOVO: Função principal do modal de cheat, que agora mostra a seleção de slots
+    // CORREÇÃO: Usa os IDs corretos 'cheat-modal-title' e 'cheat-modal-text'
     function showCheatSlotSelection() {
-        const modalTitle = document.getElementById('modal-title');
-        const modalText = document.getElementById('modal-text');
+        const modalTitle = document.getElementById('cheat-modal-title');
+        const modalText = document.getElementById('cheat-modal-text');
         
         modalTitle.textContent = 'Painel de Cheats (GM)';
         modalText.innerHTML = '';
@@ -927,7 +930,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const MAX_NPC_SLOTS = 5;
-        // Um slot está ocupado se houver qualquer NPC (vivo, morto ou fugido) nele.
         const occupiedSlots = Object.values(currentGameState.fighters.npcs).map(n => n.slot);
         const availableSlots = [];
         for (let i = 0; i < MAX_NPC_SLOTS; i++) {

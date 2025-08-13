@@ -131,26 +131,26 @@
         </div>
     </div>
 
-    <!-- MODAL PADRÃO -->
+    <!-- MODAL PADRÃO (Para confirmações, etc.) -->
     <div id="modal" class="hidden">
-        <div id="modal-content">
-            <h3 id="modal-title">Título</h3>
-            <div id="modal-text">Texto.</div>
-            <button id="modal-button">OK</button>
+        <div class="modal-content">
+            <h3 class="modal-title">Título</h3>
+            <div class="modal-text">Texto.</div>
+            <button class="modal-button">OK</button>
         </div>
     </div>
     
+    <!-- MODAL DE CHEAT (com IDs únicos) -->
     <div id="cheat-modal" class="screen">
-        <div id="modal-content">
-            <h3 id="modal-title">Painel de Cheats (GM)</h3>
-            <div id="modal-text">
-                <h4>Adicionar Inimigo à Batalha</h4>
-                <p>Clique em um inimigo para adicioná-lo a um slot vago.</p>
-                <div id="cheat-add-npc-list" class="cheat-npc-list"></div>
+        <div class="modal-content">
+            <h3 id="cheat-modal-title">Painel de Cheats (GM)</h3>
+            <div id="cheat-modal-text">
+                <!-- Conteúdo será injetado pelo JavaScript -->
             </div>
             <button id="cheat-modal-close-btn">Fechar</button>
         </div>
     </div>
+
 
     <!-- BOTÕES FLUTUANTES -->
     <button id="back-to-lobby-btn" class="back-btn hidden" title="Voltar ao Lobby">⌂</button>
