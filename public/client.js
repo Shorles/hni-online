@@ -342,7 +342,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         allFighters.forEach(fighter => {
             if(fighter.status === 'disconnected') return;
-            if (!fighterPositions[fighter.id]) return; 
+            if (!fighterPositions[fighter.id]) {
+                 console.warn(`Fighter ${fighter.nome} (${fighter.id}) has no position assigned. NPC Slot: ${fighter.slot}`);
+                 return;
+            }
 
             const isPlayer = !!state.fighters.players[fighter.id];
             const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
@@ -558,7 +561,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 theaterBackgroundImage.src = img.src;
                 theaterWorldContainer.style.width = `${img.naturalWidth}px`;
                 theaterWorldContainer.style.height = `${img.naturalHeight}px`;
-                if (isGm) socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
             };
             img.src = scenarioUrl;
         }
@@ -601,9 +603,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function setupTheaterEventListeners() {
-        document.getElementById('toggle-gm-panel-btn').addEventListener('click', () => {
+        document.getElementById('toggle-gm-panel-btn').onclick = () => {
             theaterScreen.classList.toggle('panel-hidden');
-        });
+        };
 
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
@@ -968,6 +970,22 @@ document.addEventListener('DOMContentLoaded', () => {
         cheatModal.classList.add('active');
     }
 
+    // CORREÇÃO: Função para reaplicar os listeners nos botões
+    function setupDynamicEventListeners() {
+        document.getElementById('floating-switch-mode-btn').onclick = () => {
+             socket.emit('playerAction', { type: 'gmSwitchesMode' });
+        };
+        document.getElementById('floating-invite-btn').onclick = () => {
+            if (myRoomId) {
+                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
+        };
+        document.getElementById('back-to-lobby-btn').onclick = () => {
+            socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
+        };
+    }
+
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -1011,6 +1029,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 switchBtn.innerHTML = '⚔️';
                 switchBtn.title = 'Mudar para Modo Aventura';
             }
+            // CORREÇÃO: Reaplica os listeners toda vez que a tela é renderizada
+            setupDynamicEventListeners();
         }
 
         switch(gameState.mode) {
@@ -1152,37 +1172,24 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
-        document.getElementById('join-as-player-btn').addEventListener('click', () => {
+        document.getElementById('join-as-player-btn').onclick = () => {
             socket.emit('playerChoosesRole', { role: 'player' });
             showScreen(document.getElementById('loading-screen'));
-        });
-        document.getElementById('join-as-spectator-btn').addEventListener('click', () => {
+        };
+        document.getElementById('join-as-spectator-btn').onclick = () => {
             socket.emit('playerChoosesRole', { role: 'spectator' });
             showScreen(document.getElementById('loading-screen'));
-        });
+        };
 
-        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
-        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
-        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
-        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
-        
-        floatingSwitchModeBtn.addEventListener('click', () => {
-            console.log('[DEBUG] Cliente: Botão de trocar modo clicado. Enviando gmSwitchesMode...');
-            socket.emit('playerAction', { type: 'gmSwitchesMode' });
-        });
-
-        floatingInviteBtn.addEventListener('click', () => {
-             if (myRoomId) {
-                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
-                copyToClipboard(inviteUrl, floatingInviteBtn);
-            }
-        });
+        document.getElementById('start-adventure-btn').onclick = () => socket.emit('playerAction', { type: 'gmStartsAdventure' });
+        document.getElementById('start-theater-btn').onclick = () => socket.emit('playerAction', { type: 'gmStartsTheater' });
+        document.getElementById('theater-change-scenario-btn').onclick = showScenarioSelectionModal;
+        document.getElementById('theater-publish-btn').onclick = () => socket.emit('playerAction', { type: 'publish_stage' });
         
         if (cheatModalCloseBtn) {
-            cheatModalCloseBtn.addEventListener('click', () => {
+            cheatModalCloseBtn.onclick = () => {
                 cheatModal.classList.remove('active');
-            });
+            };
         }
 
         setupTheaterEventListeners();
