@@ -1006,11 +1006,9 @@ document.addEventListener('DOMContentLoaded', () => {
             backToLobbyBtn.classList.remove('hidden');
             const switchBtn = document.getElementById('floating-switch-mode-btn');
             if (gameState.mode === 'adventure') {
-                // CORREÇÃO: Usar textContent para não destruir os event listeners
                 switchBtn.textContent = '🎭';
                 switchBtn.title = 'Mudar para Modo Cenário';
             } else {
-                // CORREÇÃO: Usar textContent para não destruir os event listeners
                 switchBtn.textContent = '⚔️';
                 switchBtn.title = 'Mudar para Modo Aventura';
             }
@@ -1155,7 +1153,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
-        // Listeners de clique que só precisam ser setados uma vez
         document.getElementById('join-as-player-btn').onclick = () => {
             socket.emit('playerChoosesRole', { role: 'player' });
             showScreen(document.getElementById('loading-screen'));
@@ -1164,18 +1161,13 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerChoosesRole', { role: 'spectator' });
             showScreen(document.getElementById('loading-screen'));
         };
+
         document.getElementById('start-adventure-btn').onclick = () => socket.emit('playerAction', { type: 'gmStartsAdventure' });
         document.getElementById('start-theater-btn').onclick = () => socket.emit('playerAction', { type: 'gmStartsTheater' });
         document.getElementById('theater-change-scenario-btn').onclick = showScenarioSelectionModal;
         document.getElementById('theater-publish-btn').onclick = () => socket.emit('playerAction', { type: 'publish_stage' });
         
-        if (cheatModalCloseBtn) {
-            cheatModalCloseBtn.onclick = () => {
-                cheatModal.classList.remove('active');
-            };
-        }
-
-        // Listeners de clique que são dinâmicos e precisam ser reaplicados
+        // CORREÇÃO: Os listeners dos botões flutuantes são atribuídos aqui e não serão mais destruídos
         floatingSwitchModeBtn.onclick = () => {
             socket.emit('playerAction', { type: 'gmSwitchesMode' });
         };
@@ -1188,6 +1180,12 @@ document.addEventListener('DOMContentLoaded', () => {
         backToLobbyBtn.onclick = () => {
             socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
         };
+        
+        if (cheatModalCloseBtn) {
+            cheatModalCloseBtn.onclick = () => {
+                cheatModal.classList.remove('active');
+            };
+        }
 
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
