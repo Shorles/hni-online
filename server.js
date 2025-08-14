@@ -321,7 +321,7 @@ io.on('connection', (socket) => {
         const lobbyState = room.gameModes.lobby;
         const isGm = socket.id === lobbyState.gmId;
         
-        // --- START: CORRECTED SECTION ---
+        // --- START: FINAL CORRECTED SECTION ---
         // Handle high-level GM state changes first. These actions are terminal for this function.
         if (isGm) {
             switch (action.type) {
@@ -380,7 +380,7 @@ io.on('connection', (socket) => {
                     return; // ACTION HANDLED, exit function.
             }
         }
-        // --- END: CORRECTED SECTION ---
+        // --- END: FINAL CORRECTED SECTION ---
 
         let shouldUpdate = true;
 
