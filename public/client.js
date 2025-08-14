@@ -468,10 +468,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         turnOrderSidebar.innerHTML = '';
         turnOrderSidebar.classList.remove('hidden');
-        const orderedFighters = state.turnOrder
+        
+        const activeFightersInOrder = state.turnOrder
             .map(id => getFighter(state, id))
-            .filter(f => f && f.status === 'active'); 
-        orderedFighters.forEach((fighter, index) => {
+            .filter(f => f && f.status === 'active');
+
+        activeFightersInOrder.forEach((fighter, index) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
             if (fighter.id === state.activeCharacterKey) {
@@ -599,7 +601,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function setupTheaterEventListeners() {
-        // CORREÇÃO: Adicionando o event listener para o botão de toggle do painel
         document.getElementById('toggle-gm-panel-btn').addEventListener('click', () => {
             theaterScreen.classList.toggle('panel-hidden');
         });

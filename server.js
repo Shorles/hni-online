@@ -180,15 +180,13 @@ function advanceTurn(state) {
 
     let currentTurnIndexInFilteredList = activeFightersInOrder.indexOf(state.activeCharacterKey);
 
-    // Se é a primeira rodada ou o personagem ativo não está mais na lista, começa do zero.
-    if (currentTurnIndexInFilteredList === -1) {
+    if (currentTurnIndexInFilteredList === -1) { // Primeira rodada ou personagem ativo foi derrotado
         state.currentRound++;
         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
     }
     
     let nextTurnIndexInFilteredList = (currentTurnIndexInFilteredList + 1) % activeFightersInOrder.length;
     
-    // Incrementa a rodada se o próximo lutador estiver antes (ou for o mesmo) que o anterior na lista de ativos
     if (nextTurnIndexInFilteredList <= currentTurnIndexInFilteredList && currentTurnIndexInFilteredList !== -1) {
          state.currentRound++;
          logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
@@ -326,7 +324,7 @@ io.on('connection', (socket) => {
         let shouldUpdate = true;
         
         if (isGm) {
-            // LÓGICA DE AÇÕES DO GM REESTRUTURADA E CORRIGIDA
+            // Estrutura de controle de fluxo robusta para ações do GM
             switch (action.type) {
                 case 'gmGoesBackToLobby':
                     if (room.activeMode === 'adventure' && room.gameModes.adventure) {
@@ -335,7 +333,8 @@ io.on('connection', (socket) => {
                         room.gameModes.adventure = null; 
                     }
                     room.activeMode = 'lobby';
-                    break;
+                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                    return;
 
                 case 'gmSwitchesMode':
                     if (room.activeMode === 'adventure') {
@@ -351,13 +350,14 @@ io.on('connection', (socket) => {
                     } else if (room.activeMode === 'theater') {
                         if (room.adventureCache) {
                             socket.emit('promptForAdventureType');
-                            return; // Interrompe a função aqui para aguardar a resposta.
+                            return; 
                         } else {
                             room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                             room.activeMode = 'adventure';
                         }
                     }
-                    break;
+                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                    return;
                 
                 case 'gmChoosesAdventureType':
                     if (action.choice === 'continue' && room.adventureCache) {
@@ -369,7 +369,8 @@ io.on('connection', (socket) => {
                     }
                     room.adventureCache = null;
                     room.activeMode = 'adventure';
-                    break;
+                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                    return;
             }
         }
         
@@ -423,14 +424,11 @@ io.on('connection', (socket) => {
                             const character = activeState.waitingPlayers[action.playerId];
                             if (action.admitted) {
                                 const newPlayerId = action.playerId;
-                                
                                 io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
                                 activeState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
-                                
                                 if (activeState.phase === 'battle') {
                                     activeState.turnOrder.push(newPlayerId);
                                 } 
-                                
                                 logMessage(activeState, `${character.nome} entrou na batalha!`);
                                 delete activeState.waitingPlayers[action.playerId];
                             } else {
