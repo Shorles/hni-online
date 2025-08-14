@@ -17,6 +17,7 @@ let PLAYABLE_CHARACTERS = [];
 let DYNAMIC_CHARACTERS = [];
 let ALL_SCENARIOS = {};
 const MAX_PLAYERS = 4;
+const MAX_NPCS = 5; // Adicionado para referência
 
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
@@ -326,14 +327,12 @@ io.on('connection', (socket) => {
                      room.activeMode = 'theater';
                 }
             }
-            // CORREÇÃO: Lógica para pular a tela de atributos ao iniciar uma nova luta.
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                     room.adventureCache = null; 
                 } else { // 'new'
                     const newAdventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                    // Pula a fase de configuração do grupo, mantendo o HP salvo.
                     newAdventure.phase = 'npc_setup';
                     logMessage(newAdventure, 'Iniciando um novo encontro com o grupo existente.');
                     room.gameModes.adventure = newAdventure;
@@ -387,6 +386,23 @@ io.on('connection', (socket) => {
                 const actor = action.actorKey ? getFighter(adventureState, action.actorKey) : null;
                 const canControl = actor && ((isGm && adventureState.fighters.npcs[actor.id]) || (socket.id === actor.id));
                 switch (action.type) {
+                    case 'gmAddsNpcMidBattle':
+                        if (isGm && adventureState.phase === 'battle' && action.npcData) {
+                            const currentNpcCount = Object.keys(adventureState.fighters.npcs).length;
+                            if (currentNpcCount < MAX_NPCS) {
+                                const npcId = `npc-${Date.now()}`;
+                                const npcObj = ALL_NPCS[action.npcData.name] || {};
+                                const newNpc = createNewFighterState({
+                                    ...action.npcData,
+                                    id: npcId,
+                                    scale: npcObj.scale || 1.0
+                                });
+                                adventureState.fighters.npcs[npcId] = newNpc;
+                                adventureState.turnOrder.splice(adventureState.turnIndex + 1, 0, npcId);
+                                logMessage(adventureState, `${newNpc.nome} apareceu na batalha!`, 'info');
+                            }
+                        }
+                        break;
                     case 'gmDecidesOnAdmission':
                         if (isGm && action.playerId && adventureState.waitingPlayers[action.playerId]) {
                             const character = adventureState.waitingPlayers[action.playerId];

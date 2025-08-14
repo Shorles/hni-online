@@ -154,6 +154,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     pointer-events: all; 
     transition: transform 0.2s ease-out; 
     transform: scale(var(--character-scale, 1));
+    transform-origin: bottom center; /* <-- ADICIONADO: Garante que o personagem cresça para cima */
 }
 .fighter-img-ingame { 
     width: 150px; 

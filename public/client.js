@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
     let stagedNpcs = [];
+    const MAX_NPCS = 5;
 
     // Controles de UI
     let isTargeting = false;
@@ -278,10 +279,10 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                if (stagedNpcs.length < 5) {
+                if (stagedNpcs.length < MAX_NPCS) {
                     stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); 
                     renderNpcStagingArea();
-                } else { alert("Você pode adicionar no máximo 5 inimigos."); }
+                } else { alert(`Você pode adicionar no máximo ${MAX_NPCS} inimigos.`); }
             });
             npcArea.appendChild(card);
         });
@@ -320,8 +321,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
-        Object.values(state.fighters.players).forEach((f, i) => fighterPositions[f.id] = PLAYER_POSITIONS[i]);
-        Object.values(state.fighters.npcs).forEach((f, i) => fighterPositions[f.id] = NPC_POSITIONS[i]);
+        
+        const playerKeys = Object.keys(state.fighters.players);
+        playerKeys.forEach((key, i) => fighterPositions[key] = PLAYER_POSITIONS[i % PLAYER_POSITIONS.length]);
+        
+        const npcKeys = Object.keys(state.fighters.npcs);
+        npcKeys.forEach((key, i) => fighterPositions[key] = NPC_POSITIONS[i % NPC_POSITIONS.length]);
 
         allFighters.forEach(fighter => {
             if(fighter.status === 'disconnected') return;
@@ -343,9 +348,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const characterScale = fighter.scale || 1.0;
         
-        Object.assign(container.style, position);
+        if (position) {
+            Object.assign(container.style, position);
+            container.style.zIndex = parseInt(position.top, 10);
+        }
         container.style.setProperty('--character-scale', characterScale);
-        container.style.zIndex = parseInt(position.top, 10);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
@@ -483,6 +490,50 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelTargeting();
     }
     
+    // --- CHEAT FUNCTIONS ---
+    function showCheatModal() {
+        let content = `<div class="cheat-menu">
+            <button id="cheat-add-npc-btn" class="mode-btn">Adicionar Inimigo</button>
+        </div>`;
+        showInfoModal('Cheats', content, false);
+        document.getElementById('cheat-add-npc-btn').addEventListener('click', handleCheatAddNpc);
+    }
+    
+    function handleCheatAddNpc() {
+        if (!currentGameState || currentGameState.mode !== 'adventure') return;
+        
+        const currentNpcCount = Object.keys(currentGameState.fighters.npcs).length;
+        if (currentNpcCount >= MAX_NPCS) {
+            showInfoModal('Erro', 'Todos os slots de inimigos estão ocupados.');
+            return;
+        }
+
+        let content = `<p>Selecione o inimigo para adicionar:</p>
+                       <div class="npc-selection-container" style="max-height: 300px;">`;
+        
+        (ALL_CHARACTERS.npcs || []).forEach(npcData => {
+            content += `<div class="npc-card cheat-npc-card" data-name="${npcData.name}" data-img="${npcData.img}" data-scale="${npcData.scale || 1.0}">
+                           <img src="${npcData.img}" alt="${npcData.name}">
+                           <div class="char-name">${npcData.name}</div>
+                       </div>`;
+        });
+        content += `</div>`;
+
+        showInfoModal('Adicionar Inimigo', content, false);
+        
+        document.querySelectorAll('.cheat-npc-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const npcData = {
+                    name: card.dataset.name,
+                    img: card.dataset.img,
+                    scale: parseFloat(card.dataset.scale)
+                };
+                socket.emit('playerAction', { type: 'gmAddsNpcMidBattle', npcData });
+                modal.classList.add('hidden');
+            });
+        });
+    }
+
     // --- LÓGICA DO MODO CENÁRIO ---
     function initializeTheaterMode() {
         localWorldScale = 1.0;
@@ -741,6 +792,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const focusedEl = document.activeElement;
             if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA') return;
+            
+            if (e.key.toLowerCase() === 'c' && isGm && currentGameState.mode === 'adventure') {
+                e.preventDefault();
+                showCheatModal();
+            }
 
             if (e.key.toLowerCase() === 't') {
                 e.preventDefault();
@@ -788,7 +844,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // CORREÇÃO: Lógica de posicionamento da janela de coordenadas
         window.addEventListener('mousemove', (e) => {
             if (!coordsModeActive) return;
 
@@ -798,11 +853,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const mouseX = e.clientX;
             const mouseY = e.clientY;
 
-            // Calcula a posição do mouse relativa ao gameWrapper (espaço de 1280x720)
             const gameX = Math.round((mouseX - rect.left) / gameScale);
             const gameY = Math.round((mouseY - rect.top) / gameScale);
 
-            // Posiciona a janela de coordenadas usando as coordenadas calculadas do jogo
             coordsDisplay.style.left = `${gameX + 15}px`;
             coordsDisplay.style.top = `${gameY + 15}px`;
 
