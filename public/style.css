@@ -152,9 +152,9 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     align-items: center; 
     width: 150px; 
     pointer-events: all; 
-    transition: transform 0.2s ease-out; 
+    transition: transform 0.2s ease-out, left 1s ease-out, opacity 1s ease-out; 
     transform: scale(var(--character-scale, 1));
-    transform-origin: bottom center; /* <-- ADICIONADO: Garante que o personagem cresça para cima */
+    transform-origin: bottom center;
 }
 .fighter-img-ingame { 
     width: 150px; 
@@ -183,6 +183,11 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
 @keyframes lunge-npc { 50% { transform: translateX(-200px) scale(var(--character-scale, 1)); } } 
 
+.is-fleeing-player { animation: flee-player-animation 1s forwards; }
+@keyframes flee-player-animation { 100% { left: -300px; opacity: 0; } }
+.is-fleeing-npc { animation: flee-npc-animation 1s forwards; }
+@keyframes flee-npc-animation { 100% { left: 1300px; opacity: 0; } }
+
 #fight-log-container { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 50%; max-width: 600px; height: 150px; background-color: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; z-index: 10; pointer-events: auto; }
 #round-info { margin-top: 0; text-align: center; border-bottom: 1px solid #fff; padding-bottom: 10px; }
 #fight-log { overflow-y: auto; flex-grow: 1; font-size: 0.9em; }
@@ -194,6 +199,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .action-btn, .end-turn-btn { padding: 15px 30px; font-size: 1.2em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
 .action-btn { background-color: #c82333; }
 .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
+.action-btn.flee-btn { background-color: #007bff; }
+.action-btn.flee-btn:hover:not(:disabled) { background-color: #0056b3; }
 .end-turn-btn { background-color: #ffc107; color: #000; }
 .action-btn:disabled, .end-turn-btn:disabled { background-color: #495057; color: #aaa; cursor: not-allowed; opacity: 0.7; }
 #initiative-ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 11; pointer-events: auto; }
@@ -209,14 +216,13 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 /* --- NOVO: Janela de Coordenadas --- */
 #coords-display { 
-    position: absolute; 
+    position: fixed; /* Usa 'fixed' para ser relativo à janela do navegador */
     background-color: rgba(0,0,0,0.8); 
     color: #ffeb3b; 
     padding: 5px 10px; 
     border-radius: 5px; 
     font-family: monospace; 
     font-size: 1.2em; 
-    /* z-index e pointer-events garantem que ele fique por cima e não bloqueie cliques */
     z-index: 9999; 
     pointer-events: none; 
     line-height: 1.5;

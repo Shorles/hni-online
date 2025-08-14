@@ -17,7 +17,7 @@ let PLAYABLE_CHARACTERS = [];
 let DYNAMIC_CHARACTERS = [];
 let ALL_SCENARIOS = {};
 const MAX_PLAYERS = 4;
-const MAX_NPCS = 5; // Adicionado para referência
+const MAX_NPCS = 5; 
 
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
@@ -155,6 +155,18 @@ function advanceTurn(state) {
     if (state.winner) return;
     let nextIndex = state.turnIndex;
     let attempts = 0;
+    let activeFightersExist = state.turnOrder.some(id => getFighter(state, id)?.status === 'active');
+
+    if (!activeFightersExist) {
+        checkGameOver(state);
+        if (!state.winner) {
+            state.winner = 'draw';
+            state.reason = 'Nenhum combatente ativo restante.';
+            logMessage(state, 'Fim da batalha! Nenhum combatente ativo restante.', 'game_over');
+        }
+        return;
+    }
+
     do {
         nextIndex = (nextIndex + 1) % state.turnOrder.length;
         if (attempts++ > state.turnOrder.length * 2) {
@@ -386,20 +398,33 @@ io.on('connection', (socket) => {
                 const actor = action.actorKey ? getFighter(adventureState, action.actorKey) : null;
                 const canControl = actor && ((isGm && adventureState.fighters.npcs[actor.id]) || (socket.id === actor.id));
                 switch (action.type) {
-                    case 'gmAddsNpcMidBattle':
-                        if (isGm && adventureState.phase === 'battle' && action.npcData) {
-                            const currentNpcCount = Object.keys(adventureState.fighters.npcs).length;
-                            if (currentNpcCount < MAX_NPCS) {
-                                const npcId = `npc-${Date.now()}`;
-                                const npcObj = ALL_NPCS[action.npcData.name] || {};
-                                const newNpc = createNewFighterState({
-                                    ...action.npcData,
-                                    id: npcId,
-                                    scale: npcObj.scale || 1.0
+                    case 'gmReplacesNpc':
+                        if (isGm && adventureState.phase === 'battle' && action.npcData && action.npcIdToReplace) {
+                            const npcToReplace = adventureState.fighters.npcs[action.npcIdToReplace];
+                            if (npcToReplace) {
+                                adventureState.fighters.npcs[action.npcIdToReplace] = createNewFighterState({
+                                    id: action.npcIdToReplace,
+                                    ...action.npcData
                                 });
-                                adventureState.fighters.npcs[npcId] = newNpc;
-                                adventureState.turnOrder.splice(adventureState.turnIndex + 1, 0, npcId);
-                                logMessage(adventureState, `${newNpc.nome} apareceu na batalha!`, 'info');
+                                // Add back to turn order if not already there
+                                if (!adventureState.turnOrder.includes(action.npcIdToReplace)) {
+                                     adventureState.turnOrder.splice(adventureState.turnIndex + 1, 0, action.npcIdToReplace);
+                                }
+                                logMessage(adventureState, `${action.npcData.name} junta-se à batalha!`, 'info');
+                            }
+                        }
+                        break;
+                    case 'flee':
+                        if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey && canControl) {
+                            const fighter = getFighter(adventureState, action.actorKey);
+                            if (fighter) {
+                                fighter.status = 'fled';
+                                logMessage(adventureState, `${fighter.nome} fugiu da batalha!`, 'miss');
+                                io.to(roomId).emit('fleeResolved', { actorKey: action.actorKey });
+                                checkGameOver(adventureState);
+                                if (!adventureState.winner) {
+                                    advanceTurn(adventureState);
+                                }
                             }
                         }
                         break;

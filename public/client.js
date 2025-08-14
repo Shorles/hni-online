@@ -317,9 +317,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '1150px', top: '350px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '1150px', top: '850px' } ];
         
-        const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
         
         const playerKeys = Object.keys(state.fighters.players);
@@ -328,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const npcKeys = Object.keys(state.fighters.npcs);
         npcKeys.forEach((key, i) => fighterPositions[key] = NPC_POSITIONS[i % NPC_POSITIONS.length]);
 
+        const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         allFighters.forEach(fighter => {
             if(fighter.status === 'disconnected') return;
             const isPlayer = !!state.fighters.players[fighter.id];
@@ -355,6 +355,12 @@ document.addEventListener('DOMContentLoaded', () => {
         container.style.setProperty('--character-scale', characterScale);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
+        
+        if (fighter.status === 'fled') {
+            container.classList.add(type === 'player' ? 'is-fleeing-player' : 'is-fleeing-npc');
+            return container; 
+        }
+
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
             defeatAnimationPlayed.add(fighter.id);
@@ -386,8 +392,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if(state.phase !== 'battle' || !!state.winner) return;
         const activeFighter = getFighter(state, state.activeCharacterKey);
         if (!activeFighter) return;
+
         const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
+        
         const attackBtn = document.createElement('button');
         attackBtn.className = 'action-btn';
         attackBtn.textContent = 'Atacar';
@@ -397,6 +405,15 @@ document.addEventListener('DOMContentLoaded', () => {
             targetingAttackerKey = state.activeCharacterKey;
             document.getElementById('targeting-indicator').classList.remove('hidden');
         });
+
+        const fleeBtn = document.createElement('button');
+        fleeBtn.className = 'action-btn flee-btn';
+        fleeBtn.textContent = 'Fugir';
+        fleeBtn.disabled = !canControl;
+        fleeBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey });
+        });
+
         const endTurnBtn = document.createElement('button');
         endTurnBtn.className = 'end-turn-btn';
         endTurnBtn.textContent = 'Encerrar Turno';
@@ -404,7 +421,9 @@ document.addEventListener('DOMContentLoaded', () => {
         endTurnBtn.addEventListener('click', () => {
             socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey });
         });
+        
         actionButtonsWrapper.appendChild(attackBtn);
+        actionButtonsWrapper.appendChild(fleeBtn);
         actionButtonsWrapper.appendChild(endTurnBtn);
     }
 
@@ -437,11 +456,14 @@ document.addEventListener('DOMContentLoaded', () => {
         turnOrderSidebar.innerHTML = '';
         turnOrderSidebar.classList.remove('hidden');
         const orderedFighters = state.turnOrder
-            .slice(state.turnIndex)
-            .concat(state.turnOrder.slice(0, state.turnIndex))
             .map(id => getFighter(state, id))
             .filter(f => f && f.status === 'active');
-        orderedFighters.forEach((fighter, index) => {
+        
+        const activeIndex = orderedFighters.findIndex(f => f.id === state.activeCharacterKey);
+
+        const sortedVisibleFighters = orderedFighters.slice(activeIndex).concat(orderedFighters.slice(0, activeIndex));
+
+        sortedVisibleFighters.forEach((fighter, index) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
             if (index === 0) {
@@ -493,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CHEAT FUNCTIONS ---
     function showCheatModal() {
         let content = `<div class="cheat-menu">
-            <button id="cheat-add-npc-btn" class="mode-btn">Adicionar Inimigo</button>
+            <button id="cheat-add-npc-btn" class="mode-btn">Adicionar/Substituir Inimigo</button>
         </div>`;
         showInfoModal('Cheats', content, false);
         document.getElementById('cheat-add-npc-btn').addEventListener('click', handleCheatAddNpc);
@@ -502,13 +524,34 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleCheatAddNpc() {
         if (!currentGameState || currentGameState.mode !== 'adventure') return;
         
-        const currentNpcCount = Object.keys(currentGameState.fighters.npcs).length;
-        if (currentNpcCount >= MAX_NPCS) {
-            showInfoModal('Erro', 'Todos os slots de inimigos estão ocupados.');
+        const defeatedNpcs = Object.values(currentGameState.fighters.npcs).filter(npc => npc.status === 'down');
+
+        if (defeatedNpcs.length === 0) {
+            showInfoModal('Erro', 'Nenhum slot de inimigo vago (derrotado) para substituir.');
             return;
         }
 
-        let content = `<p>Selecione o inimigo para adicionar:</p>
+        let content = `<p>Selecione o slot vago para substituir:</p><div class="npc-selection-container">`;
+        defeatedNpcs.forEach(npc => {
+            content += `<div class="npc-card cheat-npc-slot" data-npc-id="${npc.id}">
+                           <img src="${npc.img}" style="filter: grayscale(100%);">
+                           <div class="char-name">${npc.nome} (Vago)</div>
+                       </div>`;
+        });
+        content += `</div>`;
+
+        showInfoModal('Selecionar Slot', content, false);
+
+        document.querySelectorAll('.cheat-npc-slot').forEach(card => {
+            card.addEventListener('click', (e) => {
+                const npcIdToReplace = e.currentTarget.dataset.npcId;
+                selectNpcForReplacement(npcIdToReplace);
+            });
+        });
+    }
+
+    function selectNpcForReplacement(npcIdToReplace) {
+        let content = `<p>Selecione o novo inimigo:</p>
                        <div class="npc-selection-container" style="max-height: 300px;">`;
         
         (ALL_CHARACTERS.npcs || []).forEach(npcData => {
@@ -519,20 +562,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         content += `</div>`;
 
-        showInfoModal('Adicionar Inimigo', content, false);
+        showInfoModal('Selecionar Novo Inimigo', content, false);
         
         document.querySelectorAll('.cheat-npc-card').forEach(card => {
             card.addEventListener('click', () => {
-                const npcData = {
+                const newNpcData = {
                     name: card.dataset.name,
                     img: card.dataset.img,
                     scale: parseFloat(card.dataset.scale)
                 };
-                socket.emit('playerAction', { type: 'gmAddsNpcMidBattle', npcData });
+                socket.emit('playerAction', { type: 'gmReplacesNpc', npcIdToReplace: npcIdToReplace, npcData: newNpcData });
                 modal.classList.add('hidden');
             });
         });
     }
+
 
     // --- LÓGICA DO MODO CENÁRIO ---
     function initializeTheaterMode() {
@@ -846,19 +890,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.addEventListener('mousemove', (e) => {
             if (!coordsModeActive) return;
-
+            const gameWrapperRect = gameWrapper.getBoundingClientRect();
             const gameScale = getGameScale();
-            const rect = gameWrapper.getBoundingClientRect();
-            
             const mouseX = e.clientX;
             const mouseY = e.clientY;
 
-            const gameX = Math.round((mouseX - rect.left) / gameScale);
-            const gameY = Math.round((mouseY - rect.top) / gameScale);
+            // Transforma a coordenada global do mouse para a coordenada local do game-wrapper
+            const gameX = Math.round((mouseX - gameWrapperRect.left) / gameScale);
+            const gameY = Math.round((mouseY - gameWrapperRect.top) / gameScale);
 
-            coordsDisplay.style.left = `${gameX + 15}px`;
-            coordsDisplay.style.top = `${gameY + 15}px`;
-
+            // Posiciona a janela de coordenadas relativa à viewport, mas mostra as coordenadas do jogo
+            coordsDisplay.style.left = `${mouseX + 15}px`;
+            coordsDisplay.style.top = `${mouseY + 15}px`;
             coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
         });
     }
@@ -1064,6 +1107,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+    
+    socket.on('fleeResolved', ({ actorKey }) => {
+        const actorEl = document.getElementById(actorKey);
+        if (actorEl) {
+            const isPlayer = actorEl.classList.contains('player-char-container');
+            actorEl.classList.add(isPlayer ? 'is-fleeing-player' : 'is-fleeing-npc');
+        }
+    });
+
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
 
