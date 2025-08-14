@@ -601,6 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function setupTheaterEventListeners() {
+        // CORREÇÃO: Adicionando o event listener para o botão de toggle do painel
         document.getElementById('toggle-gm-panel-btn').addEventListener('click', () => {
             theaterScreen.classList.toggle('panel-hidden');
         });
@@ -1178,9 +1179,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        cheatModalCloseBtn.addEventListener('click', () => {
-            cheatModal.classList.remove('active');
-        });
+        // CORREÇÃO: Adicionando listener para o botão de fechar modal de cheat
+        if (cheatModalCloseBtn) {
+            cheatModalCloseBtn.addEventListener('click', () => {
+                cheatModal.classList.remove('active');
+            });
+        }
 
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
