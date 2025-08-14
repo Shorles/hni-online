@@ -320,50 +320,61 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const lobbyState = room.gameModes.lobby;
         const isGm = socket.id === lobbyState.gmId;
-        let activeState = room.gameModes[room.activeMode];
         let shouldUpdate = true;
         
+        // --- START: MODIFIED SECTION ---
+        // First, handle GM "meta" actions that change the game's flow or active mode.
         if (isGm) {
-            if (action.type === 'gmGoesBackToLobby') {
-                if (room.activeMode === 'adventure' && room.gameModes.adventure) {
-                    cachePlayerStats(room);
-                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
-                    room.gameModes.adventure = null;
-                }
-                room.activeMode = 'lobby';
-            } else if (action.type === 'gmSwitchesMode') {
-                if (room.activeMode === 'adventure') {
-                    if (room.gameModes.adventure) {
+            switch (action.type) {
+                case 'gmGoesBackToLobby':
+                    if (room.activeMode === 'adventure' && room.gameModes.adventure) {
                         cachePlayerStats(room);
                         room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
                         room.gameModes.adventure = null;
                     }
-                    if (!room.gameModes.theater) {
-                        room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
+                    room.activeMode = 'lobby';
+                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                    return; // Exit: Action is fully handled.
+
+                case 'gmSwitchesMode':
+                    if (room.activeMode === 'adventure') {
+                        if (room.gameModes.adventure) {
+                            cachePlayerStats(room);
+                            room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                            room.gameModes.adventure = null;
+                        }
+                        if (!room.gameModes.theater) {
+                            room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
+                        }
+                        room.activeMode = 'theater';
+                    } else if (room.activeMode === 'theater') {
+                        if (room.adventureCache) {
+                            socket.emit('promptForAdventureType');
+                            return; // Exit: Wait for GM's next action.
+                        } else {
+                            room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                            room.activeMode = 'adventure';
+                        }
                     }
-                    room.activeMode = 'theater';
-                } else if (room.activeMode === 'theater') {
-                    if (room.adventureCache) {
-                        socket.emit('promptForAdventureType');
-                        shouldUpdate = false;
+                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                    return; // Exit: Action is fully handled.
+
+                case 'gmChoosesAdventureType':
+                    if (action.choice === 'continue' && room.adventureCache) {
+                        room.gameModes.adventure = room.adventureCache;
                     } else {
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                        room.activeMode = 'adventure';
+                        room.gameModes.adventure.phase = 'npc_setup';
+                        logMessage(room.gameModes.adventure, 'Iniciando um novo encontro com o grupo existente.');
                     }
-                }
-            } else if (action.type === 'gmChoosesAdventureType') {
-                if (action.choice === 'continue' && room.adventureCache) {
-                    room.gameModes.adventure = room.adventureCache;
-                } else {
-                    room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                    room.gameModes.adventure.phase = 'npc_setup';
-                    logMessage(room.gameModes.adventure, 'Iniciando um novo encontro com o grupo existente.');
-                }
-                room.adventureCache = null;
-                room.activeMode = 'adventure';
+                    room.adventureCache = null;
+                    room.activeMode = 'adventure';
+                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                    return; // Exit: Action is fully handled.
             }
         }
-        
+        // --- END: MODIFIED SECTION ---
+
         if (action.type === 'playerSelectsCharacter') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (!playerInfo) { return; }
@@ -387,7 +398,7 @@ io.on('connection', (socket) => {
             }
         }
 
-        activeState = room.gameModes[room.activeMode];
+        const activeState = room.gameModes[room.activeMode];
 
         if (activeState) {
             switch (activeState.mode) {
@@ -473,7 +484,7 @@ io.on('connection', (socket) => {
                                 const allFighters = [...Object.values(activeState.fighters.players), ...Object.values(activeState.fighters.npcs)];
                                 if (allFighters.every(f => activeState.initiativeRolls[f.id] || f.status !== 'active')) {
                                     startBattle(activeState);
-                                }
+                                 }
                             }
                             break;
                         case 'attack':
