@@ -166,6 +166,7 @@ function checkGameOver(state) {
 
 function advanceTurn(state) {
     if (state.winner) return;
+
     const fullTurnOrder = state.turnOrder;
     let activeFightersInOrder = fullTurnOrder.filter(id => {
         const f = getFighter(state, id);
@@ -178,11 +179,17 @@ function advanceTurn(state) {
     }
 
     let currentTurnIndexInFilteredList = activeFightersInOrder.indexOf(state.activeCharacterKey);
-    let nextTurnIndexInFilteredList = (currentTurnIndexInFilteredList + 1) % activeFightersInOrder.length;
-    
-    if (currentTurnIndexInFilteredList === -1 || nextTurnIndexInFilteredList === 0) {
+
+    if (currentTurnIndexInFilteredList === -1) {
         state.currentRound++;
         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
+    }
+    
+    let nextTurnIndexInFilteredList = (currentTurnIndexInFilteredList + 1) % activeFightersInOrder.length;
+    
+    if (nextTurnIndexInFilteredList <= currentTurnIndexInFilteredList && currentTurnIndexInFilteredList !== -1) {
+         state.currentRound++;
+         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
     }
 
     const nextFighterId = activeFightersInOrder[nextTurnIndexInFilteredList];
@@ -315,8 +322,6 @@ io.on('connection', (socket) => {
         const isGm = socket.id === lobbyState.gmId;
         let activeState = room.gameModes[room.activeMode];
         let shouldUpdate = true;
-
-        console.log(`[DEBUG] Servidor: Recebida ação '${action.type}' do socket ${socket.id}`);
         
         if (isGm) {
             if (action.type === 'gmGoesBackToLobby') {
@@ -327,7 +332,6 @@ io.on('connection', (socket) => {
                 }
                 room.activeMode = 'lobby';
             } else if (action.type === 'gmSwitchesMode') {
-                console.log('[DEBUG] Servidor: Processando gmSwitchesMode...');
                 if (room.activeMode === 'adventure') {
                     if (room.gameModes.adventure) {
                         cachePlayerStats(room);
@@ -340,16 +344,14 @@ io.on('connection', (socket) => {
                     room.activeMode = 'theater';
                 } else if (room.activeMode === 'theater') {
                     if (room.adventureCache) {
-                        console.log('[DEBUG] Servidor: Cache de aventura encontrado. Enviando promptForAdventureType.');
                         socket.emit('promptForAdventureType');
-                        shouldUpdate = false; // A ação para aqui e espera a resposta do GM.
+                        shouldUpdate = false;
                     } else {
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                         room.activeMode = 'adventure';
                     }
                 }
             } else if (action.type === 'gmChoosesAdventureType') {
-                console.log(`[DEBUG] Servidor: GM escolheu ${action.choice}.`);
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                 } else {

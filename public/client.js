@@ -343,7 +343,6 @@ document.addEventListener('DOMContentLoaded', () => {
         allFighters.forEach(fighter => {
             if(fighter.status === 'disconnected') return;
             if (!fighterPositions[fighter.id]) {
-                 console.warn(`Fighter ${fighter.nome} (${fighter.id}) has no position assigned. NPC Slot: ${fighter.slot}`);
                  return;
             }
 
@@ -970,22 +969,6 @@ document.addEventListener('DOMContentLoaded', () => {
         cheatModal.classList.add('active');
     }
 
-    // CORREÇÃO: Função para reaplicar os listeners nos botões
-    function setupDynamicEventListeners() {
-        document.getElementById('floating-switch-mode-btn').onclick = () => {
-             socket.emit('playerAction', { type: 'gmSwitchesMode' });
-        };
-        document.getElementById('floating-invite-btn').onclick = () => {
-            if (myRoomId) {
-                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
-                copyToClipboard(inviteUrl, floatingInviteBtn);
-            }
-        };
-        document.getElementById('back-to-lobby-btn').onclick = () => {
-            socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
-        };
-    }
-
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -1022,15 +1005,15 @@ document.addEventListener('DOMContentLoaded', () => {
             floatingButtonsContainer.classList.remove('hidden');
             backToLobbyBtn.classList.remove('hidden');
             const switchBtn = document.getElementById('floating-switch-mode-btn');
-            if(gameState.mode === 'adventure') {
-                switchBtn.innerHTML = '🎭';
+            if (gameState.mode === 'adventure') {
+                // CORREÇÃO: Usar textContent para não destruir os event listeners
+                switchBtn.textContent = '🎭';
                 switchBtn.title = 'Mudar para Modo Cenário';
             } else {
-                switchBtn.innerHTML = '⚔️';
+                // CORREÇÃO: Usar textContent para não destruir os event listeners
+                switchBtn.textContent = '⚔️';
                 switchBtn.title = 'Mudar para Modo Aventura';
             }
-            // CORREÇÃO: Reaplica os listeners toda vez que a tela é renderizada
-            setupDynamicEventListeners();
         }
 
         switch(gameState.mode) {
@@ -1172,6 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
+        // Listeners de clique que só precisam ser setados uma vez
         document.getElementById('join-as-player-btn').onclick = () => {
             socket.emit('playerChoosesRole', { role: 'player' });
             showScreen(document.getElementById('loading-screen'));
@@ -1180,7 +1164,6 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerChoosesRole', { role: 'spectator' });
             showScreen(document.getElementById('loading-screen'));
         };
-
         document.getElementById('start-adventure-btn').onclick = () => socket.emit('playerAction', { type: 'gmStartsAdventure' });
         document.getElementById('start-theater-btn').onclick = () => socket.emit('playerAction', { type: 'gmStartsTheater' });
         document.getElementById('theater-change-scenario-btn').onclick = showScenarioSelectionModal;
@@ -1191,6 +1174,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 cheatModal.classList.remove('active');
             };
         }
+
+        // Listeners de clique que são dinâmicos e precisam ser reaplicados
+        floatingSwitchModeBtn.onclick = () => {
+            socket.emit('playerAction', { type: 'gmSwitchesMode' });
+        };
+        floatingInviteBtn.onclick = () => {
+             if (myRoomId) {
+                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
+        };
+        backToLobbyBtn.onclick = () => {
+            socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
+        };
 
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
