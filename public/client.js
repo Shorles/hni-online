@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '1100px', top: '350px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '950px', top: '350px' } ];
         
         const fighterPositions = {};
         
@@ -431,7 +431,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const gmRollBtn = document.getElementById('gm-roll-initiative-btn');
         playerRollBtn.classList.add('hidden');
         gmRollBtn.classList.add('hidden');
-        if (myRole === 'player' && getFighter(state, myPlayerKey) && !state.initiativeRolls[myPlayerKey]) {
+        const myFighter = getFighter(state, myPlayerKey);
+        if (myRole === 'player' && myFighter && myFighter.status === 'active' && !state.initiativeRolls[myPlayerKey]) {
             playerRollBtn.classList.remove('hidden'); 
             playerRollBtn.disabled = false;
             playerRollBtn.onclick = () => { playerRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative' }); };
@@ -522,32 +523,40 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleCheatAddNpc() {
         if (!currentGameState || currentGameState.mode !== 'adventure') return;
     
-        const vacantNpcs = Object.values(currentGameState.fighters.npcs).filter(npc => npc.status === 'down' || npc.status === 'fled');
-        const occupiedSlots = Object.keys(currentGameState.fighters.npcs).length;
-        const emptySlotsCount = MAX_NPCS - occupiedSlots;
+        const npcKeys = Object.keys(currentGameState.fighters.npcs);
+        const allNpcs = Object.values(currentGameState.fighters.npcs);
+        let availableSlots = [];
     
-        if (vacantNpcs.length === 0 && emptySlotsCount <= 0) {
-            showInfoModal('Erro', 'Todos os slots de inimigos estão ocupados.');
+        for (let i = 0; i < MAX_NPCS; i++) {
+            const npcInSlot = allNpcs[i];
+            if (!npcInSlot) {
+                // This is a completely empty slot
+                availableSlots.push({ index: i, type: 'empty' });
+            } else if (npcInSlot.status === 'down' || npcInSlot.status === 'fled') {
+                // This is a slot that can be replaced
+                availableSlots.push({ index: i, type: 'replace', npc: npcInSlot });
+            }
+        }
+    
+        if (availableSlots.length === 0) {
+            showInfoModal('Erro', 'Todos os slots de inimigos estão ocupados por combatentes ativos.');
             return;
         }
     
         let content = `<p>Selecione o slot vago para adicionar/substituir:</p><div class="npc-selection-container">`;
     
-        // Show defeated/fled NPCs
-        vacantNpcs.forEach(npc => {
-            content += `<div class="npc-card cheat-npc-slot" data-npc-id-replace="${npc.id}">
-                           <img src="${npc.img}" style="filter: grayscale(100%);">
-                           <div class="char-name">${npc.nome} (Vago)</div>
-                       </div>`;
+        availableSlots.forEach(slot => {
+            if (slot.type === 'empty') {
+                content += `<div class="npc-card cheat-npc-slot" data-slot-type="empty">
+                               <div class="char-name">Slot Vazio ${slot.index + 1}</div>
+                           </div>`;
+            } else { // type === 'replace'
+                content += `<div class="npc-card cheat-npc-slot" data-slot-type="replace" data-npc-id-replace="${slot.npc.id}">
+                               <img src="${slot.npc.img}" style="filter: grayscale(100%);">
+                               <div class="char-name">${slot.npc.nome} (Vago)</div>
+                           </div>`;
+            }
         });
-    
-        // Show completely empty slots
-        for (let i = 0; i < emptySlotsCount; i++) {
-            const slotNum = occupiedSlots + i + 1;
-            content += `<div class="npc-card cheat-npc-slot" data-slot-type="empty">
-                           <div class="char-name">Slot Vazio ${slotNum}</div>
-                       </div>`;
-        }
         content += `</div>`;
     
         showInfoModal('Selecionar Slot', content, false);
