@@ -325,8 +325,7 @@ io.on('connection', (socket) => {
                     room.gameModes.adventure = null; 
                 }
                 room.activeMode = 'lobby';
-            }
-            if (action.type === 'gmSwitchesMode') {
+            } else if (action.type === 'gmSwitchesMode') {
                 if (room.activeMode === 'adventure') {
                     if (room.gameModes.adventure) {
                         cachePlayerStats(room);
@@ -340,14 +339,14 @@ io.on('connection', (socket) => {
                 } else if (room.activeMode === 'theater') {
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
-                        shouldUpdate = false; // CORREÇÃO: Impede a atualização de estado para deixar o prompt aparecer.
+                        // CORREÇÃO: Interrompe a execução aqui para aguardar a resposta do GM.
+                        return; 
                     } else {
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                         room.activeMode = 'adventure';
                     }
                 }
-            }
-            if (action.type === 'gmChoosesAdventureType') {
+            } else if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                 } else {
