@@ -320,65 +320,71 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const lobbyState = room.gameModes.lobby;
         const isGm = socket.id === lobbyState.gmId;
-        let shouldUpdate = true;
         
         // --- START: CORRECTED SECTION ---
-        // Handle GM meta-actions first and exit immediately to prevent fall-through.
+        // Handle high-level GM state changes first. These actions are terminal for this function.
         if (isGm) {
-            switch (action.type) {
-                case 'gmGoesBackToLobby':
-                    if (room.activeMode === 'adventure' && room.gameModes.adventure) {
+            if (action.type === 'gmGoesBackToLobby') {
+                if (room.activeMode === 'adventure' && room.gameModes.adventure) {
+                    cachePlayerStats(room);
+                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                    room.gameModes.adventure = null;
+                }
+                room.activeMode = 'lobby';
+                io.to(roomId).emit('gameUpdate', getFullState(room));
+                return; // ACTION HANDLED, exit function.
+            }
+
+            if (action.type === 'gmSwitchesMode') {
+                if (room.activeMode === 'adventure') {
+                    if (room.gameModes.adventure) {
                         cachePlayerStats(room);
                         room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
                         room.gameModes.adventure = null;
                     }
-                    room.activeMode = 'lobby';
-                    io.to(roomId).emit('gameUpdate', getFullState(room));
-                    return; // ACTION HANDLED
-
-                case 'gmSwitchesMode':
-                    if (room.activeMode === 'adventure') {
-                        if (room.gameModes.adventure) {
-                            cachePlayerStats(room);
-                            room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
-                            room.gameModes.adventure = null;
-                        }
-                        if (!room.gameModes.theater) {
-                            room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
-                        }
-                        room.activeMode = 'theater';
-                        io.to(roomId).emit('gameUpdate', getFullState(room));
-
-                    } else if (room.activeMode === 'theater') {
-                        if (room.adventureCache) {
-                            socket.emit('promptForAdventureType');
-                            // DO NOT send a game update here. Wait for the GM's choice.
-                        } else {
-                            room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                            room.activeMode = 'adventure';
-                            io.to(roomId).emit('gameUpdate', getFullState(room));
-                        }
+                    if (!room.gameModes.theater) {
+                        room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                     }
-                    return; // ACTION HANDLED
-
-                case 'gmChoosesAdventureType':
-                    if (action.choice === 'continue' && room.adventureCache) {
-                        room.gameModes.adventure = room.adventureCache;
+                    room.activeMode = 'theater';
+                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                } else if (room.activeMode === 'theater') {
+                    if (room.adventureCache) {
+                        socket.emit('promptForAdventureType'); // Send prompt to GM and wait for response.
                     } else {
-                        // On "New Battle", clear old stats for a fresh start
-                        Object.values(lobbyState.connectedPlayers).forEach(p => {
-                            if (p.persistentStats) p.persistentStats = null;
-                        });
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                        room.activeMode = 'adventure';
+                        io.to(roomId).emit('gameUpdate', getFullState(room));
                     }
-                    room.adventureCache = null;
-                    room.activeMode = 'adventure';
-                    io.to(roomId).emit('gameUpdate', getFullState(room));
-                    return; // ACTION HANDLED
+                }
+                return; // ACTION HANDLED, exit function.
+            }
+
+            if (action.type === 'gmChoosesAdventureType') {
+                if (action.choice === 'continue' && room.adventureCache) {
+                    room.gameModes.adventure = room.adventureCache;
+                    // Ensure players with 0 HP received from cache start as 'down'
+                    Object.values(room.gameModes.adventure.fighters.players).forEach(player => {
+                        if (player.hp <= 0) {
+                            player.status = 'down';
+                        }
+                    });
+                } else { // Handles 'new' choice
+                    // Clear any leftover persistent stats for a completely new battle
+                    Object.values(lobbyState.connectedPlayers).forEach(p => {
+                        if(p.persistentStats) p.persistentStats = null;
+                    });
+                    room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                }
+                room.adventureCache = null;
+                room.activeMode = 'adventure';
+                io.to(roomId).emit('gameUpdate', getFullState(room));
+                return; // ACTION HANDLED, exit function.
             }
         }
         // --- END: CORRECTED SECTION ---
-        
+
+        let shouldUpdate = true;
+
         if (action.type === 'playerSelectsCharacter') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (!playerInfo) { return; }

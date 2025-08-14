@@ -1140,7 +1140,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
-    // --- START: MODIFIED SECTION ---
+    // --- START: CORRECTED SECTION ---
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
@@ -1153,7 +1153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
-        // Listeners de clique que só precisam ser setados uma vez
+        // Listeners that only need to be set once.
         document.getElementById('join-as-player-btn').onclick = () => {
             socket.emit('playerChoosesRole', { role: 'player' });
             showScreen(document.getElementById('loading-screen'));
@@ -1168,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('theater-change-scenario-btn').onclick = showScenarioSelectionModal;
         document.getElementById('theater-publish-btn').onclick = () => socket.emit('playerAction', { type: 'publish_stage' });
         
-        // Listeners de botões flutuantes, movidos para cá para serem setados apenas uma vez.
+        // Floating button listeners, set only once.
         floatingSwitchModeBtn.onclick = () => {
             socket.emit('playerAction', { type: 'gmSwitchesMode' });
         };
@@ -1193,7 +1193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', scaleGame);
         scaleGame();
     }
-    // --- END: MODIFIED SECTION ---
+    // --- END: CORRECTED SECTION ---
     
     initialize();
 });
