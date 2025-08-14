@@ -152,7 +152,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     align-items: center; 
     width: 150px; 
     pointer-events: all; 
-    transition: transform 0.2s ease-out, left 1s ease-out, opacity 1s ease-out; 
+    transition: transform 0.2s ease-out; 
     transform: scale(var(--character-scale, 1));
     transform-origin: bottom center;
 }
@@ -183,9 +183,9 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
 @keyframes lunge-npc { 50% { transform: translateX(-200px) scale(var(--character-scale, 1)); } } 
 
-.is-fleeing-player { animation: flee-player-animation 1s forwards; }
+.is-fleeing-player { animation: flee-player-animation 1.2s forwards ease-in; }
 @keyframes flee-player-animation { 100% { left: -300px; opacity: 0; } }
-.is-fleeing-npc { animation: flee-npc-animation 1s forwards; }
+.is-fleeing-npc { animation: flee-npc-animation 1.2s forwards ease-in; }
 @keyframes flee-npc-animation { 100% { left: 1300px; opacity: 0; } }
 
 #fight-log-container { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 50%; max-width: 600px; height: 150px; background-color: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; z-index: 10; pointer-events: auto; }
@@ -195,8 +195,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .log-hit { color: #ffc107; } .log-miss { color: #6c757d; } .log-crit { color: #dc3545; font-weight: bold; } .log-info { color: #17a2b8; } .log-turn { color: #fff; font-weight: bold; } .log-round { color: #ffeb3b; font-weight: bold; text-align: center; }
 .highlight-result { font-weight: bold; font-size: 1.25em; color: #ffeb3b; }
 .turn-highlight { font-weight: bold; color: #dc3545; }
-#action-buttons-wrapper { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; padding: 15px; background-color: rgba(0,0,0,0.7); border-radius: 10px; z-index: 10; pointer-events: auto; }
-.action-btn, .end-turn-btn { padding: 15px 30px; font-size: 1.2em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
+#action-buttons-wrapper { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; padding: 15px; background-color: rgba(0,0,0,0.7); border-radius: 10px; z-index: 10; pointer-events: auto; }
+.action-btn, .end-turn-btn { padding: 15px 25px; font-size: 1.1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.2s; }
 .action-btn { background-color: #c82333; }
 .action-btn:hover:not(:disabled) { background-color: #a71d2a; }
 .action-btn.flee-btn { background-color: #007bff; }
@@ -214,16 +214,18 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 #targeting-indicator { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); background-color: rgba(220, 53, 69, 0.9); color: white; padding: 10px 25px; border-radius: 8px; font-weight: bold; z-index: 100; pointer-events: none; }
 
-/* --- NOVO: Janela de Coordenadas --- */
+/* --- Janela de Coordenadas --- */
 #coords-display { 
-    position: fixed; /* Usa 'fixed' para ser relativo à janela do navegador */
+    position: absolute; 
+    top: 20px;
+    left: 20px;
     background-color: rgba(0,0,0,0.8); 
     color: #ffeb3b; 
     padding: 5px 10px; 
     border-radius: 5px; 
     font-family: monospace; 
     font-size: 1.2em; 
-    z-index: 9999; 
+    z-index: 9000; 
     pointer-events: none; 
     line-height: 1.5;
 }

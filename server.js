@@ -69,6 +69,8 @@ function createNewAdventureState(gmId, connectedPlayers) {
                  Object.assign(fighterData, { res: 3, agi: 2 });
             }
             adventureState.fighters.players[sId] = createNewFighterState(fighterData);
+            // Ensure status is active for new adventures
+            adventureState.fighters.players[sId].status = 'active';
             io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
         }
     }
@@ -119,12 +121,18 @@ function cachePlayerStats(room) {
 
     Object.values(adventureState.fighters.players).forEach(playerFighter => {
         if (lobbyState.connectedPlayers[playerFighter.id]) {
-            lobbyState.connectedPlayers[playerFighter.id].persistentStats = {
-                hp: playerFighter.hp,
-                hpMax: playerFighter.hpMax,
-                res: playerFighter.res,
-                agi: playerFighter.agi
-            };
+            // Only update stats if the player didn't flee
+            if (playerFighter.status !== 'fled') {
+                 lobbyState.connectedPlayers[playerFighter.id].persistentStats = {
+                    hp: playerFighter.hp,
+                    hpMax: playerFighter.hpMax,
+                    res: playerFighter.res,
+                    agi: playerFighter.agi
+                };
+            } else {
+                // If they fled, reset their stats for next time
+                delete lobbyState.connectedPlayers[playerFighter.id].persistentStats;
+            }
         }
     });
 }
@@ -143,7 +151,7 @@ function checkGameOver(state) {
     const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
     const activeNpcs = Object.values(state.fighters.npcs).filter(n => n.status === 'active');
     if (activePlayers.length === 0) {
-        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados.';
+        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados ou fugiram.';
         logMessage(state, 'Fim da batalha! Os inimigos venceram.', 'game_over');
     } else if (activeNpcs.length === 0) {
         state.winner = 'players'; state.reason = 'Todos os inimigos foram derrotados.';
@@ -153,11 +161,9 @@ function checkGameOver(state) {
 
 function advanceTurn(state) {
     if (state.winner) return;
-    let nextIndex = state.turnIndex;
-    let attempts = 0;
-    let activeFightersExist = state.turnOrder.some(id => getFighter(state, id)?.status === 'active');
+    const activeTurnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
 
-    if (!activeFightersExist) {
+    if (activeTurnOrder.length === 0) {
         checkGameOver(state);
         if (!state.winner) {
             state.winner = 'draw';
@@ -166,20 +172,16 @@ function advanceTurn(state) {
         }
         return;
     }
-
-    do {
-        nextIndex = (nextIndex + 1) % state.turnOrder.length;
-        if (attempts++ > state.turnOrder.length * 2) {
-             state.winner = 'draw'; state.reason = 'Ninguém pôde lutar.'; return;
-        }
-    } while (getFighter(state, state.turnOrder[nextIndex]).status !== 'active');
     
-    if (nextIndex < state.turnIndex) {
+    let currentIndex = activeTurnOrder.indexOf(state.activeCharacterKey);
+    let nextIndex = (currentIndex + 1) % activeTurnOrder.length;
+
+    if (nextIndex < currentIndex && currentIndex !== -1) { 
         state.currentRound++;
         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
     }
-    state.turnIndex = nextIndex;
-    state.activeCharacterKey = state.turnOrder[state.turnIndex];
+
+    state.activeCharacterKey = activeTurnOrder[nextIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
 }
@@ -215,6 +217,9 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
 }
 
 function startBattle(state) {
+    // Reset status for any players who might have fled a previous battle
+    Object.values(state.fighters.players).forEach(p => p.status = 'active');
+
     state.turnOrder = Object.values(state.fighters.players).concat(Object.values(state.fighters.npcs))
         .filter(f => f.status === 'active')
         .sort((a, b) => {
@@ -342,6 +347,9 @@ io.on('connection', (socket) => {
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
+                    // Reset fled status from cached adventure
+                    Object.values(room.gameModes.adventure.fighters.players).forEach(p => { if (p.status === 'fled') p.status = 'active'; });
+                    Object.values(room.gameModes.adventure.fighters.npcs).forEach(n => { if (n.status === 'fled') n.status = 'active'; });
                     room.adventureCache = null; 
                 } else { // 'new'
                     const newAdventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
@@ -401,16 +409,14 @@ io.on('connection', (socket) => {
                     case 'gmReplacesNpc':
                         if (isGm && adventureState.phase === 'battle' && action.npcData && action.npcIdToReplace) {
                             const npcToReplace = adventureState.fighters.npcs[action.npcIdToReplace];
-                            if (npcToReplace) {
+                            if (npcToReplace && (npcToReplace.status === 'down' || npcToReplace.status === 'fled')) {
+                                const oldName = npcToReplace.nome;
                                 adventureState.fighters.npcs[action.npcIdToReplace] = createNewFighterState({
                                     id: action.npcIdToReplace,
                                     ...action.npcData
                                 });
-                                // Add back to turn order if not already there
-                                if (!adventureState.turnOrder.includes(action.npcIdToReplace)) {
-                                     adventureState.turnOrder.splice(adventureState.turnIndex + 1, 0, action.npcIdToReplace);
-                                }
-                                logMessage(adventureState, `${action.npcData.name} junta-se à batalha!`, 'info');
+                                logMessage(adventureState, `${oldName} foi substituído por ${action.npcData.name}!`, 'info');
+                                checkGameOver(adventureState);
                             }
                         }
                         break;
@@ -420,11 +426,17 @@ io.on('connection', (socket) => {
                             if (fighter) {
                                 fighter.status = 'fled';
                                 logMessage(adventureState, `${fighter.nome} fugiu da batalha!`, 'miss');
+                                
                                 io.to(roomId).emit('fleeResolved', { actorKey: action.actorKey });
-                                checkGameOver(adventureState);
-                                if (!adventureState.winner) {
-                                    advanceTurn(adventureState);
-                                }
+                                shouldUpdate = false; 
+                                
+                                setTimeout(() => {
+                                    if (!adventureState.winner) {
+                                        advanceTurn(adventureState);
+                                    }
+                                    checkGameOver(adventureState);
+                                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                                }, 1200); 
                             }
                         }
                         break;

@@ -329,10 +329,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         allFighters.forEach(fighter => {
-            if(fighter.status === 'disconnected') return;
+            // Don't render characters that have fled. The animation is handled separately.
+            if (fighter.status === 'fled') return;
+
             const isPlayer = !!state.fighters.players[fighter.id];
             const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
-            fightSceneCharacters.appendChild(el);
+            if (el) {
+                 fightSceneCharacters.appendChild(el);
+            }
         });
         
         renderActionButtons(state);
@@ -355,11 +359,6 @@ document.addEventListener('DOMContentLoaded', () => {
         container.style.setProperty('--character-scale', characterScale);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
-        
-        if (fighter.status === 'fled') {
-            container.classList.add(type === 'player' ? 'is-fleeing-player' : 'is-fleeing-npc');
-            return container; 
-        }
 
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
@@ -461,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const activeIndex = orderedFighters.findIndex(f => f.id === state.activeCharacterKey);
 
-        const sortedVisibleFighters = orderedFighters.slice(activeIndex).concat(orderedFighters.slice(0, activeIndex));
+        const sortedVisibleFighters = activeIndex === -1 ? orderedFighters : orderedFighters.slice(activeIndex).concat(orderedFighters.slice(0, activeIndex));
 
         sortedVisibleFighters.forEach((fighter, index) => {
             const card = document.createElement('div');
@@ -524,15 +523,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleCheatAddNpc() {
         if (!currentGameState || currentGameState.mode !== 'adventure') return;
         
-        const defeatedNpcs = Object.values(currentGameState.fighters.npcs).filter(npc => npc.status === 'down');
+        const vacantNpcs = Object.values(currentGameState.fighters.npcs).filter(npc => npc.status === 'down' || npc.status === 'fled');
 
-        if (defeatedNpcs.length === 0) {
-            showInfoModal('Erro', 'Nenhum slot de inimigo vago (derrotado) para substituir.');
+        if (vacantNpcs.length === 0) {
+            showInfoModal('Erro', 'Nenhum slot de inimigo vago (derrotado ou fugiu) para substituir.');
             return;
         }
 
         let content = `<p>Selecione o slot vago para substituir:</p><div class="npc-selection-container">`;
-        defeatedNpcs.forEach(npc => {
+        vacantNpcs.forEach(npc => {
             content += `<div class="npc-card cheat-npc-slot" data-npc-id="${npc.id}">
                            <img src="${npc.img}" style="filter: grayscale(100%);">
                            <div class="char-name">${npc.nome} (Vago)</div>
@@ -895,13 +894,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const mouseX = e.clientX;
             const mouseY = e.clientY;
 
-            // Transforma a coordenada global do mouse para a coordenada local do game-wrapper
             const gameX = Math.round((mouseX - gameWrapperRect.left) / gameScale);
             const gameY = Math.round((mouseY - gameWrapperRect.top) / gameScale);
-
-            // Posiciona a janela de coordenadas relativa à viewport, mas mostra as coordenadas do jogo
-            coordsDisplay.style.left = `${mouseX + 15}px`;
-            coordsDisplay.style.top = `${mouseY + 15}px`;
+            
             coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
         });
     }
