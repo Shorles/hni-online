@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let myRoomId = null; 
 
     let coordsModeActive = false;
-
     let clientFlowState = 'initializing';
     const gameStateQueue = [];
 
@@ -58,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
     const coordsDisplay = document.getElementById('coords-display');
+    const cheatModal = document.getElementById('cheat-modal');
+    const cheatModalCloseBtn = document.getElementById('cheat-modal-close-btn');
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -72,20 +73,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showInfoModal(title, text, showButton = true) {
-        document.getElementById('modal-title').innerText = title;
-        document.getElementById('modal-text').innerHTML = text;
-        const oldButtons = document.getElementById('modal-content').querySelector('.modal-button-container');
+        modal.querySelector('.modal-title').innerText = title;
+        modal.querySelector('.modal-text').innerHTML = text;
+        const oldButtons = modal.querySelector('.modal-button-container');
         if(oldButtons) oldButtons.remove();
-        document.getElementById('modal-button').classList.toggle('hidden', !showButton);
+        const okButton = modal.querySelector('.modal-button');
+        okButton.classList.toggle('hidden', !showButton);
         modal.classList.remove('hidden');
-        document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
+        okButton.onclick = () => modal.classList.add('hidden');
     }
     
     function showConfirmationModal(title, text, onConfirm, confirmText = 'Sim', cancelText = 'Não') {
-        const modalContent = document.getElementById('modal-content');
-        const modalText = document.getElementById('modal-text');
-        document.getElementById('modal-title').innerText = title;
-        modalText.innerHTML = `<p>${text}</p>`;
+        const modalContent = modal.querySelector('.modal-content');
+        const modalTextEl = modal.querySelector('.modal-text');
+        modal.querySelector('.modal-title').innerText = title;
+        modalTextEl.innerHTML = `<p>${text}</p>`;
         const oldButtons = modalContent.querySelector('.modal-button-container');
         if(oldButtons) oldButtons.remove();
         const buttonContainer = document.createElement('div');
@@ -105,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         buttonContainer.appendChild(confirmBtn);
         buttonContainer.appendChild(cancelBtn);
         modalContent.appendChild(buttonContainer);
-        document.getElementById('modal-button').classList.add('hidden');
+        modal.querySelector('.modal-button').classList.add('hidden');
         modal.classList.remove('hidden');
     }
 
@@ -278,10 +280,10 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                if (stagedNpcs.length < 4) {
+                if (stagedNpcs.length < 5) {
                     stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); 
                     renderNpcStagingArea();
-                } else { alert("Você pode adicionar no máximo 4 inimigos."); }
+                } else { alert("Você pode adicionar no máximo 5 inimigos."); }
             });
             npcArea.appendChild(card);
         });
@@ -316,15 +318,31 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' } ];
+        const NPC_POSITIONS = [ 
+            { left: '1000px', top: '500px' }, 
+            { left: '900px',  top: '400px' }, 
+            { left: '800px',  top: '300px' }, 
+            { left: '700px',  top: '200px' }, 
+            { left: '1000px', top: '350px' }
+        ];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
-        Object.values(state.fighters.players).forEach((f, i) => fighterPositions[f.id] = PLAYER_POSITIONS[i]);
-        Object.values(state.fighters.npcs).forEach((f, i) => fighterPositions[f.id] = NPC_POSITIONS[i]);
+        
+        Object.values(state.fighters.players).forEach((f, i) => {
+             if (i < PLAYER_POSITIONS.length) fighterPositions[f.id] = PLAYER_POSITIONS[i];
+        });
+
+        Object.values(state.fighters.npcs).forEach(npc => {
+            if (npc.slot !== undefined && npc.slot < NPC_POSITIONS.length) {
+                fighterPositions[npc.id] = NPC_POSITIONS[npc.slot];
+            }
+        });
 
         allFighters.forEach(fighter => {
             if(fighter.status === 'disconnected') return;
+            if (!fighterPositions[fighter.id]) return; 
+
             const isPlayer = !!state.fighters.players[fighter.id];
             const el = createFighterElement(fighter, isPlayer ? 'player' : 'npc', state, fighterPositions[fighter.id]);
             fightSceneCharacters.appendChild(el);
@@ -344,17 +362,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const characterScale = fighter.scale || 1.0;
         
         Object.assign(container.style, position);
+        container.style.setProperty('--character-scale', characterScale);
         container.style.transform = `scale(${characterScale})`;
         container.style.zIndex = parseInt(position.top, 10);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
+        const wasJustFled = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'fled';
+        
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
             defeatAnimationPlayed.add(fighter.id);
             container.classList.add(type === 'player' ? 'animate-defeat-player' : 'animate-defeat-npc');
         } else if (fighter.status === 'down') {
              container.classList.add(type === 'player' ? 'player-defeated-final' : 'npc-defeated-final');
+        } else if (wasJustFled) {
+             container.classList.add(type === 'player' ? 'is-fleeing-player' : 'is-fleeing-npc');
+        } else if (fighter.status === 'fled') {
+             container.classList.add('fled-final');
         }
+
         if (fighter.status === 'active') {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
             const activeFighter = getFighter(state, state.activeCharacterKey);
@@ -381,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeFighter) return;
         const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
+        
         const attackBtn = document.createElement('button');
         attackBtn.className = 'action-btn';
         attackBtn.textContent = 'Atacar';
@@ -390,6 +417,15 @@ document.addEventListener('DOMContentLoaded', () => {
             targetingAttackerKey = state.activeCharacterKey;
             document.getElementById('targeting-indicator').classList.remove('hidden');
         });
+
+        const fleeBtn = document.createElement('button');
+        fleeBtn.className = 'flee-btn';
+        fleeBtn.textContent = 'Fugir';
+        fleeBtn.disabled = !canControl;
+        fleeBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey });
+        });
+        
         const endTurnBtn = document.createElement('button');
         endTurnBtn.className = 'end-turn-btn';
         endTurnBtn.textContent = 'Encerrar Turno';
@@ -397,7 +433,9 @@ document.addEventListener('DOMContentLoaded', () => {
         endTurnBtn.addEventListener('click', () => {
             socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey });
         });
+
         actionButtonsWrapper.appendChild(attackBtn);
+        actionButtonsWrapper.appendChild(fleeBtn);
         actionButtonsWrapper.appendChild(endTurnBtn);
     }
 
@@ -430,14 +468,12 @@ document.addEventListener('DOMContentLoaded', () => {
         turnOrderSidebar.innerHTML = '';
         turnOrderSidebar.classList.remove('hidden');
         const orderedFighters = state.turnOrder
-            .slice(state.turnIndex)
-            .concat(state.turnOrder.slice(0, state.turnIndex))
             .map(id => getFighter(state, id))
-            .filter(f => f && f.status === 'active');
+            .filter(f => f && f.status === 'active'); 
         orderedFighters.forEach((fighter, index) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
-            if (index === 0) {
+            if (fighter.id === state.activeCharacterKey) {
                 card.classList.add('active-turn-indicator');
             }
             const img = document.createElement('img');
@@ -737,6 +773,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeGlobalKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
+
+            if (cheatModal.classList.contains('active') && (e.key === 'Escape')) {
+                e.preventDefault();
+                cheatModal.classList.remove('active');
+                return;
+            }
+            
             if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape'){ cancelTargeting(); return; }
             
             const focusedEl = document.activeElement;
@@ -746,6 +789,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 coordsModeActive = !coordsModeActive;
                 coordsDisplay.classList.toggle('hidden', !coordsModeActive);
+            }
+
+            if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'c') {
+                e.preventDefault();
+                showCheatSlotSelection();
             }
 
             if (currentGameState.mode !== 'theater' || !isGm) return;
@@ -788,7 +836,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // CORREÇÃO: Lógica de posicionamento da janela de coordenadas
         window.addEventListener('mousemove', (e) => {
             if (!coordsModeActive) return;
 
@@ -798,11 +845,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const mouseX = e.clientX;
             const mouseY = e.clientY;
 
-            // Calcula a posição do mouse relativa ao gameWrapper (espaço de 1280x720)
             const gameX = Math.round((mouseX - rect.left) / gameScale);
             const gameY = Math.round((mouseY - rect.top) / gameScale);
 
-            // Posiciona a janela de coordenadas usando as coordenadas calculadas do jogo
             coordsDisplay.style.left = `${gameX + 15}px`;
             coordsDisplay.style.top = `${gameY + 15}px`;
 
@@ -842,6 +887,81 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    function showNpcListForCheatModal(slot) {
+        const modalTitle = document.getElementById('cheat-modal-title');
+        const modalText = document.getElementById('cheat-modal-text');
+        
+        modalTitle.textContent = `Painel de Cheats (GM)`;
+        modalText.innerHTML = `
+            <h4>Adicionar Inimigo (Slot ${slot + 1})</h4>
+            <p>Clique em um inimigo para adicioná-lo.</p>
+            <div id="cheat-add-npc-list" class="cheat-npc-list"></div>
+        `;
+        const listEl = document.getElementById('cheat-add-npc-list');
+
+        (ALL_CHARACTERS.npcs || []).forEach(npcData => {
+            const card = document.createElement('div');
+            card.className = 'cheat-npc-card';
+            card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><p>${npcData.name}</p>`;
+            card.addEventListener('click', () => {
+                socket.emit('playerAction', { type: 'gmAddMonster', npc: npcData, slot: slot });
+                cheatModal.classList.remove('active');
+            });
+            listEl.appendChild(card);
+        });
+    }
+
+    function showCheatSlotSelection() {
+        const modalTitle = document.getElementById('cheat-modal-title');
+        const modalText = document.getElementById('cheat-modal-text');
+        
+        modalTitle.textContent = 'Painel de Cheats (GM)';
+        modalText.innerHTML = '';
+        
+        if (!currentGameState || !currentGameState.fighters || !currentGameState.fighters.npcs) {
+            modalText.innerHTML = '<p>Não foi possível carregar o estado do jogo.</p>';
+            cheatModal.classList.add('active');
+            return;
+        }
+
+        const MAX_NPC_SLOTS = 5;
+        // CORREÇÃO: Um slot está ocupado apenas se houver um inimigo ATIVO nele.
+        const activeOccupiedSlots = Object.values(currentGameState.fighters.npcs)
+            .filter(n => n.status === 'active')
+            .map(n => n.slot);
+
+        const availableSlots = [];
+        for (let i = 0; i < MAX_NPC_SLOTS; i++) {
+            if (!activeOccupiedSlots.includes(i)) {
+                availableSlots.push(i);
+            }
+        }
+
+        if (availableSlots.length === 0) {
+            modalText.innerHTML = `
+                <h4>Adicionar Inimigo à Batalha</h4>
+                <p>Todos os slots estão ocupados por inimigos ativos.</p>
+            `;
+        } else {
+            modalText.innerHTML = `
+                <h4>Adicionar Inimigo à Batalha</h4>
+                <p>Escolha um slot vago para adicionar o novo inimigo:</p>
+                <div id="cheat-slot-selection" class="cheat-slot-selection"></div>
+            `;
+            const slotContainer = document.getElementById('cheat-slot-selection');
+            availableSlots.forEach(slot => {
+                const btn = document.createElement('button');
+                btn.className = 'slot-selection-btn';
+                btn.textContent = `Slot ${slot + 1}`;
+                btn.onclick = () => {
+                    showNpcListForCheatModal(slot);
+                };
+                slotContainer.appendChild(btn);
+            });
+        }
+        cheatModal.classList.add('active');
+    }
+
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -1050,6 +1170,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
                 copyToClipboard(inviteUrl, floatingInviteBtn);
             }
+        });
+        
+        cheatModalCloseBtn.addEventListener('click', () => {
+            cheatModal.classList.remove('active');
         });
 
         setupTheaterEventListeners();
