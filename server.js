@@ -17,6 +17,7 @@ let PLAYABLE_CHARACTERS = [];
 let DYNAMIC_CHARACTERS = [];
 let ALL_SCENARIOS = {};
 const MAX_PLAYERS = 4;
+const MAX_NPCS = 5;
 
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
@@ -100,7 +101,8 @@ function createNewTheaterState(gmId, initialScenario) {
     return theaterState;
 }
 
-function createNewFighterState(data) {
+// CORREÇÃO: Função restaurada para aceitar o 'slot'
+function createNewFighterState(data, slot = null) {
     const agi = data.agi !== undefined ? parseInt(data.agi, 10) : 2; 
     const res = data.res !== undefined ? parseInt(data.res, 10) : 3; 
     const scale = data.scale !== undefined ? parseFloat(data.scale) : 1.0;
@@ -108,7 +110,7 @@ function createNewFighterState(data) {
     const hp = data.hp !== undefined ? data.hp : hpMax;
     const status = hp <= 0 ? 'down' : 'active';
 
-    return {
+    const fighter = {
         id: data.id,
         nome: data.nome || data.name,
         img: data.img,
@@ -119,6 +121,11 @@ function createNewFighterState(data) {
         status: status,
         scale: scale,
     };
+    // CORREÇÃO: Lógica para adicionar o slot restaurada
+    if (slot !== null) {
+        fighter.slot = slot;
+    }
+    return fighter;
 }
 
 function cachePlayerStats(room) {
@@ -153,7 +160,7 @@ function checkGameOver(state) {
     const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
     const activeNpcs = Object.values(state.fighters.npcs).filter(n => n.status === 'active');
     if (activePlayers.length === 0) {
-        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados.';
+        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados ou fugiram.';
         logMessage(state, 'Fim da batalha! Os inimigos venceram.', 'game_over');
     } else if (activeNpcs.length === 0) {
         state.winner = 'players'; state.reason = 'Todos os inimigos foram derrotados.';
@@ -163,6 +170,7 @@ function checkGameOver(state) {
 
 function advanceTurn(state) {
     if (state.winner) return;
+
     const fullTurnOrder = state.turnOrder;
     if (fullTurnOrder.length === 0) {
         checkGameOver(state);
@@ -238,7 +246,6 @@ function startBattle(state) {
             return b.agi - a.agi;
         }).map(f => f.id);
     
-    // Filtra apenas os que estão 'active' para a ordem de turnos
     state.turnOrder = state.turnOrder.filter(id => {
         const fighter = getFighter(state, id);
         return fighter && fighter.status === 'active';
@@ -325,6 +332,7 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         const lobbyState = room.gameModes.lobby;
         const isGm = socket.id === lobbyState.gmId;
+        let activeState = room.gameModes[room.activeMode];
         let shouldUpdate = true;
         
         if (isGm) {
@@ -336,16 +344,18 @@ io.on('connection', (socket) => {
                 }
                 room.activeMode = 'lobby';
             } else if (action.type === 'gmSwitchesMode') {
-                // LÓGICA CORRIGIDA, BASEADA NA VERSÃO ANTIGA E FUNCIONAL
-                const targetMode = room.activeMode === 'adventure' ? 'theater' : 'adventure';
-                
+                // CORREÇÃO: Lógica de troca de modo restaurada e aprimorada
                 if (room.activeMode === 'adventure') {
-                    cachePlayerStats(room); 
-                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
-                    room.gameModes.adventure = null;
-                }
-
-                if (targetMode === 'adventure') {
+                    if (room.gameModes.adventure) {
+                        cachePlayerStats(room);
+                        room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                        room.gameModes.adventure = null; 
+                    }
+                    if (!room.gameModes.theater) {
+                        room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
+                    }
+                    room.activeMode = 'theater';
+                } else if (room.activeMode === 'theater') {
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
                         shouldUpdate = false; 
@@ -353,18 +363,12 @@ io.on('connection', (socket) => {
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                         room.activeMode = 'adventure';
                     }
-                } else { // targetMode is 'theater'
-                     if (!room.gameModes.theater) {
-                        room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
-                     }
-                     room.activeMode = 'theater';
                 }
             } else if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                 } else { // 'new'
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                    // Pula a fase de configuração do grupo, mantendo o HP salvo.
                     room.gameModes.adventure.phase = 'npc_setup';
                     logMessage(room.gameModes.adventure, 'Iniciando um novo encontro com o grupo existente.');
                 }
@@ -396,7 +400,7 @@ io.on('connection', (socket) => {
             }
         }
 
-        const activeState = room.gameModes[room.activeMode];
+        activeState = room.gameModes[room.activeMode];
 
         switch (room.activeMode) {
             case 'lobby':
@@ -457,18 +461,20 @@ io.on('connection', (socket) => {
                         }
                         break;
                     case 'gmStartBattle':
+                        // CORREÇÃO: Lógica de adição de NPCs restaurada
                         if (isGm && activeState.phase === 'npc_setup' && action.npcs) {
                              if (action.npcs.length === 0) { shouldUpdate = false; break; }
-                            activeState.fighters.npcs = {}; // Limpa NPCs de batalhas anteriores
+                            activeState.fighters.npcs = {};
                             action.npcs.forEach((npcData, i) => {
                                 const npcObj = ALL_NPCS[npcData.name] || {};
                                 activeState.fighters.npcs[npcData.id] = createNewFighterState({ 
                                     ...npcData, 
                                     id: npcData.id, 
                                     scale: npcObj.scale || 1.0 
-                                });
+                                }, i); // Passa o índice 'i' como o slot
                             });
                             activeState.phase = 'initiative_roll';
+                            activeState.initiativeRolls = {}; // Limpa rolagens anteriores
                             logMessage(activeState, 'Inimigos em posição! Rolem as iniciativas!');
                         }
                         break;
