@@ -145,13 +145,21 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 /* --- TELA DE LUTA --- */
 #fight-scene-characters { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-.player-char-container, .npc-char-container { position: absolute; display: flex; flex-direction: column; align-items: center; width: 150px; pointer-events: all; transition: transform 0.2s ease-out; }
+.player-char-container, .npc-char-container { 
+    position: absolute; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    width: 150px; 
+    pointer-events: all; 
+    transition: transform 0.2s ease-out; 
+    transform: scale(var(--character-scale, 1));
+}
 .fighter-img-ingame { 
     width: 150px; 
     height: 150px; 
     object-fit: contain; 
     filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.7));
-    /* CORREÇÃO: Faz a imagem escalar a partir da base, crescendo para cima. */
     transform-origin: bottom center;
 }
 .health-bar-ingame { width: 100px; height: 15px; background-color: rgba(85, 85, 85, 0.7); border: 1px solid #000; border-radius: 5px; margin-bottom: 5px; position: relative; }
@@ -167,10 +175,13 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .animate-defeat-npc { animation: defeat-fade-out 2s forwards; }
 @keyframes defeat-fade-out { 0%, 20% { opacity: 1; transform: scale(1.1); } 10%, 30% { opacity: 0.3; transform: scale(1); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.5); pointer-events: none; } }
 .npc-defeated-final { opacity: 0; pointer-events: none; }
+
 .is-attacking-player { animation: lunge-player 0.5s ease-in-out; }
-@keyframes lunge-player { 50% { transform: translateX(200px); } } 
+@keyframes lunge-player { 50% { transform: translateX(200px) scale(var(--character-scale, 1)); } } 
+
 .is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
-@keyframes lunge-npc { 50% { transform: translateX(-200px); } } 
+@keyframes lunge-npc { 50% { transform: translateX(-200px) scale(var(--character-scale, 1)); } } 
+
 #fight-log-container { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 50%; max-width: 600px; height: 150px; background-color: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; z-index: 10; pointer-events: auto; }
 #round-info { margin-top: 0; text-align: center; border-bottom: 1px solid #fff; padding-bottom: 10px; }
 #fight-log { overflow-y: auto; flex-grow: 1; font-size: 0.9em; }

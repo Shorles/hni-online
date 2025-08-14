@@ -278,10 +278,10 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                if (stagedNpcs.length < 4) {
+                if (stagedNpcs.length < 5) {
                     stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); 
                     renderNpcStagingArea();
-                } else { alert("Você pode adicionar no máximo 4 inimigos."); }
+                } else { alert("Você pode adicionar no máximo 5 inimigos."); }
             });
             npcArea.appendChild(card);
         });
@@ -316,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '1150px', top: '350px' } ];
         
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         const fighterPositions = {};
@@ -344,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const characterScale = fighter.scale || 1.0;
         
         Object.assign(container.style, position);
-        container.style.transform = `scale(${characterScale})`;
+        container.style.setProperty('--character-scale', characterScale);
         container.style.zIndex = parseInt(position.top, 10);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
