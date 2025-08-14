@@ -324,61 +324,60 @@ io.on('connection', (socket) => {
         // --- START: CORRECTED SECTION ---
         // Handle high-level GM state changes first. These actions are terminal for this function.
         if (isGm) {
-            if (action.type === 'gmGoesBackToLobby') {
-                if (room.activeMode === 'adventure' && room.gameModes.adventure) {
-                    cachePlayerStats(room);
-                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
-                    room.gameModes.adventure = null;
-                }
-                room.activeMode = 'lobby';
-                io.to(roomId).emit('gameUpdate', getFullState(room));
-                return; // ACTION HANDLED, exit function.
-            }
-
-            if (action.type === 'gmSwitchesMode') {
-                if (room.activeMode === 'adventure') {
-                    if (room.gameModes.adventure) {
+            switch (action.type) {
+                case 'gmGoesBackToLobby':
+                    if (room.activeMode === 'adventure' && room.gameModes.adventure) {
                         cachePlayerStats(room);
                         room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
                         room.gameModes.adventure = null;
                     }
-                    if (!room.gameModes.theater) {
-                        room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
-                    }
-                    room.activeMode = 'theater';
+                    room.activeMode = 'lobby';
                     io.to(roomId).emit('gameUpdate', getFullState(room));
-                } else if (room.activeMode === 'theater') {
-                    if (room.adventureCache) {
-                        socket.emit('promptForAdventureType'); // Send prompt to GM and wait for response.
-                    } else {
-                        room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                        room.activeMode = 'adventure';
-                        io.to(roomId).emit('gameUpdate', getFullState(room));
-                    }
-                }
-                return; // ACTION HANDLED, exit function.
-            }
+                    return; // ACTION HANDLED, exit function.
 
-            if (action.type === 'gmChoosesAdventureType') {
-                if (action.choice === 'continue' && room.adventureCache) {
-                    room.gameModes.adventure = room.adventureCache;
-                    // Ensure players with 0 HP received from cache start as 'down'
-                    Object.values(room.gameModes.adventure.fighters.players).forEach(player => {
-                        if (player.hp <= 0) {
-                            player.status = 'down';
+                case 'gmSwitchesMode':
+                    if (room.activeMode === 'adventure') {
+                        if (room.gameModes.adventure) {
+                            cachePlayerStats(room);
+                            room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                            room.gameModes.adventure = null;
                         }
-                    });
-                } else { // Handles 'new' choice
-                    // Clear any leftover persistent stats for a completely new battle
-                    Object.values(lobbyState.connectedPlayers).forEach(p => {
-                        if(p.persistentStats) p.persistentStats = null;
-                    });
-                    room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                }
-                room.adventureCache = null;
-                room.activeMode = 'adventure';
-                io.to(roomId).emit('gameUpdate', getFullState(room));
-                return; // ACTION HANDLED, exit function.
+                        if (!room.gameModes.theater) {
+                            room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
+                        }
+                        room.activeMode = 'theater';
+                        io.to(roomId).emit('gameUpdate', getFullState(room));
+                    } else if (room.activeMode === 'theater') {
+                        if (room.adventureCache) {
+                            socket.emit('promptForAdventureType'); // Send prompt to GM and wait for response.
+                        } else {
+                            room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                            room.activeMode = 'adventure';
+                            io.to(roomId).emit('gameUpdate', getFullState(room));
+                        }
+                    }
+                    return; // ACTION HANDLED, exit function.
+
+                case 'gmChoosesAdventureType':
+                    if (action.choice === 'continue' && room.adventureCache) {
+                        room.gameModes.adventure = room.adventureCache;
+                        // Ensure players with 0 HP received from cache start as 'down'
+                        Object.values(room.gameModes.adventure.fighters.players).forEach(player => {
+                            if (player.hp <= 0) {
+                                player.status = 'down';
+                            }
+                        });
+                    } else { // Handles 'new' choice
+                        // Clear any leftover persistent stats for a completely new battle
+                        Object.values(lobbyState.connectedPlayers).forEach(p => {
+                            if(p.persistentStats) p.persistentStats = null;
+                        });
+                        room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                    }
+                    room.adventureCache = null;
+                    room.activeMode = 'adventure';
+                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                    return; // ACTION HANDLED, exit function.
             }
         }
         // --- END: CORRECTED SECTION ---

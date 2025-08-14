@@ -1196,4 +1196,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- END: CORRECTED SECTION ---
     
     initialize();
-});
+});```
