@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '1150px', top: '850px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '1100px', top: '350px' } ];
         
         const fighterPositions = {};
         
@@ -329,7 +329,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const allFighters = [...Object.values(state.fighters.players), ...Object.values(state.fighters.npcs)];
         allFighters.forEach(fighter => {
-            // Don't render characters that have fled. The animation is handled separately.
             if (fighter.status === 'fled') return;
 
             const isPlayer = !!state.fighters.players[fighter.id];
@@ -522,34 +521,47 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function handleCheatAddNpc() {
         if (!currentGameState || currentGameState.mode !== 'adventure') return;
-        
+    
         const vacantNpcs = Object.values(currentGameState.fighters.npcs).filter(npc => npc.status === 'down' || npc.status === 'fled');
-
-        if (vacantNpcs.length === 0) {
-            showInfoModal('Erro', 'Nenhum slot de inimigo vago (derrotado ou fugiu) para substituir.');
+        const occupiedSlots = Object.keys(currentGameState.fighters.npcs).length;
+        const emptySlotsCount = MAX_NPCS - occupiedSlots;
+    
+        if (vacantNpcs.length === 0 && emptySlotsCount <= 0) {
+            showInfoModal('Erro', 'Todos os slots de inimigos estão ocupados.');
             return;
         }
-
-        let content = `<p>Selecione o slot vago para substituir:</p><div class="npc-selection-container">`;
+    
+        let content = `<p>Selecione o slot vago para adicionar/substituir:</p><div class="npc-selection-container">`;
+    
+        // Show defeated/fled NPCs
         vacantNpcs.forEach(npc => {
-            content += `<div class="npc-card cheat-npc-slot" data-npc-id="${npc.id}">
+            content += `<div class="npc-card cheat-npc-slot" data-npc-id-replace="${npc.id}">
                            <img src="${npc.img}" style="filter: grayscale(100%);">
                            <div class="char-name">${npc.nome} (Vago)</div>
                        </div>`;
         });
+    
+        // Show completely empty slots
+        for (let i = 0; i < emptySlotsCount; i++) {
+            const slotNum = occupiedSlots + i + 1;
+            content += `<div class="npc-card cheat-npc-slot" data-slot-type="empty">
+                           <div class="char-name">Slot Vazio ${slotNum}</div>
+                       </div>`;
+        }
         content += `</div>`;
-
+    
         showInfoModal('Selecionar Slot', content, false);
-
+    
         document.querySelectorAll('.cheat-npc-slot').forEach(card => {
             card.addEventListener('click', (e) => {
-                const npcIdToReplace = e.currentTarget.dataset.npcId;
-                selectNpcForReplacement(npcIdToReplace);
+                const npcIdToReplace = e.currentTarget.dataset.npcIdReplace;
+                const slotType = e.currentTarget.dataset.slotType;
+                selectNpcForSlot(npcIdToReplace, slotType === 'empty');
             });
         });
     }
 
-    function selectNpcForReplacement(npcIdToReplace) {
+    function selectNpcForSlot(npcIdToReplace, isEmptySlot) {
         let content = `<p>Selecione o novo inimigo:</p>
                        <div class="npc-selection-container" style="max-height: 300px;">`;
         
@@ -560,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
                        </div>`;
         });
         content += `</div>`;
-
+    
         showInfoModal('Selecionar Novo Inimigo', content, false);
         
         document.querySelectorAll('.cheat-npc-card').forEach(card => {
@@ -570,12 +582,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     img: card.dataset.img,
                     scale: parseFloat(card.dataset.scale)
                 };
-                socket.emit('playerAction', { type: 'gmReplacesNpc', npcIdToReplace: npcIdToReplace, npcData: newNpcData });
+
+                if (isEmptySlot) {
+                    socket.emit('playerAction', { type: 'gmAddsNpcToEmptySlot', npcData: newNpcData });
+                } else {
+                    socket.emit('playerAction', { type: 'gmReplacesNpc', npcIdToReplace: npcIdToReplace, npcData: newNpcData });
+                }
+
                 modal.classList.add('hidden');
             });
         });
     }
-
 
     // --- LÓGICA DO MODO CENÁRIO ---
     function initializeTheaterMode() {
