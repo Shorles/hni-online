@@ -969,6 +969,21 @@ document.addEventListener('DOMContentLoaded', () => {
         cheatModal.classList.add('active');
     }
 
+    function bindDynamicEventListeners() {
+        floatingSwitchModeBtn.onclick = () => {
+            socket.emit('playerAction', { type: 'gmSwitchesMode' });
+        };
+        floatingInviteBtn.onclick = () => {
+            if (myRoomId) {
+                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
+        };
+        backToLobbyBtn.onclick = () => {
+            socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
+        };
+    }
+
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -1012,6 +1027,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 switchBtn.textContent = '⚔️';
                 switchBtn.title = 'Mudar para Modo Aventura';
             }
+            // Reatribui os listeners toda vez que a tela do GM é renderizada
+            bindDynamicEventListeners();
         }
 
         switch(gameState.mode) {
@@ -1153,6 +1170,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
+        // Listeners de clique que só precisam ser setados uma vez
         document.getElementById('join-as-player-btn').onclick = () => {
             socket.emit('playerChoosesRole', { role: 'player' });
             showScreen(document.getElementById('loading-screen'));
@@ -1166,20 +1184,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('start-theater-btn').onclick = () => socket.emit('playerAction', { type: 'gmStartsTheater' });
         document.getElementById('theater-change-scenario-btn').onclick = showScenarioSelectionModal;
         document.getElementById('theater-publish-btn').onclick = () => socket.emit('playerAction', { type: 'publish_stage' });
-        
-        // CORREÇÃO: Os listeners dos botões flutuantes são atribuídos aqui e não serão mais destruídos
-        floatingSwitchModeBtn.onclick = () => {
-            socket.emit('playerAction', { type: 'gmSwitchesMode' });
-        };
-        floatingInviteBtn.onclick = () => {
-             if (myRoomId) {
-                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
-                copyToClipboard(inviteUrl, floatingInviteBtn);
-            }
-        };
-        backToLobbyBtn.onclick = () => {
-            socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
-        };
         
         if (cheatModalCloseBtn) {
             cheatModalCloseBtn.onclick = () => {
