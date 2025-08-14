@@ -473,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .map(id => getFighter(state, id))
             .filter(f => f && f.status === 'active');
 
-        activeFightersInOrder.forEach((fighter, index) => {
+        activeFightersInOrder.forEach((fighter) => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
             if (fighter.id === state.activeCharacterKey) {
@@ -601,7 +601,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function setupTheaterEventListeners() {
-        // CORREÇÃO: Adicionando o event listener para o botão de toggle do painel
         document.getElementById('toggle-gm-panel-btn').addEventListener('click', () => {
             theaterScreen.classList.toggle('panel-hidden');
         });
@@ -1169,6 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
         
         floatingSwitchModeBtn.addEventListener('click', () => {
+            console.log('[DEBUG] Cliente: Botão de trocar modo clicado. Enviando gmSwitchesMode...');
             socket.emit('playerAction', { type: 'gmSwitchesMode' });
         });
 
@@ -1179,7 +1179,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // CORREÇÃO: Adicionando listener para o botão de fechar modal de cheat
         if (cheatModalCloseBtn) {
             cheatModalCloseBtn.addEventListener('click', () => {
                 cheatModal.classList.remove('active');

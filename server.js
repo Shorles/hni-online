@@ -166,7 +166,6 @@ function checkGameOver(state) {
 
 function advanceTurn(state) {
     if (state.winner) return;
-
     const fullTurnOrder = state.turnOrder;
     let activeFightersInOrder = fullTurnOrder.filter(id => {
         const f = getFighter(state, id);
@@ -179,17 +178,11 @@ function advanceTurn(state) {
     }
 
     let currentTurnIndexInFilteredList = activeFightersInOrder.indexOf(state.activeCharacterKey);
-
-    if (currentTurnIndexInFilteredList === -1) {
-        state.currentRound++;
-        logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
-    }
-    
     let nextTurnIndexInFilteredList = (currentTurnIndexInFilteredList + 1) % activeFightersInOrder.length;
     
-    if (nextTurnIndexInFilteredList <= currentTurnIndexInFilteredList && currentTurnIndexInFilteredList !== -1) {
-         state.currentRound++;
-         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
+    if (currentTurnIndexInFilteredList === -1 || nextTurnIndexInFilteredList === 0) {
+        state.currentRound++;
+        logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
     }
 
     const nextFighterId = activeFightersInOrder[nextTurnIndexInFilteredList];
@@ -322,6 +315,8 @@ io.on('connection', (socket) => {
         const isGm = socket.id === lobbyState.gmId;
         let activeState = room.gameModes[room.activeMode];
         let shouldUpdate = true;
+
+        console.log(`[DEBUG] Servidor: Recebida ação '${action.type}' do socket ${socket.id}`);
         
         if (isGm) {
             if (action.type === 'gmGoesBackToLobby') {
@@ -332,6 +327,7 @@ io.on('connection', (socket) => {
                 }
                 room.activeMode = 'lobby';
             } else if (action.type === 'gmSwitchesMode') {
+                console.log('[DEBUG] Servidor: Processando gmSwitchesMode...');
                 if (room.activeMode === 'adventure') {
                     if (room.gameModes.adventure) {
                         cachePlayerStats(room);
@@ -344,6 +340,7 @@ io.on('connection', (socket) => {
                     room.activeMode = 'theater';
                 } else if (room.activeMode === 'theater') {
                     if (room.adventureCache) {
+                        console.log('[DEBUG] Servidor: Cache de aventura encontrado. Enviando promptForAdventureType.');
                         socket.emit('promptForAdventureType');
                         shouldUpdate = false; // A ação para aqui e espera a resposta do GM.
                     } else {
@@ -352,6 +349,7 @@ io.on('connection', (socket) => {
                     }
                 }
             } else if (action.type === 'gmChoosesAdventureType') {
+                console.log(`[DEBUG] Servidor: GM escolheu ${action.choice}.`);
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
                 } else {
@@ -371,7 +369,7 @@ io.on('connection', (socket) => {
                  const mySelection = playerInfo.selectedCharacter;
                  if (!mySelection || mySelection.nome !== action.character.nome) {
                      socket.emit('characterUnavailable', action.character.nome);
-                     return;
+                     shouldUpdate = false;
                  }
             }
             if(playerInfo.selectedCharacter){
@@ -389,176 +387,178 @@ io.on('connection', (socket) => {
 
         activeState = room.gameModes[room.activeMode];
 
-        switch (room.activeMode) {
-            case 'lobby':
-                if (isGm && action.type === 'gmStartsAdventure') {
-                    room.adventureCache = null;
-                    room.gameModes.adventure = createNewAdventureState(activeState.gmId, activeState.connectedPlayers);
-                    room.activeMode = 'adventure';
-                } else if (isGm && action.type === 'gmStartsTheater') {
-                     if (!room.gameModes.theater) {
-                        room.gameModes.theater = createNewTheaterState(activeState.gmId, 'cenarios externos/externo (1).png');
+        if (activeState) {
+            switch (activeState.mode) {
+                case 'lobby':
+                    if (isGm && action.type === 'gmStartsAdventure') {
+                        room.adventureCache = null;
+                        room.gameModes.adventure = createNewAdventureState(activeState.gmId, activeState.connectedPlayers);
+                        room.activeMode = 'adventure';
+                    } else if (isGm && action.type === 'gmStartsTheater') {
+                         if (!room.gameModes.theater) {
+                            room.gameModes.theater = createNewTheaterState(activeState.gmId, 'cenarios externos/externo (1).png');
+                        }
+                        room.activeMode = 'theater';
                     }
-                    room.activeMode = 'theater';
-                }
-                break;
+                    break;
 
-            case 'adventure':
-                if (!activeState) break;
-                const actor = action.actorKey ? getFighter(activeState, action.actorKey) : null;
-                const canControl = actor && ((isGm && activeState.fighters.npcs[actor.id]) || (socket.id === actor.id));
-                
-                switch (action.type) {
-                    case 'gmDecidesOnAdmission':
-                        if (isGm && action.playerId && activeState.waitingPlayers[action.playerId]) {
-                            const character = activeState.waitingPlayers[action.playerId];
-                            if (action.admitted) {
-                                const newPlayerId = action.playerId;
-                                io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
-                                activeState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
-                                if (activeState.phase === 'battle') {
-                                    activeState.turnOrder.push(newPlayerId);
-                                } 
-                                logMessage(activeState, `${character.nome} entrou na batalha!`);
-                                delete activeState.waitingPlayers[action.playerId];
-                            } else {
-                                delete activeState.waitingPlayers[action.playerId];
-                                logMessage(activeState, `O Mestre decidiu que ${character.nome} aguardará.`);
-                            }
-                        }
-                        break;
-                    case 'gmConfirmParty':
-                        if (isGm && activeState.phase === 'party_setup' && action.playerStats) {
-                            action.playerStats.forEach(stats => {
-                                if (activeState.fighters.players[stats.id]) {
-                                    const res = Math.max(1, stats.res);
-                                    Object.assign(activeState.fighters.players[stats.id], {
-                                        agi: stats.agi, res: res, hpMax: res * 5, hp: res * 5, status: 'active'
-                                    });
+                case 'adventure':
+                    const actor = action.actorKey ? getFighter(activeState, action.actorKey) : null;
+                    const canControl = actor && ((isGm && activeState.fighters.npcs[actor.id]) || (socket.id === actor.id));
+                    
+                    switch (action.type) {
+                        case 'gmDecidesOnAdmission':
+                            if (isGm && action.playerId && activeState.waitingPlayers[action.playerId]) {
+                                const character = activeState.waitingPlayers[action.playerId];
+                                if (action.admitted) {
+                                    const newPlayerId = action.playerId;
+                                    io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
+                                    activeState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
+                                    if (activeState.phase === 'battle') {
+                                        activeState.turnOrder.push(newPlayerId);
+                                    } 
+                                    logMessage(activeState, `${character.nome} entrou na batalha!`);
+                                    delete activeState.waitingPlayers[action.playerId];
+                                } else {
+                                    delete activeState.waitingPlayers[action.playerId];
+                                    logMessage(activeState, `O Mestre decidiu que ${character.nome} aguardará.`);
                                 }
-                            });
-                            cachePlayerStats(room);
-                            activeState.phase = 'npc_setup';
-                            logMessage(activeState, 'GM confirmou o grupo. Prepare o encontro!');
-                        }
-                        break;
-                    case 'gmStartBattle':
-                        if (isGm && activeState.phase === 'npc_setup' && action.npcs) {
-                             if (action.npcs.length === 0) { shouldUpdate = false; break; }
-                            activeState.fighters.npcs = {};
-                            action.npcs.forEach((npcData, i) => {
-                                const npcObj = ALL_NPCS[npcData.name] || {};
-                                activeState.fighters.npcs[npcData.id] = createNewFighterState({ 
-                                    ...npcData, 
-                                    id: npcData.id, 
-                                    scale: npcObj.scale || 1.0 
-                                }, i);
-                            });
-                            activeState.phase = 'initiative_roll';
-                            activeState.initiativeRolls = {};
-                            logMessage(activeState, 'Inimigos em posição! Rolem as iniciativas!');
-                        }
-                        break;
-                    case 'roll_initiative':
-                        if (activeState.phase === 'initiative_roll') {
-                            if (action.isGmRoll && isGm) {
-                                Object.values(activeState.fighters.npcs).forEach(npc => {
-                                    if (npc.status === 'active' && !activeState.initiativeRolls[npc.id]) {
-                                        activeState.initiativeRolls[npc.id] = rollD6();
+                            }
+                            break;
+                        case 'gmConfirmParty':
+                            if (isGm && activeState.phase === 'party_setup' && action.playerStats) {
+                                action.playerStats.forEach(stats => {
+                                    if (activeState.fighters.players[stats.id]) {
+                                        const res = Math.max(1, stats.res);
+                                        Object.assign(activeState.fighters.players[stats.id], {
+                                            agi: stats.agi, res: res, hpMax: res * 5, hp: res * 5, status: 'active'
+                                        });
                                     }
                                 });
-                            } else if (!action.isGmRoll && activeState.fighters.players[socket.id] && !activeState.initiativeRolls[socket.id]) {
-                                activeState.initiativeRolls[socket.id] = rollD6();
+                                cachePlayerStats(room);
+                                activeState.phase = 'npc_setup';
+                                logMessage(activeState, 'GM confirmou o grupo. Prepare o encontro!');
                             }
-                            const allFighters = [...Object.values(activeState.fighters.players), ...Object.values(activeState.fighters.npcs)];
-                            if (allFighters.every(f => activeState.initiativeRolls[f.id] || f.status !== 'active')) {
-                                startBattle(activeState);
+                            break;
+                        case 'gmStartBattle':
+                            if (isGm && activeState.phase === 'npc_setup' && action.npcs) {
+                                 if (action.npcs.length === 0) { shouldUpdate = false; break; }
+                                activeState.fighters.npcs = {};
+                                action.npcs.forEach((npcData, i) => {
+                                    const npcObj = ALL_NPCS[npcData.name] || {};
+                                    activeState.fighters.npcs[npcData.id] = createNewFighterState({ 
+                                        ...npcData, 
+                                        id: npcData.id, 
+                                        scale: npcObj.scale || 1.0 
+                                    }, i);
+                                });
+                                activeState.phase = 'initiative_roll';
+                                activeState.initiativeRolls = {};
+                                logMessage(activeState, 'Inimigos em posição! Rolem as iniciativas!');
                             }
-                        }
-                        break;
-                    case 'attack':
-                        if (activeState.phase === 'battle' && action.attackerKey === activeState.activeCharacterKey) {
-                             const attacker = getFighter(activeState, action.attackerKey);
-                             const isNpcTurn = !!activeState.fighters.npcs[attacker.id];
-                             if ((isGm && isNpcTurn) || (!isNpcTurn && socket.id === action.attackerKey)) {
-                                 executeAttack(activeState, roomId, action.attackerKey, action.targetKey);
-                                 shouldUpdate = false; 
-                             }
-                        }
-                        break;
-                    case 'end_turn':
-                        if (activeState.phase === 'battle' && action.actorKey === activeState.activeCharacterKey && canControl) {
-                            advanceTurn(activeState);
-                        }
-                        break;
-                }
-                break;
-
-            case 'theater':
-                 if (isGm && activeState && activeState.scenarioStates && activeState.currentScenario) {
-                     const currentScenarioState = activeState.scenarioStates[activeState.currentScenario];
-                     if(currentScenarioState) {
-                        switch (action.type) {
-                            case 'changeScenario':
-                                const newScenarioPath = `mapas/${action.scenario}`;
-                                if (action.scenario && typeof action.scenario === 'string') {
-                                    activeState.currentScenario = newScenarioPath;
-                                    if (!activeState.scenarioStates[newScenarioPath]) {
-                                        activeState.scenarioStates[newScenarioPath] = { 
-                                            scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, 
-                                            tokenOrder: [], globalTokenScale: 1.0, isStaging: true 
-                                        };
-                                    }
-                                    logMessage(activeState, 'GM está preparando um novo cenário...');
-                                }
-                                break;
-                            case 'updateToken':
-                                const tokenData = action.token;
-                                if (tokenData.remove && tokenData.ids) {
-                                    tokenData.ids.forEach(id => { 
-                                        delete currentScenarioState.tokens[id]; 
-                                        currentScenarioState.tokenOrder = currentScenarioState.tokenOrder.filter(i => i !== id); 
+                            break;
+                        case 'roll_initiative':
+                            if (activeState.phase === 'initiative_roll') {
+                                if (action.isGmRoll && isGm) {
+                                    Object.values(activeState.fighters.npcs).forEach(npc => {
+                                        if (npc.status === 'active' && !activeState.initiativeRolls[npc.id]) {
+                                            activeState.initiativeRolls[npc.id] = rollD6();
+                                        }
                                     });
-                                } else if (currentScenarioState.tokens[tokenData.id]) {
-                                    Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
-                                } else {
-                                    currentScenarioState.tokens[tokenData.id] = tokenData;
-                                    if (!currentScenarioState.tokenOrder.includes(tokenData.id)) {
-                                        currentScenarioState.tokenOrder.push(tokenData.id);
+                                } else if (!action.isGmRoll && activeState.fighters.players[socket.id] && !activeState.initiativeRolls[socket.id]) {
+                                    activeState.initiativeRolls[socket.id] = rollD6();
+                                }
+                                const allFighters = [...Object.values(activeState.fighters.players), ...Object.values(activeState.fighters.npcs)];
+                                if (allFighters.every(f => activeState.initiativeRolls[f.id] || f.status !== 'active')) {
+                                    startBattle(activeState);
+                                }
+                            }
+                            break;
+                        case 'attack':
+                            if (activeState.phase === 'battle' && action.attackerKey === activeState.activeCharacterKey) {
+                                 const attacker = getFighter(activeState, action.attackerKey);
+                                 const isNpcTurn = !!activeState.fighters.npcs[attacker.id];
+                                 if ((isGm && isNpcTurn) || (!isNpcTurn && socket.id === action.attackerKey)) {
+                                     executeAttack(activeState, roomId, action.attackerKey, action.targetKey);
+                                     shouldUpdate = false; 
+                                 }
+                            }
+                            break;
+                        case 'end_turn':
+                            if (activeState.phase === 'battle' && action.actorKey === activeState.activeCharacterKey && canControl) {
+                                advanceTurn(activeState);
+                            }
+                            break;
+                    }
+                    break;
+
+                case 'theater':
+                     if (isGm && activeState.scenarioStates && activeState.currentScenario) {
+                         const currentScenarioState = activeState.scenarioStates[activeState.currentScenario];
+                         if(currentScenarioState) {
+                            switch (action.type) {
+                                case 'changeScenario':
+                                    const newScenarioPath = `mapas/${action.scenario}`;
+                                    if (action.scenario && typeof action.scenario === 'string') {
+                                        activeState.currentScenario = newScenarioPath;
+                                        if (!activeState.scenarioStates[newScenarioPath]) {
+                                            activeState.scenarioStates[newScenarioPath] = { 
+                                                scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, 
+                                                tokenOrder: [], globalTokenScale: 1.0, isStaging: true 
+                                            };
+                                        }
+                                        logMessage(activeState, 'GM está preparando um novo cenário...');
                                     }
-                                }
-                                if (!currentScenarioState.isStaging) {
-                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    activeState.publicState.isStaging = false;
-                                }
-                                break;
-                            case 'updateTokenOrder':
-                                if(action.order && Array.isArray(action.order)) {
-                                    currentScenarioState.tokenOrder = action.order;
+                                    break;
+                                case 'updateToken':
+                                    const tokenData = action.token;
+                                    if (tokenData.remove && tokenData.ids) {
+                                        tokenData.ids.forEach(id => { 
+                                            delete currentScenarioState.tokens[id]; 
+                                            currentScenarioState.tokenOrder = currentScenarioState.tokenOrder.filter(i => i !== id); 
+                                        });
+                                    } else if (currentScenarioState.tokens[tokenData.id]) {
+                                        Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
+                                    } else {
+                                        currentScenarioState.tokens[tokenData.id] = tokenData;
+                                        if (!currentScenarioState.tokenOrder.includes(tokenData.id)) {
+                                            currentScenarioState.tokenOrder.push(tokenData.id);
+                                        }
+                                    }
                                     if (!currentScenarioState.isStaging) {
-                                        activeState.publicState.tokenOrder = action.order;
+                                        activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                        activeState.publicState.isStaging = false;
                                     }
-                                }
-                                break;
-                            case 'updateGlobalScale':
-                                currentScenarioState.globalTokenScale = action.scale;
-                                if (!currentScenarioState.isStaging) {
-                                    activeState.publicState.globalTokenScale = action.scale;
-                                }
-                                break;
-                            case 'publish_stage':
-                                if (currentScenarioState.isStaging) {
-                                    currentScenarioState.isStaging = false;
-                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    activeState.publicState.isStaging = false;
-                                    logMessage(activeState, 'Cena publicada para os jogadores.');
-                                }
-                                break;
-                        }
+                                    break;
+                                case 'updateTokenOrder':
+                                    if(action.order && Array.isArray(action.order)) {
+                                        currentScenarioState.tokenOrder = action.order;
+                                        if (!currentScenarioState.isStaging) {
+                                            activeState.publicState.tokenOrder = action.order;
+                                        }
+                                    }
+                                    break;
+                                case 'updateGlobalScale':
+                                    currentScenarioState.globalTokenScale = action.scale;
+                                    if (!currentScenarioState.isStaging) {
+                                        activeState.publicState.globalTokenScale = action.scale;
+                                    }
+                                    break;
+                                case 'publish_stage':
+                                    if (currentScenarioState.isStaging) {
+                                        currentScenarioState.isStaging = false;
+                                        activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                        activeState.publicState.isStaging = false;
+                                        logMessage(activeState, 'Cena publicada para os jogadores.');
+                                    }
+                                    break;
+                            }
+                         }
                      }
-                 }
-                break;
+                    break;
+            }
         }
+        
         if (shouldUpdate) {
             io.to(roomId).emit('gameUpdate', getFullState(room));
         }
