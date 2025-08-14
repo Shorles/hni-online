@@ -969,21 +969,6 @@ document.addEventListener('DOMContentLoaded', () => {
         cheatModal.classList.add('active');
     }
 
-    function bindDynamicEventListeners() {
-        floatingSwitchModeBtn.onclick = () => {
-            socket.emit('playerAction', { type: 'gmSwitchesMode' });
-        };
-        floatingInviteBtn.onclick = () => {
-            if (myRoomId) {
-                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
-                copyToClipboard(inviteUrl, floatingInviteBtn);
-            }
-        };
-        backToLobbyBtn.onclick = () => {
-            socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
-        };
-    }
-
     function renderGame(gameState) {
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -1027,8 +1012,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 switchBtn.textContent = '⚔️';
                 switchBtn.title = 'Mudar para Modo Aventura';
             }
-            // Reatribui os listeners toda vez que a tela do GM é renderizada
-            bindDynamicEventListeners();
         }
 
         switch(gameState.mode) {
@@ -1157,7 +1140,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
-
+    // --- START: MODIFIED SECTION ---
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
@@ -1185,6 +1168,20 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('theater-change-scenario-btn').onclick = showScenarioSelectionModal;
         document.getElementById('theater-publish-btn').onclick = () => socket.emit('playerAction', { type: 'publish_stage' });
         
+        // Listeners de botões flutuantes, movidos para cá para serem setados apenas uma vez.
+        floatingSwitchModeBtn.onclick = () => {
+            socket.emit('playerAction', { type: 'gmSwitchesMode' });
+        };
+        floatingInviteBtn.onclick = () => {
+            if (myRoomId) {
+                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
+        };
+        backToLobbyBtn.onclick = () => {
+            socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
+        };
+
         if (cheatModalCloseBtn) {
             cheatModalCloseBtn.onclick = () => {
                 cheatModal.classList.remove('active');
@@ -1196,6 +1193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', scaleGame);
         scaleGame();
     }
+    // --- END: MODIFIED SECTION ---
     
     initialize();
 });

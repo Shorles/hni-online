@@ -322,8 +322,8 @@ io.on('connection', (socket) => {
         const isGm = socket.id === lobbyState.gmId;
         let shouldUpdate = true;
         
-        // --- START: MODIFIED SECTION ---
-        // First, handle GM "meta" actions that change the game's flow or active mode.
+        // --- START: CORRECTED SECTION ---
+        // Handle GM meta-actions first and exit immediately to prevent fall-through.
         if (isGm) {
             switch (action.type) {
                 case 'gmGoesBackToLobby':
@@ -334,7 +334,7 @@ io.on('connection', (socket) => {
                     }
                     room.activeMode = 'lobby';
                     io.to(roomId).emit('gameUpdate', getFullState(room));
-                    return; // Exit: Action is fully handled.
+                    return; // ACTION HANDLED
 
                 case 'gmSwitchesMode':
                     if (room.activeMode === 'adventure') {
@@ -347,34 +347,38 @@ io.on('connection', (socket) => {
                             room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                         }
                         room.activeMode = 'theater';
+                        io.to(roomId).emit('gameUpdate', getFullState(room));
+
                     } else if (room.activeMode === 'theater') {
                         if (room.adventureCache) {
                             socket.emit('promptForAdventureType');
-                            return; // Exit: Wait for GM's next action.
+                            // DO NOT send a game update here. Wait for the GM's choice.
                         } else {
                             room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                             room.activeMode = 'adventure';
+                            io.to(roomId).emit('gameUpdate', getFullState(room));
                         }
                     }
-                    io.to(roomId).emit('gameUpdate', getFullState(room));
-                    return; // Exit: Action is fully handled.
+                    return; // ACTION HANDLED
 
                 case 'gmChoosesAdventureType':
                     if (action.choice === 'continue' && room.adventureCache) {
                         room.gameModes.adventure = room.adventureCache;
                     } else {
+                        // On "New Battle", clear old stats for a fresh start
+                        Object.values(lobbyState.connectedPlayers).forEach(p => {
+                            if (p.persistentStats) p.persistentStats = null;
+                        });
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                        room.gameModes.adventure.phase = 'npc_setup';
-                        logMessage(room.gameModes.adventure, 'Iniciando um novo encontro com o grupo existente.');
                     }
                     room.adventureCache = null;
                     room.activeMode = 'adventure';
                     io.to(roomId).emit('gameUpdate', getFullState(room));
-                    return; // Exit: Action is fully handled.
+                    return; // ACTION HANDLED
             }
         }
-        // --- END: MODIFIED SECTION ---
-
+        // --- END: CORRECTED SECTION ---
+        
         if (action.type === 'playerSelectsCharacter') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (!playerInfo) { return; }
@@ -484,7 +488,7 @@ io.on('connection', (socket) => {
                                 const allFighters = [...Object.values(activeState.fighters.players), ...Object.values(activeState.fighters.npcs)];
                                 if (allFighters.every(f => activeState.initiativeRolls[f.id] || f.status !== 'active')) {
                                     startBattle(activeState);
-                                 }
+                                }
                             }
                             break;
                         case 'attack':
