@@ -179,17 +179,25 @@ function advanceTurn(state) {
     }
 
     let currentTurnIndexInFilteredList = activeFightersInOrder.indexOf(state.activeCharacterKey);
-    let nextTurnIndexInFilteredList = (currentTurnIndexInFilteredList + 1) % activeFightersInOrder.length;
-    
-    if (currentTurnIndexInFilteredList === -1 || nextTurnIndexInFilteredList === 0) {
+
+    // Se é a primeira rodada ou o personagem ativo não está mais na lista, começa do zero.
+    if (currentTurnIndexInFilteredList === -1) {
         state.currentRound++;
         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
+    }
+    
+    let nextTurnIndexInFilteredList = (currentTurnIndexInFilteredList + 1) % activeFightersInOrder.length;
+    
+    // Incrementa a rodada se o próximo lutador estiver antes (ou for o mesmo) que o anterior na lista de ativos
+    if (nextTurnIndexInFilteredList <= currentTurnIndexInFilteredList && currentTurnIndexInFilteredList !== -1) {
+         state.currentRound++;
+         logMessage(state, `Iniciando Round ${state.currentRound}`, 'round');
     }
 
     const nextFighterId = activeFightersInOrder[nextTurnIndexInFilteredList];
     const nextFighter = getFighter(state, nextFighterId);
     state.activeCharacterKey = nextFighterId;
-    state.turnIndex = fullTurnOrder.indexOf(nextFighterId); // Atualiza o índice principal
+    state.turnIndex = fullTurnOrder.indexOf(nextFighterId);
     logMessage(state, `É a vez de ${nextFighter.nome}.`, 'turn');
 }
 
@@ -236,7 +244,7 @@ function startBattle(state) {
     state.phase = 'battle';
     state.turnIndex = -1; 
     state.activeCharacterKey = null;
-    state.currentRound = 0; // Será incrementado para 1 na primeira chamada de advanceTurn
+    state.currentRound = 0;
     logMessage(state, `--- A Batalha Começou! ---`, 'round');
     advanceTurn(state);
 }
@@ -318,7 +326,7 @@ io.on('connection', (socket) => {
         let shouldUpdate = true;
         
         if (isGm) {
-            // LÓGICA DE AÇÕES DO GM REESTRUTURADA
+            // LÓGICA DE AÇÕES DO GM REESTRUTURADA E CORRIGIDA
             switch (action.type) {
                 case 'gmGoesBackToLobby':
                     if (room.activeMode === 'adventure' && room.gameModes.adventure) {
@@ -343,7 +351,7 @@ io.on('connection', (socket) => {
                     } else if (room.activeMode === 'theater') {
                         if (room.adventureCache) {
                             socket.emit('promptForAdventureType');
-                            return; // CORREÇÃO DEFINITIVA: Interrompe a função aqui.
+                            return; // Interrompe a função aqui para aguardar a resposta.
                         } else {
                             room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                             room.activeMode = 'adventure';

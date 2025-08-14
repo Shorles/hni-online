@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameWrapper = document.getElementById('game-wrapper');
     const fightSceneCharacters = document.getElementById('fight-scene-characters');
     const actionButtonsWrapper = document.getElementById('action-buttons-wrapper');
+    const theaterScreen = document.getElementById('theater-screen');
     const theaterBackgroundViewport = document.getElementById('theater-background-viewport');
     const theaterBackgroundImage = document.getElementById('theater-background-image');
     const theaterTokenContainer = document.getElementById('theater-token-container');
@@ -598,6 +599,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function setupTheaterEventListeners() {
+        // CORREÇÃO: Adicionando o event listener para o botão de toggle do painel
+        document.getElementById('toggle-gm-panel-btn').addEventListener('click', () => {
+            theaterScreen.classList.toggle('panel-hidden');
+        });
+
         theaterBackgroundViewport.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             dragStartPos = { x: e.clientX, y: e.clientY };
@@ -925,7 +931,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const MAX_NPC_SLOTS = 5;
-        // CORREÇÃO: Um slot está ocupado apenas se houver um inimigo ATIVO nele.
         const activeOccupiedSlots = Object.values(currentGameState.fighters.npcs)
             .filter(n => n.status === 'active')
             .map(n => n.slot);
