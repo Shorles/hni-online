@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Controles de UI
     let isTargeting = false;
     let targetingAttackerKey = null;
+    let isFreeMoveModeActive = false;
+    let customFighterPositions = {};
+    let draggedFighter = { element: null, offsetX: 0, offsetY: 0 };
 
     // Variáveis do Modo Cenário
     let localWorldScale = 1.0;
@@ -57,16 +60,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingButtonsContainer = document.getElementById('floating-buttons-container');
     const floatingInviteBtn = document.getElementById('floating-invite-btn');
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
+    const floatingHelpBtn = document.getElementById('floating-help-btn');
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
     const coordsDisplay = document.getElementById('coords-display');
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
-        const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-        gameWrapper.style.transform = `scale(${scale})`;
-        gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
-        gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+        // Atraso mínimo para garantir que o DOM esteja pronto para o cálculo
+        setTimeout(() => {
+            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+            gameWrapper.style.transform = `scale(${scale})`;
+            gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+            gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+        }, 10);
     }
 
     function showScreen(screenToShow) {
@@ -154,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!oldGameState || oldGameState.phase !== 'npc_setup') {
                         stagedNpcSlots.fill(null);
                         selectedSlotIndex = null;
+                        customFighterPositions = {};
                         renderNpcSelectionForGm(); 
                     } 
                     break;
@@ -363,7 +371,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
         const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '950px', top: '350px' } ];
         
-        Object.values(state.fighters.players).forEach((player, index) => {
+        const playerKeys = Object.keys(state.fighters.players);
+        playerKeys.forEach((key, index) => {
+            const player = state.fighters.players[key];
              if (player.status === 'fled') return;
              const position = state.customPositions[player.id] || PLAYER_POSITIONS[index];
              const el = createFighterElement(player, 'player', state, position);
@@ -672,7 +682,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 left: draggedFighter.element.style.left,
                 top: draggedFighter.element.style.top
             };
-            customFighterPositions[fighterId] = newPosition;
             socket.emit('playerAction', { type: 'gmMovesFighter', fighterId: fighterId, position: newPosition });
         }
         draggedFighter.element = null;
@@ -1055,6 +1064,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function renderGame(gameState) {
+        scaleGame(); // CORREÇÃO: Chama o escalonamento aqui
+        
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
         currentGameState = gameState;
@@ -1062,6 +1073,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!gameState || !gameState.mode || !gameState.connectedPlayers) {
             showScreen(document.getElementById('loading-screen'));
             return;
+        }
+
+        if(gameState.mode === 'adventure' && gameState.customPositions){
+            customFighterPositions = gameState.customPositions;
         }
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
@@ -1150,12 +1165,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('fighterMoved', ({ fighterId, position }) => {
-        if (!isGm) { // GM already updated its local position
-            const fighterEl = document.getElementById(fighterId);
-            if (fighterEl) {
-                fighterEl.style.left = position.left;
-                fighterEl.style.top = position.top;
-            }
+        customFighterPositions[fighterId] = position;
+        const fighterEl = document.getElementById(fighterId);
+        if (fighterEl) {
+            fighterEl.style.left = position.left;
+            fighterEl.style.top = position.top;
         }
     });
 

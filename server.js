@@ -50,7 +50,7 @@ function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_pla
 function createNewAdventureState(gmId, connectedPlayers) {
     const adventureState = {
         mode: 'adventure', fighters: { players: {}, npcs: {} }, npcSlots: new Array(MAX_NPCS).fill(null), 
-        customPositions: {}, // <- NOVO: Para guardar posições customizadas
+        customPositions: {},
         winner: null, reason: null, currentRound: 1,
         activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
         scenario: 'mapas/cenarios externos/externo (1).png',
@@ -234,6 +234,7 @@ function startBattle(state) {
     advanceTurn(state);
 }
 
+// CORREÇÃO: Simplificada para enviar sempre o estado completo, corrigindo o bug.
 function getFullState(room) {
     if (!room) return null;
     const activeState = room.gameModes[room.activeMode];
@@ -492,7 +493,7 @@ io.on('connection', (socket) => {
                         if (isGm && adventureState.phase === 'npc_setup' && action.npcs) {
                             adventureState.fighters.npcs = {};
                             adventureState.npcSlots.fill(null);
-                            adventureState.customPositions = {}; // Resetar posições
+                            adventureState.customPositions = {};
                             if (action.npcs.length > 0) {
                                 action.npcs.forEach(npcWithSlot => {
                                     const { slotIndex, ...npcData } = npcWithSlot;
