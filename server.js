@@ -1,3 +1,5 @@
+// server.js
+
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -10,712 +12,289 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-const DEFAULT_FIGHTER_STATS = { agi: 1, res: 1 };
-let LUTA_CHARACTERS = {};
+let ALL_NPCS = {};
+let PLAYABLE_CHARACTERS = [];
+let DYNAMIC_CHARACTERS = [];
+let ALL_SCENARIOS = {};
+const MAX_PLAYERS = 4;
+const MAX_NPCS = 5; 
 
 try {
-    const lutadoresData = fs.readFileSync('lutadores.json', 'utf8');
-    const lutadoresNomes = lutadoresData
-        .replace(/[\[\]]/g, '') 
-        .split(',')             
-        .map(name => name.replace(/"/g, '').trim()) 
-        .filter(name => name); 
+    const charactersData = fs.readFileSync('characters.json', 'utf8');
+    const characters = JSON.parse(charactersData);
+    PLAYABLE_CHARACTERS = characters.players || [];
+    ALL_NPCS = characters.npcs || {}; 
 
-    lutadoresNomes.forEach(nome => {
-        LUTA_CHARACTERS[nome] = { ...DEFAULT_FIGHTER_STATS };
+    const dynamicCharPath = 'public/images/personagens/';
+    if (fs.existsSync(dynamicCharPath)) {
+        const files = fs.readdirSync(dynamicCharPath).filter(file => file.startsWith('Personagem (') && (file.endsWith('.png') || file.endsWith('.jpg')));
+        DYNAMIC_CHARACTERS = files.map(file => ({ name: file.split('.')[0], img: `images/personagens/${file}` }));
+    }
+
+    const scenarioCategories = ["cenarios externos", "cenarios internos", "cenas", "fichas", "objetos", "outros"];
+    scenarioCategories.forEach(category => {
+        const path = `public/images/mapas/${category}/`;
+        if (fs.existsSync(path)) {
+            ALL_SCENARIOS[category] = fs.readdirSync(path).filter(file => file.endsWith('.png') || file.endsWith('.jpg')).map(file => `${category}/${file}`);
+        }
     });
-    console.log('Lutadores carregados com sucesso!');
-} catch (error) {
-    console.error('Erro ao carregar lutadores.json:', error);
-}
 
+} catch (error) { console.error('Erro ao carregar arquivos de configuração:', error); }
 
 const games = {};
+const ATTACK_MOVE = { damage: 5 };
+function rollD6() { return Math.floor(Math.random() * 6) + 1; }
 
-const MOVES = {
-    'Jab': { cost: 1, damage: 1, penalty: 0 },
-    'Direto': { cost: 2, damage: 3, penalty: 1 },
-    'Upper': { cost: 3, damage: 6, penalty: 2 },
-    'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
-    'Clinch': { cost: 3, damage: 0, penalty: 0 },
-    'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 },
-    'Esquiva': { cost: 1, damage: 0, penalty: 0, reaction: true }
-};
+function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_players', gmId: gmId, connectedPlayers: {}, unavailableCharacters: [], log: [{ text: "Lobby criado. Aguardando jogadores..." }], }; }
 
-const SPECIAL_MOVES = {
-    'Counter': { cost: 0, damage: 0, penalty: 0, reaction: true },
-    'Flicker Jab': { cost: 3, damage: 1, penalty: 1 },
-    'Smash': { cost: 2, damage: 8, penalty: 3 },
-    'Bala': { cost: 1, damage: 2, penalty: 0 },
-    'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 },
-    'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
-    'White Fang': { cost: 4, damage: 4, penalty: 1 },
-    'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
-};
-const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
-
-const MOVE_SOUNDS = {
-    'Jab': ['jab01.mp3', 'jab02.mp3', 'jab03.mp3'],
-    'Direto': ['baseforte01.mp3', 'baseforte02.mp3'],
-    'Liver Blow': ['baseforte01.mp3', 'baseforte02.mp3'],
-    'Upper': ['baseforte01.mp3', 'baseforte02.mp3'],
-    'Counter': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
-    'Smash': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
-    'Gazelle Punch': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
-    'Frog Punch': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
-    'White Fang': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3'],
-    'Flicker Jab': ['Flicker01.mp3', 'Flicker02.mp3', 'Flicker03.mp3'],
-    'Bala': ['bala01.mp3', 'bala02.mp3'],
-    'OraOraOra': 'OraOraOra.mp3',
-    'Golpe Ilegal': ['especialforte01.mp3', 'especialforte02.mp3'],
-    'Clinch': ['Esquiva.mp3'],
-    'Esquiva': ['Esquiva.mp3']
-};
-
-function rollD(s, state) {
-    if (state && typeof state.diceCheat === 'number') {
-        return Math.min(state.diceCheat, s);
+function createNewAdventureState(gmId, connectedPlayers) {
+    const adventureState = {
+        mode: 'adventure', fighters: { players: {}, npcs: {} }, winner: null, reason: null, currentRound: 1,
+        activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
+        scenario: 'mapas/cenarios externos/externo (1).png',
+        gmId: gmId, log: [{ text: "Aguardando jogadores formarem o grupo..." }],
+        waitingPlayers: {} 
+    };
+    for (const sId in connectedPlayers) {
+        const playerData = connectedPlayers[sId];
+        if (playerData.selectedCharacter && playerData.role === 'player') {
+            const fighterData = { 
+                id: sId, 
+                nome: playerData.selectedCharacter.nome, 
+                img: playerData.selectedCharacter.img, 
+            };
+            if (playerData.persistentStats) {
+                Object.assign(fighterData, playerData.persistentStats);
+            } else {
+                 Object.assign(fighterData, { res: 3, agi: 2 });
+            }
+            const newFighter = createNewFighterState(fighterData);
+            if (newFighter.hp <= 0) {
+                newFighter.status = 'down';
+            }
+            adventureState.fighters.players[sId] = newFighter;
+            io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
+        }
     }
-    return Math.floor(Math.random() * s) + 1;
+    return adventureState;
 }
 
-const ATTACK_DICE_OUTCOMES = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6];
-const rollAttackD6 = (state) => {
-    if (state.diceCheat === 'crit') return 6;
-    if (state.diceCheat === 'fumble') return 1;
-    if (typeof state.diceCheat === 'number') return state.diceCheat;
-    const randomIndex = Math.floor(Math.random() * ATTACK_DICE_OUTCOMES.length);
-    return ATTACK_DICE_OUTCOMES[randomIndex];
-};
-
-function createNewLobbyState(gmId) {
-    return {
-        mode: 'lobby',
-        phase: 'waiting_players',
-        gmId: gmId,
-        connectedPlayers: {}, // { socketId: { id, role, selectedCharacter } }
-        unavailableCharacters: [],
-        log: [{ text: "Lobby criado. Aguardando jogadores..." }],
-    };
-}
-
-function createNewGameState() {
-    return {
-        fighters: {}, pendingP2Choice: null, winner: null, reason: null,
-        moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
-        phase: 'waiting', previousPhase: null, log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
-        doubleKnockdownInfo: null,
-        decisionInfo: null, followUpState: null, scenario: 'Ringue.png',
-        mode: null,
-        hostId: null,
-        gmId: null,
-        playersReady: { player1: false, player2: false },
-        reactionState: null,
-        diceCheat: null,
-        illegalCheat: 'normal',
-        lobbyCache: null // Para guardar o estado do lobby ao mudar de modo
-    };
-}
-
-function createNewTheaterState(initialScenario) {
+function createNewTheaterState(gmId, initialScenario) {
     const theaterState = {
-        mode: 'theater',
-        gmId: null,
-        log: [{ text: "Modo Teatro iniciado."}],
-        currentScenario: initialScenario,
-        scenarioStates: {},
-        publicState: {}
+        mode: 'theater', gmId: gmId, log: [{ text: "Modo Cenário iniciado."}],
+        scenarioStates: {}, publicState: {}
     };
-    theaterState.scenarioStates[initialScenario] = {
-        scenario: initialScenario,
-        scenarioWidth: null,
-        scenarioHeight: null,
-        tokens: {},
-        tokenOrder: [],
-        globalTokenScale: 1.0,
-        isStaging: false,
+    const initialScenarioPath = `mapas/${initialScenario}`;
+    theaterState.currentScenario = initialScenarioPath;
+    theaterState.scenarioStates[initialScenarioPath] = {
+        scenario: initialScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {},
+        tokenOrder: [], globalTokenScale: 1.0, isStaging: true,
     };
     theaterState.publicState = {
-        scenario: initialScenario,
-        tokens: {},
-        tokenOrder: [],
-        globalTokenScale: 1.0
+        scenario: initialScenarioPath, tokens: {}, tokenOrder: [], globalTokenScale: 1.0, isStaging: true,
     };
     return theaterState;
 }
 
 function createNewFighterState(data) {
-    const res = Math.max(1, parseInt(data.res, 10) || 1);
-    const agi = parseInt(data.agi, 10) || 1;
-    const hp = parseInt(data.hp, 10) || (res * 5);
-    const pa = parseInt(data.pa, 10) || 3;
+    const agi = data.agi !== undefined ? parseInt(data.agi, 10) : 2; 
+    const res = data.res !== undefined ? parseInt(data.res, 10) : 3; 
+    const scale = data.scale !== undefined ? parseFloat(data.scale) : 1.0;
+    const hpMax = res * 5;
+    const hp = data.hp !== undefined ? data.hp : hpMax;
 
     return {
-        nome: data.nome, img: data.img, agi: agi, res: res, originalRes: res,
-        hpMax: res * 5, hp: hp, pa: pa, def: 0, hitsLanded: 0, knockdowns: 0, totalDamageTaken: 0,
-        specialMoves: data.specialMoves || [],
-        pointDeductions: 0,
-        illegalMoveUses: 0,
-        activeEffects: {},
-        defRoll: 0
+        id: data.id,
+        nome: data.nome || data.name,
+        img: data.img,
+        agi: agi,
+        res: res,
+        hpMax: hpMax, 
+        hp: hp,
+        status: 'active',
+        scale: scale,
     };
 }
 
-function logMessage(state, text, className = '') { if(state && state.log) { state.log.push({ text, className }); if (state.log.length > 50) state.log.shift(); } }
+function cachePlayerStats(room) {
+    if (room.activeMode !== 'adventure' || !room.gameModes.adventure) return;
+    const adventureState = room.gameModes.adventure;
+    const lobbyState = room.gameModes.lobby;
 
-function filterVisibleTokens(currentScenarioState) {
-    if (!currentScenarioState.scenarioWidth || !currentScenarioState.scenarioHeight) {
-        return {
-            visibleTokens: { ...currentScenarioState.tokens },
-            visibleTokenOrder: [...currentScenarioState.tokenOrder]
-        };
-    }
-
-    const visibleTokenIds = new Set();
-    const visibleTokens = {};
-
-    for (const tokenId of currentScenarioState.tokenOrder) {
-        const token = currentScenarioState.tokens[tokenId];
-        if (!token) continue;
-        
-        const tokenCenterX = token.x + (200 * (token.scale || 1) / 2);
-        const tokenCenterY = token.y + (200 * (token.scale || 1) / 2); 
-
-        if (tokenCenterX >= 0 && tokenCenterX <= currentScenarioState.scenarioWidth &&
-            tokenCenterY >= 0 && tokenCenterY <= currentScenarioState.scenarioHeight) {
-            visibleTokenIds.add(tokenId);
-            visibleTokens[tokenId] = token;
-        }
-    }
-
-    const visibleTokenOrder = currentScenarioState.tokenOrder.filter(id => visibleTokenIds.has(id));
-    
-    return { visibleTokens, visibleTokenOrder };
-}
-
-function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
-    let attackResult = { hit: false, counterLanded: false };
-
-    io.to(roomId).emit('triggerAttackAnimation', { attackerKey });
-    const attacker = state.fighters[attackerKey];
-    const defender = state.fighters[defenderKey];
-    const move = state.moves[moveName];
-    const displayName = move.displayName || moveName;
-
-    let counterProcessed = false;
-    let illegalMoveLanded = false;
-    const isActuallyIllegal = (state.illegalCheat === 'always' && move.damage > 0) || (state.illegalCheat === 'normal' && moveName === 'Golpe Ilegal');
-
-    const triggerKnockdown = (downedPlayer) => {
-        setTimeout(() => {
-            handleKnockdown(state, downedPlayer, io, roomId);
-            io.to(roomId).emit('gameUpdate', state);
-            dispatchAction(games[roomId]);
-        }, 3000);
-    };
-
-    const triggerDoubleKnockdown = () => {
-        setTimeout(() => {
-            handleDoubleKnockdown(state, io, roomId);
-            io.to(roomId).emit('gameUpdate', state);
-            dispatchAction(games[roomId]);
-        }, 3000);
-    };
-
-    if (state.reactionState && state.reactionState.playerKey === defenderKey && state.reactionState.move === 'Counter') {
-        counterProcessed = true;
-        attackResult.counterLanded = true;
-        const incomingAttackCost = move.cost;
-        if (defender.pa >= incomingAttackCost) {
-            defender.pa -= incomingAttackCost;
-            logMessage(state, `${attacker.nome} ataca com <span class="log-move-name">${displayName}</span>, mas ${defender.nome} revela um <span class="log-move-name">Contra-Ataque</span>!`, 'log-crit');
-            logMessage(state, `${defender.nome} gasta ${incomingAttackCost} PA para executar o Counter.`, 'log-info');
-            const attackerRoll = rollAttackD6(state);
-            const attackerValue = attackerRoll + attacker.agi - move.penalty;
-            logMessage(state, `Ataque de ${attacker.nome}: D6(${attackerRoll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackerValue}</span>`, 'log-info');
-            const counterRoll = rollAttackD6(state);
-            const counterValue = counterRoll + defender.agi - move.penalty; 
-            logMessage(state, `Contra-Ataque de ${defender.nome}: D6(${counterRoll}) + ${defender.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${counterValue}</span>`, 'log-info');
-            const damageToDeal = move.damage * 2;
-            let soundToPlay = 'Critical.mp3';
-            if (counterValue > attackerValue) {
-                logMessage(state, `Sucesso! ${attacker.nome} recebe ${damageToDeal} de dano do seu próprio golpe!`, 'log-crit');
-                const hpBeforeHit = attacker.hp;
-                attacker.hp = Math.max(0, attacker.hp - damageToDeal);
-                attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
-                io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
-            } else if (attackerValue > counterValue) {
-                logMessage(state, `Falhou! ${defender.nome} erra o tempo e recebe ${damageToDeal} de dano!`, 'log-crit');
-                attackResult.hit = true; 
-                attackResult.counterLanded = false; 
-                const hpBeforeHit = defender.hp;
-                defender.hp = Math.max(0, defender.hp - damageToDeal);
-                defender.totalDamageTaken += hpBeforeHit - defender.hp;
-                io.to(roomId).emit('triggerHitAnimation', { defenderKey });
-                if (isActuallyIllegal) illegalMoveLanded = true;
+    Object.values(adventureState.fighters.players).forEach(playerFighter => {
+        if (lobbyState.connectedPlayers[playerFighter.id]) {
+            if (playerFighter.status !== 'fled') {
+                 lobbyState.connectedPlayers[playerFighter.id].persistentStats = {
+                    hp: playerFighter.hp,
+                    hpMax: playerFighter.hpMax,
+                    res: playerFighter.res,
+                    agi: playerFighter.agi
+                };
             } else {
-                logMessage(state, `Empate! Ambos são atingidos no fogo cruzado e recebem ${damageToDeal} de dano!`, 'log-crit');
-                let hpBeforeHit;
-                hpBeforeHit = attacker.hp;
-                attacker.hp = Math.max(0, attacker.hp - damageToDeal);
-                attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
-                hpBeforeHit = defender.hp;
-                defender.hp = Math.max(0, defender.hp - damageToDeal);
-                defender.totalDamageTaken += hpBeforeHit - defender.hp;
-                io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey });
-                io.to(roomId).emit('triggerHitAnimation', { defenderKey: defenderKey });
-                if (isActuallyIllegal) illegalMoveLanded = true;
-            }
-            if (soundToPlay) io.to(roomId).emit('playSound', soundToPlay);
-            state.reactionState = null;
-        } else {
-            logMessage(state, `${defender.nome} tenta o Contra-Ataque, mas não tem ${incomingAttackCost} PA para interceptar o golpe!`, 'log-miss');
-            state.reactionState = null;
-            counterProcessed = false; 
-            attackResult.counterLanded = false;
-        }
-    }
-    
-    if (!counterProcessed && state.phase !== 'knockdown' && state.phase !== 'double_knockdown') {
-        logMessage(state, `${attacker.nome} usa <span class="log-move-name">${displayName}</span>!`);
-        const roll = rollAttackD6(state);
-        let crit = false;
-        let hit = false;
-        let soundToPlay = null;
-        const attackValue = roll + attacker.agi - move.penalty;
-        logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
-        
-        if (roll === 1) { logMessage(state, "Erro Crítico!", 'log-miss');
-        } else if (roll === 6) { logMessage(state, "Acerto Crítico!", 'log-crit'); hit = true; crit = true;
-        } else { if (attackValue >= defender.def) { logMessage(state, "Acertou!", 'log-hit'); hit = true; } else { logMessage(state, "Errou!", 'log-miss'); } }
-        
-        if (hit) {
-            attackResult.hit = true;
-            io.to(roomId).emit('triggerHitAnimation', { defenderKey });
-            const sounds = MOVE_SOUNDS[moveName];
-            if (crit) { soundToPlay = 'Critical.mp3';
-            } else if (Array.isArray(sounds)) { soundToPlay = sounds[Math.floor(Math.random() * sounds.length)];
-            } else if (sounds) { soundToPlay = sounds; }
-            
-            let damage = crit ? move.damage * 2 : move.damage;
-            if (damage > 0) {
-                const hpBeforeHit = defender.hp;
-                defender.hp = Math.max(0, defender.hp - damage);
-                const actualDamageTaken = hpBeforeHit - defender.hp;
-                attacker.hitsLanded++;
-                defender.totalDamageTaken += actualDamageTaken;
-                logMessage(state, `${defender.nome} sofre ${actualDamageTaken} de dano!`, 'log-hit');
-            }
-            if (moveName === 'Liver Blow') { if (Math.random() < 0.3 && defender.pa > 0) { defender.pa--; logMessage(state, `O golpe no fígado faz ${defender.nome} perder 1 PA!`, 'log-crit'); }
-            } else if (moveName === 'Clinch') { 
-                const paToRemove = crit ? 4 : 2;
-                defender.pa = Math.max(0, defender.pa - paToRemove); 
-                logMessage(state, `${attacker.nome} acerta o Clinch! ${defender.nome} perde ${paToRemove} PA.`, 'log-hit');
-            }
-            if (isActuallyIllegal) illegalMoveLanded = true;
-        } else { soundToPlay = 'Esquiva.mp3'; }
-    
-        if (soundToPlay) { io.to(roomId).emit('playSound', soundToPlay); }
-    }
-
-    if (illegalMoveLanded) {
-        attacker.illegalMoveUses++;
-        if (attacker.pointDeductions > 0) {
-            const dqChance = Math.min(1, 0.1 * Math.pow(2, attacker.illegalMoveUses - 2));
-            if (Math.random() < dqChance && state.illegalCheat !== 'never') {
-                state.phase = 'gm_disqualification_ack';
-                state.winner = defenderKey;
-                state.reason = `${attacker.nome} foi desqualificado por uso repetido de golpes ilegais.`;
-                io.to(roomId).emit('showGameAlert', `INACREDITÁVEL!<br>${attacker.nome} foi desqualificado!`);
-                logMessage(state, `INACREDITÁVEL! ${state.reason}`, 'log-crit');
-                return attackResult; 
+                delete lobbyState.connectedPlayers[playerFighter.id].persistentStats;
             }
         }
-        if (Math.random() < 0.5 && state.illegalCheat !== 'never') {
-            attacker.pointDeductions++;
-            io.to(roomId).emit('showGameAlert', `O juíz viu o golpe ilegal!<br>${attacker.nome} perde 1 ponto!`);
-            logMessage(state, `O juíz viu o golpe ilegal! ${attacker.nome} perde 1 ponto na decisão!`, 'log-crit');
-        }
-    }
-
-    const p1Down = state.fighters.player1.hp <= 0;
-    const p2Down = state.fighters.player2.hp <= 0;
-    
-    if (p1Down && p2Down && state.phase !== 'double_knockdown') {
-        triggerDoubleKnockdown();
-    } else if (p1Down && state.phase !== 'knockdown' && state.phase !== 'double_knockdown') {
-        triggerKnockdown('player1');
-    } else if (p2Down && state.phase !== 'knockdown' && state.phase !== 'double_knockdown') {
-        triggerKnockdown('player2');
-    }
-    
-    return attackResult;
+    });
 }
 
-function handleDoubleKnockdown(state, io, roomId) {
-    if (state.phase === 'double_knockdown' || state.phase === 'gameover') return;
-    logMessage(state, `INACREDITÁVEL! AMBOS OS LUTADORES FORAM AO CHÃO!`, 'log-crit');
-    
-    const p1 = state.fighters.player1; const p2 = state.fighters.player2;
-    const p1_tko = p1.res <= 1; const p2_tko = p2.res <= 1;
+function logMessage(state, text, type = 'info') {
+    if (!state.log) state.log = [];
+    state.log.unshift({ text, type, time: new Date().toLocaleTimeString() });
+    if (state.log.length > 100) state.log.pop();
+}
 
-    p1.knockdowns++; p2.knockdowns++;
+function getFighter(state, key) {
+    return state.fighters.players[key] || state.fighters.npcs[key];
+}
 
-    if (p1_tko && p2_tko) {
-        logMessage(state, `Nenhum dos dois consegue se levantar! O juíz encerra a luta!`, 'log-crit');
-        state.phase = 'gameover'; state.winner = 'draw'; state.reason = "Ambos os lutadores foram nocauteados e não puderam continuar.<br><br>EMPATE";
+function checkGameOver(state) {
+    const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
+    const activeNpcs = Object.values(state.fighters.npcs).filter(n => n.status === 'active');
+    if (activePlayers.length === 0) {
+        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados ou fugiram.';
+        logMessage(state, 'Fim da batalha! Os inimigos venceram.', 'game_over');
+    } else if (activeNpcs.length === 0) {
+        state.winner = 'players'; state.reason = 'Todos os inimigos foram derrotados.';
+        logMessage(state, 'Fim da batalha! Os jogadores venceram!', 'game_over');
+    }
+}
+
+function advanceTurn(state) {
+    if (state.winner) return;
+    const activeTurnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
+
+    if (activeTurnOrder.length === 0) {
+        checkGameOver(state);
+        if (!state.winner) {
+            state.winner = 'draw';
+            state.reason = 'Nenhum combatente ativo restante.';
+            logMessage(state, 'Fim da batalha! Nenhum combatente ativo restante.', 'game_over');
+        }
         return;
     }
+    
+    let currentIndex = activeTurnOrder.indexOf(state.activeCharacterKey);
+    let nextIndex = (currentIndex + 1) % activeTurnOrder.length;
 
-    state.phase = 'double_knockdown';
-    state.doubleKnockdownInfo = {
-        attempts: 0,
-        getUpStatus: { player1: p1_tko ? 'fail_tko' : 'pending', player2: p2_tko ? 'fail_tko' : 'pending' },
-        readyStatus: { player1: false, player2: false }
-    };
-
-    if (p1_tko) logMessage(state, `${p1.nome} não tem condições de continuar!`, 'log-crit');
-    if (p2_tko) logMessage(state, `${p2.nome} não tem condições de continuar!`, 'log-crit');
+    state.activeCharacterKey = activeTurnOrder[nextIndex];
+    const activeFighter = getFighter(state, state.activeCharacterKey);
+    logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
 }
 
-function endTurn(state, io, roomId) {
-    const lastPlayerKey = state.whoseTurn;
-    const opponentKey = (lastPlayerKey === 'player1') ? 'player2' : 'player1';
-
-    if (state.reactionState) {
-        const reactionUserKey = state.reactionState.playerKey;
-        if (reactionUserKey !== lastPlayerKey) {
-            state.reactionState = null;
-        }
-    }
-
-    if (state.fighters[lastPlayerKey]) {
-        state.fighters[lastPlayerKey].pa += 3;
-        logMessage(state, `${state.fighters[lastPlayerKey].nome} recupera 3 PA.`, 'log-info');
-    }
-    
-    state.followUpState = null;
-    state.whoseTurn = opponentKey;
-    
-    const lastPlayerWentFirst = (lastPlayerKey === 'player1' && state.didPlayer1GoFirst) || (lastPlayerKey === 'player2' && !state.didPlayer1GoFirst);
-    
-    if (lastPlayerWentFirst) { 
-        state.phase = 'turn'; 
-    } else { 
-        Object.values(state.fighters).forEach(fighter => {
-            if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
-                fighter.activeEffects.esquiva.duration--;
-                if(fighter.activeEffects.esquiva.duration === 0) {
-                    logMessage(state, `O efeito da Esquiva de ${fighter.nome} terminou.`, 'log-info');
-                    delete fighter.activeEffects.esquiva;
-                    fighter.def = fighter.defRoll + fighter.res;
-                    logMessage(state, `Defesa de ${fighter.nome} voltou ao normal: ${fighter.def}.`, 'log-info');
-                }
+function executeAttack(state, roomId, attackerKey, targetKey) {
+    const attacker = getFighter(state, attackerKey);
+    const target = getFighter(state, targetKey);
+    if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
+    const hit = true;
+    let damageDealt = 0;
+    if (hit) {
+        damageDealt = ATTACK_MOVE.damage;
+        target.hp = Math.max(0, target.hp - damageDealt);
+        logMessage(state, `${attacker.nome} ataca ${target.nome} e causa ${damageDealt} de dano!`, 'hit');
+        if (target.hp === 0) {
+            target.status = 'down';
+            logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
+            checkGameOver(state);
+            if (state.winner) {
+                 cachePlayerStats(games[roomId]);
             }
-        });
-        processEndRound(state, io, roomId); 
-    }
-}
-function processEndRound(state, io, roomId) {
-    state.currentTurn++;
-    if (state.currentTurn > 4) {
-        state.currentRound++;
-        if (state.currentRound > 4) {
-            calculateDecisionScores(state);
-            state.phase = 'decision_table_wait';
-            logMessage(state, `A luta foi para a decisão.`, 'log-info');
-            return;
         }
-        state.currentTurn = 1;
-
-        state.fighters.player1.pa = 3;
-        state.fighters.player2.pa = 3;
-        logMessage(state, `Pontos de Ação de ambos os lutadores foram resetados para 3.`, 'log-info');
-
-        Object.values(state.fighters).forEach(f => {
-            if (f.activeEffects.esquiva) {
-                delete f.activeEffects.esquiva;
-                f.def = f.defRoll + f.res;
-            }
-        });
-        logMessage(state, `Efeitos foram resetados para o novo round.`, 'log-info');
-        logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-info');
-        state.phase = 'initiative_p1';
     } else {
-        logMessage(state, `--- Fim da Rodada ${state.currentTurn - 1} ---`, 'log-turn');
-        state.whoseTurn = state.didPlayer1GoFirst ? 'player1' : 'player2';
-        state.phase = 'turn';
+        logMessage(state, `${attacker.nome} ataca ${target.nome}, mas erra!`, 'miss');
     }
-}
-function calculateDecisionScores(state) {
-    const p1 = state.fighters.player1;
-    const p2 = state.fighters.player2;
-    let p1Score = 10, p2Score = 10;
-    const p1KnockdownPenalty = p1.knockdowns, p2KnockdownPenalty = p2.knockdowns;
-    p1Score -= p1KnockdownPenalty; p2Score -= p2KnockdownPenalty;
-    let p1HitsPenalty = 0, p2HitsPenalty = 0;
-    if (p1.hitsLanded < p2.hitsLanded) { p1HitsPenalty = 1; p1Score -= 1; }
-    else if (p2.hitsLanded < p1.hitsLanded) { p2HitsPenalty = 1; p2Score -= 1; }
-    let p1DamagePenalty = 0, p2DamagePenalty = 0;
-    if (p1.totalDamageTaken > p2.totalDamageTaken) { p1DamagePenalty = 1; p1Score -= 1; }
-    else if (p2.totalDamageTaken > p1.totalDamageTaken) { p2DamagePenalty = 1; p2Score -= 1; }
-    const p1IllegalPenalty = p1.pointDeductions;
-    const p2IllegalPenalty = p2.pointDeductions;
-    p1Score -= p1IllegalPenalty;
-    p2Score -= p2IllegalPenalty;
-    state.decisionInfo = {
-        p1: { name: p1.nome, knockdownPenalty: p1KnockdownPenalty, hitsPenalty: p1HitsPenalty, damagePenalty: p1DamagePenalty, illegalPenalty: p1IllegalPenalty, finalScore: p1Score },
-        p2: { name: p2.nome, knockdownPenalty: p2KnockdownPenalty, hitsPenalty: p2HitsPenalty, damagePenalty: p2DamagePenalty, illegalPenalty: p2IllegalPenalty, finalScore: p2Score }
-    };
-}
-function handleKnockdown(state, downedPlayerKey, io, roomId) {
-    if (state.phase === 'knockdown' || state.phase === 'gameover') return;
-    state.phase = 'knockdown';
-    const fighter = state.fighters[downedPlayerKey];
-    fighter.knockdowns++;
-    logMessage(state, `${fighter.nome} foi NOCAUTEADO!`, 'log-crit');
-    if (fighter.res <= 1) {
-        logMessage(state, `${fighter.nome} não consegue se levantar. O juíz interrompe a luta!`, 'log-crit');
-        const instantKoReason = "O juíz interrompe a luta.<br><br>Vitória por Nocaute!";
-        setTimeout(() => {
-            state.phase = 'gameover';
-            state.winner = (downedPlayerKey === 'player1') ? 'player2' : 'player1';
-            state.reason = instantKoReason;
-            io.to(roomId).emit('gameUpdate', state);
-            dispatchAction({ state, id: roomId });
-        }, 1000);
-        return;
-    }
-    state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null, isLastChance: false };
-}
-
-function isActionValid(state, action) {
-    const { type, playerKey, gmSocketId } = action;
-    const isGm = gmSocketId === state.gmId;
-
-    if (!state) return false;
-
-    // GM-only actions
-    if (['gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 'configure_and_start_arena', 'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 'toggle_force_dice'].includes(type)) {
-        return isGm;
-    }
-
-    if (state.mode === 'lobby') {
-        return ['playerSelectsCharacter'].includes(type);
-    }
-
-    if (state.mode === 'theater') {
-        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage' || type === 'updateGlobalScale' || type === 'update_scenario_dims') && isGm;
-    }
-
-    const move = state.moves[action.move];
-
-    if (state.phase === 'paused') { return false; }
-    if (state.phase === 'white_fang_follow_up') {
-        if (playerKey !== state.followUpState.playerKey) return false;
-        if (type === 'attack') {
-            const fighter = state.fighters[playerKey];
-            const moveData = state.moves[action.move];
-            if (action.move === 'White Fang') return true;
-            return fighter.pa >= moveData.cost;
+    io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit, damage: damageDealt });
+    setTimeout(() => {
+        if (!state.winner) {
+            advanceTurn(state);
         }
-        return type === 'end_turn' || type === 'forfeit';
-    }
-    if (state.phase === 'turn' && move && move.reaction && playerKey !== state.whoseTurn) {
-        if (state.reactionState) return false;
-        const reactor = state.fighters[playerKey];
-        return reactor.pa >= move.cost;
-    }
-    switch (state.phase) {
-        case 'gm_classic_setup': return type === 'gm_confirm_p1_setup' && isGm;
-        case 'opponent_selection': return type === 'gmSelectsOpponent' && isGm;
-        case 'arena_opponent_selection': return type === 'gmSelectsArenaFighters' && isGm;
-        case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
-        case 'p2_stat_assignment': return type === 'set_p2_stats' && isGm; // Only GM sets P2 stats now
-        case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
-        case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
-        case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
-        case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
-        case 'turn': 
-            if (playerKey !== state.whoseTurn) return false;
-            return (type === 'attack' || type === 'end_turn' || type === 'forfeit');
-        case 'double_knockdown':
-            return type === 'request_get_up' && (playerKey === 'player1' || playerKey === 'player2');
-        case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
-        case 'gm_decision_knockdown': return (type === 'resolve_knockdown_loss' || type === 'give_last_chance') && isGm;
-        case 'gm_disqualification_ack': return type === 'confirm_disqualification' && isGm;
-        case 'decision_table_wait': return (type === 'reveal_winner' && isGm);
-        case 'arena_configuring': return type === 'configure_and_start_arena' && isGm;
-        case 'gameover': return false;
-        default: return false;
-    }
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+    }, 1000);
 }
 
-function dispatchAction(room) {
-    if (!room || !room.state) return;
-    const { state, id: roomId } = room;
-    io.to(roomId).emit('hideRollButtons');
+function startBattle(state) {
+    Object.values(state.fighters.players).forEach(p => {
+        if (p.status !== 'down') p.status = 'active';
+    });
 
-    if (state.mode === 'lobby') {
-        return;
-    }
-
-    if (state.mode === 'theater') return;
-
-    switch (state.phase) {
-        case 'paused': return;
-        case 'opponent_selection':
-            if (state.gmId) {
-                io.to(state.gmId).emit('promptOpponentSelection', {
-                    availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter)
-                });
-            }
-            return;
-        case 'arena_opponent_selection':
-            if(state.gmId) {
-                 io.to(state.gmId).emit('promptArenaOpponentSelection', {
-                    availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter)
-                });
-            }
-            return;
-        case 'arena_configuring':
-            if (state.gmId) {
-                io.to(state.gmId).emit('promptArenaConfiguration', {
-                    p1: state.fighters.player1,
-                    p2: state.fighters.player2,
-                    availableMoves: SPECIAL_MOVES
-                });
-            }
-            return;
-        case 'p1_special_moves_selection':
-            const p1socketIdMoves = room.players.find(p => p.playerKey === 'player1').id;
-            io.to(p1socketIdMoves).emit('promptSpecialMoves', { availableMoves: SPECIAL_MOVES });
-            return;
-        case 'p2_stat_assignment':
-            const gmSocketId = state.gmId;
-            io.to(gmSocketId).emit('promptP2StatsAndMoves', { p2data: state.pendingP2Choice, availableMoves: SPECIAL_MOVES });
-            return;
-        case 'initiative_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }}); return;
-        case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
-        case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
-        case 'defense_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player2' }}); return;
-        case 'gm_decision_knockdown':
-            if (state.gmId) {
-                io.to(state.gmId).emit('showModal', {
-                    modalType: 'gm_knockdown_decision',
-                    title: 'Intervenção Divina',
-                    text: `${state.fighters[state.knockdownInfo.downedPlayer].nome} falhou na última tentativa. O que fazer?`,
-                    knockdownInfo: state.knockdownInfo
-                });
-            }
-            return;
-        case 'gm_disqualification_ack':
-            if (state.gmId) {
-                io.to(state.gmId).emit('showModal', {
-                    modalType: 'disqualification',
-                    title: "Desqualificação!",
-                    text: state.reason,
-                    btnText: "Avançar",
-                    action: { type: 'confirm_disqualification' }
-                });
-            }
-            return;
-        case 'decision_table_wait':
-            const info = state.decisionInfo;
-            const tableHtml = `<p>A luta foi para a decisão dos juízes.</p><table style="width:100%; margin-top:15px; border-collapse: collapse; text-align: left;"><thead><tr><th style="padding: 5px; border-bottom: 1px solid #fff;">Critério</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p1.name}</th><th style="padding: 5px; border-bottom: 1px solid #fff;">${info.p2.name}</th></tr></thead><tbody><tr><td style="padding: 5px;">Pontuação Inicial</td><td style="text-align:center;">10</td><td style="text-align:center;">10</td></tr><tr><td style="padding: 5px;">Pen. por Quedas</td><td style="text-align:center;">-${info.p1.knockdownPenalty}</td><td style="text-align:center;">-${info.p2.knockdownPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Menos Acertos</td><td style="text-align:center;">-${info.p1.hitsPenalty}</td><td style="text-align:center;">-${info.p2.hitsPenalty}</td></tr><tr><td style="padding: 5px;">Pen. por Mais Dano Recebido</td><td style="text-align:center;">-${info.p1.damagePenalty}</td><td style="text-align:center;">-${info.p2.damagePenalty}</td></tr><tr><td style="padding: 5px; color: #dc3545;">Penalidades</td><td style="text-align:center;">-${info.p1.illegalPenalty}</td><td style="text-align:center;">-${info.p2.illegalPenalty}</td></tr></tbody><tfoot><tr><th style="padding: 5px; border-top: 1px solid #fff;">Pontuação Final</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p1.finalScore}</th><th style="padding: 5px; border-top: 1px solid #fff; text-align:center;">${info.p2.finalScore}</th></tr></tfoot></table>`;
-            let decisionMakerKey = state.gmId;
-            io.to(roomId).emit('showModal', {
-                modalType: 'decision_table', title: "Pontuação dos Juízes", text: tableHtml,
-                btnText: "Anunciar Vencedor", action: { type: 'reveal_winner' }, targetPlayerKey: decisionMakerKey
-            });
-            return;
-        case 'double_knockdown':
-            if (state.doubleKnockdownInfo) {
-                io.to(roomId).emit('showModal', { 
-                    modalType: 'double_knockdown', 
-                    doubleKnockdownInfo: state.doubleKnockdownInfo, 
-                    title: `QUEDA DUPLA!`, 
-                    btnText: `Tentar Levantar`, 
-                    action: { type: 'request_get_up' }
-                });
-            }
-            return;
-        case 'knockdown':
-            if (state.knockdownInfo) {
-                const targetPlayerKey = state.knockdownInfo.downedPlayer;
-                const modalPayload = { modalType: 'knockdown', knockdownInfo: state.knockdownInfo, title: `Você caiu!`, text: ``, btnText: `Tentar Levantar`, action: { type: 'request_get_up', playerKey: targetPlayerKey } };
-                io.to(roomId).emit('showModal', { ...modalPayload, targetPlayerKey });
-            }
-            return;
-        case 'gameover':
-            let reason = state.reason || '';
-            if (state.winner === 'draw') { reason += `<br><br><strong style="color: #ffeb3b; font-size: 1.2em;">EMPATE</strong>`; } 
-            else if (state.winner && state.fighters[state.winner]) { const winnerName = state.fighters[state.winner].nome; reason += `<br><br><strong style="color: #dc3545; font-size: 1.2em;">VITÓRIA DE ${winnerName.toUpperCase()}</strong>`; }
-            else { reason = "Fim de Jogo"; }
-            io.to(roomId).emit('showModal', { modalType: 'gameover', title: "Fim da Luta!", text: reason });
-            return;
-        default: io.to(roomId).emit('hideModal'); return;
-    }
+    state.turnOrder = Object.values(state.fighters.players).concat(Object.values(state.fighters.npcs))
+        .filter(f => f.status === 'active')
+        .sort((a, b) => {
+            const rollA = state.initiativeRolls[a.id] || 0;
+            const rollB = state.initiativeRolls[b.id] || 0;
+            if (rollB !== rollA) return rollB - rollA;
+            return b.agi - a.agi;
+        }).map(f => f.id);
+    state.phase = 'battle';
+    state.activeCharacterKey = null;
+    state.currentRound = 1;
+    logMessage(state, `--- A Batalha Começou! (Round ${state.currentRound}) ---`, 'round');
+    advanceTurn(state);
 }
+
+function getFullState(room) {
+    if (!room) return null;
+    const activeState = room.gameModes[room.activeMode];
+    return { ...activeState, connectedPlayers: room.gameModes.lobby.connectedPlayers };
+}
+
 io.on('connection', (socket) => {
-    socket.emit('availableFighters', {
-        p1: LUTA_CHARACTERS
-    });
-
     socket.on('gmCreatesLobby', () => {
-        const newRoomId = uuidv4().substring(0, 6);
-        socket.join(newRoomId);
-        socket.currentRoomId = newRoomId;
-        const newState = createNewLobbyState(socket.id);
-        
-        games[newRoomId] = {
-            id: newRoomId,
-            players: [{ id: socket.id, role: 'gm' }],
-            spectators: [],
-            state: newState,
-            theaterState: null 
-        };
-        
-        socket.emit('assignRole', { role: 'gm', isGm: true });
-        socket.emit('roomCreated', newRoomId);
-        io.to(socket.id).emit('gameUpdate', newState);
-    });
-
-    socket.on('playerJoinsLobby', ({ roomId, role }) => {
-        const room = games[roomId];
-        if (!room) {
-            socket.emit('error', { message: 'Sala não encontrada.' });
-            return;
-        }
+        const roomId = uuidv4();
         socket.join(roomId);
         socket.currentRoomId = roomId;
+        games[roomId] = {
+            sockets: { [socket.id]: { role: 'gm' } },
+            activeMode: 'lobby',
+            gameModes: {
+                lobby: createNewLobbyState(socket.id),
+                adventure: null,
+                theater: null
+            },
+            adventureCache: null
+        };
+        socket.emit('assignRole', { isGm: true, role: 'gm', roomId: roomId });
+        socket.emit('roomCreated', roomId);
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+    });
 
-        if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
+    socket.emit('initialData', { 
+        characters: { 
+            players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), 
+            npcs: Object.keys(ALL_NPCS).map(name => ({ 
+                name, 
+                img: `images/lutadores/${name}.png`, 
+                scale: ALL_NPCS[name].scale || 1.0
+            })), 
+            dynamic: DYNAMIC_CHARACTERS 
+        }, 
+        scenarios: ALL_SCENARIOS 
+    });
 
-        if (role === 'spectator') {
-            room.spectators.push(socket.id);
-        } else {
-             room.players.push({ id: socket.id, role: 'player' });
-             if (room.state.mode === 'lobby') {
-                room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
-             }
-        }
-       
-        socket.emit('assignRole', { role });
-        io.to(roomId).emit('gameUpdate', room.state);
-        logMessage(room.state, `Um ${role} entrou na sala.`);
+    socket.on('playerJoinsLobby', ({ roomId }) => {
+        if (!games[roomId]) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
+        socket.join(roomId);
+        socket.currentRoomId = roomId;
+        const lobbyState = games[roomId].gameModes.lobby;
+        const currentPlayers = Object.values(lobbyState.connectedPlayers).filter(p => p.role === 'player').length;
+        const isFull = currentPlayers >= MAX_PLAYERS;
+        socket.emit('promptForRole', { isFull: isFull });
     });
     
-    socket.on('spectateGame', (roomId) => { 
+    socket.on('playerChoosesRole', ({ role }) => {
+        const roomId = socket.currentRoomId;
+        if (!roomId || !games[roomId]) return;
         const room = games[roomId];
-        if (!room) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
-        socket.join(roomId);
-        room.spectators.push(socket.id);
-        socket.currentRoomId = roomId;
-        socket.emit('assignRole', { role: 'spectator' });
-        socket.emit('gameUpdate', room.state);
-        logMessage(room.state, 'Um espectador entrou na sala.');
-        io.to(roomId).emit('gameUpdate', room.state);
+        let finalRole = role;
+        const lobbyState = room.gameModes.lobby;
+        const currentPlayers = Object.values(lobbyState.connectedPlayers).filter(p => p.role === 'player').length;
+        if (finalRole === 'player' && currentPlayers >= MAX_PLAYERS) {
+            finalRole = 'spectator';
+        }
+        room.sockets[socket.id] = { role: finalRole };
+        lobbyState.connectedPlayers[socket.id] = { role: finalRole, selectedCharacter: null, persistentStats: null };
+        logMessage(lobbyState, `Um ${finalRole} conectou-se.`);
+        socket.emit('assignRole', { role: finalRole, roomId: roomId });
+        io.to(roomId).emit('gameUpdate', getFullState(room));
     });
 
     socket.on('playerAction', (action) => {
@@ -723,653 +302,339 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId] || !action || !action.type) return;
         
         const room = games[roomId];
-        const state = room.state;
-        action.gmSocketId = state.gmId; 
-
-        if (!isActionValid(state, action)) {
-            console.log("Ação inválida recebida:", action, "no modo/fase:", state.mode, state.phase);
-            return;
-        }
-
-        const moveName = action.move;
-        const move = (state.moves && moveName) ? state.moves[moveName] : undefined;
-        if (move && move.reaction) {
-            action.type = moveName;
-        }
-
-        const playerKey = action.playerKey;
-        switch (action.type) {
-            case 'playerSelectsCharacter': {
-                if(state.mode !== 'lobby') return;
-                const { character } = action;
-                if(state.unavailableCharacters.includes(character.nome)) {
-                    socket.emit('characterUnavailable', character.nome);
-                    return;
+        const lobbyState = room.gameModes.lobby;
+        const isGm = socket.id === lobbyState.gmId;
+        let activeState = room.gameModes[room.activeMode];
+        let shouldUpdate = true;
+        
+        if (isGm) {
+            if (action.type === 'gmGoesBackToLobby') {
+                if (room.activeMode === 'adventure') {
+                    cachePlayerStats(room); 
+                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
                 }
-                state.unavailableCharacters.push(character.nome);
-                state.connectedPlayers[socket.id].selectedCharacter = character;
-                logMessage(state, `Jogador selecionou ${character.nome}.`);
-                break;
+                room.activeMode = 'lobby';
+                io.to(roomId).emit('gameUpdate', getFullState(room));
+                return;
             }
-            case 'gmStartsMode': {
-                const { targetMode, scenario } = action;
-                let newState;
-                let lobbyStateCache = { ...state }; 
+            if (action.type === 'gmSwitchesMode') {
+                const targetMode = room.activeMode === 'adventure' ? 'theater' : 'adventure';
                 
-                if (targetMode === 'theater') {
-                    if (room.theaterState) {
-                        newState = room.theaterState;
+                if (room.activeMode === 'adventure') {
+                    cachePlayerStats(room); 
+                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                }
+
+                if (targetMode === 'adventure') {
+                    if (room.adventureCache) {
+                        socket.emit('promptForAdventureType');
+                        shouldUpdate = false; 
                     } else {
-                        newState = createNewTheaterState(scenario || 'mapas/cenarios externos/externo (1).png');
-                        newState.gmId = state.gmId;
-                        room.theaterState = newState; 
+                        room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                        room.activeMode = 'adventure';
                     }
-                    Object.keys(state.connectedPlayers).forEach(playerId => {
-                        io.to(playerId).emit('assignRole', { role: 'spectator' });
-                    });
-                } else {
-                    newState = createNewGameState();
-                    newState.mode = targetMode;
-                    newState.gmId = state.gmId;
-                    newState.scenario = scenario || (targetMode === 'classic' ? 'Ringue.png' : 'Ringue2.png');
-                    newState.connectedPlayers = state.connectedPlayers;
-                    logMessage(newState, `GM iniciou o modo ${targetMode}.`);
-                    
-                    if(targetMode === 'classic') {
-                        newState.phase = 'gm_classic_setup';
-                    } else if (targetMode === 'arena') {
-                        newState.hostId = state.gmId;
-                        newState.phase = 'arena_opponent_selection';
-                    }
-                }
-                newState.lobbyCache = lobbyStateCache; 
-                room.state = newState;
-                break;
-            }
-            case 'gm_switch_mode': {
-                const { targetMode } = action;
-                let lobbyState = state.lobbyCache || room.state; 
-                let newState;
-
-                if (targetMode === 'lobby') {
-                    newState = lobbyState; 
-                    Object.values(newState.connectedPlayers).forEach(p => {
-                        io.to(p.id).emit('assignRole', { role: 'player' });
-                    });
-                     io.to(newState.gmId).emit('assignRole', { role: 'gm', isGm: true });
-                } else {
-                     let scenario = (targetMode === 'classic' ? 'Ringue.png' : (targetMode === 'arena' ? 'Ringue2.png' : 'mapas/cenarios externos/externo (1).png'));
-                     if (targetMode === 'theater') {
-                        if (room.theaterState) {
-                           newState = room.theaterState;
-                        } else {
-                            newState = createNewTheaterState(scenario);
-                            newState.gmId = state.gmId;
-                            room.theaterState = newState;
-                        }
-                        Object.keys(lobbyState.connectedPlayers).forEach(playerId => {
-                            io.to(playerId).emit('assignRole', { role: 'spectator' });
-                        });
-                    } else {
-                        newState = createNewGameState();
-                        newState.mode = targetMode;
-                        newState.gmId = state.gmId;
-                        newState.scenario = scenario;
-                        newState.connectedPlayers = lobbyState.connectedPlayers;
-                        logMessage(newState, `GM trocou para o modo ${targetMode}.`);
-                        
-                        if(targetMode === 'classic') {
-                            newState.phase = 'gm_classic_setup';
-                        } else if (targetMode === 'arena') {
-                            newState.hostId = state.gmId;
-                            newState.phase = 'arena_opponent_selection';
-                        }
-                    }
-                    newState.lobbyCache = lobbyState;
-                }
-                 room.state = newState;
-                break;
-            }
-            case 'gm_confirm_p1_setup':
-                state.fighters.player1 = createNewFighterState(action.player1Data);
-                logMessage(state, `GM definiu ${action.player1Data.nome} como Jogador 1.`);
-                
-                const gmAsPlayer = room.players.find(p => p.id === state.gmId);
-                if(gmAsPlayer) gmAsPlayer.playerKey = 'player1';
-                else room.players.push({id: state.gmId, role: 'gm', playerKey: 'player1'})
-                
-                io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1', isGm: true });
-
-                // <<< CORREÇÃO: Mudar para a fase de seleção de golpes especiais
-                state.phase = 'p1_special_moves_selection';
-                break;
-
-            case 'gmSelectsArenaFighters': {
-                const { p1_socketId, p2_socketId } = action;
-                const p1Data = state.connectedPlayers[p1_socketId];
-                const p2Data = state.connectedPlayers[p2_socketId];
-
-                if (!p1Data || !p1Data.selectedCharacter || !p2Data || !p2Data.selectedCharacter) return;
-                
-                state.fighters.player1 = { nome: p1Data.selectedCharacter.nome, img: p1Data.selectedCharacter.img };
-                state.fighters.player2 = { nome: p2Data.selectedCharacter.nome, img: p2Data.selectedCharacter.img };
-                
-                io.to(p1_socketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
-                io.to(p2_socketId).emit('assignRole', { role: 'player', playerKey: 'player2' });
-                
-                io.to(state.gmId).emit('assignRole', { role: 'spectator', isGm: true });
-                
-                Object.keys(state.connectedPlayers).forEach(id => {
-                    if (id !== p1_socketId && id !== p2_socketId && id !== state.gmId) {
-                         io.to(id).emit('assignRole', { role: 'spectator' });
-                    }
-                });
-
-                logMessage(state, `GM selecionou ${p1Data.selectedCharacter.nome} vs ${p2Data.selectedCharacter.nome} para a Arena.`);
-                state.phase = 'arena_configuring';
-                break;
-            }
-
-            case 'gmSelectsOpponent': {
-                const { opponentSocketId } = action;
-                const opponentData = state.connectedPlayers[opponentSocketId];
-                if (!opponentData || !opponentData.selectedCharacter) return;
-                
-                state.pendingP2Choice = opponentData.selectedCharacter;
-                
-                const opponentAsPlayer = room.players.find(p => p.id === opponentSocketId);
-                if(opponentAsPlayer) opponentAsPlayer.playerKey = 'player2';
-                
-                Object.values(state.connectedPlayers).forEach(p => {
-                    if (p.id !== state.gmId && p.id !== opponentSocketId) {
-                        io.to(p.id).emit('assignRole', { role: 'spectator' });
-                    }
-                });
-
-                logMessage(state, `GM selecionou ${opponentData.selectedCharacter.nome} como oponente.`);
-                io.to(opponentSocketId).emit('assignRole', {role: 'player', playerKey: 'player2'});
-                
-                state.phase = 'p2_stat_assignment';
-                break;
-            }
-            case 'update_scenario_dims': {
-                const scenarioState = state.scenarioStates[state.currentScenario];
-                if(scenarioState) {
-                    scenarioState.scenarioWidth = action.width;
-                    scenarioState.scenarioHeight = action.height;
-                }
-                break;
-            }
-            case 'updateGlobalScale': {
-                const scenarioState = state.scenarioStates[state.currentScenario];
-                if(scenarioState) {
-                    scenarioState.globalTokenScale = action.scale;
-                    if (!scenarioState.isStaging) {
-                        const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(scenarioState);
-                        state.publicState.tokens = visibleTokens;
-                        state.publicState.tokenOrder = visibleTokenOrder;
-                        state.publicState.globalTokenScale = action.scale;
-                    }
-                }
-                break;
-            }
-            case 'publish_stage': {
-                const scenarioState = state.scenarioStates[state.currentScenario];
-                if(scenarioState) {
-                    state.publicState.scenario = scenarioState.scenario;
-                    const { visibleTokens, visibleTokenOrder } = filterVisibleTokens(scenarioState);
-                    state.publicState.tokens = visibleTokens;
-                    state.publicState.tokenOrder = visibleTokenOrder;
-                    state.publicState.globalTokenScale = scenarioState.globalTokenScale;
-                    scenarioState.isStaging = false;
-                    logMessage(state, 'GM publicou a nova cena para os espectadores.');
-                }
-                break;
-            }
-            case 'updateToken': {
-                const scenarioState = state.scenarioStates[state.currentScenario];
-                if(!scenarioState) break;
-
-                if (action.token.remove) {
-                    if (Array.isArray(action.token.ids)) {
-                        action.token.ids.forEach(idToRemove => {
-                            delete scenarioState.tokens[idToRemove];
-                            scenarioState.tokenOrder = scenarioState.tokenOrder.filter(id => id !== idToRemove);
-                        });
-                    } else {
-                        delete scenarioState.tokens[action.token.id];
-                        scenarioState.tokenOrder = scenarioState.tokenOrder.filter(id => id !== action.token.id);
-                    }
-                } else if (action.token.updates) {
-                     action.token.updates.forEach(update => {
-                        if (scenarioState.tokens[update.id]) {
-                            Object.assign(scenarioState.tokens[update.id], update);
-                        }
-                    });
-                }
-                else {
-                    if (!scenarioState.tokens[action.token.id]) {
-                        scenarioState.tokens[action.token.id] = { isFlipped: false };
-                        scenarioState.tokenOrder.push(action.token.id);
-                    }
-                    Object.assign(scenarioState.tokens[action.token.id], action.token);
-                }
-                if (!scenarioState.isStaging) {
-                    const { visibleTokens: vTokens, visibleTokenOrder: vOrder } = filterVisibleTokens(scenarioState);
-                    state.publicState.tokens = vTokens;
-                    state.publicState.tokenOrder = vOrder;
-                }
-                break;
-            }
-            case 'changeTokenOrder': {
-                const scenarioState = state.scenarioStates[state.currentScenario];
-                if(!scenarioState) break;
-                const { tokenId, direction } = action;
-                const order = scenarioState.tokenOrder;
-                const currentIndex = order.indexOf(tokenId);
-                if (currentIndex === -1) break;
-
-                if (direction === 'forward' && currentIndex < order.length - 1) {
-                    [order[currentIndex], order[currentIndex + 1]] = [order[currentIndex + 1], order[currentIndex]];
-                } else if (direction === 'backward' && currentIndex > 0) {
-                    [order[currentIndex], order[currentIndex - 1]] = [order[currentIndex - 1], order[currentIndex]];
-                }
-                if (!scenarioState.isStaging) {
-                    const { visibleTokenOrder: vOrder } = filterVisibleTokens(scenarioState);
-                    state.publicState.tokenOrder = vOrder;
-                }
-                break;
-            }
-            case 'changeScenario': {
-                const newScenarioName = action.scenario;
-                state.currentScenario = newScenarioName;
-
-                if (!state.scenarioStates[newScenarioName]) {
-                    state.scenarioStates[newScenarioName] = {
-                        scenario: newScenarioName,
-                        scenarioWidth: null,
-                        scenarioHeight: null,
-                        tokens: {},
-                        tokenOrder: [],
-                        globalTokenScale: 1.0,
-                        isStaging: true,
-                    };
-                } else {
-                    state.scenarioStates[newScenarioName].isStaging = true;
-                }
-                logMessage(state, `GM mudou para o cenário: ${action.scenario}. Use 'Publicar' para mostrar aos espectadores.`);
-                break;
-            }
-
-            // BATTLE MODE ACTIONS
-            case 'toggle_force_dice':
-                let currentForce = (typeof state.diceCheat === 'number') ? state.diceCheat : 0;
-                if (currentForce === 0) {
-                    state.diceCheat = 2;
-                } else if (currentForce < 5) {
-                    state.diceCheat++;
-                } else {
-                    state.diceCheat = null;
-                }
-                break;
-            case 'toggle_dice_cheat':
-                if (state.diceCheat === action.cheat) {
-                    state.diceCheat = null;
-                } else {
-                    state.diceCheat = action.cheat;
-                }
-                break;
-            case 'toggle_illegal_cheat':
-                if (state.illegalCheat === 'normal') {
-                    state.illegalCheat = 'always';
-                } else if (state.illegalCheat === 'always') {
-                    state.illegalCheat = 'never';
-                } else {
-                    state.illegalCheat = 'normal';
-                }
-                break;
-            case 'Esquiva':
-                 const esquivador = state.fighters[playerKey];
-                 if(esquivador.pa >= move.cost) {
-                    esquivador.pa -= move.cost;
-                    esquivador.activeEffects.esquiva = { duration: 2 };
-                    const currentDefRoll = esquivador.defRoll || 0;
-                    const newBaseStat = esquivador.agi;
-                    esquivador.def = currentDefRoll + newBaseStat;
-                    state.reactionState = { playerKey, move: 'Esquiva' };
-                    logMessage(state, `${esquivador.nome} usa <span class="log-move-name">Esquiva</span>! Sua defesa foi recalculada para <span class="highlight-total">${esquivador.def}</span>.`, 'log-info');
-                    io.to(roomId).emit('playSound', MOVE_SOUNDS['Esquiva']);
-                 }
-                 break;
-            case 'Counter':
-                state.reactionState = { playerKey, move: 'Counter' };
-                break;
-            case 'confirm_disqualification':
-                state.phase = 'gameover';
-                break;
-            case 'toggle_pause':
-                if (state.phase === 'paused') {
-                    state.phase = state.previousPhase || 'turn';
-                } else {
-                    if (state.phase === 'decision_table_wait' || state.phase === 'gameover') return;
-                    state.previousPhase = state.phase;
-                    state.phase = 'paused';
-                }
-                break;
-            case 'apply_cheats':
-                const { p1, p2 } = action.cheats;
-                const p1f = state.fighters.player1;
-                const p2f = state.fighters.player2;
-                if (p1f) {
-                    p1f.agi = parseInt(p1.agi, 10);
-                    p1f.res = parseInt(p1.res, 10);
-                    p1f.hp = parseInt(p1.hp, 10);
-                    p1f.pa = parseInt(p1.pa, 10);
-                    p1f.hpMax = p1f.res * 5;
-                }
-                if (p2f) {
-                    p2f.agi = parseInt(p2.agi, 10);
-                    p2f.res = parseInt(p2.res, 10);
-                    p2f.hp = parseInt(p2.hp, 10);
-                    p2f.pa = parseInt(p2.pa, 10);
-                    p2f.hpMax = p2f.res * 5;
-                }
-                break;
-            case 'give_last_chance':
-                state.knockdownInfo.attempts = 3; 
-                state.knockdownInfo.isLastChance = true; 
-                state.phase = 'knockdown';
-                break;
-            case 'resolve_knockdown_loss':
-                logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
-                const finalCountReason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
-                state.phase = 'gameover';
-                state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
-                state.reason = finalCountReason;
-                break;
-            case 'configure_and_start_arena':
-                state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
-                state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
-                logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
-                state.phase = 'initiative_p1';
-                break;
-            case 'set_p1_special_moves':
-                state.fighters.player1.specialMoves = action.moves;
-                logMessage(state, `${state.fighters.player1.nome} definiu seus golpes especiais.`);
-                state.phase = 'opponent_selection';
-                break;
-            case 'set_p2_stats':
-                const p2Data = state.pendingP2Choice;
-                const p2Stats = action.stats;
-                state.fighters.player2 = createNewFighterState({
-                    ...p2Data,
-                    agi: p2Stats.agi,
-                    res: p2Stats.res,
-                    specialMoves: action.moves
-                });
-                delete state.pendingP2Choice;
-                logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
-                state.phase = 'initiative_p1';
-                break;
-            case 'attack':
-                const attacker = state.fighters[playerKey];
-                const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
-                let cost = move.cost;
-                if (state.followUpState && state.followUpState.playerKey === playerKey && moveName === 'White Fang') {
-                    cost = 0;
-                }
-                if (attacker.pa < cost) return;
-                attacker.pa -= cost;
-                
-                if (moveName === 'White Fang') {
-                    executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
-                    if (state.phase === 'gm_disqualification_ack') break;
-                    if (state.followUpState) {
-                        state.followUpState = null;
-                        state.phase = 'turn';
-                    } else {
-                        state.followUpState = { playerKey, moveName };
-                        state.phase = 'white_fang_follow_up';
-                    }
-                } else if (moveName === 'Flicker Jab') {
-                    const executeFlicker = () => {
-                        if (state.phase !== 'turn' && state.phase !== 'white_fang_follow_up') return;
-                        const attackResult = executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
-                        io.to(roomId).emit('gameUpdate', room.state);
-                        
-                        if (attackResult.counterLanded || state.phase === 'gm_disqualification_ack' || state.phase === 'knockdown' || state.phase === 'double_knockdown') {
-                            dispatchAction(room);
-                            return;
-                        }
-                        if (state.fighters[defenderKey].hp <= 0) return;
-                        if (attackResult.hit) {
-                            setTimeout(executeFlicker, 700);
-                        } else {
-                            io.to(roomId).emit('gameUpdate', room.state);
-                            dispatchAction(room);
-                        }
-                    };
-                    executeFlicker();
-                    return; 
-                } else {
-                     executeAttack(state, playerKey, defenderKey, moveName, io, roomId);
-                     if (state.phase === 'white_fang_follow_up') {
-                        state.followUpState = null;
-                        state.phase = 'turn';
+                } else { 
+                     if (!room.gameModes.theater) {
+                        room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                      }
+                     room.activeMode = 'theater';
                 }
-                break;
-            case 'forfeit':
-                const winnerKey = playerKey === 'player1' ? 'player2' : 'player1';
-                state.winner = winnerKey;
-                state.phase = 'gameover';
-                state.reason = `${state.fighters[playerKey].nome} jogou a toalha.`;
-                logMessage(state, state.reason, 'log-crit');
-                break;
-            case 'roll_initiative':
-                io.to(roomId).emit('playSound', 'dice1.mp3');
-                const roll = rollD(6, state);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: roll, diceType: 'd6' });
-                const agi = state.fighters[playerKey].agi;
-                state.initiativeRolls[playerKey] = roll + agi;
-                logMessage(state, `${state.fighters[playerKey].nome} rolou iniciativa: D6(${roll}) + AGI(${agi}) = <span class="highlight-total">${state.initiativeRolls[playerKey]}</span>`, 'log-info');
-                if (playerKey === 'player1') { state.phase = 'initiative_p2'; } else {
-                    if (state.initiativeRolls.player1 === state.initiativeRolls.player2) {
-                        logMessage(state, "EMPATE na iniciativa! Rolando novamente...", 'log-info');
-                        state.initiativeRolls = {};
-                        state.phase = 'initiative_p1';
-                    } else {
-                        if (state.initiativeRolls.player1 > state.initiativeRolls.player2) { state.whoseTurn = 'player1'; state.didPlayer1GoFirst = true; } else { state.whoseTurn = 'player2'; state.didPlayer1GoFirst = false; }
-                        logMessage(state, `${state.fighters[state.whoseTurn].nome} venceu a iniciativa!`, 'log-info');
-                        state.phase = 'defense_p1';
-                    }
+            }
+            if (action.type === 'gmChoosesAdventureType') {
+                if (action.choice === 'continue' && room.adventureCache) {
+                    room.gameModes.adventure = room.adventureCache;
+                    room.adventureCache = null; 
+                } else { // 'new'
+                    const newAdventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                    newAdventure.phase = 'npc_setup';
+                    logMessage(newAdventure, 'Iniciando um novo encontro com o grupo existente.');
+                    room.gameModes.adventure = newAdventure;
                 }
-                break;
-            case 'roll_defense':
-                io.to(roomId).emit('playSound', 'dice1.mp3');
-                const defRoll = rollD(3, state);
-                io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
-                const fighter = state.fighters[playerKey];
-                fighter.defRoll = defRoll;
-                let baseStat = fighter.res;
-                let statName = 'RES';
-                if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
-                    baseStat = fighter.agi;
-                    statName = 'AGI';
-                    logMessage(state, `Esquiva está ativa para ${fighter.nome}!`, 'log-info')
-                }
-                fighter.def = defRoll + baseStat;
-                logMessage(state, `${fighter.nome} definiu defesa: D3(${defRoll}) + ${statName}(${baseStat}) = <span class="highlight-total">${fighter.def}</span>`, 'log-info');
-                if (playerKey === 'player1') { state.phase = 'defense_p2'; } 
-                else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
-                break;
-            case 'end_turn':
-                endTurn(state, io, roomId);
-                break;
-            case 'reveal_winner':
-                const p1FinalScore = state.decisionInfo.p1.finalScore;
-                const p2FinalScore = state.decisionInfo.p2.finalScore;
-                if (p1FinalScore > p2FinalScore) {
-                    state.winner = 'player1';
-                    state.reason = `Vitória por Decisão (${p1FinalScore} a ${p2FinalScore})`;
-                } else if (p2FinalScore > p1FinalScore) {
-                    state.winner = 'player2';
-                    state.reason = `Vitória por Decisão (${p2FinalScore} a ${p1FinalScore})`;
-                } else {
-                    state.winner = 'draw';
-                    state.reason = `Empate por Decisão (${p1FinalScore} a ${p2FinalScore})`;
-                }
-                state.phase = 'gameover';
-                break;
-            case 'request_get_up':
-                if (state.phase === 'knockdown') {
-                    const knockdownInfo = state.knockdownInfo;
-                    if (!knockdownInfo || knockdownInfo.downedPlayer !== playerKey) return;
-                    knockdownInfo.attempts++;
-                    let getUpRoll = rollD(6, state);
-                    if (state.diceCheat === 'crit') getUpRoll = 6; else if (state.diceCheat === 'fumble') getUpRoll = 1;
-                    io.to(roomId).emit('diceRoll', { playerKey, rollValue: getUpRoll, diceType: 'd6' });
-                    const downedFighter = state.fighters[playerKey];
-                    const totalRoll = getUpRoll + downedFighter.res;
-                    knockdownInfo.lastRoll = totalRoll;
-                    const logCalc = `D6(${getUpRoll}) + RES(${downedFighter.res}) = <span class="highlight-total">${totalRoll}</span> (Necessário 7)`;
-                    
-                    if (totalRoll >= 7) {
-                        logMessage(state, `${downedFighter.nome} tenta se levantar... ${logCalc}. Ele se levantou!`, 'log-info');
-                        io.to(roomId).emit('getUpSuccess', { downedPlayerName: downedFighter.nome, rollValue: totalRoll });
-                        setTimeout(() => {
-                            downedFighter.res--; const newHp = downedFighter.res * 5;
-                            downedFighter.hp = newHp; downedFighter.hpMax = newHp;
-                            state.phase = 'turn'; state.knockdownInfo = null;
-                            io.to(roomId).emit('gameUpdate', room.state);
-                            dispatchAction(room);
-                        }, 3000);
-                        return;
-                    } else {
-                        logMessage(state, `${downedFighter.nome} tenta se levantar... ${logCalc}. Falhou!`, 'log-miss');
-                        if (knockdownInfo.attempts >= 4) {
-                            if (knockdownInfo.isLastChance) {
-                                logMessage(state, `Não conseguiu! Fim da luta!`, 'log-crit');
-                                setTimeout(() => {
-                                    state.phase = 'gameover'; state.winner = (playerKey === 'player1') ? 'player2' : 'player1';
-                                    state.reason = "9..... 10..... A contagem termina.<br><br>Vitória por Nocaute!";
-                                    io.to(roomId).emit('gameUpdate', room.state); dispatchAction(room);
-                                }, 1000);
-                                return;
-                            } else { state.phase = 'gm_decision_knockdown'; }
+                room.activeMode = 'adventure';
+            }
+        }
+        
+        if (action.type === 'playerSelectsCharacter') {
+            const playerInfo = lobbyState.connectedPlayers[socket.id];
+            if (!playerInfo) return;
+            if (lobbyState.unavailableCharacters.includes(action.character.nome)) {
+                 const mySelection = playerInfo.selectedCharacter;
+                 if (!mySelection || mySelection.nome !== action.character.nome) {
+                     socket.emit('characterUnavailable', action.character.nome);
+                     return;
+                 }
+            }
+            if(playerInfo.selectedCharacter){
+                lobbyState.unavailableCharacters = lobbyState.unavailableCharacters.filter(c => c !== playerInfo.selectedCharacter.nome);
+            }
+            lobbyState.unavailableCharacters.push(action.character.nome);
+            playerInfo.selectedCharacter = action.character;
+            logMessage(lobbyState, `Jogador selecionou ${action.character.nome}.`);
+            
+            if(room.activeMode === 'adventure' && room.gameModes.adventure) {
+                room.gameModes.adventure.waitingPlayers[socket.id] = { ...action.character };
+                io.to(lobbyState.gmId).emit('gmPromptToAdmit', { playerId: socket.id, character: action.character });
+            }
+        }
+
+        switch (room.activeMode) {
+            case 'lobby':
+                if (isGm) {
+                    if (action.type === 'gmStartsAdventure') {
+                        if(room.adventureCache) room.adventureCache = null;
+                        room.gameModes.adventure = createNewAdventureState(activeState.gmId, activeState.connectedPlayers);
+                        room.activeMode = 'adventure';
+                    } else if (action.type === 'gmStartsTheater') {
+                         if (!room.gameModes.theater) {
+                            room.gameModes.theater = createNewTheaterState(activeState.gmId, 'cenarios externos/externo (1).png');
                         }
-                    }
-                } else if (state.phase === 'double_knockdown') {
-                    const dki = state.doubleKnockdownInfo;
-                    if (!dki || dki.readyStatus[playerKey]) return;
-                    
-                    dki.readyStatus[playerKey] = true;
-
-                    const bothReady = dki.readyStatus.player1 && dki.readyStatus.player2;
-                    if (bothReady) {
-                        dki.attempts++;
-                        const results = {};
-                        ['player1', 'player2'].forEach(pKey => {
-                            if (dki.getUpStatus[pKey] === 'pending') {
-                                const fighter = state.fighters[pKey];
-                                const getUpRoll = rollD(6, state);
-                                const totalRoll = getUpRoll + fighter.res;
-                                const success = totalRoll >= 7;
-                                results[pKey] = { roll: getUpRoll, total: totalRoll, success };
-                                dki.getUpStatus[pKey] = success ? 'success' : 'fail';
-                            }
-                        });
-
-                        io.to(roomId).emit('doubleKnockdownResults', results);
-
-                        setTimeout(() => {
-                            const p1Status = dki.getUpStatus.player1;
-                            const p2Status = dki.getUpStatus.player2;
-                            const isFinalAttempt = dki.attempts >= 4;
-                            
-                            const p1Up = p1Status === 'success';
-                            const p2Up = p2Status === 'success';
-                            
-                            if (p1Up && p2Up) {
-                                logMessage(state, `INCRÍVEL! Ambos se levantam e a luta continua!`, 'log-crit');
-                                [state.fighters.player1, state.fighters.player2].forEach(f => { f.res--; const newHp = f.res * 5; f.hp = newHp; f.hpMax = newHp; });
-                                state.phase = 'turn'; state.doubleKnockdownInfo = null;
-                            } else if ( (p1Up && p2Status === 'fail_tko') || (p1Up && !p2Up && isFinalAttempt) ) {
-                                state.phase = 'gameover'; state.winner = 'player1'; state.reason = `${state.fighters.player1.nome} se levantou, mas ${state.fighters.player2.nome} não! Vitória por Nocaute!`;
-                            } else if ( (p2Up && p1Status === 'fail_tko') || (p2Up && !p1Up && isFinalAttempt) ) {
-                                state.phase = 'gameover'; state.winner = 'player2'; state.reason = `${state.fighters.player2.nome} se levantou, mas ${state.fighters.player1.nome} não! Vitória por Nocaute!`;
-                            } else if (isFinalAttempt) {
-                                state.phase = 'gameover'; state.winner = 'draw'; state.reason = `Nenhum dos lutadores conseguiu se levantar. A luta termina em empate!`;
-                            } else {
-                                logMessage(state, `A contagem continua...`, 'log-miss');
-                                dki.readyStatus = {
-                                    player1: dki.getUpStatus.player1 === 'success' || dki.getUpStatus.player1 === 'fail_tko',
-                                    player2: dki.getUpStatus.player2 === 'success' || dki.getUpStatus.player2 === 'fail_tko'
-                                };
-                                if (dki.getUpStatus.player1 === 'fail') dki.getUpStatus.player1 = 'pending';
-                                if (dki.getUpStatus.player2 === 'fail') dki.getUpStatus.player2 = 'pending';
-                            }
-                            
-                            io.to(roomId).emit('gameUpdate', room.state);
-                            dispatchAction(room);
-                        }, 3000);
-                        return; 
+                        room.activeMode = 'theater';
                     }
                 }
+                break;
+
+            case 'adventure':
+                const adventureState = activeState;
+                if (!adventureState) break;
+                const actor = action.actorKey ? getFighter(adventureState, action.actorKey) : null;
+                const canControl = actor && ((isGm && adventureState.fighters.npcs[actor.id]) || (socket.id === actor.id));
+                switch (action.type) {
+                    case 'gmAddsNpcToEmptySlot':
+                         if (isGm && adventureState.phase === 'battle' && action.npcData) {
+                            const newNpcId = `npc-${Date.now()}`;
+                            adventureState.fighters.npcs[newNpcId] = createNewFighterState({
+                                id: newNpcId,
+                                ...action.npcData
+                            });
+                            adventureState.turnOrder.push(newNpcId);
+                            logMessage(adventureState, `${action.npcData.name} entrou na batalha!`, 'info');
+                         }
+                        break;
+                    case 'gmReplacesNpc':
+                        if (isGm && adventureState.phase === 'battle' && action.npcData && action.npcIdToReplace) {
+                            const npcToReplace = adventureState.fighters.npcs[action.npcIdToReplace];
+                            if (npcToReplace && (npcToReplace.status === 'down' || npcToReplace.status === 'fled')) {
+                                const oldName = npcToReplace.nome;
+                                adventureState.fighters.npcs[action.npcIdToReplace] = createNewFighterState({
+                                    id: action.npcIdToReplace,
+                                    ...action.npcData
+                                });
+                                logMessage(adventureState, `${oldName} foi substituído por ${action.npcData.name}!`, 'info');
+                                if (!adventureState.turnOrder.includes(action.npcIdToReplace)) {
+                                     adventureState.turnOrder.push(action.npcIdToReplace);
+                                }
+                                checkGameOver(adventureState);
+                            }
+                        }
+                        break;
+                    case 'flee':
+                        if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey && canControl) {
+                            const fighter = getFighter(adventureState, action.actorKey);
+                            if (fighter) {
+                                fighter.status = 'fled';
+                                logMessage(adventureState, `${fighter.nome} fugiu da batalha!`, 'miss');
+                                
+                                io.to(roomId).emit('fleeResolved', { actorKey: action.actorKey });
+                                shouldUpdate = false; 
+                                
+                                setTimeout(() => {
+                                    if (!adventureState.winner) {
+                                        advanceTurn(adventureState);
+                                    }
+                                    checkGameOver(adventureState);
+                                    io.to(roomId).emit('gameUpdate', getFullState(room));
+                                }, 1200); 
+                            }
+                        }
+                        break;
+                    case 'gmDecidesOnAdmission':
+                        if (isGm && action.playerId && adventureState.waitingPlayers[action.playerId]) {
+                            const character = adventureState.waitingPlayers[action.playerId];
+                            if (action.admitted) {
+                                const newPlayerId = action.playerId;
+                                
+                                io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
+                                adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
+                                
+                                if (adventureState.phase === 'battle') {
+                                    adventureState.turnOrder.push(newPlayerId);
+                                } 
+                                
+                                logMessage(adventureState, `${character.nome} entrou na batalha!`);
+                                delete adventureState.waitingPlayers[action.playerId];
+                            } else {
+                                logMessage(adventureState, `O Mestre decidiu que ${character.nome} aguardará.`);
+                            }
+                        }
+                        break;
+                    case 'gmConfirmParty':
+                        if (isGm && adventureState.phase === 'party_setup' && action.playerStats) {
+                            action.playerStats.forEach(stats => {
+                                if (adventureState.fighters.players[stats.id]) {
+                                    const res = Math.max(1, stats.res);
+                                    Object.assign(adventureState.fighters.players[stats.id], {
+                                        agi: stats.agi, res: res, hpMax: res * 5, hp: res * 5
+                                    });
+                                }
+                            });
+                            cachePlayerStats(room);
+                            adventureState.phase = 'npc_setup';
+                            logMessage(adventureState, 'GM confirmou o grupo. Prepare o encontro!');
+                        }
+                        break;
+                    case 'gmStartBattle':
+                        if (isGm && adventureState.phase === 'npc_setup' && action.npcs) {
+                             if (action.npcs.length === 0) { shouldUpdate = false; break; }
+                            action.npcs.forEach((npcData, i) => {
+                                const npcObj = ALL_NPCS[npcData.name] || {};
+                                adventureState.fighters.npcs[npcData.id] = createNewFighterState({ 
+                                    ...npcData, 
+                                    id: npcData.id, 
+                                    scale: npcObj.scale || 1.0 
+                                });
+                            });
+                            adventureState.phase = 'initiative_roll';
+                            logMessage(adventureState, 'Inimigos em posição! Rolem as iniciativas!');
+                        }
+                        break;
+                    case 'roll_initiative':
+                        if (adventureState.phase === 'initiative_roll') {
+                            if (action.isGmRoll && isGm) {
+                                Object.values(adventureState.fighters.npcs).forEach(npc => {
+                                    if (npc.status === 'active' && !adventureState.initiativeRolls[npc.id]) {
+                                        adventureState.initiativeRolls[npc.id] = rollD6();
+                                    }
+                                });
+                            } else if (!action.isGmRoll && adventureState.fighters.players[socket.id] && !adventureState.initiativeRolls[socket.id]) {
+                                adventureState.initiativeRolls[socket.id] = rollD6();
+                            }
+                            const activeFighters = [...Object.values(adventureState.fighters.players), ...Object.values(adventureState.fighters.npcs)].filter(f => f.status === 'active');
+                            if (activeFighters.every(f => adventureState.initiativeRolls[f.id])) {
+                                startBattle(adventureState);
+                            }
+                        }
+                        break;
+                    case 'attack':
+                        if (adventureState.phase === 'battle' && action.attackerKey === adventureState.activeCharacterKey) {
+                             const attacker = getFighter(adventureState, action.attackerKey);
+                             const isNpcTurn = !!adventureState.fighters.npcs[attacker.id];
+                             if ((isGm && isNpcTurn) || (!isNpcTurn && socket.id === action.attackerKey)) {
+                                 executeAttack(adventureState, roomId, action.attackerKey, action.targetKey);
+                                 shouldUpdate = false; 
+                             }
+                        }
+                        break;
+                    case 'end_turn':
+                        if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey && canControl) {
+                            advanceTurn(adventureState);
+                        }
+                        break;
+                }
+                break;
+
+            case 'theater':
+                 if (isGm && activeState && activeState.scenarioStates && activeState.currentScenario) {
+                     const currentScenarioState = activeState.scenarioStates[activeState.currentScenario];
+                     if(currentScenarioState) {
+                        switch (action.type) {
+                            case 'changeScenario':
+                                const newScenarioPath = `mapas/${action.scenario}`;
+                                if (action.scenario && typeof action.scenario === 'string') {
+                                    activeState.currentScenario = newScenarioPath;
+                                    if (!activeState.scenarioStates[newScenarioPath]) {
+                                        activeState.scenarioStates[newScenarioPath] = { 
+                                            scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, 
+                                            tokenOrder: [], globalTokenScale: 1.0, isStaging: true 
+                                        };
+                                    }
+                                    logMessage(activeState, 'GM está preparando um novo cenário...');
+                                }
+                                break;
+                            case 'updateToken':
+                                const tokenData = action.token;
+                                if (tokenData.remove && tokenData.ids) {
+                                    tokenData.ids.forEach(id => { 
+                                        delete currentScenarioState.tokens[id]; 
+                                        currentScenarioState.tokenOrder = currentScenarioState.tokenOrder.filter(i => i !== id); 
+                                    });
+                                } else if (currentScenarioState.tokens[tokenData.id]) {
+                                    Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
+                                } else {
+                                    currentScenarioState.tokens[tokenData.id] = tokenData;
+                                    if (!currentScenarioState.tokenOrder.includes(tokenData.id)) {
+                                        currentScenarioState.tokenOrder.push(tokenData.id);
+                                    }
+                                }
+                                if (!currentScenarioState.isStaging) {
+                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    activeState.publicState.isStaging = false;
+                                }
+                                break;
+                            case 'updateTokenOrder':
+                                if(action.order && Array.isArray(action.order)) {
+                                    currentScenarioState.tokenOrder = action.order;
+                                    if (!currentScenarioState.isStaging) {
+                                        activeState.publicState.tokenOrder = action.order;
+                                    }
+                                }
+                                break;
+                            case 'updateGlobalScale':
+                                currentScenarioState.globalTokenScale = action.scale;
+                                if (!currentScenarioState.isStaging) {
+                                    activeState.publicState.globalTokenScale = action.scale;
+                                }
+                                break;
+                            case 'publish_stage':
+                                if (currentScenarioState.isStaging) {
+                                    currentScenarioState.isStaging = false;
+                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    activeState.publicState.isStaging = false;
+                                    logMessage(activeState, 'Cena publicada para os jogadores.');
+                                }
+                                break;
+                        }
+                     }
+                 }
                 break;
         }
-        io.to(roomId).emit('gameUpdate', room.state);
-        dispatchAction(room);
+        if (shouldUpdate) {
+            io.to(roomId).emit('gameUpdate', getFullState(room));
+        }
     });
+
     socket.on('disconnect', () => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId]) return;
-
         const room = games[roomId];
-        let state = room.state;
-
-        if (socket.id === state.gmId) {
-            io.to(roomId).emit('error', { message: 'O Mestre da Sala encerrou a sessão.' });
+        const lobbyState = room.gameModes.lobby;
+        if (!lobbyState || !lobbyState.connectedPlayers) {
+            console.error(`Estado de lobby inválido no disconnect para a sala: ${roomId}`);
+            return;
+        }
+        const playerInfo = lobbyState.connectedPlayers[socket.id];
+        if (playerInfo) {
+            logMessage(lobbyState, `Um ${playerInfo.role} desconectou.`);
+            if (playerInfo.selectedCharacter) {
+                lobbyState.unavailableCharacters = lobbyState.unavailableCharacters.filter(c => c !== playerInfo.selectedCharacter.nome);
+            }
+        }
+        delete room.sockets[socket.id];
+        delete lobbyState.connectedPlayers[socket.id];
+        const adventureState = room.gameModes.adventure;
+        if (adventureState) {
+            if (adventureState.fighters.players[socket.id]) {
+                adventureState.fighters.players[socket.id].status = 'disconnected';
+                logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
+                checkGameOver(adventureState);
+            }
+            if (adventureState.waitingPlayers[socket.id]) {
+                delete adventureState.waitingPlayers[socket.id];
+            }
+        }
+        io.to(roomId).emit('gameUpdate', getFullState(room));
+        if (Object.keys(room.sockets).length === 0) {
             delete games[roomId];
-            return;
-        }
-
-        const playerIndex = room.players.findIndex(p => p.id === socket.id);
-        if (playerIndex > -1) {
-            const disconnectedPlayer = room.players.splice(playerIndex, 1)[0];
-
-            const lobbyState = state.mode === 'lobby' ? state : state.lobbyCache;
-
-            if (lobbyState && lobbyState.connectedPlayers && lobbyState.connectedPlayers[socket.id]) {
-                const playerInfo = lobbyState.connectedPlayers[socket.id];
-                const playerName = playerInfo.selectedCharacter ? playerInfo.selectedCharacter.nome : 'Um jogador';
-                
-                if (playerInfo.selectedCharacter) {
-                    lobbyState.unavailableCharacters = lobbyState.unavailableCharacters.filter(char => char !== playerInfo.selectedCharacter.nome);
-                }
-                delete lobbyState.connectedPlayers[socket.id];
-                
-                logMessage(lobbyState, `${playerName} desconectou-se do lobby.`);
-            }
-
-            if (state.mode !== 'lobby' && state.phase !== 'gameover') {
-                 const playerKey = disconnectedPlayer.playerKey;
-                 if ((playerKey === 'player1' || playerKey === 'player2') && state.fighters[playerKey]) {
-                     logMessage(state, `AVISO: ${state.fighters[playerKey].nome} (${playerKey}) desconectou. O Mestre pode pausar ou gerenciar a situação.`, 'log-crit');
-                 }
-            }
-            
-            io.to(roomId).emit('gameUpdate', room.state);
-            return;
-        }
-        
-        const spectatorIndex = room.spectators.indexOf(socket.id);
-        if (spectatorIndex > -1) {
-            room.spectators.splice(spectatorIndex, 1);
-            if (room.state && room.state.log) {
-                logMessage(room.state, 'Um espectador saiu.');
-                io.to(roomId).emit('gameUpdate', room.state);
-            }
+            console.log(`Sala ${roomId} vazia e removida.`);
         }
     });
 });
