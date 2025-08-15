@@ -427,7 +427,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        if(container.classList.contains('targetable') && !isFreeMoveModeActive) {
+        // CORREÇÃO: A verificação do modo de movimento foi movida para a função de clique.
+        if(container.classList.contains('targetable')) {
             container.addEventListener('click', handleTargetClick);
         }
         const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
@@ -552,7 +553,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleTargetClick(event) {
+        // CORREÇÃO: Adicionada a verificação aqui.
+        if (isFreeMoveModeActive) return;
         if (!isTargeting || !targetingAttackerKey) return;
+        
         const targetContainer = event.target.closest('.char-container.targetable');
         if (!targetContainer) return;
         actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
