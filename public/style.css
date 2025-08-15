@@ -7,6 +7,15 @@ body {
     height: 100vh;
 }
 
+/* Adiciona feedback visual quando o modo de arrastar está ativo */
+body.is-draggable .char-container {
+    cursor: grab;
+}
+body.is-draggable .char-container:active {
+    cursor: grabbing;
+}
+
+
 #game-wrapper {
     width: 1280px;
     height: 720px;
@@ -99,7 +108,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .party-member-card label, .npc-card label { display: block; margin: 5px 0; font-size: 0.9em; }
 .party-member-card input, .npc-card input { width: 50px; text-align: center; font-size: 1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px; }
 
-/* --- Botão de Seleção de Personagem do Player --- */
 #confirm-selection-btn { margin-top: 20px; padding: 15px 35px; font-size: 1.3em; cursor: pointer; border: 2px solid #ffeb3b; border-radius: 10px; background-color: #333; color: #ffeb3b; transition: all 0.2s ease-in-out; }
 #confirm-selection-btn:hover:not(:disabled) { background-color: #ffeb3b; color: #000; }
 #confirm-selection-btn:disabled { background-color: #495057; color: #aaa; cursor: not-allowed; border-color: #6c757d; }

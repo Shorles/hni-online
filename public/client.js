@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Controles de UI
     let isTargeting = false;
     let targetingAttackerKey = null;
+    let isFreeMoveModeActive = false; // <- NOVO: Para o modo de movimento livre
+    let customFighterPositions = {}; // <- NOVO: Para guardar posições customizadas
+    let draggedFighter = { element: null, offsetX: 0, offsetY: 0 }; // <- NOVO
 
     // Variáveis do Modo Cenário
     let localWorldScale = 1.0;
@@ -57,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingButtonsContainer = document.getElementById('floating-buttons-container');
     const floatingInviteBtn = document.getElementById('floating-invite-btn');
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
+    const floatingHelpBtn = document.getElementById('floating-help-btn'); // <- NOVO
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
     const coordsDisplay = document.getElementById('coords-display');
@@ -154,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!oldGameState || oldGameState.phase !== 'npc_setup') {
                         stagedNpcSlots.fill(null);
                         selectedSlotIndex = null;
+                        customFighterPositions = {}; // Resetar posições customizadas
                         renderNpcSelectionForGm(); 
                     } 
                     break;
@@ -365,14 +370,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         Object.values(state.fighters.players).forEach((player, index) => {
              if (player.status === 'fled') return;
-             const el = createFighterElement(player, 'player', state, PLAYER_POSITIONS[index]);
+             const position = customFighterPositions[player.id] || PLAYER_POSITIONS[index];
+             const el = createFighterElement(player, 'player', state, position);
              if (el) fightSceneCharacters.appendChild(el);
         });
 
         (state.npcSlots || []).forEach((npcId, index) => {
             const npc = getFighter(state, npcId);
             if (npc && npc.status !== 'fled') {
-                const el = createFighterElement(npc, 'npc', state, NPC_POSITIONS[index]);
+                const position = customFighterPositions[npc.id] || NPC_POSITIONS[index];
+                const el = createFighterElement(npc, 'npc', state, position);
                 if (el) fightSceneCharacters.appendChild(el);
             }
         });
@@ -416,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        if(container.classList.contains('targetable')) {
+        if(container.classList.contains('targetable') && !isFreeMoveModeActive) {
             container.addEventListener('click', handleTargetClick);
         }
         const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
@@ -627,6 +634,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.classList.add('hidden');
             });
         });
+    }
+
+    // --- POSICIONAMENTO LIVRE (GM) ---
+    function makeFightersDraggable(isDraggable) {
+        const fighters = document.querySelectorAll('#fight-screen .char-container');
+        fighters.forEach(fighter => {
+            if (isDraggable) {
+                fighter.addEventListener('mousedown', onFighterMouseDown);
+            } else {
+                fighter.removeEventListener('mousedown', onFighterMouseDown);
+            }
+        });
+        document.body.classList.toggle('is-draggable', isDraggable);
+    }
+
+    function onFighterMouseDown(e) {
+        if (!isFreeMoveModeActive || e.button !== 0) return;
+        draggedFighter.element = e.currentTarget;
+        const rect = draggedFighter.element.getBoundingClientRect();
+        const gameScale = getGameScale();
+        draggedFighter.offsetX = (e.clientX - rect.left) / gameScale;
+        draggedFighter.offsetY = (e.clientY - rect.top) / gameScale;
+        window.addEventListener('mousemove', onFighterMouseMove);
+        window.addEventListener('mouseup', onFighterMouseUp);
+    }
+
+    function onFighterMouseMove(e) {
+        if (!draggedFighter.element) return;
+        const gameWrapperRect = gameWrapper.getBoundingClientRect();
+        const gameScale = getGameScale();
+        const x = (e.clientX - gameWrapperRect.left) / gameScale - draggedFighter.offsetX;
+        const y = (e.clientY - gameWrapperRect.top) / gameScale - draggedFighter.offsetY;
+        draggedFighter.element.style.left = `${x}px`;
+        draggedFighter.element.style.top = `${y}px`;
+    }
+
+    function onFighterMouseUp(e) {
+        if (draggedFighter.element) {
+            const fighterId = draggedFighter.element.id;
+            customFighterPositions[fighterId] = {
+                left: draggedFighter.element.style.left,
+                top: draggedFighter.element.style.top
+            };
+        }
+        draggedFighter.element = null;
+        window.removeEventListener('mousemove', onFighterMouseMove);
+        window.removeEventListener('mouseup', onFighterMouseUp);
+    }
+    
+    function showHelpModal() {
+        const content = `
+            <div style="text-align: left; font-size: 1.2em; line-height: 1.8;">
+                <p><b>C:</b> Abrir menu de Cheats (GM).</p>
+                <p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p>
+                <p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p>
+            </div>
+        `;
+        showInfoModal("Atalhos do Teclado", content);
     }
 
     // --- LÓGICA DO MODO CENÁRIO ---
@@ -897,6 +962,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 coordsModeActive = !coordsModeActive;
                 coordsDisplay.classList.toggle('hidden', !coordsModeActive);
+            }
+            
+            if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'j') {
+                e.preventDefault();
+                isFreeMoveModeActive = !isFreeMoveModeActive;
+                makeFightersDraggable(isFreeMoveModeActive);
+                showInfoModal("Modo de Movimento", `Modo de movimento livre ${isFreeMoveModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
             }
 
             if (currentGameState.mode !== 'theater' || !isGm) return;
@@ -1204,6 +1276,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 copyToClipboard(inviteUrl, floatingInviteBtn);
             }
         });
+        
+        if (floatingHelpBtn) {
+            floatingHelpBtn.addEventListener('click', showHelpModal);
+        }
 
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
