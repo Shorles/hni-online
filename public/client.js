@@ -666,6 +666,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function onFighterMouseMove(e) {
         if (!draggedFighter.element) return;
+        e.preventDefault(); // Impede seleção de texto durante o arrasto
         const gameWrapperRect = gameWrapper.getBoundingClientRect();
         const gameScale = getGameScale();
         const x = (e.clientX - gameWrapperRect.left) / gameScale - draggedFighter.offsetX;
@@ -1239,7 +1240,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const originalLeft = attackerEl.style.left;
             const lungeAmount = isPlayer ? 200 : -200;
             
+            // Lunge
             attackerEl.style.left = `${parseFloat(originalLeft) + lungeAmount}px`;
+            
+            // Return
             setTimeout(() => {
                 attackerEl.style.left = originalLeft;
             }, 500);
@@ -1314,4 +1318,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     initialize();
-});
+});```
