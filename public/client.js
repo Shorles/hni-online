@@ -67,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
-        // Atraso mínimo para garantir que o DOM esteja pronto para o cálculo
         setTimeout(() => {
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
             gameWrapper.style.transform = `scale(${scale})`;
@@ -1064,7 +1063,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function renderGame(gameState) {
-        scaleGame(); // CORREÇÃO: Chama o escalonamento aqui
+        scaleGame(); 
         
         const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
         oldGameState = currentGameState;
@@ -1234,12 +1233,18 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
         const attackerEl = document.getElementById(attackerKey);
         const targetEl = document.getElementById(targetKey);
+
         if (attackerEl) {
             const isPlayer = attackerEl.classList.contains('player-char-container');
-            const animClass = isPlayer ? 'is-attacking-player' : 'is-attacking-npc';
-            attackerEl.classList.add(animClass);
-            setTimeout(() => attackerEl.classList.remove(animClass), 500);
+            const originalLeft = attackerEl.style.left;
+            const lungeAmount = isPlayer ? 200 : -200;
+            
+            attackerEl.style.left = `${parseFloat(originalLeft) + lungeAmount}px`;
+            setTimeout(() => {
+                attackerEl.style.left = originalLeft;
+            }, 500);
         }
+
         if (targetEl && hit) {
             const img = targetEl.querySelector('.fighter-img-ingame');
             if (img) {

@@ -43,7 +43,7 @@ body {
     background-color: rgba(0, 0, 0, 0.9);
     padding: 20px;
     box-sizing: border-box;
-    justify-content: flex-start;
+    justify-content: flex-start; /* Alinha o conteúdo no topo */
 }
 
 #fight-screen {
@@ -99,6 +99,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .party-member-card label, .npc-card label { display: block; margin: 5px 0; font-size: 0.9em; }
 .party-member-card input, .npc-card input { width: 50px; text-align: center; font-size: 1em; background: #555; color: #fff; border: 1px solid #777; border-radius: 4px; }
 
+/* --- CORREÇÃO: Estilo do Botão de Seleção de Personagem do Player --- */
 #confirm-selection-btn { margin-top: 20px; padding: 15px 35px; font-size: 1.3em; cursor: pointer; border: 2px solid #ffeb3b; border-radius: 10px; background-color: #333; color: #ffeb3b; transition: all 0.2s ease-in-out; }
 #confirm-selection-btn:hover:not(:disabled) { background-color: #ffeb3b; color: #000; }
 #confirm-selection-btn:disabled { background-color: #495057; color: #aaa; cursor: not-allowed; border-color: #6c757d; }
@@ -175,7 +176,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     align-items: center; 
     width: 150px; 
     pointer-events: all; 
-    transition: transform 0.2s ease-out, left 1.2s ease-in, opacity 1.2s ease-in; 
+    transition: transform 0.2s ease-out, left 0.5s ease-in-out, opacity 1.2s ease-in; 
     transform: scale(var(--character-scale, 1));
     transform-origin: bottom center;
 }
@@ -199,12 +200,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .animate-defeat-npc { animation: defeat-fade-out 2s forwards; }
 @keyframes defeat-fade-out { 0%, 20% { opacity: 1; transform: scale(1.1); } 10%, 30% { opacity: 0.3; transform: scale(1); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.5); pointer-events: none; } }
 .npc-defeated-final { opacity: 0; pointer-events: none; }
-
-.is-attacking-player { animation: lunge-player 0.5s ease-in-out; }
-@keyframes lunge-player { 50% { transform: translateX(200px) scale(var(--character-scale, 1)); } } 
-
-.is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
-@keyframes lunge-npc { 50% { transform: translateX(-200px) scale(var(--character-scale, 1)); } } 
 
 .is-fleeing-player { left: -300px !important; opacity: 0; }
 .is-fleeing-npc { left: 1300px !important; opacity: 0; }
