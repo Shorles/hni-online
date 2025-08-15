@@ -49,7 +49,8 @@ function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_pla
 
 function createNewAdventureState(gmId, connectedPlayers) {
     const adventureState = {
-        mode: 'adventure', fighters: { players: {}, npcs: {} }, winner: null, reason: null, currentRound: 1,
+        mode: 'adventure', fighters: { players: {}, npcs: {} }, npcSlots: new Array(MAX_NPCS).fill(null), 
+        winner: null, reason: null, currentRound: 1,
         activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
         scenario: 'mapas/cenarios externos/externo (1).png',
         gmId: gmId, log: [{ text: "Aguardando jogadores formarem o grupo..." }],
@@ -399,30 +400,26 @@ io.on('connection', (socket) => {
                 const actor = action.actorKey ? getFighter(adventureState, action.actorKey) : null;
                 const canControl = actor && ((isGm && adventureState.fighters.npcs[actor.id]) || (socket.id === actor.id));
                 switch (action.type) {
-                    case 'gmAddsNpcToEmptySlot':
-                         if (isGm && adventureState.phase === 'battle' && action.npcData) {
-                            const newNpcId = `npc-${Date.now()}`;
-                            adventureState.fighters.npcs[newNpcId] = createNewFighterState({
-                                id: newNpcId,
-                                ...action.npcData
-                            });
-                            adventureState.turnOrder.push(newNpcId);
-                            logMessage(adventureState, `${action.npcData.name} entrou na batalha!`, 'info');
-                         }
-                        break;
-                    case 'gmReplacesNpc':
-                        if (isGm && adventureState.phase === 'battle' && action.npcData && action.npcIdToReplace) {
-                            const npcToReplace = adventureState.fighters.npcs[action.npcIdToReplace];
-                            if (npcToReplace && (npcToReplace.status === 'down' || npcToReplace.status === 'fled')) {
-                                const oldName = npcToReplace.nome;
-                                adventureState.fighters.npcs[action.npcIdToReplace] = createNewFighterState({
-                                    id: action.npcIdToReplace,
+                    case 'gmSetsNpcInSlot':
+                        if (isGm && adventureState.phase === 'battle' && action.npcData && action.slotIndex !== undefined) {
+                            const slotIndex = parseInt(action.slotIndex, 10);
+                            if (slotIndex >= 0 && slotIndex < MAX_NPCS) {
+                                const oldNpcId = adventureState.npcSlots[slotIndex];
+                                if (oldNpcId) {
+                                    delete adventureState.fighters.npcs[oldNpcId];
+                                }
+                                
+                                const newNpcId = `npc-${Date.now()}`;
+                                adventureState.fighters.npcs[newNpcId] = createNewFighterState({
+                                    id: newNpcId,
                                     ...action.npcData
                                 });
-                                logMessage(adventureState, `${oldName} foi substituído por ${action.npcData.name}!`, 'info');
-                                if (!adventureState.turnOrder.includes(action.npcIdToReplace)) {
-                                     adventureState.turnOrder.push(action.npcIdToReplace);
+                                adventureState.npcSlots[slotIndex] = newNpcId;
+
+                                if (!adventureState.turnOrder.includes(newNpcId)) {
+                                     adventureState.turnOrder.push(newNpcId);
                                 }
+                                logMessage(adventureState, `${action.npcData.name} entrou na batalha no slot ${slotIndex + 1}!`, 'info');
                                 checkGameOver(adventureState);
                             }
                         }
@@ -484,15 +481,22 @@ io.on('connection', (socket) => {
                         break;
                     case 'gmStartBattle':
                         if (isGm && adventureState.phase === 'npc_setup' && action.npcs) {
-                             if (action.npcs.length === 0) { shouldUpdate = false; break; }
-                            action.npcs.forEach((npcData, i) => {
-                                const npcObj = ALL_NPCS[npcData.name] || {};
-                                adventureState.fighters.npcs[npcData.id] = createNewFighterState({ 
-                                    ...npcData, 
-                                    id: npcData.id, 
-                                    scale: npcObj.scale || 1.0 
+                            adventureState.fighters.npcs = {}; // Clear old npcs
+                            adventureState.npcSlots = new Array(MAX_NPCS).fill(null);
+                            if (action.npcs.length > 0) {
+                                action.npcs.forEach((npcData, i) => {
+                                    if (i < MAX_NPCS) {
+                                        const npcObj = ALL_NPCS[npcData.name] || {};
+                                        const newNpc = createNewFighterState({ 
+                                            ...npcData, 
+                                            id: npcData.id, 
+                                            scale: npcObj.scale || 1.0 
+                                        });
+                                        adventureState.fighters.npcs[newNpc.id] = newNpc;
+                                        adventureState.npcSlots[i] = newNpc.id;
+                                    }
                                 });
-                            });
+                            }
                             adventureState.phase = 'initiative_roll';
                             logMessage(adventureState, 'Inimigos em posição! Rolem as iniciativas!');
                         }
@@ -506,10 +510,15 @@ io.on('connection', (socket) => {
                                     }
                                 });
                             } else if (!action.isGmRoll && adventureState.fighters.players[socket.id] && !adventureState.initiativeRolls[socket.id]) {
-                                adventureState.initiativeRolls[socket.id] = rollD6();
+                                const myFighter = getFighter(adventureState, socket.id);
+                                if (myFighter && myFighter.status === 'active') {
+                                    adventureState.initiativeRolls[socket.id] = rollD6();
+                                }
                             }
-                            const activeFighters = [...Object.values(adventureState.fighters.players), ...Object.values(adventureState.fighters.npcs)].filter(f => f.status === 'active');
-                            if (activeFighters.every(f => adventureState.initiativeRolls[f.id])) {
+                            const fightersToRollFor = [...Object.values(adventureState.fighters.players), ...Object.values(adventureState.fighters.npcs)]
+                                .filter(f => f.status === 'active');
+
+                            if (fightersToRollFor.every(f => adventureState.initiativeRolls[f.id])) {
                                 startBattle(adventureState);
                             }
                         }

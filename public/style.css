@@ -80,7 +80,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .char-card, .party-member-card, .npc-card { background-color: #333; border: 3px solid #555; border-radius: 10px; padding: 15px; text-align: center; transition: all 0.2s ease-in-out; width: 150px; position: relative; cursor: pointer; }
 .char-card:hover, .npc-card:hover { border-color: #aaa; }
 .char-card.selected { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; transform: scale(1.05); }
-.char-card.disabled { cursor: not-allowed; }
+.char-card.disabled { cursor: not-allowed; opacity: 0.6; }
 .char-card.disabled img { filter: grayscale(100%); }
 .char-unavailable-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); border-radius: 7px; display: flex; justify-content: center; align-items: center; color: #dc3545; font-size: 1.5em; font-weight: bold; text-shadow: 1px 1px 2px black; }
 .char-card img, .party-member-card img, .npc-card img { width: 80px; height: 80px; object-fit: contain; background-color: #222; border-radius: 50%; margin-bottom: 10px; }
@@ -152,7 +152,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     align-items: center; 
     width: 150px; 
     pointer-events: all; 
-    transition: transform 0.2s ease-out; 
+    transition: transform 0.2s ease-out, left 1.2s ease-in, opacity 1.2s ease-in; 
     transform: scale(var(--character-scale, 1));
     transform-origin: bottom center;
 }
@@ -183,10 +183,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .is-attacking-npc { animation: lunge-npc 0.5s ease-in-out; }
 @keyframes lunge-npc { 50% { transform: translateX(-200px) scale(var(--character-scale, 1)); } } 
 
-.is-fleeing-player { animation: flee-player-animation 1.2s forwards ease-in; }
-@keyframes flee-player-animation { 100% { left: -300px; opacity: 0; } }
-.is-fleeing-npc { animation: flee-npc-animation 1.2s forwards ease-in; }
-@keyframes flee-npc-animation { 100% { left: 1300px; opacity: 0; } }
+.is-fleeing-player { left: -300px; opacity: 0; }
+.is-fleeing-npc { left: 1300px; opacity: 0; }
 
 #fight-log-container { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 50%; max-width: 600px; height: 150px; background-color: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; z-index: 10; pointer-events: auto; }
 #round-info { margin-top: 0; text-align: center; border-bottom: 1px solid #fff; padding-bottom: 10px; }
@@ -273,7 +271,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 #waiting-players-sidebar {
     position: absolute;
     top: 20px;
-    left: 20px;
+    left: 140px; /* Adjusted to not overlap with coords-display */
     width: 100px;
     background-color: rgba(0, 0, 0, 0.6);
     border-radius: 10px;
