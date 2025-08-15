@@ -7,15 +7,6 @@ body {
     height: 100vh;
 }
 
-/* Adiciona feedback visual quando o modo de arrastar está ativo */
-body.is-draggable .char-container {
-    cursor: grab;
-}
-body.is-draggable .char-container:active {
-    cursor: grabbing;
-}
-
-
 #game-wrapper {
     width: 1280px;
     height: 720px;
@@ -52,7 +43,7 @@ body.is-draggable .char-container:active {
     background-color: rgba(0, 0, 0, 0.9);
     padding: 20px;
     box-sizing: border-box;
-    justify-content: flex-start; /* Alinha o conteúdo no topo */
+    justify-content: flex-start;
 }
 
 #fight-screen {

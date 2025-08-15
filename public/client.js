@@ -26,9 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Controles de UI
     let isTargeting = false;
     let targetingAttackerKey = null;
-    let isFreeMoveModeActive = false; // <- NOVO: Para o modo de movimento livre
-    let customFighterPositions = {}; // <- NOVO: Para guardar posições customizadas
-    let draggedFighter = { element: null, offsetX: 0, offsetY: 0 }; // <- NOVO
 
     // Variáveis do Modo Cenário
     let localWorldScale = 1.0;
@@ -60,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const floatingButtonsContainer = document.getElementById('floating-buttons-container');
     const floatingInviteBtn = document.getElementById('floating-invite-btn');
     const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
-    const floatingHelpBtn = document.getElementById('floating-help-btn'); // <- NOVO
     const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
     const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
     const coordsDisplay = document.getElementById('coords-display');
@@ -158,7 +154,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!oldGameState || oldGameState.phase !== 'npc_setup') {
                         stagedNpcSlots.fill(null);
                         selectedSlotIndex = null;
-                        customFighterPositions = {}; // Resetar posições customizadas
                         renderNpcSelectionForGm(); 
                     } 
                     break;
@@ -370,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         Object.values(state.fighters.players).forEach((player, index) => {
              if (player.status === 'fled') return;
-             const position = customFighterPositions[player.id] || PLAYER_POSITIONS[index];
+             const position = state.customPositions[player.id] || PLAYER_POSITIONS[index];
              const el = createFighterElement(player, 'player', state, position);
              if (el) fightSceneCharacters.appendChild(el);
         });
@@ -378,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
         (state.npcSlots || []).forEach((npcId, index) => {
             const npc = getFighter(state, npcId);
             if (npc && npc.status !== 'fled') {
-                const position = customFighterPositions[npc.id] || NPC_POSITIONS[index];
+                const position = state.customPositions[npc.id] || NPC_POSITIONS[index];
                 const el = createFighterElement(npc, 'npc', state, position);
                 if (el) fightSceneCharacters.appendChild(el);
             }
@@ -670,13 +665,15 @@ document.addEventListener('DOMContentLoaded', () => {
         draggedFighter.element.style.top = `${y}px`;
     }
 
-    function onFighterMouseUp(e) {
+    function onFighterMouseUp() {
         if (draggedFighter.element) {
             const fighterId = draggedFighter.element.id;
-            customFighterPositions[fighterId] = {
+            const newPosition = {
                 left: draggedFighter.element.style.left,
                 top: draggedFighter.element.style.top
             };
+            customFighterPositions[fighterId] = newPosition;
+            socket.emit('playerAction', { type: 'gmMovesFighter', fighterId: fighterId, position: newPosition });
         }
         draggedFighter.element = null;
         window.removeEventListener('mousemove', onFighterMouseMove);
@@ -1150,6 +1147,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         renderGame(gameState);
+    });
+    
+    socket.on('fighterMoved', ({ fighterId, position }) => {
+        if (!isGm) { // GM already updated its local position
+            const fighterEl = document.getElementById(fighterId);
+            if (fighterEl) {
+                fighterEl.style.left = position.left;
+                fighterEl.style.top = position.top;
+            }
+        }
     });
 
     socket.on('roomCreated', (roomId) => {
