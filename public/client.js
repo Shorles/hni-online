@@ -19,7 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Dados do Jogo
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
-    let stagedNpcs = [];
+    let stagedNpcSlots = new Array(5).fill(null); // <- NOVO: Array para os 5 slots
+    let selectedSlotIndex = null; // <- NOVO: Para rastrear o slot selecionado
     const MAX_NPCS = 5;
 
     // Controles de UI
@@ -150,8 +151,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'npc_setup': 
                     showScreen(document.getElementById('gm-npc-setup-screen')); 
-                    if (!oldGameState || oldGameState.phase !== 'npc_setup' || !oldGameState.fighters.npcs || Object.keys(oldGameState.fighters.npcs).length === 0) {
-                        stagedNpcs = []; 
+                    if (!oldGameState || oldGameState.phase !== 'npc_setup') {
+                        stagedNpcSlots.fill(null);
+                        selectedSlotIndex = null;
                         renderNpcSelectionForGm(); 
                     } 
                     break;
@@ -279,35 +281,65 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                if (stagedNpcs.length < MAX_NPCS) {
-                    stagedNpcs.push({ ...npcData, id: `npc-${Date.now()}` }); 
+                if (selectedSlotIndex !== null) {
+                    stagedNpcSlots[selectedSlotIndex] = { ...npcData, id: `npc-${Date.now()}-${selectedSlotIndex}` };
+                    selectedSlotIndex = null;
                     renderNpcStagingArea();
-                } else { alert(`Você pode adicionar no máximo ${MAX_NPCS} inimigos.`); }
+                } else {
+                    alert("Primeiro, clique em um slot vago abaixo para posicionar o inimigo.");
+                }
             });
             npcArea.appendChild(card);
         });
+
         renderNpcStagingArea();
+
         document.getElementById('gm-start-battle-btn').onclick = () => {
-            if (stagedNpcs.length === 0) { alert("Adicione pelo menos um inimigo para a batalha."); return; }
-            socket.emit('playerAction', { type: 'gmStartBattle', npcs: stagedNpcs });
+            const finalNpcs = stagedNpcSlots.filter(npc => npc !== null);
+            if (finalNpcs.length === 0) {
+                alert("Adicione pelo menos um inimigo para a batalha.");
+                return;
+            }
+            socket.emit('playerAction', { type: 'gmStartBattle', npcs: finalNpcs });
         };
     }
 
     function renderNpcStagingArea() {
         const stagingArea = document.getElementById('npc-staging-area');
         stagingArea.innerHTML = '';
-        stagedNpcs.forEach((npc, index) => {
-            const stagedDiv = document.createElement('div');
-            stagedDiv.className = 'staged-npc';
-            stagedDiv.innerHTML = `<img src="${npc.img}" alt="${npc.name}"><button class="remove-staged-npc" data-index="${index}">X</button>`;
-            stagedDiv.querySelector('.remove-staged-npc').addEventListener('click', (e) => {
-                e.stopPropagation();
-                stagedNpcs.splice(parseInt(e.target.dataset.index, 10), 1);
-                renderNpcStagingArea();
-            });
-            stagingArea.appendChild(stagedDiv);
-        });
+        for (let i = 0; i < MAX_NPCS; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'npc-slot';
+            const npc = stagedNpcSlots[i];
+
+            if (npc) {
+                slot.innerHTML = `<img src="${npc.img}" alt="${npc.name}"><button class="remove-staged-npc" data-index="${i}">X</button>`;
+                slot.querySelector('.remove-staged-npc').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const index = parseInt(e.target.dataset.index, 10);
+                    stagedNpcSlots[index] = null;
+                    if (selectedSlotIndex === index) selectedSlotIndex = null;
+                    renderNpcStagingArea();
+                });
+            } else {
+                slot.classList.add('empty-slot');
+                slot.innerHTML = `<span>Slot ${i + 1}</span>`;
+                slot.addEventListener('click', () => {
+                    selectedSlotIndex = i;
+                    // Visually update which slot is selected
+                    document.querySelectorAll('.npc-slot').forEach((s, idx) => {
+                        s.classList.toggle('selected-slot', idx === i);
+                    });
+                });
+            }
+
+            if (selectedSlotIndex === i) {
+                slot.classList.add('selected-slot');
+            }
+            stagingArea.appendChild(slot);
+        }
     }
+
 
     function updateAdventureUI(state) {
         if (!state || !state.fighters) return;
@@ -317,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '800px', top: '350px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '1100px', top: '350px' } ];
         
         Object.values(state.fighters.players).forEach((player, index) => {
              if (player.status === 'fled') return;
@@ -325,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
              if (el) fightSceneCharacters.appendChild(el);
         });
 
-        state.npcSlots.forEach((npcId, index) => {
+        (state.npcSlots || []).forEach((npcId, index) => {
             const npc = getFighter(state, npcId);
             if (npc && npc.status !== 'fled') {
                 const el = createFighterElement(npc, 'npc', state, NPC_POSITIONS[index]);
@@ -516,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleCheatAddNpc() {
-        if (!currentGameState || currentGameState.mode !== 'adventure') return;
+        if (!currentGameState || !currentGameState.npcSlots) return;
     
         const { npcSlots } = currentGameState;
         let content = `<p>Selecione o slot para adicionar/substituir:</p><div class="npc-selection-container">`;
@@ -527,14 +559,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const npc = getFighter(currentGameState, npcId);
             
             if (!npc || npc.status === 'down' || npc.status === 'fled') {
-                // Slot is available
                 hasAvailableSlots = true;
                 content += `<div class="npc-card cheat-npc-slot" data-slot-index="${i}">
                                ${npc ? `<img src="${npc.img}" style="filter: grayscale(100%);">` : ''}
-                               <div class="char-name">${npc ? `${npc.nome} (Vago)` : `Slot Vazio ${i+1}`}</div>
+                               <div class="char-name">${npc ? `${npc.nome} (Vago)` : `Slot Vazio ${i + 1}`}</div>
                            </div>`;
             } else {
-                // Slot is occupied
                  content += `<div class="npc-card disabled">
                                <img src="${npc.img}">
                                <div class="char-name">${npc.nome} (Ocupado)</div>
@@ -547,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
              showInfoModal('Erro', 'Todos os slots de inimigos estão ocupados por combatentes ativos.');
              return;
         }
-
+    
         showInfoModal('Selecionar Slot', content, false);
     
         document.querySelectorAll('.cheat-npc-slot').forEach(card => {
@@ -561,7 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function selectNpcForSlot(slotIndex) {
-        let content = `<p>Selecione o novo inimigo para o Slot ${parseInt(slotIndex,10) + 1}:</p>
+        let content = `<p>Selecione o novo inimigo para o Slot ${parseInt(slotIndex, 10) + 1}:</p>
                        <div class="npc-selection-container" style="max-height: 300px;">`;
         
         (ALL_CHARACTERS.npcs || []).forEach(npcData => {
@@ -991,7 +1021,8 @@ document.addEventListener('DOMContentLoaded', () => {
         switch(gameState.mode) {
             case 'lobby':
                 defeatAnimationPlayed.clear();
-                stagedNpcs = [];
+                stagedNpcSlots.fill(null);
+                selectedSlotIndex = null;
                 if (isGm) {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
