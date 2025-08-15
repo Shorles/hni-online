@@ -145,6 +145,7 @@ function logMessage(state, text, type = 'info') {
 }
 
 function getFighter(state, key) {
+    if (!key) return null;
     return state.fighters.players[key] || state.fighters.npcs[key];
 }
 
@@ -482,18 +483,18 @@ io.on('connection', (socket) => {
                     case 'gmStartBattle':
                         if (isGm && adventureState.phase === 'npc_setup' && action.npcs) {
                             adventureState.fighters.npcs = {}; // Clear old npcs
-                            adventureState.npcSlots = new Array(MAX_NPCS).fill(null);
+                            adventureState.npcSlots.fill(null);
                             if (action.npcs.length > 0) {
-                                action.npcs.forEach((npcData, i) => {
-                                    if (i < MAX_NPCS) {
+                                action.npcs.forEach(npcWithSlot => {
+                                    const { slotIndex, ...npcData } = npcWithSlot;
+                                    if (slotIndex >= 0 && slotIndex < MAX_NPCS) {
                                         const npcObj = ALL_NPCS[npcData.name] || {};
                                         const newNpc = createNewFighterState({ 
                                             ...npcData, 
-                                            id: npcData.id, 
                                             scale: npcObj.scale || 1.0 
                                         });
                                         adventureState.fighters.npcs[newNpc.id] = newNpc;
-                                        adventureState.npcSlots[i] = newNpc.id;
+                                        adventureState.npcSlots[slotIndex] = newNpc.id;
                                     }
                                 });
                             }
@@ -509,7 +510,7 @@ io.on('connection', (socket) => {
                                         adventureState.initiativeRolls[npc.id] = rollD6();
                                     }
                                 });
-                            } else if (!action.isGmRoll && adventureState.fighters.players[socket.id] && !adventureState.initiativeRolls[socket.id]) {
+                            } else if (!action.isGmRoll && adventureState.fighters.players[socket.id]) {
                                 const myFighter = getFighter(adventureState, socket.id);
                                 if (myFighter && myFighter.status === 'active') {
                                     adventureState.initiativeRolls[socket.id] = rollD6();

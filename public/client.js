@@ -19,8 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Dados do Jogo
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
-    let stagedNpcSlots = new Array(5).fill(null); // <- NOVO: Array para os 5 slots
-    let selectedSlotIndex = null; // <- NOVO: Para rastrear o slot selecionado
+    let stagedNpcSlots = new Array(5).fill(null);
+    let selectedSlotIndex = null;
     const MAX_NPCS = 5;
 
     // Controles de UI
@@ -281,12 +281,19 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                if (selectedSlotIndex !== null) {
-                    stagedNpcSlots[selectedSlotIndex] = { ...npcData, id: `npc-${Date.now()}-${selectedSlotIndex}` };
+                let targetSlot = selectedSlotIndex;
+                if (targetSlot === null) {
+                    targetSlot = stagedNpcSlots.findIndex(slot => slot === null);
+                }
+
+                if (targetSlot !== -1 && targetSlot !== null) {
+                    stagedNpcSlots[targetSlot] = { ...npcData, id: `npc-${Date.now()}-${targetSlot}` };
                     selectedSlotIndex = null;
                     renderNpcStagingArea();
+                } else if (stagedNpcSlots.every(slot => slot !== null)) {
+                     alert("Todos os slots estão cheios. Remova um inimigo para adicionar outro.");
                 } else {
-                    alert("Primeiro, clique em um slot vago abaixo para posicionar o inimigo.");
+                     alert("Primeiro, clique em um slot vago abaixo para posicionar o inimigo.");
                 }
             });
             npcArea.appendChild(card);
@@ -295,7 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderNpcStagingArea();
 
         document.getElementById('gm-start-battle-btn').onclick = () => {
-            const finalNpcs = stagedNpcSlots.filter(npc => npc !== null);
+            const finalNpcs = stagedNpcSlots
+                .map((npc, index) => npc ? { ...npc, slotIndex: index } : null)
+                .filter(npc => npc !== null);
+
             if (finalNpcs.length === 0) {
                 alert("Adicione pelo menos um inimigo para a batalha.");
                 return;
@@ -324,12 +334,15 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 slot.classList.add('empty-slot');
                 slot.innerHTML = `<span>Slot ${i + 1}</span>`;
-                slot.addEventListener('click', () => {
-                    selectedSlotIndex = i;
-                    // Visually update which slot is selected
-                    document.querySelectorAll('.npc-slot').forEach((s, idx) => {
-                        s.classList.toggle('selected-slot', idx === i);
-                    });
+                slot.dataset.index = i;
+                slot.addEventListener('click', (e) => {
+                    const index = parseInt(e.currentTarget.dataset.index, 10);
+                    if (selectedSlotIndex === index) {
+                         selectedSlotIndex = null; // deselect
+                    } else {
+                        selectedSlotIndex = index;
+                    }
+                    renderNpcStagingArea();
                 });
             }
 
@@ -340,7 +353,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     function updateAdventureUI(state) {
         if (!state || !state.fighters) return;
         
@@ -349,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '1100px', top: '350px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '950px', top: '350px' } ];
         
         Object.values(state.fighters.players).forEach((player, index) => {
              if (player.status === 'fled') return;
