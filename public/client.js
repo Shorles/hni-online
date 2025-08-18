@@ -80,8 +80,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const spellListContainer = document.getElementById('spell-list-container');
     
     // --- FUNÇÕES DE UTILIDADE ---
-    function showScreen(screenToShow) {
-        allScreens.forEach(screen => screen.classList.toggle('active', screen.id === screenToShow));
+    function scaleGame() {
+        setTimeout(() => {
+            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+            gameWrapper.style.transform = `scale(${scale})`;
+            gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+            gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+        }, 10);
+    }
+    function showScreen(screenId) {
+        allScreens.forEach(screen => screen.classList.toggle('active', screen.id === screenId));
     }
     function showInfoModal(title, text, showButton = true) {
         document.getElementById('modal-title').innerText = title;
@@ -325,10 +333,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const raceData = RACES[sheet.race];
         for(const attr in raceData.bonus) {
             if(attr === 'any') continue; // Tratado na criação
-            sheet.attributes[attr] += raceData.bonus[attr];
+            sheet.attributes[attr] = (sheet.attributes[attr] || 0) + raceData.bonus[attr];
         }
         for(const attr in raceData.penalty) {
-            sheet.attributes[attr] -= raceData.penalty[attr];
+            sheet.attributes[attr] = (sheet.attributes[attr] || 0) - raceData.penalty[attr];
         }
 
         // Calcula valores derivados (HP, Mahou, etc.)
@@ -365,130 +373,65 @@ document.addEventListener('DOMContentLoaded', () => {
         URL.revokeObjectURL(url);
     }
 
-
-    // --- LÓGICA DE BATALHA ATUALIZADA ---
-    function updateAdventureUI(state) {
-        fightSceneCharacters.innerHTML = ''; // Limpa a cena
-        // Lógica de renderização dos personagens (sem alterações)
-        // ...
-        renderActionButtons(state); // A função de renderizar botões foi alterada
-        renderInitiativeUI(state); // A função de renderizar iniciativa foi alterada
-    }
-
-    function renderActionButtons(state) {
-        actionButtonsWrapper.innerHTML = '';
-        if (state.phase !== 'battle' || !!state.winner) return;
-
-        const activeFighter = getFighter(state, state.activeCharacterKey);
-        if (!activeFighter) return;
+    function updateGmLobbyUI(state) {
+        const playerListEl = document.getElementById('gm-lobby-player-list');
+        if (!playerListEl || !state || !state.connectedPlayers) return;
         
-        const isMyTurn = state.activeCharacterKey === myPlayerKey;
-        if (!isMyTurn) return;
-
-        // Botões de Ataque com Armas
-        activeFighter.equipment.weapons.forEach((weapon, index) => {
-            if (weapon.type !== 'desarmado') {
-                const btn = document.createElement('button');
-                btn.className = 'action-btn';
-                btn.textContent = `Atacar com ${weapon.name || weapon.type}`;
-                btn.onclick = () => {
-                    isTargeting = true;
-                    targetingAttackerKey = state.activeCharacterKey;
-                    // TODO: Salvar a arma que será usada
-                    document.getElementById('targeting-indicator').classList.remove('hidden');
-                };
-                actionButtonsWrapper.appendChild(btn);
-            }
-        });
-
-        // Botões de Magia
-        activeFighter.spells.forEach(spellName => {
-            const btn = document.createElement('button');
-            btn.className = 'action-btn spell-btn'; // Classe nova para magias
-            btn.textContent = spellName;
-            // TODO: Adicionar lógica para lançar magia
-            actionButtonsWrapper.appendChild(btn);
-        });
+        playerListEl.innerHTML = '';
+        const connectedPlayers = Object.values(state.connectedPlayers);
         
-        // Botão de Encerrar Turno
-        const endTurnBtn = document.createElement('button');
-        endTurnBtn.className = 'end-turn-btn';
-        endTurnBtn.textContent = 'Encerrar Turno';
-        endTurnBtn.onclick = () => socket.emit('playerAction', { type: 'end_turn' });
-        actionButtonsWrapper.appendChild(endTurnBtn);
-    }
-
-    function renderInitiativeUI(state) {
-        initiativeUI.innerHTML = '';
-        if (state.phase !== 'initiative_roll') {
-            initiativeUI.classList.add('hidden');
-            return;
-        }
-        initiativeUI.classList.remove('hidden');
-
-        const myFighter = getFighter(state, myPlayerKey);
-        if (myFighter && !state.initiativeRolls[myPlayerKey]) {
-            const btn = document.createElement('button');
-            btn.className = 'initiative-btn';
-            btn.textContent = 'Rolar Iniciativa';
-            btn.onclick = () => {
-                btn.disabled = true;
-                socket.emit('playerAction', { type: 'roll_initiative' });
-            };
-            initiativeUI.appendChild(btn);
+        if (connectedPlayers.length === 0) { 
+            playerListEl.innerHTML = '<li>Aguardando jogadores...</li>'; 
         } else {
-             initiativeUI.innerHTML = '<p>Aguardando outros jogadores rolarem iniciativa...</p>';
+            connectedPlayers.forEach(p => {
+                const charName = p.characterSheet ? p.characterSheet.nome : '<i>Criando ficha...</i>';
+                const status = p.status || 'Conectado';
+                playerListEl.innerHTML += `<li>${p.role} - ${charName} (${status})</li>`;
+            });
         }
     }
 
-    function handleTargetClick(event) {
-        // Lógica de clique no alvo (simplificada para o novo sistema)
-        if (!isTargeting) return;
-        const targetContainer = event.target.closest('.char-container.targetable');
-        if (!targetContainer) return;
-        
-        const targetKey = targetContainer.dataset.key;
-        // Assume ataque com a primeira arma por enquanto
-        socket.emit('playerAction', { type: 'attack', targetKey: targetKey, weaponSlot: 0 });
-        
-        isTargeting = false;
-        document.getElementById('targeting-indicator').classList.add('hidden');
-    }
-    
+
     // --- FUNÇÃO DE RENDERIZAÇÃO PRINCIPAL ---
-    
     function renderGame(gameState) {
+        scaleGame(); // Garante que a escala seja aplicada
         oldGameState = currentGameState;
         currentGameState = gameState;
         if (!gameState || !gameState.mode) return;
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
 
-        // NOVO: Roteia o jogador para a criação de personagem se ele não tiver uma ficha
-        if (myRole === 'player' && (!myPlayerData || !myPlayerData.characterSheet)) {
-            showScreen('player-hub-screen');
-            return; 
-        }
-
-        switch(gameState.mode) {
-            case 'lobby':
-                if (isGm) {
+        // Roteamento de tela baseado no estado
+        if (isGm) {
+            switch (gameState.mode) {
+                case 'lobby':
                     showScreen('gm-initial-lobby');
-                    // updateGmLobbyUI(gameState);
-                } else {
-                    showScreen('player-waiting-screen');
-                    document.getElementById('player-waiting-message').innerText = "Ficha pronta! Aguardando o Mestre iniciar o jogo...";
-                }
-                break;
-            case 'adventure':
-                showScreen('fight-screen');
-                updateAdventureUI(gameState);
-                break;
-            // O resto dos modos (theater, etc.) continuam como antes
-            // ...
+                    updateGmLobbyUI(gameState);
+                    break;
+                case 'adventure':
+                    showScreen('fight-screen');
+                    // updateAdventureUI(gameState); // Será implementado depois
+                    break;
+                // Adicionar outros modos do GM aqui
+            }
+        } else { // Se for Player ou Spectator
+            if (myRole === 'player' && (!myPlayerData || !myPlayerData.characterSheet)) {
+                showScreen('player-hub-screen');
+            } else {
+                 switch (gameState.mode) {
+                    case 'lobby':
+                        showScreen('player-waiting-screen');
+                        document.getElementById('player-waiting-message').innerText = "Ficha pronta! Aguardando o Mestre iniciar o jogo...";
+                        break;
+                    case 'adventure':
+                        showScreen('fight-screen');
+                        // updateAdventureUI(gameState);
+                        break;
+                    // Adicionar outros modos do Player aqui
+                 }
+            }
         }
     }
-
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
@@ -499,27 +442,34 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameUpdate', (gameState) => {
         renderGame(gameState);
     });
+
+    socket.on('roomCreated', (roomId) => {
+        myRoomId = roomId;
+        const inviteLinkEl = document.getElementById('gm-link-invite');
+        if (inviteLinkEl) {
+            const inviteUrl = `${window.location.origin}?room=${roomId}`;
+            inviteLinkEl.textContent = inviteUrl;
+            inviteLinkEl.onclick = () => navigator.clipboard.writeText(inviteUrl);
+        }
+    });
     
     socket.on('assignRole', (data) => {
         myRole = data.role;
         myPlayerKey = data.playerKey || socket.id;
         isGm = !!data.isGm;
         myRoomId = data.roomId;
-        // Após receber o papel, se for jogador, inicia o fluxo de criação
         if(myRole === 'player') {
             showScreen('player-hub-screen');
+        } else if (myRole === 'spectator') {
+            showScreen('player-waiting-screen');
+            document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
         }
     });
 
-    // NOVO: Listeners para salvar/carregar
-    socket.on('characterDataForSave', (data) => {
-        saveCharacterFile(data);
-    });
     socket.on('loadCharacterSuccess', () => {
         showScreen('player-waiting-screen');
         document.getElementById('player-waiting-message').innerText = "Personagem carregado! Aguardando o Mestre...";
     });
-
 
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
@@ -547,6 +497,9 @@ document.addEventListener('DOMContentLoaded', () => {
         sheetNextBtn.addEventListener('click', showSpellSelection);
         finalizeCharBtn.addEventListener('click', finalizeCharacter);
         saveCharBtn.addEventListener('click', () => socket.emit('playerRequestsSave'));
+        
+        window.addEventListener('resize', scaleGame);
+        scaleGame();
     }
     
     initialize();
