@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- NOVOS DADOS DO JOGO (CLIENT-SIDE) ---
     let ALL_SPELLS = {};
-    let characterSheetBuilder = {}; // Objeto para construir a ficha
+    let characterSheetBuilder = {};
 
     // Constantes de regras do jogo para a UI
     const RACES = {
@@ -53,19 +53,12 @@ document.addEventListener('DOMContentLoaded', () => {
         "grande": { name: "Grande", cost: 120 }
     };
 
-
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
-    const fightSceneCharacters = document.getElementById('fight-scene-characters');
-    const actionButtonsWrapper = document.getElementById('action-buttons-wrapper');
-    const initiativeUI = document.getElementById('initiative-ui');
     const modal = document.getElementById('modal');
     
-    // NOVOS Elementos da Ficha
-    const playerHubScreen = document.getElementById('player-hub-screen');
-    const creationScreen = document.getElementById('character-creation-screen');
-    const spellScreen = document.getElementById('spell-selection-screen');
+    // Elementos da Ficha
     const newCharBtn = document.getElementById('new-char-btn');
     const loadCharBtn = document.getElementById('load-char-btn');
     const charFileInput = document.getElementById('char-file-input');
@@ -100,33 +93,34 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
         document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
     }
+    // CORRIGIDO: Função para copiar texto que estava faltando
+    function copyToClipboard(text, element) {
+        if (!element) return;
+        navigator.clipboard.writeText(text).then(() => {
+            const originalHTML = element.innerHTML;
+            element.innerHTML = 'Copiado!';
+            setTimeout(() => { 
+                element.innerHTML = originalHTML; 
+            }, 2000);
+        });
+    }
+
     
-    // --- NOVO FLUXO DE CRIAÇÃO DE PERSONAGEM ---
+    // --- FLUXO DE CRIAÇÃO DE PERSONAGEM ---
 
     function initializeCharacterSheet() {
         characterSheetBuilder = {
-            baseAttrPoints: 5,
-            spentAttrPoints: 0,
-            baseElemPoints: 2,
-            spentElemPoints: 0,
+            baseAttrPoints: 5, spentAttrPoints: 0, baseElemPoints: 2, spentElemPoints: 0,
             attributes: { forca: 0, agilidade: 0, protecao: 0, constituicao: 0, inteligencia: 0, mente: 0 },
             elements: { fogo: 0, agua: 0, terra: 0, vento: 0, luz: 0, escuridao: 0 },
-            equipment: {
-                weapons: [ { name: "", type: "desarmado" }, { name: "", type: "desarmado" } ],
-                shield: "nenhum"
-            },
-            spells: [],
-            money: 200
+            equipment: { weapons: [ { name: "", type: "desarmado" }, { name: "", type: "desarmado" } ], shield: "nenhum" },
+            spells: [], money: 200
         };
 
-        // Preencher Raças
         const raceSelect = document.getElementById('char-race-select');
         raceSelect.innerHTML = '<option value="">-- Selecione uma Raça --</option>';
-        for(const raceKey in RACES) {
-            raceSelect.innerHTML += `<option value="${raceKey}">${raceKey}</option>`;
-        }
+        for(const raceKey in RACES) raceSelect.innerHTML += `<option value="${raceKey}">${raceKey}</option>`;
 
-        // Preencher Atributos
         attributesContainer.innerHTML = '';
         for(const attrKey in ATTRIBUTES) {
             attributesContainer.innerHTML += `
@@ -137,11 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="point-buy-value" id="attr-value-${attrKey}">0</span>
                         <button class="point-buy-btn" data-type="attr" data-action="plus" data-key="${attrKey}">+</button>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
-        // Preencher Elementos
         elementsContainer.innerHTML = '';
         for(const elemKey in ELEMENTS) {
             elementsContainer.innerHTML += `
@@ -152,11 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="point-buy-value" id="elem-value-${elemKey}">0</span>
                         <button class="point-buy-btn" data-type="elem" data-action="plus" data-key="${elemKey}">+</button>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
-        // Preencher Equipamentos
         const weapon1Type = document.getElementById('char-weapon-1-type');
         const weapon2Type = document.getElementById('char-weapon-2-type');
         const shieldSelect = document.getElementById('char-shield-select');
@@ -167,7 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
         shieldSelect.innerHTML = '';
         for(const key in SHIELDS) shieldSelect.innerHTML += `<option value="${key}">${SHIELDS[key].name}</option>`;
 
-        // Adicionar Listeners
         document.querySelectorAll('.point-buy-btn').forEach(btn => btn.addEventListener('click', handlePointBuy));
         document.getElementById('char-race-select').addEventListener('change', updateRace);
         document.querySelectorAll('.equipment-grid select, .equipment-grid input').forEach(el => el.addEventListener('change', updateEquipment));
@@ -184,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const base = isAttr ? 'baseAttrPoints' : 'baseElemPoints';
         
         if (action === 'plus' && characterSheetBuilder[spent] < characterSheetBuilder[base]) {
-            if (isAttr || points[key] < 2) { // Limite de 2 para elementos
+            if (isAttr || points[key] < 2) {
                 points[key]++;
                 characterSheetBuilder[spent]++;
             }
@@ -198,9 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateRace() {
         const raceKey = document.getElementById('char-race-select').value;
         characterSheetBuilder.baseAttrPoints = 5;
-        if (raceKey === 'Humano') {
-            characterSheetBuilder.baseAttrPoints = 6;
-        }
+        if (raceKey === 'Humano') characterSheetBuilder.baseAttrPoints = 6;
         updateAllUI();
     }
     
@@ -208,74 +195,44 @@ document.addEventListener('DOMContentLoaded', () => {
         const w1Type = document.getElementById('char-weapon-1-type').value;
         const w2Type = document.getElementById('char-weapon-2-type').value;
         const shieldType = document.getElementById('char-shield-select').value;
-        
         const w1Hands = WEAPONS[w1Type].hands;
         const w2Hands = WEAPONS[w2Type].hands;
         const hasShield = shieldType !== 'nenhum';
         const str = characterSheetBuilder.attributes.forca;
-
-        // Validações
+        
         let error = false;
-        if (w1Hands === 2 && w2Type !== 'desarmado') {
-             if (str < 4) error = true;
-        }
-        if (w2Hands === 2 && w1Type !== 'desarmado') {
-            if (str < 4) error = true;
-        }
-        if (w1Hands === 2 && hasShield) {
-            if (str < 4) error = true;
-        }
-        if (hasShield && w2Type !== 'desarmado') {
+        if ((w1Hands === 2 && w2Type !== 'desarmado' && str < 4) || (w2Hands === 2 && w1Type !== 'desarmado' && str < 4) || (w1Hands === 2 && hasShield && str < 4) || (hasShield && w2Type !== 'desarmado')) {
             error = true;
         }
 
         if (error) {
-            // Reverte a última ação se for inválida (simplificado)
             document.getElementById('char-weapon-1-type').value = characterSheetBuilder.equipment.weapons[0].type;
             document.getElementById('char-weapon-2-type').value = characterSheetBuilder.equipment.weapons[1].type;
             document.getElementById('char-shield-select').value = characterSheetBuilder.equipment.shield;
-            showInfoModal("Ação Inválida", "Combinação de equipamentos não permitida com seus atributos atuais ou regras de empunhadura.");
+            showInfoModal("Ação Inválida", "Combinação de equipamentos não permitida.");
             return;
         }
 
-        // Atualiza o builder
         characterSheetBuilder.equipment.weapons[0].type = w1Type;
         characterSheetBuilder.equipment.weapons[1].type = w2Type;
         characterSheetBuilder.equipment.weapons[0].name = document.getElementById('char-weapon-1-name').value;
         characterSheetBuilder.equipment.weapons[1].name = document.getElementById('char-weapon-2-name').value;
         characterSheetBuilder.equipment.shield = shieldType;
-
         updateAllUI();
     }
 
-
     function updateAllUI() {
-        // Atualiza pontos de atributos
-        const attrRemaining = characterSheetBuilder.baseAttrPoints - characterSheetBuilder.spentAttrPoints;
-        attrPointsRemainingSpan.textContent = attrRemaining;
-        for (const key in characterSheetBuilder.attributes) {
-            document.getElementById(`attr-value-${key}`).textContent = characterSheetBuilder.attributes[key];
-        }
-
-        // Atualiza pontos de elementos
-        const elemRemaining = characterSheetBuilder.baseElemPoints - characterSheetBuilder.spentElemPoints;
-        elemPointsRemainingSpan.textContent = elemRemaining;
-        for (const key in characterSheetBuilder.elements) {
-            document.getElementById(`elem-value-${key}`).textContent = characterSheetBuilder.elements[key];
-        }
-
-        // Atualiza dinheiro
-        const w1Cost = WEAPONS[characterSheetBuilder.equipment.weapons[0].type].cost;
-        const w2Cost = WEAPONS[characterSheetBuilder.equipment.weapons[1].type].cost;
-        const shieldCost = SHIELDS[characterSheetBuilder.equipment.shield].cost;
-        const totalCost = w1Cost + w2Cost + shieldCost;
+        attrPointsRemainingSpan.textContent = characterSheetBuilder.baseAttrPoints - characterSheetBuilder.spentAttrPoints;
+        for (const key in characterSheetBuilder.attributes) document.getElementById(`attr-value-${key}`).textContent = characterSheetBuilder.attributes[key];
+        elemPointsRemainingSpan.textContent = characterSheetBuilder.baseElemPoints - characterSheetBuilder.spentElemPoints;
+        for (const key in characterSheetBuilder.elements) document.getElementById(`elem-value-${key}`).textContent = characterSheetBuilder.elements[key];
+        const totalCost = WEAPONS[characterSheetBuilder.equipment.weapons[0].type].cost + WEAPONS[characterSheetBuilder.equipment.weapons[1].type].cost + SHIELDS[characterSheetBuilder.equipment.shield].cost;
         charMoneySpan.textContent = 200 - totalCost;
     }
     
     function showSpellSelection() {
         spellListContainer.innerHTML = '';
-        characterSheetBuilder.spells = []; // Reseta magias selecionadas
-
+        characterSheetBuilder.spells = [];
         const playerElements = Object.keys(characterSheetBuilder.elements).filter(key => characterSheetBuilder.elements[key] > 0);
         
         ALL_SPELLS.base.grau1.forEach(spell => {
@@ -297,15 +254,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function toggleSpellSelection(card) {
         const spellName = card.dataset.spellName;
         const index = characterSheetBuilder.spells.indexOf(spellName);
-
         if (index > -1) {
             characterSheetBuilder.spells.splice(index, 1);
             card.classList.remove('selected');
-        } else {
-            if (characterSheetBuilder.spells.length < 2) {
-                characterSheetBuilder.spells.push(spellName);
-                card.classList.add('selected');
-            }
+        } else if (characterSheetBuilder.spells.length < 2) {
+            characterSheetBuilder.spells.push(spellName);
+            card.classList.add('selected');
         }
         updateFinalizeButton();
     }
@@ -317,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function finalizeCharacter() {
-        // Coleta todos os dados finais
         const sheet = {
             nome: document.getElementById('char-name-input').value || "Aventureiro",
             classe: document.getElementById('char-class-input').value || "N/A",
@@ -328,23 +281,13 @@ document.addEventListener('DOMContentLoaded', () => {
             spells: characterSheetBuilder.spells,
             money: 200 - (WEAPONS[characterSheetBuilder.equipment.weapons[0].type].cost + WEAPONS[characterSheetBuilder.equipment.weapons[1].type].cost + SHIELDS[characterSheetBuilder.equipment.shield].cost)
         };
-        
-        // Aplica bônus e penalidades da raça
         const raceData = RACES[sheet.race];
-        for(const attr in raceData.bonus) {
-            if(attr === 'any') continue; // Tratado na criação
-            sheet.attributes[attr] = (sheet.attributes[attr] || 0) + raceData.bonus[attr];
-        }
-        for(const attr in raceData.penalty) {
-            sheet.attributes[attr] = (sheet.attributes[attr] || 0) - raceData.penalty[attr];
-        }
-
-        // Calcula valores derivados (HP, Mahou, etc.)
+        for(const attr in raceData.bonus) if(attr !== 'any') sheet.attributes[attr] = (sheet.attributes[attr] || 0) + raceData.bonus[attr];
+        for(const attr in raceData.penalty) sheet.attributes[attr] = (sheet.attributes[attr] || 0) - raceData.penalty[attr];
         sheet.hpMax = 20 + (sheet.attributes.constituicao * 5);
         sheet.hp = sheet.hpMax;
         sheet.mahouMax = 10 + (sheet.attributes.mente * 5);
         sheet.mahou = sheet.mahouMax;
-
         socket.emit('playerSubmitsCharacterSheet', sheet);
         showScreen('player-waiting-screen');
         document.getElementById('player-waiting-message').innerText = "Ficha enviada! Aguardando o Mestre...";
@@ -354,10 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = event.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target.result;
-            socket.emit('playerLoadsCharacter', content);
-        };
+        reader.onload = (e) => socket.emit('playerLoadsCharacter', e.target.result);
         reader.readAsText(file);
     }
 
@@ -376,10 +316,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateGmLobbyUI(state) {
         const playerListEl = document.getElementById('gm-lobby-player-list');
         if (!playerListEl || !state || !state.connectedPlayers) return;
-        
         playerListEl.innerHTML = '';
         const connectedPlayers = Object.values(state.connectedPlayers);
-        
         if (connectedPlayers.length === 0) { 
             playerListEl.innerHTML = '<li>Aguardando jogadores...</li>'; 
         } else {
@@ -391,17 +329,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
-    // --- FUNÇÃO DE RENDERIZAÇÃO PRINCIPAL ---
+    // --- RENDERIZAÇÃO PRINCIPAL ---
     function renderGame(gameState) {
-        scaleGame(); // Garante que a escala seja aplicada
-        oldGameState = currentGameState;
+        scaleGame();
         currentGameState = gameState;
-        if (!gameState || !gameState.mode) return;
+        if (!gameState || !gameState.mode) {
+            showScreen('loading-screen');
+            return;
+        }
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
 
-        // Roteamento de tela baseado no estado
         if (isGm) {
             switch (gameState.mode) {
                 case 'lobby':
@@ -410,33 +348,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'adventure':
                     showScreen('fight-screen');
-                    // updateAdventureUI(gameState); // Será implementado depois
                     break;
-                // Adicionar outros modos do GM aqui
+                case 'theater':
+                    showScreen('theater-screen');
+                    // renderTheaterMode(gameState); // Lógica de teatro a ser integrada
+                    break;
             }
-        } else { // Se for Player ou Spectator
+        } else { // Player ou Spectator
             if (myRole === 'player' && (!myPlayerData || !myPlayerData.characterSheet)) {
                 showScreen('player-hub-screen');
             } else {
                  switch (gameState.mode) {
                     case 'lobby':
                         showScreen('player-waiting-screen');
-                        document.getElementById('player-waiting-message').innerText = "Ficha pronta! Aguardando o Mestre iniciar o jogo...";
+                        document.getElementById('player-waiting-message').innerText = myRole === 'spectator' ? "Aguardando como espectador..." : "Ficha pronta! Aguardando o Mestre...";
                         break;
                     case 'adventure':
                         showScreen('fight-screen');
-                        // updateAdventureUI(gameState);
                         break;
-                    // Adicionar outros modos do Player aqui
+                     case 'theater':
+                        showScreen('theater-screen');
+                        // renderTheaterMode(gameState);
+                        break;
                  }
             }
         }
     }
 
-    // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
+    // --- INICIALIZAÇÃO E SOCKETS ---
     socket.on('initialData', (data) => {
         ALL_SPELLS = data.spells || {};
-        // O resto da função continua igual...
     });
 
     socket.on('gameUpdate', (gameState) => {
@@ -449,20 +390,39 @@ document.addEventListener('DOMContentLoaded', () => {
         if (inviteLinkEl) {
             const inviteUrl = `${window.location.origin}?room=${roomId}`;
             inviteLinkEl.textContent = inviteUrl;
-            inviteLinkEl.onclick = () => navigator.clipboard.writeText(inviteUrl);
+            // CORRIGIDO: Adiciona o listener para copiar
+            inviteLinkEl.onclick = () => copyToClipboard(inviteUrl, inviteLinkEl);
         }
     });
     
+    // CORRIGIDO: Fluxo de entrada do jogador
+    socket.on('promptForRole', ({ isFull }) => {
+        const joinAsPlayerBtn = document.getElementById('join-as-player-btn');
+        const roomFullMessage = document.getElementById('room-full-message');
+        if (isFull) {
+            joinAsPlayerBtn.disabled = true;
+            roomFullMessage.textContent = 'A sala de jogadores está cheia. Você pode entrar como espectador.';
+            roomFullMessage.classList.remove('hidden');
+        } else {
+            joinAsPlayerBtn.disabled = false;
+            roomFullMessage.classList.add('hidden');
+        }
+        showScreen('role-selection-screen');
+    });
+
     socket.on('assignRole', (data) => {
         myRole = data.role;
         myPlayerKey = data.playerKey || socket.id;
         isGm = !!data.isGm;
         myRoomId = data.roomId;
-        if(myRole === 'player') {
-            showScreen('player-hub-screen');
-        } else if (myRole === 'spectator') {
-            showScreen('player-waiting-screen');
-            document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
+
+        if (!isGm) {
+            if (myRole === 'player') {
+                showScreen('player-hub-screen');
+            } else if (myRole === 'spectator') {
+                showScreen('player-waiting-screen');
+                document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
+            }
         }
     });
 
@@ -485,12 +445,11 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
-        // --- LISTENERS DE BOTÕES GLOBAIS ---
         document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
         document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
+        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         
-        // Listeners da Ficha
         newCharBtn.addEventListener('click', initializeCharacterSheet);
         loadCharBtn.addEventListener('click', () => charFileInput.click());
         charFileInput.addEventListener('change', handleFileLoad);
