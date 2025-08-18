@@ -86,6 +86,113 @@
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
 
+    <!-- ====================================================== -->
+    <!--      NOVAS TELAS DE CRIAÇÃO DE PERSONAGEM (INÍCIO)     -->
+    <!-- ====================================================== -->
+    
+    <!-- TELA HUB DO JOGADOR: NOVO OU CARREGAR -->
+    <div id="player-hub-screen" class="screen">
+        <h1>Criação de Personagem</h1>
+        <p>Deseja criar um novo personagem ou carregar um existente?</p>
+        <div class="mode-buttons-container">
+            <button id="new-char-btn" class="mode-btn">Novo Personagem</button>
+            <button id="load-char-btn" class="mode-btn">Carregar Personagem</button>
+        </div>
+        <input type="file" id="char-file-input" class="hidden" accept=".char">
+    </div>
+
+    <!-- TELA PRINCIPAL DA FICHA DE PERSONAGEM -->
+    <div id="character-creation-screen" class="screen">
+        <div class="sheet-container">
+            <h1>Ficha de Personagem</h1>
+            <div class="char-sheet-form">
+                
+                <!-- Informações Básicas -->
+                <div class="sheet-section">
+                    <h2>Informações Básicas</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="char-name-input">Nome do Personagem:</label>
+                            <input type="text" id="char-name-input" placeholder="Ex: Aragon">
+                        </div>
+                        <div class="form-group">
+                            <label for="char-class-input">Classe:</label>
+                            <input type="text" id="char-class-input" placeholder="Ex: Bárbaro, Patrulheiro...">
+                        </div>
+                        <div class="form-group">
+                            <label for="char-race-select">Raça:</label>
+                            <select id="char-race-select">
+                                <option value="">-- Selecione uma Raça --</option>
+                                <!-- Opções serão preenchidas por JS -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Atributos -->
+                <div class="sheet-section">
+                    <h2>Atributos Básicos <span class="points-counter">(Pontos restantes: <span id="attr-points-remaining">5</span>)</span></h2>
+                    <div id="attributes-container" class="point-buy-grid">
+                        <!-- Atributos serão preenchidos por JS -->
+                    </div>
+                </div>
+
+                <!-- Elementos -->
+                <div class="sheet-section">
+                    <h2>Elementos <span class="points-counter">(Pontos restantes: <span id="elem-points-remaining">2</span>)</span></h2>
+                    <div id="elements-container" class="point-buy-grid">
+                        <!-- Elementos serão preenchidos por JS -->
+                    </div>
+                    <p id="advanced-element-info" class="info-text hidden"></p>
+                </div>
+
+                <!-- Equipamentos -->
+                <div class="sheet-section">
+                    <h2>Equipamentos Iniciais <span class="points-counter">Moedas: <span id="char-money">200</span></span></h2>
+                    <div class="equipment-grid">
+                        <!-- Arma 1 -->
+                        <div class="form-group equip-group">
+                            <label>Arma 1:</label>
+                            <input type="text" id="char-weapon-1-name" placeholder="Nome da Arma">
+                            <select id="char-weapon-1-type"></select>
+                        </div>
+                        <!-- Arma 2 -->
+                        <div class="form-group equip-group">
+                            <label>Arma 2:</label>
+                            <input type="text" id="char-weapon-2-name" placeholder="Nome da Arma">
+                            <select id="char-weapon-2-type"></select>
+                        </div>
+                        <!-- Escudo -->
+                        <div class="form-group equip-group">
+                            <label>Escudo:</label>
+                            <select id="char-shield-select"></select>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <button id="sheet-next-btn" class="mode-btn">Próximo</button>
+        </div>
+    </div>
+    
+    <!-- TELA DE SELEÇÃO DE MAGIAS -->
+    <div id="spell-selection-screen" class="screen">
+        <h1>Escolha suas Magias Iniciais</h1>
+        <p id="spell-selection-info">Selecione 2 magias de Grau 1</p>
+        <div id="spell-list-container">
+            <!-- Magias serão preenchidas por JS -->
+        </div>
+        <div class="mode-buttons-container">
+            <button id="save-char-btn" class="mode-btn">Salvar Ficha</button>
+            <button id="finalize-char-btn" class="mode-btn">Concluir</button>
+        </div>
+    </div>
+
+    <!-- ====================================================== -->
+    <!--       NOVAS TELAS DE CRIAÇÃO DE PERSONAGEM (FIM)       -->
+    <!-- ====================================================== -->
+
+
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
         <div id="waiting-players-sidebar"></div> 
