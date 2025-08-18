@@ -47,18 +47,10 @@
         <p id="room-full-message" class="hidden" style="margin-top: 20px; color: #ffc107;"></p>
     </div>
 
-    <!-- Tela para o GM confirmar o grupo e definir stats -->
-    <div id="gm-party-setup-screen" class="screen">
-        <h1>Definir Atributos do Grupo</h1>
-        <p>Defina a Agilidade (AGI) e Resistência (RES) para cada aventureiro.</p>
-        <div id="gm-party-list" class="party-list-container"></div>
-        <button id="gm-confirm-party-btn" class="mode-btn">Confirmar Grupo e Preparar Inimigos</button>
-    </div>
-
     <!-- Tela para o GM selecionar os NPCs e definir stats -->
     <div id="gm-npc-setup-screen" class="screen">
         <h1>Montar Encontro</h1>
-        <p>Clique em um slot vago e depois em um inimigo para adicioná-lo.</p>
+        <p>Clique em um slot vago e depois em um inimigo para adicioná-lo. Clique em um inimigo já posicionado para editá-lo.</p>
 
         <div class="npc-setup-layout">
             <div id="npc-staging-area-container">
@@ -81,7 +73,7 @@
     
     <!-- TELA DE SELEÇÃO DE PERSONAGENS (Para jogadores) -->
     <div id="selection-screen" class="screen">
-        <h1 id="selection-title">Selecione seu Aventureiro</h1>
+        <h1 id="selection-title">Selecione seu Personagem</h1>
         <div id="character-list-container"></div>
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
@@ -107,7 +99,6 @@
             <h1>Ficha de Personagem</h1>
             <div class="char-sheet-form">
                 
-                <!-- Informações Básicas -->
                 <div class="sheet-section">
                     <h2>Informações Básicas</h2>
                     <div class="form-grid">
@@ -123,46 +114,35 @@
                             <label for="char-race-select">Raça:</label>
                             <select id="char-race-select">
                                 <option value="">-- Selecione uma Raça --</option>
-                                <!-- Opções serão preenchidas por JS -->
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <!-- Atributos -->
                 <div class="sheet-section">
                     <h2>Atributos Básicos <span class="points-counter">(Pontos restantes: <span id="attr-points-remaining">5</span>)</span></h2>
-                    <div id="attributes-container" class="point-buy-grid">
-                        <!-- Atributos serão preenchidos por JS -->
-                    </div>
+                    <div id="attributes-container" class="point-buy-grid"></div>
                 </div>
 
-                <!-- Elementos -->
                 <div class="sheet-section">
                     <h2>Elementos <span class="points-counter">(Pontos restantes: <span id="elem-points-remaining">2</span>)</span></h2>
-                    <div id="elements-container" class="point-buy-grid">
-                        <!-- Elementos serão preenchidos por JS -->
-                    </div>
+                    <div id="elements-container" class="point-buy-grid"></div>
                     <p id="advanced-element-info" class="info-text hidden"></p>
                 </div>
 
-                <!-- Equipamentos -->
                 <div class="sheet-section">
                     <h2>Equipamentos Iniciais <span class="points-counter">Moedas: <span id="char-money">200</span></span></h2>
                     <div class="equipment-grid">
-                        <!-- Arma 1 -->
                         <div class="form-group equip-group">
                             <label>Arma 1:</label>
                             <input type="text" id="char-weapon-1-name" placeholder="Nome da Arma">
                             <select id="char-weapon-1-type"></select>
                         </div>
-                        <!-- Arma 2 -->
                         <div class="form-group equip-group">
                             <label>Arma 2:</label>
                             <input type="text" id="char-weapon-2-name" placeholder="Nome da Arma">
                             <select id="char-weapon-2-type"></select>
                         </div>
-                        <!-- Escudo -->
                         <div class="form-group equip-group">
                             <label>Escudo:</label>
                             <select id="char-shield-select"></select>
@@ -179,69 +159,27 @@
     <div id="spell-selection-screen" class="screen">
         <h1>Escolha suas Magias Iniciais</h1>
         <p id="spell-selection-info">Selecione 2 magias de Grau 1</p>
-        <div id="spell-list-container">
-            <!-- Magias serão preenchidas por JS -->
-        </div>
+        <div id="spell-list-container"></div>
         <div class="mode-buttons-container">
             <button id="save-char-btn" class="mode-btn">Salvar Ficha</button>
             <button id="finalize-char-btn" class="mode-btn">Concluir</button>
         </div>
     </div>
-
     <!-- ====================================================== -->
     <!--       NOVAS TELAS DE CRIAÇÃO DE PERSONAGEM (FIM)       -->
     <!-- ====================================================== -->
 
-
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
-        <div id="waiting-players-sidebar"></div> 
         <div id="fight-scene-characters"></div>
         <div id="turn-order-sidebar"></div>
         <div id="fight-log-container">
             <h2 id="round-info">ROUND 1</h2>
             <div id="fight-log"></div>
         </div>
-        <div id="initiative-ui" class="hidden">
-            <button id="player-roll-initiative-btn" class="initiative-btn hidden">Rolar Iniciativa</button>
-            <button id="gm-roll-initiative-btn" class="initiative-btn hidden">Rolar para Inimigos</button>
-        </div>
-        <div id="targeting-indicator" class="hidden">Selecione um alvo! (Clique direito ou ESC para cancelar)</div>
+        <div id="initiative-ui" class="hidden"></div>
+        <div id="targeting-indicator" class="hidden">Selecione um alvo!</div>
         <div id="action-buttons-wrapper"></div>
-    </div>
-
-    <!-- MODO CENÁRIO -->
-    <div id="theater-screen" class="screen">
-        <div id="theater-background-viewport">
-            <div id="theater-world-container">
-                <img id="theater-background-image" src="" alt="Cenário do Teatro">
-                <div id="theater-token-container"></div>
-            </div>
-            <div id="selection-box" class="hidden"></div>
-        </div>
-        <button id="toggle-gm-panel-btn" class="toggle-gm-panel-btn hidden" title="Mostrar/Ocultar Painel">☰</button>
-        <div id="theater-gm-panel" class="hidden">
-            <div class="panel-section">
-                <h4>Personagens</h4>
-                <div id="theater-char-list"></div>
-            </div>
-            <div class="panel-section">
-                <h4>Controles Gerais</h4>
-                <label for="theater-global-scale">Escala Global:</label>
-                <input type="range" id="theater-global-scale" min="0.2" max="3" step="0.1" value="1">
-                <button id="theater-change-scenario-btn">Mudar Cenário</button>
-                <button id="theater-publish-btn" class="hidden">Publicar Cena</button>
-            </div>
-             <div class="panel-section" id="theater-gm-legend">
-                <h4>Atalhos (GM)</h4>
-                <p><b>G:</b> Seleção em Grupo</p>
-                <p><b>F:</b> Virar Personagem</p>
-                <p><b>Setas ↑↓:</b> Mudar Camada</p>
-                <p><b>Delete:</b> Excluir</p>
-                <p><b>O (hover):</b> Resetar Tamanho</p>
-                <p><b>Scroll (hover):</b> Mudar Tamanho</p>
-            </div>
-        </div>
     </div>
 
     <!-- MODAL PADRÃO -->
@@ -252,17 +190,27 @@
             <button id="modal-button">OK</button>
         </div>
     </div>
-    
-    <!-- BOTÕES FLUTUANTES -->
-    <button id="back-to-lobby-btn" class="back-btn hidden" title="Voltar ao Lobby">⌂</button>
-    <div id="floating-buttons-container" class="hidden">
-        <button id="floating-invite-btn" title="Convidar Jogador">✉️</button>
-        <button id="floating-switch-mode-btn" title="Mudar Modo de Jogo">🔄</button>
-        <button id="floating-help-btn" title="Ajuda (Atalhos)">?</button> <!-- NOVO BOTÃO -->
-    </div>
 
-    <!-- Janela de Coordenadas -->
-    <div id="coords-display" class="hidden"></div>
+    <!-- NOVO: MODAL DE EDIÇÃO DE NPC -->
+    <div id="npc-editor-modal" class="hidden">
+        <div class="sheet-container">
+            <h1 id="npc-editor-title">Editar Inimigo</h1>
+            <div class="char-sheet-form">
+                <div class="sheet-section">
+                    <h2>Atributos</h2>
+                    <div id="npc-attributes-container" class="point-buy-grid"></div>
+                </div>
+                 <div class="sheet-section">
+                    <h2>Magias (Grau 1)</h2>
+                    <div id="npc-spell-container" class="spell-select-grid"></div>
+                </div>
+            </div>
+            <div class="mode-buttons-container">
+                <button id="npc-editor-save-btn" class="mode-btn">Salvar Alterações</button>
+                <button id="npc-editor-cancel-btn" class="mode-btn">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
 </div>
 
