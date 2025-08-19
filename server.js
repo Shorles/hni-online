@@ -234,6 +234,7 @@ function startBattle(state) {
     advanceTurn(state);
 }
 
+// CORREÇÃO: Simplificada para enviar sempre o estado completo, corrigindo o bug.
 function getFullState(room) {
     if (!room) return null;
     const activeState = room.gameModes[room.activeMode];
