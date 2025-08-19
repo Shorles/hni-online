@@ -24,11 +24,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameWrapper = document.getElementById('game-wrapper');
 
     // --- FUNÇÕES DE UTILIDADE ---
+    
+    // CORRIGIDO: Função de escala re-adicionada
+    function scaleGame() {
+        setTimeout(() => {
+            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+            gameWrapper.style.transform = `scale(${scale})`;
+            gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+            gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+        }, 10);
+    }
+
     function showScreen(screenId) {
         allScreens.forEach(screen => screen.classList.toggle('active', screen.id === screenId));
     }
 
     function showInfoModal(title, text) {
+        const modal = document.getElementById('modal');
         document.getElementById('modal-title').innerText = title;
         document.getElementById('modal-text').innerHTML = text;
         modal.classList.remove('hidden');
@@ -163,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = '';
         PLAYABLE_TOKENS.forEach(token => {
             const card = document.createElement('div');
-            card.className = 'token-card char-card';
+            card.className = 'token-card';
             card.innerHTML = `<img src="${token.img}" alt="${token.name}">`;
             card.onclick = () => {
                 characterSheetInProgress.token = token;
@@ -187,37 +199,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const sheet = characterSheetInProgress;
         const container = document.querySelector('.sheet-form-container');
         
-        // --- CÁLCULOS ---
         const raceData = sheet.race ? GAME_DATA.races[sheet.race] : null;
         let attributePoints = 5 + (raceData?.bonus?.any || 0);
-        let usedPoints = Object.values(sheet.attributes).reduce((a, b) => a + b, 0);
+        let usedPoints = Object.values(sheet.attributes).reduce((a, b) => {
+            const raceBonus = raceData?.bonus?.[a.name] || 0;
+            const racePenalty = raceData?.penalty?.[a.name] || 0;
+            return a + (b - (raceBonus + racePenalty));
+        }, 0);
         
         container.innerHTML = `
-            <!-- IDENTIDADE -->
-            <div class="sheet-section">
-                <h3>Identidade</h3>
-                <div class="form-grid">
-                    <div class="form-field"><label>Nome:</label><input type="text" id="sheet-name" value="${sheet.name}"></div>
-                    <div class="form-field"><label>Classe:</label><input type="text" id="sheet-class" value="${sheet.class}"></div>
-                </div>
-            </div>
-
-            <!-- RAÇA -->
-            <div class="sheet-section">
-                <h3>Raça</h3>
-                <div class="form-grid" id="sheet-races"></div>
-            </div>
-
-            <!-- ATRIBUTOS -->
-            <div class="sheet-section">
-                <h3>Atributos (<span id="points-to-distribute">${attributePoints - usedPoints}</span> pontos restantes)</h3>
-                <div class="form-grid" id="sheet-attributes"></div>
-            </div>
-            
-            <!-- Adicionar mais seções aqui (elementos, equipamentos, etc.) -->
+            <div class="sheet-section"><h3>Identidade</h3><div class="form-grid"><div class="form-field"><label>Nome:</label><input type="text" id="sheet-name" value="${sheet.name}"></div><div class="form-field"><label>Classe:</label><input type="text" id="sheet-class" value="${sheet.class}"></div></div></div>
+            <div class="sheet-section"><h3>Raça</h3><div class="form-grid" id="sheet-races"></div></div>
+            <div class="sheet-section"><h3>Atributos (<span id="points-to-distribute">${attributePoints - usedPoints}</span> pontos restantes)</h3><div class="form-grid" id="sheet-attributes"></div></div>
         `;
 
-        // --- POPULAR SEÇÕES ---
         const raceContainer = document.getElementById('sheet-races');
         Object.values(GAME_DATA.races).forEach(race => {
             const card = document.createElement('div');
@@ -225,7 +220,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `<h4>${race.name}</h4><p>${race.uniqueAbility}</p>`;
             card.onclick = () => {
                 sheet.race = race.name;
-                // Reseta e aplica bônus/penalidades da raça aos atributos
                 sheet.attributes = { forca: 0, agilidade: 0, protecao: 0, constituicao: 0, inteligencia: 0, mente: 0 };
                 Object.entries(race.bonus || {}).forEach(([attr, val]) => { if(attr !== 'any') sheet.attributes[attr] = (sheet.attributes[attr] || 0) + val; });
                 Object.entries(race.penalty || {}).forEach(([attr, val]) => { sheet.attributes[attr] = (sheet.attributes[attr] || 0) + val; });
@@ -236,33 +230,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const attrContainer = document.getElementById('sheet-attributes');
         Object.keys(sheet.attributes).forEach(attr => {
-            const baseValue = raceData?.bonus?.[attr] || 0 + (raceData?.penalty?.[attr] || 0);
             const field = document.createElement('div');
             field.className = 'attribute-field';
-            field.innerHTML = `
-                <span>${attr.charAt(0).toUpperCase() + attr.slice(1)}</span>
-                <input type="number" id="attr-${attr}" value="${sheet.attributes[attr]}" readonly>
-                <div class="attr-btn-group">
-                    <button class="attr-btn" data-attr="${attr}" data-amount="-1">-</button>
-                    <button class="attr-btn" data-attr="${attr}" data-amount="1">+</button>
-                </div>
-            `;
+            field.innerHTML = `<span>${attr.charAt(0).toUpperCase() + attr.slice(1)}</span><input type="number" id="attr-${attr}" value="${sheet.attributes[attr]}" readonly><div class="attr-btn-group"><button class="attr-btn" data-attr="${attr}" data-amount="-1">-</button><button class="attr-btn" data-attr="${attr}" data-amount="1">+</button></div>`;
             attrContainer.appendChild(field);
         });
 
-        // --- EVENT LISTENERS ---
         document.getElementById('sheet-name').onchange = (e) => sheet.name = e.target.value;
         document.getElementById('sheet-class').onchange = (e) => sheet.class = e.target.value;
-        
         document.querySelectorAll('.attr-btn').forEach(btn => {
             btn.onclick = () => {
                 const attr = btn.dataset.attr;
                 const amount = parseInt(btn.dataset.amount);
-                const raceBonus = raceData?.bonus?.[attr] || 0;
-                const racePenalty = raceData?.penalty?.[attr] || 0;
-                const baseValue = raceBonus + racePenalty;
+                const baseValue = (raceData?.bonus?.[attr] || 0) + (raceData?.penalty?.[attr] || 0);
 
-                if (amount > 0 && (attributePoints - usedPoints) > 0) {
+                let currentUsedPoints = Object.keys(sheet.attributes).reduce((total, key) => {
+                    const attrBase = (raceData?.bonus?.[key] || 0) + (raceData?.penalty?.[key] || 0);
+                    return total + (sheet.attributes[key] - attrBase);
+                }, 0);
+                
+                if (amount > 0 && currentUsedPoints < attributePoints) {
                     sheet.attributes[attr] += 1;
                 } else if (amount < 0 && sheet.attributes[attr] > baseValue) {
                     sheet.attributes[attr] -= 1;
@@ -273,16 +260,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function finishSheetCreation() {
-        // TODO: Adicionar validação completa da ficha
         characterSheetInProgress.status = 'ready';
         socket.emit('playerAction', { type: 'playerSubmitsSheet', sheet: characterSheetInProgress });
     }
 
-    // --- LÓGICA DE SALVAR/CARREGAR ---
     function saveCharacterToFile() {
         const sheet = characterSheetInProgress;
         const dataStr = JSON.stringify(sheet);
-        const dataB64 = btoa(unescape(encodeURIComponent(dataStr))); // Ofuscação com Base64 e suporte a UTF-8
+        const dataB64 = btoa(unescape(encodeURIComponent(dataStr)));
         const blob = new Blob([dataB64], {type: "application/json;charset=utf-8"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -312,7 +297,6 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     }
     
-    // --- UI DE PREPARAÇÃO DO GM ---
     function renderGmNpcSetup() {
         const selectionArea = document.getElementById('npc-selection-area');
         selectionArea.innerHTML = '';
@@ -321,10 +305,15 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'char-card';
             card.innerHTML = `<img src="images/lutadores/${npcName}.png" alt="${npcName}"><div class="char-name">${npcName}</div>`;
             card.onclick = () => {
+                // CORRIGIDO: Adiciona verificação de limite
+                if (stagedNpcs.length >= 5) {
+                    alert('O limite de 5 inimigos na batalha foi atingido.');
+                    return;
+                }
                 stagedNpcs.push({
                     id: `staged-${Date.now()}`,
                     name: npcName,
-                    hp: 50, bta: 5, btd: 5, btm: 0 // Valores padrão
+                    hp: 50, bta: 5, btd: 5, btm: 0
                 });
                 renderGmNpcSetup();
             };
@@ -336,12 +325,12 @@ document.addEventListener('DOMContentLoaded', () => {
         stagedNpcs.forEach(npc => {
             const card = document.createElement('div');
             card.className = `staged-npc-card ${selectedStagedNpcId === npc.id ? 'selected' : ''}`;
-            card.innerHTML = `
-                <img src="images/lutadores/${npc.name}.png" alt="${npc.name}">
-                <span>${npc.name}</span>
-                <button class="remove-npc-btn" data-id="${npc.id}">X</button>
-            `;
-            card.onclick = () => { selectedStagedNpcId = npc.id; renderGmNpcSetup(); };
+            card.innerHTML = `<img src="images/lutadores/${npc.name}.png" alt="${npc.name}"><span>${npc.name}</span><button class="remove-npc-btn" data-id="${npc.id}">X</button>`;
+            card.onclick = (e) => { 
+                if (e.target.classList.contains('remove-npc-btn')) return;
+                selectedStagedNpcId = npc.id; 
+                renderGmNpcSetup(); 
+            };
             card.querySelector('.remove-npc-btn').onclick = (e) => {
                 e.stopPropagation();
                 stagedNpcs = stagedNpcs.filter(n => n.id !== npc.id);
@@ -352,8 +341,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const editor = document.getElementById('npc-editor');
-        if (selectedStagedNpcId) {
-            const npcToEdit = stagedNpcs.find(n => n.id === selectedStagedNpcId);
+        const npcToEdit = stagedNpcs.find(n => n.id === selectedStagedNpcId);
+        if (npcToEdit) {
             editor.classList.remove('hidden');
             editor.innerHTML = `
                 <h3>Editando ${npcToEdit.name}</h3>
@@ -362,17 +351,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="form-field"><label>BTD:</label><input type="number" id="npc-btd" value="${npcToEdit.btd}"></div>
                 <div class="form-field"><label>BTM:</label><input type="number" id="npc-btm" value="${npcToEdit.btm}"></div>
             `;
-            // Add listeners to update stagedNpcs array on input change
-            document.getElementById('npc-hp').onchange = (e) => npcToEdit.hp = parseInt(e.target.value);
-            document.getElementById('npc-bta').onchange = (e) => npcToEdit.bta = parseInt(e.target.value);
-            document.getElementById('npc-btd').onchange = (e) => npcToEdit.btd = parseInt(e.target.value);
-            document.getElementById('npc-btm').onchange = (e) => npcToEdit.btm = parseInt(e.target.value);
+            document.getElementById('npc-hp').onchange = (e) => npcToEdit.hp = parseInt(e.target.value) || 0;
+            document.getElementById('npc-bta').onchange = (e) => npcToEdit.bta = parseInt(e.target.value) || 0;
+            document.getElementById('npc-btd').onchange = (e) => npcToEdit.btd = parseInt(e.target.value) || 0;
+            document.getElementById('npc-btm').onchange = (e) => npcToEdit.btm = parseInt(e.target.value) || 0;
         } else {
             editor.classList.add('hidden');
         }
     }
 
-    // --- UI DE COMBATE ---
     function renderFightUI(state) {
         document.getElementById('round-info').textContent = `ROUND ${state.currentRound} / CICLO ${state.currentCycle}`;
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p>${entry.text}</p>`).join('');
@@ -380,42 +367,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const initiativeUI = document.getElementById('initiative-ui');
         const myFighter = getFighter(state, socket.id);
 
-        if (state.phase === 'initiative_roll' && myFighter && myFighter.initiativeRoll === undefined) {
+        if (state.phase === 'initiative_roll' && myFighter && myFighter.status === 'active' && myFighter.initiativeRoll === undefined) {
             initiativeUI.classList.remove('hidden');
         } else {
             initiativeUI.classList.add('hidden');
         }
         
-        // Renderizar action buttons para o personagem ativo
         const actionWrapper = document.getElementById('action-buttons-wrapper');
         actionWrapper.innerHTML = '';
         if (state.activeCharacterKey === socket.id) {
-            actionWrapper.innerHTML = `
-                <button class="action-btn attack-btn">Atacar</button>
-                <button class="action-btn spell-btn">Magia</button>
-                <button class="action-btn defend-btn">Defender</button>
-                <button class="action-btn end-turn-btn">Terminar Turno</button>
-            `;
+            actionWrapper.innerHTML = `<button class="action-btn attack-btn">Atacar</button><button class="action-btn spell-btn">Magia</button><button class="action-btn defend-btn">Defender</button><button class="action-btn end-turn-btn">Terminar Turno</button>`;
             document.querySelector('.end-turn-btn').onclick = () => socket.emit('playerAction', { type: 'end_turn' });
         }
     }
     
-    // --- UI DO MODO CENÁRIO ---
     function renderPlayerTheaterControls(state) {
         const container = document.getElementById('theater-player-controls');
         const myData = state.connectedPlayers?.[socket.id];
         if(!myData || !myData.sheet) return;
 
         container.classList.toggle('hidden', state.playerControlsLocked);
-        container.innerHTML = `
-            <button class="test-btn">Força</button>
-            <button class="test-btn">Agilidade</button>
-            <button class="test-btn">Proteção</button>
-            <button class="test-btn">Constituição</button>
-            <button class="test-btn">Inteligência</button>
-            <button class="test-btn">Mente</button>
-        `;
-        // Adicionar botões de magia usáveis fora de combate aqui
+        container.innerHTML = `<button class="test-btn">Força</button><button class="test-btn">Agilidade</button><button class="test-btn">Proteção</button><button class="test-btn">Constituição</button><button class="test-btn">Inteligência</button><button class="test-btn">Mente</button>`;
     }
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
@@ -475,6 +447,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('back-to-lobby-btn').onclick = () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' });
         document.getElementById('floating-switch-mode-btn').onclick = () => socket.emit('playerAction', { type: 'gmSwitchesMode' });
         document.getElementById('theater-lock-players-btn').onclick = () => socket.emit('playerAction', { type: 'togglePlayerLock' });
+
+        // CORRIGIDO: Adiciona listeners de escala
+        window.addEventListener('resize', scaleGame);
+        scaleGame();
     }
     
     initialize();
