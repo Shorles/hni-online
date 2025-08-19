@@ -98,25 +98,50 @@ function createNewTheaterState(gmId, initialScenario) {
     return theaterState;
 }
 
+// MODIFICADO: Função ajustada para lidar com monstros de múltiplas partes
 function createNewFighterState(data) {
-    const agi = data.agi !== undefined ? parseInt(data.agi, 10) : 2; 
-    const res = data.res !== undefined ? parseInt(data.res, 10) : 3; 
+    const agi = data.agi !== undefined ? parseInt(data.agi, 10) : 2;
     const scale = data.scale !== undefined ? parseFloat(data.scale) : 1.0;
-    const hpMax = res * 5;
-    const hp = data.hp !== undefined ? data.hp : hpMax;
-
-    return {
+    
+    const fighter = {
         id: data.id,
         nome: data.nome || data.name,
         img: data.img,
         agi: agi,
-        res: res,
-        hpMax: hpMax, 
-        hp: hp,
         status: 'active',
         scale: scale,
+        isMultiPart: !!data.isMultiPart, // NOVO: Flag para identificar o monstro
+        parts: [] // NOVO: Array para guardar as partes
     };
+
+    if (fighter.isMultiPart && data.parts) {
+        // NOVO: Se for um monstro de múltiplas partes, cria cada parte com seu HP
+        fighter.parts = data.parts.map(partData => {
+            const partRes = partData.res !== undefined ? parseInt(partData.res, 10) : 1;
+            const partHpMax = partRes * 5;
+            return {
+                key: partData.key,
+                name: partData.name,
+                res: partRes,
+                hpMax: partHpMax,
+                hp: partHpMax,
+                status: 'active'
+            };
+        });
+        // O HP e HPMax do monstro principal será a soma de todas as partes
+        fighter.hpMax = fighter.parts.reduce((sum, part) => sum + part.hpMax, 0);
+        fighter.hp = fighter.hpMax;
+    } else {
+        // Lógica original para criaturas normais
+        const res = data.res !== undefined ? parseInt(data.res, 10) : 3;
+        fighter.res = res;
+        fighter.hpMax = res * 5;
+        fighter.hp = data.hp !== undefined ? data.hp : fighter.hpMax;
+    }
+
+    return fighter;
 }
+
 
 function cachePlayerStats(room) {
     if (room.activeMode !== 'adventure' || !room.gameModes.adventure) return;
@@ -184,27 +209,60 @@ function advanceTurn(state) {
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
 }
 
-function executeAttack(state, roomId, attackerKey, targetKey) {
+// MODIFICADO: Função de ataque agora aceita uma `targetPartKey` opcional
+function executeAttack(state, roomId, attackerKey, targetKey, targetPartKey) {
     const attacker = getFighter(state, attackerKey);
     const target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
+    
     const hit = true;
     let damageDealt = 0;
+    
     if (hit) {
         damageDealt = ATTACK_MOVE.damage;
-        target.hp = Math.max(0, target.hp - damageDealt);
-        logMessage(state, `${attacker.nome} ataca ${target.nome} e causa ${damageDealt} de dano!`, 'hit');
-        if (target.hp === 0) {
-            target.status = 'down';
-            logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
-            checkGameOver(state);
-            if (state.winner) {
-                 cachePlayerStats(games[roomId]);
+        
+        // NOVO: Lógica para aplicar dano a uma parte específica ou ao monstro inteiro
+        if (target.isMultiPart && targetPartKey) {
+            const part = target.parts.find(p => p.key === targetPartKey);
+            if (part && part.status === 'active') {
+                part.hp = Math.max(0, part.hp - damageDealt);
+                // Atualiza o HP total do monstro
+                target.hp = Math.max(0, target.hp - damageDealt);
+                
+                logMessage(state, `${attacker.nome} ataca a ${part.name} de ${target.nome} e causa ${damageDealt} de dano!`, 'hit');
+
+                if (part.hp === 0) {
+                    part.status = 'down';
+                    logMessage(state, `A ${part.name} de ${target.nome} foi destruída!`, 'defeat');
+                    // Verifica se todas as partes foram destruídas
+                    const allPartsDown = target.parts.every(p => p.status === 'down');
+                    if (allPartsDown) {
+                        target.status = 'down';
+                        logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
+                    }
+                }
+            } else {
+                 logMessage(state, `${attacker.nome} ataca uma parte já destruída de ${target.nome}!`, 'miss');
+                 damageDealt = 0; // Nenhum dano se a parte já estiver caída
             }
+        } else {
+            // Lógica original para alvos normais
+            target.hp = Math.max(0, target.hp - damageDealt);
+            logMessage(state, `${attacker.nome} ataca ${target.nome} e causa ${damageDealt} de dano!`, 'hit');
+            if (target.hp === 0) {
+                target.status = 'down';
+                logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
+            }
+        }
+
+        checkGameOver(state);
+        if (state.winner) {
+             cachePlayerStats(games[roomId]);
         }
     } else {
         logMessage(state, `${attacker.nome} ataca ${target.nome}, mas erra!`, 'miss');
     }
+
     io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit, damage: damageDealt });
     setTimeout(() => {
         if (!state.winner) {
@@ -213,6 +271,7 @@ function executeAttack(state, roomId, attackerKey, targetKey) {
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     }, 1000);
 }
+
 
 function startBattle(state) {
     Object.values(state.fighters.players).forEach(p => {
@@ -234,7 +293,6 @@ function startBattle(state) {
     advanceTurn(state);
 }
 
-// CORREÇÃO: Simplificada para enviar sempre o estado completo, corrigindo o bug.
 function getFullState(room) {
     if (!room) return null;
     const activeState = room.gameModes[room.activeMode];
@@ -267,7 +325,10 @@ io.on('connection', (socket) => {
             npcs: Object.keys(ALL_NPCS).map(name => ({ 
                 name, 
                 img: `images/lutadores/${name}.png`, 
-                scale: ALL_NPCS[name].scale || 1.0
+                scale: ALL_NPCS[name].scale || 1.0,
+                // NOVO: Passa os dados das partes para o cliente, se existirem
+                isMultiPart: !!ALL_NPCS[name].isMultiPart,
+                parts: ALL_NPCS[name].parts || []
             })), 
             dynamic: DYNAMIC_CHARACTERS 
         }, 
@@ -420,9 +481,13 @@ io.on('connection', (socket) => {
                                 }
                                 
                                 const newNpcId = `npc-${Date.now()}`;
+                                // NOVO: Puxa os dados completos do NPC, incluindo as partes
+                                const npcObj = ALL_NPCS[action.npcData.name] || {};
                                 adventureState.fighters.npcs[newNpcId] = createNewFighterState({
                                     id: newNpcId,
-                                    ...action.npcData
+                                    ...action.npcData,
+                                    isMultiPart: npcObj.isMultiPart,
+                                    parts: npcObj.parts
                                 });
                                 adventureState.npcSlots[slotIndex] = newNpcId;
 
@@ -501,7 +566,10 @@ io.on('connection', (socket) => {
                                         const npcObj = ALL_NPCS[npcData.name] || {};
                                         const newNpc = createNewFighterState({ 
                                             ...npcData, 
-                                            scale: npcObj.scale || 1.0 
+                                            scale: npcObj.scale || 1.0,
+                                            // NOVO: Adiciona os dados das partes ao criar o NPC
+                                            isMultiPart: npcObj.isMultiPart,
+                                            parts: npcObj.parts
                                         });
                                         adventureState.fighters.npcs[newNpc.id] = newNpc;
                                         adventureState.npcSlots[slotIndex] = newNpc.id;
@@ -539,7 +607,8 @@ io.on('connection', (socket) => {
                              const attacker = getFighter(adventureState, action.attackerKey);
                              const isNpcTurn = !!adventureState.fighters.npcs[attacker.id];
                              if ((isGm && isNpcTurn) || (!isNpcTurn && socket.id === action.attackerKey)) {
-                                 executeAttack(adventureState, roomId, action.attackerKey, action.targetKey);
+                                 // MODIFICADO: Passa a `targetPartKey` para a função de ataque
+                                 executeAttack(adventureState, roomId, action.attackerKey, action.targetKey, action.targetPartKey);
                                  shouldUpdate = false; 
                              }
                         }

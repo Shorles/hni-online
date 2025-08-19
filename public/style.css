@@ -407,3 +407,76 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .scenario-card:hover { border-color: #ffeb3b; }
 .scenario-card img { width: 100%; height: 100px; object-fit: cover; }
 .scenario-card .scenario-name { font-size: 0.9em; padding: 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- NOVOS ESTILOS PARA MONSTROS DE MÚLTIPLAS PARTES --- */
+
+/* Container para as várias barras de HP */
+.multi-health-bar-container {
+    display: flex;
+    justify-content: center;
+    gap: 4px; /* Espaço entre as barras */
+    margin-bottom: 5px;
+    width: 150px; /* Largura total do container */
+    height: 12px; /* Barras um pouco mais finas */
+}
+
+/* Estilo para a barra de HP de cada parte individual */
+.health-bar-ingame-part {
+    flex-grow: 1; /* Faz as barras preencherem o espaço disponível */
+    height: 100%;
+    background-color: rgba(85, 85, 85, 0.7);
+    border: 1px solid #000;
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden; /* Garante que a barra de preenchimento não vaze */
+    cursor: help; /* Indica que há mais informações (tooltip) */
+}
+
+/* Estilo para o preenchimento de cada barra de HP */
+.health-bar-ingame-part-fill {
+    height: 100%;
+    background-color: #28a745;
+    border-radius: 2px;
+    transition: width 0.5s ease-in-out;
+}
+
+/* Estilo para quando uma parte é derrotada */
+.health-bar-ingame-part.defeated .health-bar-ingame-part-fill {
+    background-color: #dc3545; /* Muda a cor para vermelho quando derrotado */
+}
+
+/* Estilos para o Modal de Seleção de Alvo */
+#modal-text .target-part-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    margin-top: 15px;
+}
+
+.target-part-btn {
+    padding: 12px 25px;
+    font-size: 1.1em;
+    font-weight: bold;
+    cursor: pointer;
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    background-color: #5a1a1f; /* Cor temática de ataque */
+    color: white;
+    transition: all 0.2s ease-in-out;
+    width: 80%;
+    max-width: 350px;
+}
+
+.target-part-btn:hover:not(:disabled) {
+    background-color: #c82333;
+    border-color: #ffeb3b;
+    transform: scale(1.05);
+}
+
+.target-part-btn:disabled {
+    background-color: #333;
+    color: #888;
+    border-color: #555;
+    cursor: not-allowed;
+}

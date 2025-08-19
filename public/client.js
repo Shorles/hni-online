@@ -393,12 +393,13 @@ document.addEventListener('DOMContentLoaded', () => {
         renderWaitingPlayers(state);
     }
     
+    // MODIFICADO: Função ajustada para renderizar múltiplas barras de HP se necessário
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
         container.id = fighter.id;
         container.dataset.key = fighter.id;
-
+    
         const characterScale = fighter.scale || 1.0;
         
         if (position) {
@@ -408,7 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.style.setProperty('--character-scale', characterScale);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
-
+    
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
             defeatAnimationPlayed.add(fighter.id);
@@ -427,12 +428,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        // CORREÇÃO: A verificação do modo de movimento foi movida para a função de clique.
         if(container.classList.contains('targetable')) {
             container.addEventListener('click', handleTargetClick);
         }
-        const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
-        container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
+    
+        // NOVO: Lógica de renderização da barra de vida
+        let healthBarHtml = '';
+        if (fighter.isMultiPart && fighter.parts) {
+            healthBarHtml = '<div class="multi-health-bar-container">';
+            fighter.parts.forEach(part => {
+                const partHealthPercentage = (part.hp / part.hpMax) * 100;
+                const isDefeated = part.status === 'down' ? 'defeated' : '';
+                healthBarHtml += `
+                    <div class="health-bar-ingame-part ${isDefeated}" title="${part.name}: ${part.hp}/${part.hpMax}">
+                        <div class="health-bar-ingame-part-fill" style="width: ${partHealthPercentage}%"></div>
+                    </div>
+                `;
+            });
+            healthBarHtml += '</div>';
+        } else {
+            // Lógica original para criaturas normais
+            const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
+            healthBarHtml = `
+                <div class="health-bar-ingame">
+                    <div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div>
+                    <span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span>
+                </div>
+            `;
+        }
+    
+        container.innerHTML = `${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
     
@@ -552,17 +577,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // NOVO: Função para mostrar o modal de seleção de partes do monstro
+    function showPartSelectionModal(attackerKey, targetFighter) {
+        let modalContentHtml = '<div class="target-part-selection">';
+    
+        targetFighter.parts.forEach(part => {
+            const isDisabled = part.status === 'down';
+            modalContentHtml += `
+                <button class="target-part-btn" data-part-key="${part.key}" ${isDisabled ? 'disabled' : ''}>
+                    ${part.name} (${part.hp}/${part.hpMax})
+                </button>
+            `;
+        });
+    
+        modalContentHtml += '</div>';
+    
+        showInfoModal(`Selecione qual parte de ${targetFighter.nome} atacar:`, modalContentHtml, false);
+    
+        document.querySelectorAll('.target-part-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const partKey = e.currentTarget.dataset.partKey;
+                actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
+                socket.emit('playerAction', { 
+                    type: 'attack', 
+                    attackerKey: attackerKey, 
+                    targetKey: targetFighter.id,
+                    targetPartKey: partKey // Informa a parte específica
+                });
+                cancelTargeting();
+                modal.classList.add('hidden');
+            });
+        });
+    }
+
+    // MODIFICADO: Lida com monstros de múltiplas partes
     function handleTargetClick(event) {
-        // CORREÇÃO: Adicionada a verificação aqui.
         if (isFreeMoveModeActive) return;
         if (!isTargeting || !targetingAttackerKey) return;
         
         const targetContainer = event.target.closest('.char-container.targetable');
         if (!targetContainer) return;
-        actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
+    
         const targetKey = targetContainer.dataset.key;
-        socket.emit('playerAction', { type: 'attack', attackerKey: targetingAttackerKey, targetKey: targetKey });
-        cancelTargeting();
+        const targetFighter = getFighter(currentGameState, targetKey);
+    
+        if (targetFighter && targetFighter.isMultiPart) {
+            // NOVO: Se for um monstro com partes, abre o modal de seleção
+            showPartSelectionModal(targetingAttackerKey, targetFighter);
+        } else {
+            // Lógica original para alvos normais
+            actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
+            socket.emit('playerAction', { type: 'attack', attackerKey: targetingAttackerKey, targetKey: targetKey });
+            cancelTargeting();
+        }
     }
     
     // --- CHEAT FUNCTIONS ---
@@ -955,102 +1022,369 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- RENDERIZAÇÃO PRINCIPAL (RECONSTRUÍDA) ---
-    renderGame = (gameState) => {
-        scaleGame();
+    function initializeGlobalKeyListeners() {
+        window.addEventListener('keydown', (e) => {
+            if (!currentGameState) return;
+            if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape'){ cancelTargeting(); return; }
+            
+            const focusedEl = document.activeElement;
+            if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA') return;
+            
+            if (e.key.toLowerCase() === 'c' && isGm && currentGameState.mode === 'adventure') {
+                e.preventDefault();
+                showCheatModal();
+            }
+
+            if (e.key.toLowerCase() === 't') {
+                e.preventDefault();
+                coordsModeActive = !coordsModeActive;
+                coordsDisplay.classList.toggle('hidden', !coordsModeActive);
+            }
+            
+            if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'j') {
+                e.preventDefault();
+                isFreeMoveModeActive = !isFreeMoveModeActive;
+                makeFightersDraggable(isFreeMoveModeActive);
+                showInfoModal("Modo de Movimento", `Modo de movimento livre ${isFreeMoveModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
+            }
+
+            if (currentGameState.mode !== 'theater' || !isGm) return;
+            
+            if(e.key.toLowerCase() === 'g') {
+                e.preventDefault();
+                isGroupSelectMode = !isGroupSelectMode;
+                theaterBackgroundViewport.classList.toggle('group-select-mode', isGroupSelectMode);
+                if (!isGroupSelectMode) {
+                    isSelectingBox = false;
+                    selectionBox.classList.add('hidden');
+                }
+            }
+
+            const targetId = hoveredTokenId || (selectedTokens.size === 1 ? selectedTokens.values().next().value : null);
+            if (e.key.toLowerCase() === 'f' && targetId) {
+                e.preventDefault();
+                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[targetId];
+                if(tokenData) socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, isFlipped: !tokenData.isFlipped } });
+            } else if (e.key.toLowerCase() === 'o' && targetId) {
+                e.preventDefault();
+                socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, scale: 1.0 } });
+            } else if (e.key === 'Delete' && selectedTokens.size > 0) {
+                e.preventDefault();
+                socket.emit('playerAction', { type: 'updateToken', token: { remove: true, ids: Array.from(selectedTokens) } });
+                selectedTokens.clear();
+            } else if (selectedTokens.size === 1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+                const tokenId = selectedTokens.values().next().value;
+                const currentOrder = [...currentGameState.scenarioStates[currentGameState.currentScenario].tokenOrder];
+                const currentIndex = currentOrder.indexOf(tokenId);
+                
+                if (e.key === 'ArrowUp' && currentIndex < currentOrder.length - 1) {
+                    [currentOrder[currentIndex], currentOrder[currentIndex + 1]] = [currentOrder[currentIndex + 1], currentOrder[currentIndex]];
+                    socket.emit('playerAction', { type: 'updateTokenOrder', order: currentOrder });
+                } else if (e.key === 'ArrowDown' && currentIndex > 0) {
+                    [currentOrder[currentIndex], currentOrder[currentIndex - 1]] = [currentOrder[currentIndex - 1], currentOrder[currentIndex]];
+                    socket.emit('playerAction', { type: 'updateTokenOrder', order: currentOrder });
+                }
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!coordsModeActive) return;
+            const gameWrapperRect = gameWrapper.getBoundingClientRect();
+            const gameScale = getGameScale();
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+
+            const gameX = Math.round((mouseX - gameWrapperRect.left) / gameScale);
+            const gameY = Math.round((mouseY - gameWrapperRect.top) / gameScale);
+            
+            coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
+        });
+    }
+
+    function showScenarioSelectionModal() {
+        let content = '<div class="category-tabs">';
+        const categories = Object.keys(ALL_SCENARIOS);
+        categories.forEach((cat, index) => {
+            content += `<button class="category-tab-btn ${index === 0 ? 'active' : ''}" data-category="${cat}">${cat.replace(/_/g, ' ')}</button>`;
+        });
+        content += '</div>';
+        categories.forEach((cat, index) => {
+            content += `<div class="scenarios-grid ${index === 0 ? 'active' : ''}" id="grid-${cat}">`;
+            ALL_SCENARIOS[cat].forEach(scenarioPath => {
+                const scenarioName = scenarioPath.split('/').pop().replace('.png','').replace('.jpg','');
+                content += `<div class="scenario-card" data-path="${scenarioPath}"><img src="images/mapas/${scenarioPath}" alt="${scenarioName}"><div class="scenario-name">${scenarioName}</div></div>`;
+            });
+            content += '</div>';
+        });
+        showInfoModal('Mudar Cenário', content, false);
+        document.querySelectorAll('.category-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.category-tab-btn, .scenarios-grid').forEach(el => el.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(`grid-${btn.dataset.category}`).classList.add('active');
+            });
+        });
+        document.querySelectorAll('.scenario-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const scenario = card.dataset.path;
+                socket.emit('playerAction', { type: 'changeScenario', scenario: scenario });
+                modal.classList.add('hidden');
+            });
+        });
+    }
+    
+    function renderGame(gameState) {
+        scaleGame(); 
+        
+        const justEnteredTheater = gameState.mode === 'theater' && (!currentGameState || currentGameState.mode !== 'theater');
+        oldGameState = currentGameState;
         currentGameState = gameState;
+
         if (!gameState || !gameState.mode || !gameState.connectedPlayers) {
-            return showScreen('loading-screen');
+            showScreen(document.getElementById('loading-screen'));
+            return;
         }
-    
+
+        if(gameState.mode === 'adventure' && gameState.customPositions){
+            customFighterPositions = gameState.customPositions;
+        }
+
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
-    
-        const showFloatingButtons = isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater');
-        floatingButtonsContainer.classList.toggle('hidden', !showFloatingButtons);
-        backToLobbyBtn.classList.toggle('hidden', !showFloatingButtons);
-    
-        if (isGm) {
-            switch (gameState.mode) {
-                case 'lobby': showScreen('gm-initial-lobby'); updateGmLobbyUI(gameState); break;
-                case 'adventure': handleAdventureMode(gameState); break;
-                case 'theater':
-                    showScreen('theater-screen');
-                    if(ALL_CHARACTERS.players.length > 0) initializeTheaterMode();
-                    renderTheaterMode(gameState);
-                    break;
-                default: showScreen('loading-screen');
-            }
+        
+        if (myRole === 'player' && (!myPlayerData || !myPlayerData.selectedCharacter)) {
+            showScreen(document.getElementById('selection-screen'));
+            const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
+            renderPlayerCharacterSelection(unavailable);
+            return; 
+        }
+        
+        if (gameState.mode === 'adventure' && gameState.scenario) {
+             gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
+        } else if (gameState.mode === 'lobby') {
+             gameWrapper.style.backgroundImage = `url('images/mapas/cenarios externos/externo (1).png')`;
         } else {
-            if (myRole === 'player' && (!myPlayerData || !myPlayerData.characterSheet) && (!myPlayerData || !myPlayerData.selectedCharacter)) {
-                showScreen('selection-screen'); 
+            gameWrapper.style.backgroundImage = 'none';
+        }
+
+        turnOrderSidebar.classList.add('hidden');
+        floatingButtonsContainer.classList.add('hidden');
+        waitingPlayersSidebar.classList.add('hidden');
+        backToLobbyBtn.classList.add('hidden');
+
+        if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
+            floatingButtonsContainer.classList.remove('hidden');
+            backToLobbyBtn.classList.remove('hidden');
+            const switchBtn = document.getElementById('floating-switch-mode-btn');
+            if(gameState.mode === 'adventure') {
+                switchBtn.innerHTML = '🎭';
+                switchBtn.title = 'Mudar para Modo Cenário';
             } else {
-                 switch (gameState.mode) {
-                    case 'lobby': showScreen('player-waiting-screen'); document.getElementById('player-waiting-message').innerText = myRole === 'spectator' ? "Aguardando..." : "Ficha pronta!"; break;
-                    case 'adventure': handleAdventureMode(gameState); break;
-                    case 'theater': showScreen('theater-screen'); renderTheaterMode(gameState); break;
-                    default: showScreen('loading-screen');
-                 }
+                switchBtn.innerHTML = '⚔️';
+                switchBtn.title = 'Mudar para Modo Aventura';
             }
         }
-    };
+
+        switch(gameState.mode) {
+            case 'lobby':
+                defeatAnimationPlayed.clear();
+                stagedNpcSlots.fill(null);
+                selectedSlotIndex = null;
+                if (isGm) {
+                    showScreen(document.getElementById('gm-initial-lobby'));
+                    updateGmLobbyUI(gameState);
+                } else {
+                    showScreen(document.getElementById('player-waiting-screen'));
+                    const msgEl = document.getElementById('player-waiting-message');
+                    if(msgEl) {
+                        if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
+                        else if (myPlayerData?.role === 'spectator') msgEl.innerText = "Aguardando como espectador...";
+                        else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
+                    }
+                }
+                break;
+            case 'adventure':
+                handleAdventureMode(gameState);
+                break;
+            case 'theater':
+                if (justEnteredTheater) initializeTheaterMode();
+                showScreen(document.getElementById('theater-screen'));
+                renderTheaterMode(gameState);
+                break;
+            default:
+                showScreen(document.getElementById('loading-screen'));
+        }
+    }
+
+
+    // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
+    socket.on('initialData', (data) => {
+        ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
+        ALL_SCENARIOS = data.scenarios || {};
+        
+        while(gameStateQueue.length > 0) {
+            const state = gameStateQueue.shift();
+            renderGame(state);
+        }
+    });
+
+    socket.on('gameUpdate', (gameState) => {
+        if (clientFlowState === 'choosing_role') {
+            return;
+        }
+        renderGame(gameState);
+    });
     
-    // --- INICIALIZAÇÃO E SOCKETS ---
-    initialize = () => {
-        showScreen('loading-screen');
-        
-        socket.on('initialData', (data) => {
-            ALL_SPELLS = data.spells || {};
-            ALL_CHARACTERS = data.characters || {};
-            renderPlayerCharacterSelection();
-        });
-        socket.on('gameUpdate', (gameState) => {
-            if (clientFlowState === 'initializing') { gameStateQueue.push(gameState); return; }
-            renderGame(gameState);
-        });
-        socket.on('roomCreated', (roomId) => {
-            myRoomId = roomId;
-            const el = document.getElementById('gm-link-invite');
-            if (el) { const url = `${window.location.origin}?room=${roomId}`; el.textContent = url; el.onclick = () => copyToClipboard(url, el); }
-        });
-        socket.on('promptForRole', ({ isFull }) => {
-            document.getElementById('join-as-player-btn').disabled = isFull;
-            document.getElementById('room-full-message').classList.toggle('hidden', !isFull);
-            showScreen('role-selection-screen');
-        });
-        socket.on('assignRole', (data) => {
-            myRole = data.role; isGm = !!data.isGm;
-            myPlayerKey = data.playerKey || socket.id;
-            clientFlowState = 'in_game';
-            while (gameStateQueue.length > 0) { renderGame(gameStateQueue.shift()); }
-            if (currentGameState) renderGame(currentGameState);
-        });
-        socket.on('error', (data) => showInfoModal("Erro", data.message));
+    socket.on('fighterMoved', ({ fighterId, position }) => {
+        customFighterPositions[fighterId] = position;
+        const fighterEl = document.getElementById(fighterId);
+        if (fighterEl) {
+            fighterEl.style.left = position.left;
+            fighterEl.style.top = position.top;
+        }
+    });
 
-        document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
-        document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
-        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
-        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-        confirmSelectionBtn.addEventListener('click', confirmTokenSelection);
-        newCharBtn.addEventListener('click', () => showScreen('selection-screen'));
-        loadCharBtn.addEventListener('click', () => charFileInput.click());
-        charFileInput.addEventListener('change', handleFileLoad);
-        sheetNextBtn.addEventListener('click', showSpellSelection);
-        finalizeCharBtn.addEventListener('click', finalizeCharacter);
-        saveCharBtn.addEventListener('click', saveCharacter);
-        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
-        
-        setupTheaterEventListeners();
-        window.addEventListener('resize', scaleGame);
-        scaleGame();
+    socket.on('roomCreated', (roomId) => {
+        myRoomId = roomId;
+        if (isGm) {
+            const baseUrl = window.location.origin;
+            const inviteLinkEl = document.getElementById('gm-link-invite');
+            const inviteUrl = `${baseUrl}?room=${roomId}`;
+            if (inviteLinkEl) { 
+                inviteLinkEl.textContent = inviteUrl; 
+                inviteLinkEl.onclick = () => copyToClipboard(inviteUrl, inviteLinkEl); 
+            }
+        }
+    });
 
+    socket.on('promptForRole', ({ isFull }) => {
+        clientFlowState = 'choosing_role';
+        const roleSelectionScreen = document.getElementById('role-selection-screen');
+        const joinAsPlayerBtn = document.getElementById('join-as-player-btn');
+        const roomFullMessage = document.getElementById('room-full-message');
+        if (isFull) {
+            joinAsPlayerBtn.disabled = true;
+            roomFullMessage.textContent = 'A sala de jogadores está cheia. Você pode entrar como espectador.';
+            roomFullMessage.classList.remove('hidden');
+        } else {
+            joinAsPlayerBtn.disabled = false;
+            roomFullMessage.classList.add('hidden');
+        }
+        showScreen(roleSelectionScreen);
+    });
+
+    socket.on('assignRole', (data) => {
+        myRole = data.role;
+        myPlayerKey = data.playerKey || null;
+        isGm = !!data.isGm;
+        myRoomId = data.roomId;
+        clientFlowState = 'in_game';
+    });
+
+    socket.on('gmPromptToAdmit', ({ playerId, character }) => {
+        if (!isGm) return;
+        showConfirmationModal('Novo Jogador', `${character.nome} deseja entrar na batalha. Permitir?`, (admitted) => {
+            socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted });
+        });
+    });
+    
+    socket.on('promptForAdventureType', () => {
+        if (!isGm) return;
+        showConfirmationModal(
+            'Retornar à Aventura',
+            'Deseja continuar a aventura anterior ou começar uma nova batalha?',
+            (continuar) => {
+                const choice = continuar ? 'continue' : 'new';
+                socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice });
+            },
+            'Continuar Batalha',
+            'Nova Batalha'
+        );
+    });
+
+    socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
+        const attackerEl = document.getElementById(attackerKey);
+        const targetEl = document.getElementById(targetKey);
+
+        if (attackerEl) {
+            const isPlayer = attackerEl.classList.contains('player-char-container');
+            const originalLeft = attackerEl.style.left;
+            const lungeAmount = isPlayer ? 200 : -200;
+            
+            attackerEl.style.left = `${parseFloat(originalLeft) + lungeAmount}px`;
+            
+            setTimeout(() => {
+                attackerEl.style.left = originalLeft;
+            }, 500);
+        }
+
+        if (targetEl && hit) {
+            const img = targetEl.querySelector('.fighter-img-ingame');
+            if (img) {
+                img.classList.add('is-hit-flash');
+                setTimeout(() => img.classList.remove('is-hit-flash'), 400);
+            }
+        }
+    });
+    
+    socket.on('fleeResolved', ({ actorKey }) => {
+        const actorEl = document.getElementById(actorKey);
+        if (actorEl) {
+            const isPlayer = actorEl.classList.contains('player-char-container');
+            actorEl.classList.add(isPlayer ? 'is-fleeing-player' : 'is-fleeing-npc');
+        }
+    });
+
+    socket.on('error', (data) => showInfoModal('Erro', data.message));
+    
+
+    function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
+        
+        showScreen(document.getElementById('loading-screen')); 
+
         if (urlRoomId) {
             socket.emit('playerJoinsLobby', { roomId: urlRoomId });
         } else {
             socket.emit('gmCreatesLobby');
         }
-    };
+
+        document.getElementById('join-as-player-btn').addEventListener('click', () => {
+            socket.emit('playerChoosesRole', { role: 'player' });
+            showScreen(document.getElementById('loading-screen'));
+        });
+        document.getElementById('join-as-spectator-btn').addEventListener('click', () => {
+            socket.emit('playerChoosesRole', { role: 'spectator' });
+            showScreen(document.getElementById('loading-screen'));
+        });
+
+        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
+        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
+        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
+        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
+        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
+        
+        floatingSwitchModeBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'gmSwitchesMode' });
+        });
+
+        floatingInviteBtn.addEventListener('click', () => {
+             if (myRoomId) {
+                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
+        });
+        
+        if (floatingHelpBtn) {
+            floatingHelpBtn.addEventListener('click', showHelpModal);
+        }
+
+        setupTheaterEventListeners();
+        initializeGlobalKeyListeners();
+        window.addEventListener('resize', scaleGame);
+        scaleGame();
+    }
     
     initialize();
 });
