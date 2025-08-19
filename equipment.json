@@ -1,0 +1,23 @@
+{
+  "weapons": {
+    "Desarmado": { "name": "Desarmado", "type": "Desarmado", "hands": 1, "cost": 0, "damage": "1D4", "bta": 0, "btd": 0 },
+    "1 Mão Mínima": { "name": "1 Mão Mínima", "type": "1 Mão", "hands": 1, "cost": 60, "damage": "1D6", "bta": 4, "btd": -1 },
+    "1 Mão Leve": { "name": "1 Mão Leve", "type": "1 Mão", "hands": 1, "cost": 80, "damage": "1D6", "bta": 3, "btd": 0 },
+    "1 Mão Mediana": { "name": "1 Mão Mediana", "type": "1 Mão", "hands": 1, "cost": 100, "damage": "1D6", "bta": 1, "btd": 1 },
+    "Cetro": { "name": "Cetro", "type": "Cetro", "hands": 1, "cost": 80, "damage": "1D4", "bta": 0, "btd": 0, "btm": 1 },
+    "2 Mãos Grande": { "name": "2 Mãos Grande", "type": "2 Mãos", "hands": 2, "cost": 120, "damage": "1D10", "bta": 2, "btd": 0 },
+    "2 Mãos Gigante": { "name": "2 Mãos Gigante", "type": "2 Mãos", "hands": 2, "cost": 140, "damage": "1D10", "bta": 1, "btd": 1 },
+    "2 Mãos Colossal": { "name": "2 Mãos Colossal", "type": "2 Mãos", "hands": 2, "cost": 160, "damage": "1D10", "bta": -1, "btd": 2 },
+    "Cajado": { "name": "Cajado", "type": "Cajado", "hands": 2, "cost": 140, "damage": "1D6", "bta": 0, "btd": 0, "btm": 2 }
+  },
+  "shields": {
+    "Pequeno": { "name": "Pequeno", "cost": 80, "defense": 2, "req": { "forca": 1 }, "penalty": { "agilidade": -1 } },
+    "Médio": { "name": "Médio", "cost": 100, "defense": 4, "req": { "forca": 2 }, "penalty": { "agilidade": -2 } },
+    "Grande": { "name": "Grande", "cost": 120, "defense": 6, "req": { "forca": 3 }, "penalty": { "agilidade": -3 } }
+  },
+  "armors": {
+    "Leve": { "name": "Leve", "cost": 80, "bonus": { "protecao": 1 }, "penalty": {} },
+    "Mediana": { "name": "Mediana", "cost": 100, "bonus": { "protecao": 2 }, "penalty": { "agilidade": -1 } },
+    "Pesada": { "name": "Pesada", "cost": 120, "bonus": { "protecao": 3 }, "penalty": { "agilidade": -2 } }
+  }
+}

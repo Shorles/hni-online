@@ -1,331 +1,133 @@
 {
-  "base": {
-    "grau1": [
-      {
-        "name": "Disparo Mahou",
-        "elements": ["any"],
-        "cost": { "mahou": 1, "pa": 2 },
-        "scales_with": "inteligencia",
-        "damage": "1D6+1",
-        "in_battle": true,
-        "description": "Lança um pequeno orbe de energia de mahou puro."
-      },
-      {
-        "name": "Golpe Elemental I",
-        "elements": ["fogo", "agua", "vento", "terra", "chama azul", "gelo", "raio", "metal"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "damage": "1D4",
-        "bonus": "Adiciona ao golpe normal. Elementos avançados adicionam +1 ao dano.",
-        "in_battle": true,
-        "description": "Reveste a arma com um elemento, aumentando o dano."
-      },
-      {
-        "name": "Disparo Elemental I",
-        "elements": ["fogo", "agua", "vento", "terra", "chama azul", "gelo", "raio", "metal"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "scales_with": "inteligencia",
-        "damage": "1D8",
-        "bonus": "Elementos avançados adicionam +2 ao dano.",
-        "in_battle": true,
-        "description": "Lança um orbe de energia de um determinado elemento."
-      },
-      {
-        "name": "Rajada Elemental I",
-        "elements": ["fogo", "agua", "vento", "terra", "chama azul", "gelo", "raio", "metal"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "damage": "4x(2)",
-        "bonus": "Rola acerto 4 vezes. Para elementos avançados, rola mais 1 vez.",
-        "in_battle": true,
-        "description": "Lança 4 disparos. Cada acerto causa 2 de dano."
-      },
-      {
-        "name": "Estalo de fogo",
-        "elements": ["fogo"],
-        "cost": { "mahou": 1, "pa": 0 },
-        "in_battle": false,
-        "description": "Cria uma pequena chama na mão para acender tochas, fogueiras, etc."
-      },
-      {
-        "name": "Queimadura",
-        "elements": ["fogo"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "damage": "2/turno",
-        "bonus": "Dura 3 turnos. Oponente testa CON ND15 para resistir a cada turno.",
-        "cooldown": "1 turno",
-        "in_battle": true,
-        "description": "Chamas envolvem o oponente, causando dano contínuo."
-      },
-      {
-        "name": "Em Chamas",
-        "elements": ["fogo"],
-        "cost": { "mahou": 3, "pa": 2 },
-        "bonus": "Oponente que tocar o usuário recebe 2 de dano. Dura 3 turnos.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "O corpo do usuário fica coberto de chamas protetoras."
-      },
-      {
-        "name": "Absorção de Chamas",
-        "elements": ["fogo"],
-        "cost": { "mahou": 0, "pa": 0 },
-        "bonus": "Recupera 1D4+1 de mahou absorvendo fogo não-mágico.",
-        "cooldown": "1 hora",
-        "in_battle": false,
-        "description": "Absorve chamas normais para recuperar energia."
-      },
-      {
-        "name": "Baforada Dracônica",
-        "elements": ["fogo"],
-        "cost": { "mahou": 3, "pa": 2 },
-        "scales_with": "inteligencia",
-        "damage": "1D4+Nível",
-        "cooldown": "1 turno",
-        "in_battle": true,
-        "description": "Dispara uma grande quantidade de chamas pela boca."
-      },
-      {
-        "name": "Afogamento",
-        "elements": ["agua"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "damage": "2/turno",
-        "bonus": "Dura 3 turnos. Oponente testa MENTE ND15 para resistir a cada turno.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "Água envolve a cabeça do oponente, deixando-o sem respirar."
-      },
-      {
-        "name": "Geração espontânea de água",
-        "elements": ["agua"],
-        "cost": { "mahou": 1, "pa": 0 },
-        "in_battle": false,
-        "description": "Gera uma quantidade pequena de água potável (pouco mais de 1 balde)."
-      },
-      {
-        "name": "Nuvem de chuva",
-        "elements": ["agua"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "damage": "2",
-        "bonus": "Causa dano a criaturas fracas contra água. Dura 5 turnos.",
-        "cooldown": "1 turno",
-        "in_battle": true,
-        "description": "Gera uma pequena nuvem que chove em uma área."
-      },
-      {
-        "name": "Absorção de Água",
-        "elements": ["agua"],
-        "cost": { "mahou": 0, "pa": 0 },
-        "bonus": "Recupera 1D4+1 de mahou absorvendo água não-mágica.",
-        "cooldown": "1 hora",
-        "in_battle": false,
-        "description": "Absorve água normal para recuperar energia."
-      },
-      {
-        "name": "Falar com Peixes",
-        "elements": ["agua"],
-        "cost": { "mahou": 1, "pa": 0 },
-        "cooldown": "20 minutos",
-        "in_battle": false,
-        "description": "Pode se comunicar com peixes e outras vidas marinhas simples."
-      },
-      {
-        "name": "Golpe Rochoso",
-        "elements": ["terra"],
-        "cost": { "mahou": 1, "pa": 2 },
-        "bonus": "+3 em FORÇA por 3 turnos.",
-        "penalty": "-2 em AGILIDADE por 3 turnos.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "Envolve os punhos ou arma com rocha, aumentando o dano."
-      },
-      {
-        "name": "Couraça",
-        "elements": ["terra"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "bonus": "+2 em PROTEÇÃO por 3 turnos.",
-        "penalty": "-1 em AGILIDADE por 3 turnos.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "Envolve o corpo com uma couraça rochosa que aumenta sua proteção."
-      },
-      {
-        "name": "Elevação",
-        "elements": ["terra"],
-        "cost": { "mahou": 3, "pa": 2 },
-        "scales_with": "inteligencia",
-        "damage": "1D12",
-        "bonus": "Oponente testa AGI ND10 para evitar o dano.",
-        "cooldown": "1 turno",
-        "in_battle": true,
-        "description": "Eleva um pedaço de chão ou parede para alcançar lugares ou esmagar oponentes."
-      },
-      {
-        "name": "Areia Movediça",
-        "elements": ["terra"],
-        "cost": { "mahou": 3, "pa": 2 },
-        "penalty": "-5 de AGILIDADE no turno e impede fuga. Alvos rolam AGI ND10 para evitar. Dura 5 turnos.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "O chão abaixo de um grupo se torna pastoso, restringindo seus movimentos."
-      },
-      {
-        "name": "Sentido Terrestre",
-        "elements": ["terra"],
-        "cost": { "mahou": 1, "pa": 0 },
-        "cooldown": "20 minutos",
-        "in_battle": false,
-        "description": "Pode sentir através do solo ou de paredes de pedra, terra, areia e afins."
-      },
-      {
-        "name": "Aceleração",
-        "elements": ["vento"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "bonus": "+2 no atributo AGILIDADE por 3 turnos.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "O vento envolve seu corpo, aumentando a velocidade de movimentação."
-      },
-      {
-        "name": "Ventania",
-        "elements": ["vento"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "damage": "1-2",
-        "bonus": "Afasta oponentes ou objetos. Necessário teste ND10 para não ser arremessado.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "Afasta oponentes ou objetos, arremessando-os longe."
-      },
-      {
-        "name": "Pulo Duplo",
-        "elements": ["vento"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "in_battle": true,
-        "description": "Possibilita um segundo salto em qualquer direção em pleno ar."
-      },
-      {
-        "name": "Mini Tornado Elemental",
-        "elements": ["vento"],
-        "cost": { "mahou": 3, "pa": 0 },
-        "in_battle": false,
-        "description": "Um pequeno tornado que pode auxiliar repelindo ataques ou afastando alvos."
-      },
-      {
-        "name": "Tubo de Aceleração",
-        "elements": ["vento"],
-        "cost": { "mahou": 3, "pa": 0 },
-        "cooldown": "1 hora",
-        "in_battle": false,
-        "description": "Cria um tubo de vento que dispara uma pessoa ou objeto em alta velocidade."
-      },
-      {
-        "name": "Golpe da Alma",
-        "elements": ["luz"],
-        "cost": { "mahou": 1, "pa": 2 },
-        "damage": "1D4",
-        "bonus": "Dano adicional contra mortos-vivos. Pode ser usado em aliados.",
-        "in_battle": true,
-        "description": "Reveste a arma com o elemento luz, causando dano extra em mortos-vivos."
-      },
-      {
-        "name": "Iluminar",
-        "elements": ["luz"],
-        "cost": { "mahou": 1, "pa": 0 },
-        "in_battle": false,
-        "description": "Um globo flutuante que serve para iluminar locais escuros por 1 hora."
-      },
-      {
-        "name": "Flash",
-        "elements": ["luz"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "bonus": "Alvo fica 1 turno sem atacar. Teste de AGI ND15 para resistir.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "Um brilho fortíssimo que cega todos que olharem."
-      },
-      {
-        "name": "Ilusão Mínima",
-        "elements": ["luz"],
-        "cost": { "mahou": 1, "pa": 0 },
-        "in_battle": false,
-        "description": "Cria uma ilusão visual simples. Oponente rola MENTAL ND15 para perceber."
-      },
-      {
-        "name": "Disparo Falso",
-        "elements": ["luz"],
-        "cost": { "mahou": 2, "pa": 0 },
-        "cooldown": "2 turnos",
-        "in_battle": false,
-        "description": "Cria uma energia gigantesca que não causa dano, para distração ou fuga."
-      },
-      {
-        "name": "Clone Ilusório",
-        "elements": ["luz"],
-        "cost": { "mahou": 3, "pa": 2 },
-        "bonus": "Oponente que atacar deve rolar D20. Se tirar 10 ou menos, ataca o clone.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "Cria um clone intangível. Dura até o fim da batalha ou ser atacado."
-      },
-      {
-        "name": "Invocação Sombria",
-        "elements": ["escuridao"],
-        "cost": { "mahou": 3, "pa": 2 },
-        "bonus": "Invoca elemental que aplica condição aleatória no alvo a cada turno (rolagem de D20).",
-        "in_battle": true,
-        "description": "Invoca um elemental de sombra que aplica efeitos aleatórios no alvo."
-      },
-      {
-        "name": "Enxergar através de Ilusão",
-        "elements": ["escuridao"],
-        "cost": { "mahou": 1, "pa": 0 },
-        "in_battle": false,
-        "description": "Pode enxergar através de ilusões de grau 1."
-      },
-      {
-        "name": "Desfazer Ilusão Mínima",
-        "elements": ["escuridao"],
-        "cost": { "mahou": 2, "pa": 0 },
-        "in_battle": false,
-        "description": "Capaz de dissolver ilusões de grau 1."
-      },
-      {
-        "name": "Enfraquecer I",
-        "elements": ["escuridao"],
-        "cost": { "mahou": 2, "pa": 2 },
-        "penalty": "Reduz -2 em um atributo do alvo à escolha por 3 turnos. Teste MENTAL ND15 para resistir.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "Enfraquece um pouco o alvo escolhido."
-      },
-      {
-        "name": "Dano de Energia",
-        "elements": ["escuridao"],
-        "cost": { "mahou": 3, "pa": 2 },
-        "scales_with": "inteligencia",
-        "damage": "1D6+1",
-        "bonus": "Dano é causado no mahou ou ki do adversário.",
-        "cooldown": "2 turnos",
-        "in_battle": true,
-        "description": "Causa dano na energia do alvo (mahou/ki) em vez de na vida."
-      },
-      {
-        "name": "Reanimação Menor",
-        "elements": ["escuridao"],
-        "cost": { "mahou": 2, "pa": 0 },
-        "in_battle": false,
-        "description": "Reanima um animal pequeno morto (até 30kg) como um zumbi."
-      }
-    ],
-    "grau2": [],
-    "grau3": []
+  "Estalo de fogo": {
+    "name": "Estalo de fogo",
+    "element": "Fogo",
+    "grade": 1,
+    "mahouCost": 1,
+    "paCost": 0,
+    "damage": null,
+    "description": "Cria uma pequena chama na mão do usuário que pode ser utilizada para acender uma tocha, um cachimbo ou uma fogueira.",
+    "inCombat": false
   },
-  "avancados": {
-    "grau1": [],
-    "grau2": [],
-    "grau3": []
+  "Baforada Dracônica": {
+    "name": "Baforada Dracônica",
+    "element": "Fogo",
+    "grade": 1,
+    "mahouCost": 3,
+    "paCost": 2,
+    "damage": "1D4",
+    "bonus": "Adiciona o nível do usuário ao dano.",
+    "cooldown": 1,
+    "description": "Dispara uma grande quantidade de chamas pela boca, podendo causar pequenos incêndios.",
+    "inCombat": true
   },
-  "combinados": {
-    "grau1": [],
-    "grau2": [],
-    "grau3": []
+  "Afogamento": {
+    "name": "Afogamento",
+    "element": "Água",
+    "grade": 1,
+    "mahouCost": 2,
+    "paCost": 2,
+    "damage": "2 de dano por turno, durante 3 turnos (80% de chance).",
+    "cooldown": 2,
+    "description": "Água envolve a cabeça do oponente, deixando-o sem respirar.",
+    "inCombat": true
+  },
+  "Geração espontânea de água": {
+    "name": "Geração espontânea de água",
+    "element": "Água",
+    "grade": 1,
+    "mahouCost": 1,
+    "paCost": 0,
+    "damage": null,
+    "description": "Gera uma quantidade pequena de água potável.",
+    "inCombat": false
+  },
+  "Golpe Rochoso": {
+    "name": "Golpe Rochoso",
+    "element": "Terra",
+    "grade": 1,
+    "mahouCost": 1,
+    "paCost": 2,
+    "damage": null,
+    "bonus": "Recebe +3 no atributo FORÇA por 3 turnos.",
+    "penalty": "Recebe -2 no atributo AGILIDADE por 3 turnos.",
+    "cooldown": 2,
+    "description": "Envolve os punhos ou a arma utilizada por uma camada de rocha sólida.",
+    "inCombat": true
+  },
+  "Elevação": {
+    "name": "Elevação",
+    "element": "Terra",
+    "grade": 1,
+    "mahouCost": 3,
+    "paCost": 0,
+    "damage": null,
+    "description": "Eleva um pedaço do piso para alcançar lugares altos ou criar barreiras.",
+    "inCombat": false
+  },
+  "Aceleração": {
+    "name": "Aceleração",
+    "element": "Vento",
+    "grade": 1,
+    "mahouCost": 2,
+    "paCost": 2,
+    "damage": null,
+    "bonus": "Adiciona +3 no atributo AGILIDADE por 3 turnos.",
+    "cooldown": 2,
+    "description": "O vento envolve seu corpo, aumentando a velocidade de movimentação.",
+    "inCombat": true
+  },
+  "Tubo de Aceleração": {
+    "name": "Tubo de Aceleração",
+    "element": "Vento",
+    "grade": 1,
+    "mahouCost": 3,
+    "paCost": 0,
+    "damage": null,
+    "description": "Cria um tubo de vento que pode disparar uma pessoa ou objetos em alta velocidade.",
+    "inCombat": false
+  },
+  "Iluminar": {
+    "name": "Iluminar",
+    "element": "Luz",
+    "grade": 1,
+    "mahouCost": 1,
+    "paCost": 0,
+    "damage": null,
+    "description": "Um globo flutuante que serve para iluminar locais escuros.",
+    "inCombat": false
+  },
+  "Flash": {
+    "name": "Flash",
+    "element": "Luz",
+    "grade": 1,
+    "mahouCost": 2,
+    "paCost": 2,
+    "damage": null,
+    "bonus": "Alvo fica 1 turno sem atacar (15% de chance de resistir).",
+    "cooldown": 2,
+    "description": "Um brilho fortíssimo que cega todos que olharem.",
+    "inCombat": true
+  },
+  "Desfazer Ilusão Mínima": {
+    "name": "Desfazer Ilusão Mínima",
+    "element": "Escuridão",
+    "grade": 1,
+    "mahouCost": 2,
+    "paCost": 0,
+    "damage": null,
+    "description": "Capaz de dissolver ilusões de grau 1.",
+    "inCombat": false
+  },
+  "Dano de Energia": {
+    "name": "Dano de Energia",
+    "element": "Escuridão",
+    "grade": 1,
+    "mahouCost": 3,
+    "paCost": 2,
+    "damage": "1D6+1 de dano no mahou do adversário.",
+    "cooldown": 2,
+    "description": "Causa um dano na energia do alvo, reduzindo o mahou.",
+    "inCombat": true
   }
 }
