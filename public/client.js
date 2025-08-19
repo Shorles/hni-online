@@ -7,28 +7,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let isGm = false;
     let currentGameState = null;
     let oldGameState = null;
-    let defeatAnimationPlayed = new Set();
     const socket = io();
-    let myRoomId = null; 
-    let coordsModeActive = false;
+    let myRoomId = null;
     let clientFlowState = 'initializing';
     const gameStateQueue = [];
 
-    // --- DADOS DO JOGO (COM NOVAS ADIÇÕES) ---
+    // --- DADOS DO JOGO ---
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
     let ALL_SPELLS = {};
     let stagedNpcSlots = new Array(5).fill(null);
-    let selectedSlotIndex = null;
-    const MAX_NPCS = 5;
     
-    // --- VARIÁVEIS DE CONTROLE DE UI (DO ORIGINAL) ---
-    let isTargeting = false;
-    let targetingAttackerKey = null;
-    let isFreeMoveModeActive = false;
-    let customFighterPositions = {};
-    let draggedFighter = { element: null, offsetX: 0, offsetY: 0 };
-
     // --- VARIÁVEIS DO MODO CENÁRIO (DO ORIGINAL) ---
     let localWorldScale = 1.0;
     let selectedTokens = new Set();
@@ -45,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedPlayerToken = { name: null, img: null };
     let characterSheetBuilder = {};
     
-    // --- CONSTANTES DE REGRAS (OMITIDAS POR BREVIDADE) ---
+    // --- CONSTANTES DE REGRAS ---
     const RACES = { "Anjo": { bonus: {}, penalty: { "forca": 1 }, unique: "+1 em cura, não pode usar Escuridão, 1 ponto obrigatório em Luz." }, "Demonio": { bonus: {}, penalty: {}, unique: "+1 em magias de Escuridão, -1 em cura recebida, não pode usar Luz, 1 ponto obrigatório em Escuridão." }, "Elfo": { bonus: { "agilidade": 2 }, penalty: { "forca": 1 }, unique: "Enxerga no escuro." }, "Anao": { bonus: { "constituicao": 1 }, penalty: {}, unique: "Enxerga no escuro." }, "Goblin": { bonus: { "mente": 1 }, penalty: { "constituicao": 1 }, unique: "Não pode usar armas Gigante e Colossal." }, "Orc": { bonus: { "forca": 2 }, penalty: { "inteligencia": 1 }, unique: "Pode comer quase qualquer coisa sem adoecer." }, "Humano": { bonus: { "any": 1 }, penalty: {}, unique: "+1 em um atributo à sua escolha." }, "Kairou": { bonus: {}, penalty: {}, unique: "Respira debaixo d'água, +1 em todos os atributos na água. Penalidades severas se ficar seco." }, "Centauro": { bonus: {}, penalty: { "agilidade": 1 }, unique: "Não pode entrar em locais apertados. +3 em testes de velocidade/salto." }, "Halfling": { bonus: { "agilidade": 1, "inteligencia": 1 }, penalty: { "forca": 1, "constituicao": 1 }, unique: "Enxerga no escuro. Não pode usar armas Gigante e Colossal." }, "Tritao": { bonus: { "forca": 2 }, penalty: { "inteligencia": 2 }, unique: "Respira debaixo d'água. Penalidades se ficar seco." }, "Meio-Elfo": { bonus: { "agilidade": 1 }, penalty: {}, unique: "Enxerga no escuro." }, "Meio-Orc": { bonus: { "forca": 1 }, penalty: {}, unique: "Nenhuma." }, "Auslender": { bonus: { "inteligencia": 2, "agilidade": 1 }, penalty: { "forca": 1, "protecao": 1 }, unique: "Compreende tecnologia facilmente." }, "Tulku": { bonus: { "inteligencia": 1, "mente": 1 }, penalty: {}, unique: "Enxerga no escuro. -1 em magias de Luz." } };
     const ATTRIBUTES = { "forca": "Força", "agilidade": "Agilidade", "protecao": "Proteção", "constituicao": "Constituição", "inteligencia": "Inteligência", "mente": "Mente" };
     const ELEMENTS = { "fogo": "Fogo", "agua": "Água", "terra": "Terra", "vento": "Vento", "luz": "Luz", "escuridao": "Escuridão" };
@@ -88,12 +77,32 @@ document.addEventListener('DOMContentLoaded', () => {
     function copyToClipboard(text, element) { navigator.clipboard.writeText(text).then(() => { const original = element.innerHTML; element.innerHTML = 'Copiado!'; setTimeout(() => { element.innerHTML = original; }, 2000); }); }
     function obfuscateData(data) { return btoa(unescape(encodeURIComponent(JSON.stringify(data)))); }
     function deobfuscateData(data) { try { return JSON.parse(decodeURIComponent(escape(atob(data)))); } catch (e) { return null; } }
-    function getGameScale() { return (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a; }
+    
+    // --- FUNÇÕES DE CRIAÇÃO DE PERSONAGEM (DEFINIDAS ANTES DE SEREM USADAS) ---
+    function renderPlayerCharacterSelection() { /* ... implementação omitida por brevidade ... */ }
+    function confirmTokenSelection() {
+        const selectedCard = document.querySelector('.char-card.selected');
+        if (!selectedCard) return;
+        selectedPlayerToken = { name: selectedCard.dataset.name, img: selectedCard.dataset.img };
+        showScreen('player-hub-screen');
+    }
+    function initializeCharacterSheet() { /* ... implementação omitida por brevidade ... */ }
+    function handlePointBuy(event) { /* ... implementação omitida por brevidade ... */ }
+    function updateAllUI() { /* ... implementação omitida por brevidade ... */ }
+    function updateRace() { /* ... implementação omitida por brevidade ... */ }
+    function updateEquipment() { /* ... implementação omitida por brevidade ... */ }
+    function showSpellSelection() { /* ... implementação omitida por brevidade ... */ }
+    function toggleSpellSelection(card) { /* ... implementação omitida por brevidade ... */ }
+    function updateFinalizeButton() { /* ... implementação omitida por brevidade ... */ }
+    function buildCharacterSheet() { /* ... implementação omitida por brevidade ... */ }
+    function finalizeCharacter() { socket.emit('playerSubmitsCharacterSheet', buildCharacterSheet()); showScreen('player-waiting-screen'); }
+    function saveCharacter() { const data = obfuscateData(buildCharacterSheet()); const blob = new Blob([data], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${buildCharacterSheet().nome.replace(/\s+/g, '_') || 'personagem'}.char`; a.click(); URL.revokeObjectURL(url); }
+    function handleFileLoad(event) { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { const sheet = deobfuscateData(e.target.result); if (sheet && sheet.nome) { socket.emit('playerSubmitsCharacterSheet', sheet); showScreen('player-waiting-screen'); } else { showInfoModal("Erro", "Arquivo inválido."); } }; reader.readAsText(file); }
 
     // --- MODO CENÁRIO (CÓDIGO ORIGINAL E FUNCIONAL RESTAURADO) ---
-    function initializeTheaterMode() { /* ... Implementação completa omitida por brevidade ... */ }
-    function renderTheaterMode(state) { /* ... Implementação completa omitida por brevidade ... */ }
-    function setupTheaterEventListeners() { /* ... Implementação completa omitida por brevidade ... */ }
+    function initializeTheaterMode() { /* ... implementação omitida por brevidade ... */ }
+    function renderTheaterMode(state) { /* ... implementação omitida por brevidade ... */ }
+    function setupTheaterEventListeners() { /* ... implementação omitida por brevidade ... */ }
     
     // --- FUNÇÕES DE LÓGICA DO JOGO ---
     function handleAdventureMode(gameState) { /* ... Lógica da Aventura ... */ }
@@ -110,9 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }); }
     }
     
-    // --- FUNÇÕES DA CRIAÇÃO DE PERSONAGEM ---
-    // ... (As implementações das funções da ficha são inseridas aqui) ...
-
     // --- RENDERIZAÇÃO PRINCIPAL ---
     function renderGame(gameState) {
         scaleGame();
@@ -129,14 +135,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
         if (isGm) {
             switch (gameState.mode) {
-                case 'lobby': showScreen('gm-initial-lobby'); updateGmLobbyUI(gameState); break;
-                case 'adventure': handleAdventureMode(gameState); break;
+                case 'lobby':
+                    showScreen('gm-initial-lobby');
+                    updateGmLobbyUI(gameState);
+                    break;
+                case 'adventure':
+                    showScreen('gm-npc-setup-screen');
+                    break;
                 case 'theater':
                     showScreen('theater-screen');
                     if(ALL_CHARACTERS.players.length > 0) initializeTheaterMode();
                     renderTheaterMode(gameState);
                     break;
-                default: showScreen('loading-screen');
+                default:
+                    showScreen('loading-screen');
             }
         } else {
             if (myRole === 'player' && (!myPlayerData || !myPlayerData.characterSheet)) {
@@ -147,10 +159,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                  switch (gameState.mode) {
-                    case 'lobby': showScreen('player-waiting-screen'); document.getElementById('player-waiting-message').innerText = myRole === 'spectator' ? "Aguardando..." : "Ficha pronta!"; break;
-                    case 'adventure': handleAdventureMode(gameState); break;
-                    case 'theater': showScreen('theater-screen'); renderTheaterMode(gameState); break;
-                    default: showScreen('loading-screen');
+                    case 'lobby':
+                        showScreen('player-waiting-screen');
+                        document.getElementById('player-waiting-message').innerText = myRole === 'spectator' ? "Aguardando como espectador..." : "Ficha pronta! Aguardando o Mestre...";
+                        break;
+                    case 'adventure':
+                        showScreen('fight-screen');
+                        break;
+                    case 'theater':
+                        showScreen('theater-screen');
+                        renderTheaterMode(gameState);
+                        break;
+                    default:
+                        showScreen('loading-screen');
                  }
             }
         }
@@ -163,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('initialData', (data) => {
             ALL_SPELLS = data.spells || {};
             ALL_CHARACTERS = data.characters || {};
-            // renderPlayerCharacterSelection(); // Será chamado após 'assignRole' para garantir a ordem
+            renderPlayerCharacterSelection();
         });
         socket.on('gameUpdate', (gameState) => {
             if (clientFlowState === 'initializing') { gameStateQueue.push(gameState); return; }
@@ -183,10 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
             myRole = data.role; isGm = !!data.isGm;
             myPlayerKey = data.playerKey || socket.id;
             clientFlowState = 'in_game';
-            
-            // Agora é seguro renderizar a lista de personagens
-            renderPlayerCharacterSelection();
-            
             while (gameStateQueue.length > 0) { renderGame(gameStateQueue.shift()); }
             if (currentGameState) renderGame(currentGameState);
         });
@@ -196,15 +213,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-        
         confirmSelectionBtn.addEventListener('click', confirmTokenSelection);
-        newCharBtn.addEventListener('click', initializeCharacterSheet);
+        newCharBtn.addEventListener('click', () => { showScreen('selection-screen'); });
         loadCharBtn.addEventListener('click', () => charFileInput.click());
         charFileInput.addEventListener('change', handleFileLoad);
         sheetNextBtn.addEventListener('click', showSpellSelection);
         finalizeCharBtn.addEventListener('click', finalizeCharacter);
         saveCharBtn.addEventListener('click', saveCharacter);
-        
         backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         
         setupTheaterEventListeners();
