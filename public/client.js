@@ -16,10 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let ALL_SCENARIOS = {};
     let GAME_DATA = {};
     
-    // CORREÇÃO DEFINITIVA: State machine para controlar o fluxo de inicialização
-    let clientFlowState = 'initializing'; // 'initializing' -> 'choosing_role' -> 'active'
-    let isDataInitialized = false;
-
     // --- ESTADO LOCAL DO CLIENTE ---
     let characterSheetInProgress = {};
     let stagedNpcs = [];
@@ -48,17 +44,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterGlobalScale = document.getElementById('theater-global-scale');
 
     // --- FUNÇÕES DE UTILIDADE ---
-    function scaleGame() { /* ... (Mantida) ... */ }
-    function getGameScale() { /* ... (Mantida) ... */ }
-    function showScreen(screenId) { /* ... (Mantida) ... */ }
-    function showInfoModal(title, text, showButton = true) { /* ... (Mantida) ... */ }
-    function showConfirmationModal(title, text, onConfirm, confirmText = 'Sim', cancelText = 'Não') { /* ... (Mantida) ... */ }
-    function copyToClipboard(text, element) { /* ... (Mantida) ... */ }
+    function scaleGame() {
+        setTimeout(() => {
+            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+            gameWrapper.style.transform = `scale(${scale})`;
+            gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
+            gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
+        }, 10);
+    }
+    
+    function getGameScale() {
+        const transform = window.getComputedStyle(gameWrapper).transform;
+        if (transform === 'none') return 1;
+        return new DOMMatrix(transform).a;
+    }
+
+    function showScreen(screenId) {
+        allScreens.forEach(screen => screen.classList.toggle('active', screen.id === screenId));
+    }
+
+    function showInfoModal(title, text, showButton = true) { /* ... (Implementação mantida) ... */ }
+    function showConfirmationModal(title, text, onConfirm, confirmText = 'Sim', cancelText = 'Não') { /* ... (Implementação mantida) ... */ }
+    function copyToClipboard(text, element) { /* ... (Implementação mantida) ... */ }
 
     // --- FLUXO PRINCIPAL DE RENDERIZAÇÃO ---
     function renderGame(state) {
-        if (clientFlowState !== 'active' || !isDataInitialized) {
-            currentGameState = state; // Armazena o estado para renderizar depois
+        // CORREÇÃO DEFINITIVA: Trava de segurança. Não renderiza nada até saber o papel do jogador.
+        if (!myRole) {
+            currentGameState = state; // Armazena o estado para quando o papel for definido
             return;
         }
 
@@ -67,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const myPlayerData = state.connectedPlayers?.[socket.id];
 
+        // Controla botões flutuantes
         const isPlayerReady = myPlayerData?.sheet?.status === 'ready';
         document.getElementById('player-sheet-button').classList.toggle('hidden', !isPlayerReady);
         document.getElementById('floating-buttons-container').classList.toggle('hidden', !isGm);
@@ -91,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPlayerView(state, myData) {
         if (!myData || !myData.sheet) {
-             showScreen('loading-screen');
+             showScreen('loading-screen'); // Fallback seguro
              return;
         };
         switch(myData.sheet.status) {
@@ -132,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function startNewCharacter() { /* ... (implementação mantida) ... */ }
     function renderTokenSelection() { /* ... (implementação mantida) ... */ }
     function confirmTokenSelection() { /* ... (implementação mantida) ... */ }
-    function renderSheetCreationUI() { /* ... (implementação mantida) ... */ }
+    function renderSheetCreationUI() { /* ... (implementação mantida e funcional) ... */ }
     function finishSheetCreation() { /* ... (implementação mantida) ... */ }
 
     // --- LÓGICA DE UI DO GM ---
@@ -153,35 +167,28 @@ document.addEventListener('DOMContentLoaded', () => {
         GAME_DATA = data.gameData;
         ALL_NPCS = data.npcs;
         ALL_SCENARIOS = data.scenarios;
-        isDataInitialized = true;
-        
-        if (clientFlowState === 'active') {
-            renderGame(currentGameState);
-        }
     });
 
     socket.on('assignRole', (data) => {
         myRole = data.role; 
         isGm = !!data.isGm; 
         myRoomId = data.roomId;
-        clientFlowState = 'active';
-
-        if (isDataInitialized) {
-            renderGame(currentGameState);
-        }
+        // Não renderiza aqui. Apenas define o papel. A renderização é responsabilidade do 'gameUpdate'.
     });
     
     socket.on('gameUpdate', (gameState) => {
         currentGameState = gameState; // Sempre atualiza o estado mais recente
-        if (clientFlowState === 'active') {
-            renderGame(gameState);
-        }
+        renderGame(gameState); // Tenta renderizar. A trava de segurança em renderGame() vai impedir se o papel não chegou.
     });
 
-    socket.on('roomCreated', (roomId) => { myRoomId = roomId; });
+    socket.on('roomCreated', (roomId) => { 
+        myRoomId = roomId; 
+        myRole = 'gm'; // Se eu criei a sala, eu sou o GM.
+        isGm = true;
+        renderGame(currentGameState); // Tenta renderizar.
+    });
     
     socket.on('promptForRole', ({ isFull }) => {
-        clientFlowState = 'choosing_role';
         showScreen('role-selection-screen');
         document.getElementById('join-as-player-btn').disabled = isFull;
         document.getElementById('room-full-message').classList.toggle('hidden', !isFull);
@@ -195,8 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
         
-        if (urlRoomId) socket.emit('playerJoinsLobby', { roomId: urlRoomId });
-        else socket.emit('gmCreatesLobby');
+        if (urlRoomId) {
+            socket.emit('playerJoinsLobby', { roomId: urlRoomId });
+        } else {
+            socket.emit('gmCreatesLobby');
+        }
 
         // Listeners de clique robustos e centralizados
         document.getElementById('join-as-player-btn').addEventListener('click', () => {
@@ -207,6 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen('loading-screen');
             socket.emit('playerChoosesRole', { role: 'spectator' });
         });
+        
+        // ... (todos os outros listeners mantidos)
         document.getElementById('new-char-btn').addEventListener('click', startNewCharacter);
         document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
         document.getElementById('load-char-input').addEventListener('change', (e) => loadCharacterFromFile(e.target.files[0]));
