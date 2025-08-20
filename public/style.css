@@ -87,7 +87,19 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .mode-btn:hover:not(:disabled) { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
 .mode-btn:disabled { background-color: #495057; color: #aaa; cursor: not-allowed; border-color: #6c757d; }
 
-#character-list-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; padding: 20px; max-height: 450px; overflow-y: auto; width: 90%; }
+/* CORREÇÃO ADICIONADA AQUI */
+.character-list-container { 
+    display: flex; 
+    flex-direction: row; /* Garante que os itens fiquem na horizontal */
+    flex-wrap: wrap; 
+    gap: 20px; 
+    justify-content: center; 
+    padding: 20px; 
+    max-height: 450px; 
+    overflow-y: auto; 
+    width: 90%; 
+}
+
 .char-card { background-color: #333; border: 3px solid #555; border-radius: 10px; padding: 15px; text-align: center; transition: all 0.2s ease-in-out; width: 150px; position: relative; cursor: pointer; }
 .char-card:hover { border-color: #aaa; }
 .char-card.selected { border-color: #ffeb3b; box-shadow: 0 0 15px #ffeb3b; transform: scale(1.05); }
