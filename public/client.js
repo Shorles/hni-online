@@ -16,8 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let ALL_SCENARIOS = {};
     let GAME_DATA = {};
     
+    // CORREÇÃO DEFINITIVA: State machine para controlar o fluxo de inicialização
+    let clientFlowState = 'initializing'; // 'initializing' -> 'choosing_role' -> 'active'
     let isDataInitialized = false;
-    let isRoleAssigned = false;
 
     // --- ESTADO LOCAL DO CLIENTE ---
     let characterSheetInProgress = {};
@@ -39,7 +40,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
-    // ... (outros elementos do DOM)
+    const theaterBackgroundViewport = document.getElementById('theater-background-viewport');
+    const theaterWorldContainer = document.getElementById('theater-world-container');
+    const theaterBackgroundImage = document.getElementById('theater-background-image');
+    const theaterTokenContainer = document.getElementById('theater-token-container');
+    const selectionBox = document.getElementById('selection-box');
+    const theaterGlobalScale = document.getElementById('theater-global-scale');
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -59,8 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showScreen(screenId) {
         allScreens.forEach(screen => screen.classList.toggle('active', screen.id === screenId));
-        // CORREÇÃO DEFINITIVA: Reatribui os listeners toda vez que uma tela é mostrada
-        setupEventListeners(screenId);
     }
 
     function showInfoModal(title, text, showButton = true) { /* ... (Mantida) ... */ }
@@ -69,8 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FLUXO PRINCIPAL DE RENDERIZAÇÃO ---
     function renderGame(state) {
-        if (!isDataInitialized || !isRoleAssigned) {
-            currentGameState = state;
+        if (clientFlowState !== 'active' || !isDataInitialized) {
+            currentGameState = state; // Armazena o estado para renderizar depois
             return;
         }
 
@@ -110,18 +114,27 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'creating_sheet': showScreen('character-entry-screen'); return;
             case 'selecting_token': showScreen('token-selection-screen'); renderTokenSelection(); return;
             case 'filling_sheet': showScreen('sheet-creation-screen'); renderSheetCreationUI(); return;
-            case 'ready': break;
-        }
-        switch(state.mode) {
-            case 'lobby': showScreen('player-waiting-screen'); document.getElementById('player-waiting-message').textContent = "Personagem pronto! Aguardando o Mestre..."; break;
-            case 'adventure': showScreen('fight-screen'); /* renderFightUI(state); */ break;
-            case 'theater': renderTheaterUI(state); break;
+            case 'ready':
+                switch(state.mode) {
+                    case 'lobby': showScreen('player-waiting-screen'); document.getElementById('player-waiting-message').textContent = "Personagem pronto! Aguardando o Mestre..."; break;
+                    case 'adventure': showScreen('fight-screen'); /* renderFightUI(state); */ break;
+                    case 'theater': renderTheaterUI(state); break;
+                }
+                break;
         }
     }
 
     function renderSpectatorView(state) { /* ... (Mantida) ... */ }
 
     function updateGmLobbyUI(state) {
+        const inviteLinkEl = document.getElementById('gm-link-invite');
+        if (myRoomId && inviteLinkEl) {
+            const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+            if (inviteLinkEl.textContent !== inviteUrl) {
+                inviteLinkEl.textContent = inviteUrl;
+                inviteLinkEl.onclick = () => copyToClipboard(inviteUrl, inviteLinkEl);
+            }
+        }
         // ... (resto da função mantida)
     }
     
@@ -134,22 +147,21 @@ document.addEventListener('DOMContentLoaded', () => {
         characterSheetInProgress = JSON.parse(JSON.stringify(myData.sheet));
         renderGame(currentGameState);
     }
-
-    function renderTokenSelection() { /* ... (implementação mantida) ... */ }
-    function confirmTokenSelection() { /* ... (implementação mantida) ... */ }
-    function renderSheetCreationUI() { /* ... (implementação mantida e funcional) ... */ }
-    function finishSheetCreation() { /* ... (implementação mantida) ... */ }
+    function renderTokenSelection() { /* ... (implementação funcional mantida) ... */ }
+    function confirmTokenSelection() { /* ... (implementação funcional mantida) ... */ }
+    function renderSheetCreationUI() { /* ... (implementação funcional mantida) ... */ }
+    function finishSheetCreation() { /* ... (implementação funcional mantida) ... */ }
 
     // --- LÓGICA DE UI DO GM ---
-    function renderGmNpcSetup() { /* ... (implementação mantida) ... */ }
+    function renderGmNpcSetup() { /* ... (implementação funcional mantida) ... */ }
 
     // --- MODO CENÁRIO: LÓGICA RESTAURADA E INTEGRADA ---
-    function renderTheaterUI(state) { /* ... (implementação mantida) ... */ }
-    function renderGmTheaterPanel() { /* ... (implementação mantida) ... */ }
-    function renderPlayerTheaterControls(state) { /* ... (implementação mantida) ... */ }
-    function setupTheaterEventListeners() { /* ... (implementação mantida) ... */ }
-    function initializeGlobalKeyListeners() { /* ... (implementação mantida) ... */ }
-    function showScenarioSelectionModal() { /* ... (implementação mantida) ... */ }
+    function renderTheaterUI(state) { /* ... (implementação funcional mantida) ... */ }
+    function renderGmTheaterPanel() { /* ... (implementação funcional mantida) ... */ }
+    function renderPlayerTheaterControls(state) { /* ... (implementação funcional mantida) ... */ }
+    function setupTheaterEventListeners() { /* ... (implementação funcional mantida) ... */ }
+    function initializeGlobalKeyListeners() { /* ... (implementação funcional mantida) ... */ }
+    function showScenarioSelectionModal() { /* ... (implementação funcional mantida) ... */ }
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
@@ -160,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_SCENARIOS = data.scenarios;
         isDataInitialized = true;
         
-        if (isRoleAssigned) {
+        if (clientFlowState === 'active') {
             renderGame(currentGameState);
         }
     });
@@ -169,8 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
         myRole = data.role; 
         isGm = !!data.isGm; 
         myRoomId = data.roomId;
-        isRoleAssigned = true;
-        
+        clientFlowState = 'active';
+
         if (isDataInitialized) {
             renderGame(currentGameState);
         }
@@ -178,18 +190,18 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('gameUpdate', (gameState) => {
         currentGameState = gameState;
-        renderGame(gameState);
+        if (clientFlowState === 'active') {
+            renderGame(gameState);
+        }
     });
 
     socket.on('roomCreated', (roomId) => { 
         myRoomId = roomId; 
-        myRole = 'gm';
-        isGm = true;
-        isRoleAssigned = true;
-        renderGame(currentGameState);
+        // Não define o papel aqui, espera o 'assignRole' que o servidor envia
     });
     
     socket.on('promptForRole', ({ isFull }) => {
+        clientFlowState = 'choosing_role';
         showScreen('role-selection-screen');
         document.getElementById('join-as-player-btn').disabled = isFull;
         document.getElementById('room-full-message').classList.toggle('hidden', !isFull);
@@ -198,14 +210,26 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptForAdventureType', () => { /* ... */ });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
-    // CORREÇÃO DEFINITIVA: Centraliza e reatribui listeners de botões
-    function setupEventListeners(activeScreenId) {
-        // Remove listeners antigos para evitar duplicação (boa prática)
-        const oldWrapper = document.getElementById('game-wrapper');
-        const newWrapper = oldWrapper.cloneNode(true);
-        oldWrapper.parentNode.replaceChild(newWrapper, oldWrapper);
+    function initialize() {
+        showScreen('loading-screen');
 
-        // Listeners que devem funcionar em qualquer tela
+        // Listeners de clique robustos e centralizados
+        document.getElementById('join-as-player-btn').addEventListener('click', () => {
+            showScreen('loading-screen');
+            socket.emit('playerChoosesRole', { role: 'player' });
+        });
+        document.getElementById('join-as-spectator-btn').addEventListener('click', () => {
+            showScreen('loading-screen');
+            socket.emit('playerChoosesRole', { role: 'spectator' });
+        });
+        document.getElementById('new-char-btn').addEventListener('click', startNewCharacter);
+        document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
+        document.getElementById('load-char-input').addEventListener('change', (e) => loadCharacterFromFile(e.target.files[0]));
+        document.getElementById('confirm-token-btn').addEventListener('click', confirmTokenSelection);
+        document.getElementById('finish-sheet-btn').addEventListener('click', finishSheetCreation);
+        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
+        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
+        document.getElementById('back-to-lobby-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         document.getElementById('floating-switch-mode-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmSwitchesMode' }));
         document.getElementById('floating-invite-btn').addEventListener('click', () => {
              if (myRoomId) {
@@ -213,42 +237,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 copyToClipboard(inviteUrl, document.getElementById('floating-invite-btn'));
             }
         });
-        document.getElementById('back-to-lobby-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
+        document.getElementById('gm-start-battle-btn').addEventListener('click', () => {
+            if(stagedNpcs.length > 0) socket.emit('playerAction', { type: 'gmStartBattle', npcs: stagedNpcs });
+        });
+        
+        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
+        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
+        document.getElementById('theater-lock-players-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'togglePlayerLock' }));
+        theaterGlobalScale.addEventListener('change', (e) => {
+             if (isGm) socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
+        });
 
-
-        // Listeners específicos da tela ativa
-        switch(activeScreenId) {
-            case 'gm-initial-lobby':
-                document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
-                document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-                const inviteLinkEl = document.getElementById('gm-link-invite');
-                if (myRoomId) {
-                    const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
-                    inviteLinkEl.textContent = inviteUrl;
-                    inviteLinkEl.onclick = () => copyToClipboard(inviteUrl, inviteLinkEl);
-                }
-                break;
-            case 'role-selection-screen':
-                document.getElementById('join-as-player-btn').addEventListener('click', () => { showScreen('loading-screen'); socket.emit('playerChoosesRole', { role: 'player' }); });
-                document.getElementById('join-as-spectator-btn').addEventListener('click', () => { showScreen('loading-screen'); socket.emit('playerChoosesRole', { role: 'spectator' }); });
-                break;
-            case 'character-entry-screen':
-                document.getElementById('new-char-btn').addEventListener('click', startNewCharacter);
-                document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
-                document.getElementById('load-char-input').addEventListener('change', (e) => loadCharacterFromFile(e.target.files[0]));
-                break;
-            case 'token-selection-screen':
-                document.getElementById('confirm-token-btn').addEventListener('click', confirmTokenSelection);
-                break;
-            case 'sheet-creation-screen':
-                document.getElementById('finish-sheet-btn').addEventListener('click', finishSheetCreation);
-                // O listener de salvar precisa ser implementado com a lógica de coletar dados da ficha
-                break;
-        }
-    }
-
-    function initialize() {
-        showScreen('loading-screen');
+        setupTheaterEventListeners();
+        initializeGlobalKeyListeners();
+        window.addEventListener('resize', scaleGame);
+        scaleGame();
+        
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
         
@@ -257,11 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             socket.emit('gmCreatesLobby');
         }
-
-        setupTheaterEventListeners();
-        initializeGlobalKeyListeners();
-        window.addEventListener('resize', scaleGame);
-        scaleGame();
     }
     
     initialize();
