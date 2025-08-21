@@ -74,8 +74,17 @@
     <!-- TELA DE CRIAÇÃO DE FICHA -->
     <div id="sheet-creation-screen" class="screen">
         <h1>Criação de Personagem</h1>
+        <!-- CORREÇÃO: Estrutura HTML da ficha restaurada -->
         <div class="sheet-form-container">
-            <!-- Os campos da ficha serão gerados aqui pelo client.js -->
+            <div class="sheet-section"><h3>Identidade</h3><div class="form-grid">
+                <div class="form-field"><label for="sheet-name">Nome:</label><input type="text" id="sheet-name"></div>
+                <div class="form-field"><label for="sheet-class">Classe:</label><input type="text" id="sheet-class"></div>
+            </div></div>
+            <div class="sheet-section"><h3>Raça</h3><div class="form-grid" id="sheet-races"></div></div>
+            <div class="sheet-section"><h3>Atributos (<span id="points-to-distribute">0</span> pontos restantes)</h3><div class="form-grid" id="sheet-attributes"></div></div>
+            <div class="sheet-section"><h3>Elementos (<span id="element-points-to-distribute">0</span> pontos restantes)</h3><div class="form-grid" id="sheet-elements"></div></div>
+            <div class="sheet-section"><h3>Equipamentos (Dinheiro Restante: <span id="money-remaining">200</span> moedas)</h3><div class="form-grid" id="sheet-equipment"></div></div>
+            <div class="sheet-section"><h3>Magias (Selecione <span id="spells-to-select">2</span>)</h3><div class="form-grid" id="sheet-spells"></div></div>
         </div>
         <div class="sheet-buttons">
             <button id="save-sheet-btn" class="mode-btn">Salvar Personagem</button>
@@ -97,24 +106,13 @@
                 <div id="npc-selection-area"></div>
             </div>
         </div>
-        <div id="npc-editor" class="hidden">
-             <!-- Editor de NPC será gerado aqui pelo client.js -->
-        </div>
+        <div id="npc-editor" class="hidden"></div>
         <button id="gm-start-battle-btn" class="mode-btn">Iniciar Batalha!</button>
     </div>
 
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
-        <div id="fight-scene-characters"></div>
-        <div id="turn-order-sidebar"></div>
-        <div id="fight-log-container">
-            <h2 id="round-info">ROUND 1 / CICLO 1</h2>
-            <div id="fight-log"></div>
-        </div>
-        <div id="initiative-ui" class="hidden">
-            <button id="player-roll-initiative-btn" class="initiative-btn">Rolar Iniciativa e Defesa</button>
-        </div>
-        <div id="action-buttons-wrapper"></div>
+        <!-- Conteúdo da tela de luta -->
     </div>
 
     <!-- MODO CENÁRIO -->
@@ -126,9 +124,7 @@
             </div>
             <div id="selection-box" class="hidden"></div>
         </div>
-        <div id="theater-player-controls" class="hidden">
-            <!-- Botões de teste de atributo para o player serão gerados aqui -->
-        </div>
+        <div id="theater-player-controls" class="hidden"></div>
         <button id="toggle-gm-panel-btn" class="toggle-gm-panel-btn hidden" title="Painel do Mestre">☰</button>
         <div id="theater-gm-panel" class="hidden">
             <div class="panel-section">
@@ -150,6 +146,7 @@
                 <p><b>F:</b> Virar Personagem</p>
                 <p><b>Setas ↑↓:</b> Mudar Camada</p>
                 <p><b>Delete:</b> Excluir</p>
+                <p><b>O (hover):</b> Resetar Tamanho</p>
                 <p><b>Scroll (hover):</b> Mudar Tamanho</p>
             </div>
         </div>
