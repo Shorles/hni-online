@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
             "Anão": { bon: { constituicao: 1 }, pen: {}, text: "Enxergam no escuro (exceto escuridão mágica)." },
             "Goblin": { bon: { mente: 1 }, pen: { constituicao: -1 }, text: "Não podem utilizar armas do tipo Gigante e Colossal." },
             "Orc": { bon: { forca: 2 }, pen: { inteligencia: -1 }, text: "Podem comer quase qualquer coisa sem adoecerem." },
-            "Humano": { bon: { escolha: 1 }, pen: {}, text: "Recebem +1 em um atributo à sua escolha." }, // Lógica especial será necessária
+            "Humano": { bon: { escolha: 1 }, pen: {}, text: "Recebem +1 ponto de atributo básico para distribuir." },
             "Kairou": { bon: {}, pen: {}, text: "Respiram debaixo d'água. Devem umedecer a pele a cada dia. +1 em todos os atributos se lutarem na água." },
             "Centauro": { bon: {}, pen: { agilidade: -1 }, text: "Não podem entrar em locais apertados ou subir escadas de mão. +3 em testes de velocidade/salto." },
             "Halfling": { bon: { agilidade: 1, inteligencia: 1 }, pen: { forca: -1, constituicao: -1 }, text: "Não podem usar armas Gigante/Colossal. Enxergam no escuro." },
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
             "2 Mãos Pesada": { cost: 120, damage: "1D10", hand: 2, bta: 2, btd: 0, one_hand_bta_mod: -2, ambi_btd_mod: -2 },
             "2 Mãos Gigante": { cost: 140, damage: "1D10", hand: 2, bta: 1, btd: 1, one_hand_bta_mod: -2, ambi_btd_mod: -2 },
             "2 Mãos Colossal": { cost: 160, damage: "1D10", hand: 2, bta: -1, btd: 2, one_hand_bta_mod: -2, ambi_btd_mod: -2 },
-            "Cajado": { cost: 140, damage: "1D6", hand: 2, bta: 1, btd: 0, btm: 2, one_hand_bta_mod: -1 /* Diferente da regra excel, mas mais consistente */ },
+            "Cajado": { cost: 140, damage: "1D6", hand: 2, bta: 1, btd: 0, btm: 2, one_hand_bta_mod: -2 },
         },
         armors: {
             "Nenhuma": { cost: 0, protection: 0, agility_pen: 0 },
@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
             "Pequeno": { cost: 80, defense: 2, agility_pen: -1, req_forca: 1 },
             "Médio": { cost: 100, defense: 4, agility_pen: -2, req_forca: 2 },
             "Grande": { cost: 120, defense: 6, agility_pen: -3, req_forca: 3 },
+        },
+        advancedElements: {
+            Fogo: "Chama Azul", Água: "Gelo", Terra: "Metal", 
+            Vento: "Raio", Luz: "Cura", Escuridão: "Gravidade"
         }
     };
     let tempCharacterSheet = {}; // Objeto para construir a ficha do personagem
@@ -472,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
             healthBarHtml += '</div>';
         } else {
             const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
+            const mahouPercentage = (fighter.mahou / fighter.mahouMax) * 100; // Será usado no futuro
             healthBarHtml = `
                 <div class="health-bar-ingame">
                     <div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div>
@@ -1158,7 +1163,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tempCharacterSheet = {
             name: '',
             class: '',
-            race: 'Humano',
+            race: 'Anjo',
             tokenName: tempCharacterSheet.tokenName,
             tokenImg: tempCharacterSheet.tokenImg,
             baseAttributes: { forca: 0, agilidade: 0, protecao: 0, constituicao: 0, inteligencia: 0, mente: 0 },
@@ -1172,23 +1177,20 @@ document.addEventListener('DOMContentLoaded', () => {
             money: 200,
         };
 
-        // Popular selects
         const raceSelect = document.getElementById('sheet-race-select');
         raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(r => `<option value="${r}">${r}</option>`).join('');
-
         const weaponSelects = [document.getElementById('sheet-weapon1-type'), document.getElementById('sheet-weapon2-type')];
         weaponSelects.forEach(sel => sel.innerHTML = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join(''));
-        
         document.getElementById('sheet-armor-type').innerHTML = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
         document.getElementById('sheet-shield-type').innerHTML = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
         
-        // Resetar campos
         document.getElementById('sheet-name').value = '';
         document.getElementById('sheet-class').value = '';
-        document.querySelectorAll('.attributes-grid input').forEach(input => input.value = 0);
+        document.querySelectorAll('#character-sheet-screen input[type="number"]').forEach(input => input.value = 0);
 
-        // Adicionar listeners para os botões de seta
         document.querySelectorAll('.arrow-btn').forEach(button => {
+            if (button.dataset.listenerAttached) return;
+            button.dataset.listenerAttached = true;
             button.addEventListener('click', (e) => {
                 const wrapper = e.target.closest('.number-input-wrapper');
                 const input = wrapper.querySelector('input[type="number"]');
@@ -1197,29 +1199,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 const max = parseInt(input.max);
 
                 if (e.target.classList.contains('up-arrow')) {
-                    if (isNaN(max) || value < max) {
-                        value++;
-                    }
+                    if (isNaN(max) || value < max) value++;
                 } else if (e.target.classList.contains('down-arrow')) {
-                    if (isNaN(min) || value > min) {
-                        value--;
-                    }
+                    if (isNaN(min) || value > min) value--;
                 }
                 input.value = value;
-                // Dispara o evento 'change' para que a função updateCharacterSheet seja chamada
                 input.dispatchEvent(new Event('change', { bubbles: true }));
             });
         });
 
-        updateCharacterSheet(); // Chamar para calcular os valores iniciais
+        updateCharacterSheet();
     }
 
     function updateCharacterSheet() {
-        const sheet = {}; // Objeto temporário para cálculos
+        const sheet = {};
         let infoText = "";
-        
-        // 1. Ler todos os inputs do jogador
+        let elementInfoText = "Distribua 2 pontos. Colocar 2 pontos em um elemento libera sua forma avançada.";
+
         sheet.race = document.getElementById('sheet-race-select').value;
+        const raceData = GAME_RULES.races[sheet.race];
+        const isHuman = sheet.race === 'Humano';
+        const totalAttrPointsAvailable = 5 + (isHuman ? 1 : 0);
+
         sheet.baseAttributes = {
             forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
             agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
@@ -1236,16 +1237,23 @@ document.addEventListener('DOMContentLoaded', () => {
             luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
             escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
         };
+        
+        const w1type = document.getElementById('sheet-weapon1-type').value;
+        const w2type = document.getElementById('sheet-weapon2-type').value;
+        const armortype = document.getElementById('sheet-armor-type').value;
+        const shieldtype = document.getElementById('sheet-shield-type').value;
         sheet.equipment = {
-            weapon1: GAME_RULES.weapons[document.getElementById('sheet-weapon1-type').value],
-            weapon2: GAME_RULES.weapons[document.getElementById('sheet-weapon2-type').value],
-            armor: GAME_RULES.armors[document.getElementById('sheet-armor-type').value],
-            shield: GAME_RULES.shields[document.getElementById('sheet-shield-type').value]
+            weapon1: GAME_RULES.weapons[w1type],
+            weapon2: GAME_RULES.weapons[w2type],
+            armor: GAME_RULES.armors[armortype],
+            shield: GAME_RULES.shields[shieldtype]
         };
         
-        // 2. Validar pontos
+        // --- VALIDAÇÕES E CÁLCULOS ---
+        
+        document.getElementById('attribute-points-header').innerHTML = `Atributos Básicos <small>(<span id="sheet-points-attr-remaining">${totalAttrPointsAvailable}</span> pontos restantes)</small>`;
         const totalAttrPoints = Object.values(sheet.baseAttributes).reduce((a, b) => a + b, 0);
-        const remainingAttrPoints = 5 - totalAttrPoints;
+        const remainingAttrPoints = totalAttrPointsAvailable - totalAttrPoints;
         document.getElementById('sheet-points-attr-remaining').textContent = remainingAttrPoints;
         if (remainingAttrPoints < 0) infoText += "Você gastou pontos de atributo a mais! ";
 
@@ -1254,95 +1262,78 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-points-elem-remaining').textContent = remainingElemPoints;
         if (remainingElemPoints < 0) infoText += "Você gastou pontos de elemento a mais! ";
 
-        // 3. Calcular atributos finais (com bônus/penalidades)
-        const raceData = GAME_RULES.races[sheet.race];
+        // Checa por elementos avançados
+        for (const [elem, points] of Object.entries(sheet.elements)) {
+            if (points === 2) {
+                const capitalElem = elem.charAt(0).toUpperCase() + elem.slice(1);
+                elementInfoText = `Elemento Avançado Liberado: ${GAME_RULES.advancedElements[capitalElem]}!`;
+                break;
+            }
+        }
+        
         sheet.finalAttributes = { ...sheet.baseAttributes };
         for (const attr in raceData.bon) { if (attr !== 'escolha') sheet.finalAttributes[attr] += raceData.bon[attr]; }
         for (const attr in raceData.pen) { sheet.finalAttributes[attr] += raceData.pen[attr]; }
-        // Penalidades de equipamento
         sheet.finalAttributes.agilidade += sheet.equipment.armor.agility_pen;
         sheet.finalAttributes.agilidade += sheet.equipment.shield.agility_pen;
 
-        // 4. Calcular HP e Mahou
         sheet.hpMax = 20 + (sheet.finalAttributes.constituicao * 5);
         sheet.mahouMax = 10 + (sheet.finalAttributes.mente * 5);
 
-        // 5. Lógica e custo de equipamentos
         let totalCost = sheet.equipment.weapon1.cost + sheet.equipment.weapon2.cost + sheet.equipment.armor.cost + sheet.equipment.shield.cost;
         let money = 200 - totalCost;
         if (money < 0) infoText += `Dinheiro insuficiente! Custo: ${totalCost}, Você tem: 200. `;
         
-        const w1type = document.getElementById('sheet-weapon1-type').value;
-        const w2type = document.getElementById('sheet-weapon2-type').value;
-        const shieldtype = document.getElementById('sheet-shield-type').value;
-        const w1Data = GAME_RULES.weapons[w1type];
-        const w2Data = GAME_RULES.weapons[w2type];
-        const shieldData = GAME_RULES.shields[shieldtype];
+        const w1Data = sheet.equipment.weapon1;
+        const w2Data = sheet.equipment.weapon2;
+        const shieldData = sheet.equipment.shield;
 
-        // Regras de bloqueio de slots
         const w2Select = document.getElementById('sheet-weapon2-type');
         const shieldSelect = document.getElementById('sheet-shield-type');
 
-        if (w1Data.hand === 2 || shieldtype !== 'Nenhum') {
+        const canOneHand2H = sheet.finalAttributes.forca >= 4;
+        let w1BlocksW2 = (w1Data.hand === 2 && !canOneHand2H) || shieldtype !== 'Nenhum';
+        let w1BlocksShield = (w1Data.hand === 2 && !canOneHand2H);
+        let w2BlocksShield = (w2type !== 'Desarmado');
+
+        if (w1BlocksW2) {
             if (w2Select.value !== 'Desarmado') {
                 w2Select.value = 'Desarmado';
-                // Dispara o evento para recalcular imediatamente
-                w2Select.dispatchEvent(new Event('change', { bubbles: true }));
-                return; // Para o cálculo atual para evitar inconsistências
-            }
-            w2Select.disabled = true;
-        } else {
-            w2Select.disabled = false;
-        }
+                w2Select.dispatchEvent(new Event('change', { bubbles: true })); return;
+            } w2Select.disabled = true;
+        } else { w2Select.disabled = false; }
 
-        if (w1Data.hand === 2 || w2type !== 'Desarmado') {
-             if (shieldSelect.value !== 'Nenhum') {
+        if (w1BlocksShield || w2BlocksShield) {
+            if (shieldSelect.value !== 'Nenhum') {
                 shieldSelect.value = 'Nenhum';
-                shieldSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                return;
-            }
-            shieldSelect.disabled = true;
-        } else {
-            shieldSelect.disabled = false;
-        }
+                shieldSelect.dispatchEvent(new Event('change', { bubbles: true })); return;
+            } shieldSelect.disabled = true;
+        } else { shieldSelect.disabled = false; }
         
-        // Requisito de força para escudo
         if (sheet.finalAttributes.forca < shieldData.req_forca) {
              infoText += `Você precisa de ${shieldData.req_forca} de Força para usar um Escudo ${shieldtype}. `;
         }
-        // Regra de 2 mãos com 1 mão
-        let isW1OneHanded2H = w1Data.hand === 2 && sheet.finalAttributes.forca >= 4;
-        let isW2OneHanded2H = w2Data.hand === 2 && sheet.finalAttributes.forca >= 4;
-        if(w1Data.hand === 2 && w2Data.hand === 2 && sheet.finalAttributes.forca < 4) {
-             infoText += `Você precisa de 4 de Força para usar duas armas de 2 mãos. `;
-        }
-
-
-        // 6. Calcular BTA, BTD, BTM
-        const isAmbidextrous = w1type !== 'Desarmado' && w2type !== 'Desarmado';
         
+        const isAmbidextrous = w1type !== 'Desarmado' && w2type !== 'Desarmado';
         let bta = sheet.finalAttributes.agilidade;
         let btd = sheet.finalAttributes.forca;
         let btm = sheet.finalAttributes.inteligencia;
 
-        // Arma 1
-        bta += isAmbidextrous ? (w1Data.bta + (w1Data.ambi_bta_mod || 0)) : w1Data.bta;
-        btd += isAmbidextrous ? (w1Data.btd + (w1Data.ambi_btd_mod || 0)) : w1Data.btd;
+        bta += isAmbidextrous ? (w1Data.bta + w1Data.ambi_bta_mod) : w1Data.bta;
+        btd += isAmbidextrous ? (w1Data.btd + w1Data.ambi_btd_mod) : w1Data.btd;
         btm += w1Data.btm || 0;
-        if(isW1OneHanded2H && !isAmbidextrous) bta += w1Data.one_hand_bta_mod || 0;
-
-        // Arma 2 (só contribui para BTM se for a única arma mágica)
+        if(w1Data.hand === 2 && canOneHand2H) bta += w1Data.one_hand_bta_mod || 0;
+        
         if(isAmbidextrous) {
-            btm += (w2Data.btm || 0) > (w1Data.btm || 0) ? (w2Data.btm || 0) : 0;
+            bta += w2Data.bta + w2Data.ambi_bta_mod;
+            btd += w2Data.btd + w2Data.ambi_btd_mod;
+            if((w2Data.btm || 0) > (w1Data.btm || 0)) btm += (w2Data.btm || 0);
+            if(w2Data.hand === 2 && canOneHand2H) bta += w2Data.one_hand_bta_mod || 0;
         } else {
              btm += w2Data.btm || 0;
         }
-        
-        // Penalidades de Armadura
-        bta += sheet.equipment.armor.agility_pen;
-        // Penalidade de escudo já está no atributo final, mas pode ser somada aqui se a regra mudar.
-        
-        // 7. Renderizar tudo na UI
+
+        // --- RENDERIZAÇÃO NA UI ---
         document.getElementById('sheet-final-attr-forca').textContent = sheet.finalAttributes.forca;
         document.getElementById('sheet-final-attr-agilidade').textContent = sheet.finalAttributes.agilidade;
         document.getElementById('sheet-final-attr-protecao').textContent = sheet.finalAttributes.protecao;
@@ -1356,6 +1347,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-mahou-current').textContent = sheet.mahouMax;
 
         document.getElementById('race-info-box').textContent = raceData.text;
+        document.getElementById('element-info-text').textContent = elementInfoText;
         document.getElementById('equipment-info-text').textContent = infoText || 'Tudo certo com seus equipamentos.';
         document.getElementById('sheet-money-copper').textContent = Math.max(0, money);
 
@@ -1503,7 +1495,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         
         // Lógica de fluxo de tela do jogador
-        if (myRole === 'player' && !myPlayerData.characterFinalized) {
+        if (myRole === 'player' && myPlayerData && !myPlayerData.characterFinalized) {
             // Se o jogador ainda não finalizou a ficha, mantenha-o no fluxo de criação
             return; 
         }

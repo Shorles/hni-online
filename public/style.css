@@ -583,8 +583,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .sheet-columns {
     display: flex;
     gap: 20px;
-    flex-grow: 1; /* Faz as colunas ocuparem o espaço restante */
-    min-height: 0;
+    flex: 1; /* Faz as colunas ocuparem o espaço vertical restante */
+    min-height: 0; /* Correção para flexbox em containers com scroll */
 }
 
 .sheet-column {
@@ -757,7 +757,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     justify-content: flex-end;
     gap: 20px;
     padding-top: 10px;
-    margin-top: auto; /* Empurra o footer para o fundo, mas flex-grow na coluna é mais eficaz */
+    margin-top: auto; /* Empurra o footer para o fundo */
 }
 
 .sheet-btn {

@@ -117,7 +117,7 @@
                     </div>
 
                     <div class="sheet-section">
-                        <h3>Elementos <small>(<span id="sheet-points-elem-remaining">2</span> pontos restantes)</small></h3>
+                        <h3 id="element-points-header">Elementos <small>(<span id="sheet-points-elem-remaining">2</span> pontos restantes)</small></h3>
                         <div class="attributes-grid elements-grid">
                             <div class="attr-item"> <label>Fogo</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-fogo" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
                             <div class="attr-item"> <label>Água</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-agua" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
@@ -130,7 +130,7 @@
                     </div>
                     
                     <div class="sheet-section">
-                        <h3>Atributos Básicos <small>(<span id="sheet-points-attr-remaining">5</span> pontos restantes)</small></h3>
+                        <h3 id="attribute-points-header">Atributos Básicos <small>(<span id="sheet-points-attr-remaining">5</span> pontos restantes)</small></h3>
                         <div class="attributes-grid">
                             <div class="attr-item"> <label>Força</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-base-attr-forca" min="0" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
                             <div class="attr-item"> <label>Agilidade</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-base-attr-agilidade" min="0" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
@@ -139,20 +139,6 @@
                             <div class="attr-item"> <label>Inteligência</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-base-attr-inteligencia" min="0" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
                             <div class="attr-item"> <label>Mente</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-base-attr-mente" min="0" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
                         </div>
-                    </div>
-
-                    <div id="sheet-equipment-section" class="sheet-section">
-                        <h3>Equipamentos</h3>
-                        <div class="equipment-grid">
-                            <div class="equip-item"> <label for="sheet-weapon1-name">Arma 1</label> <input type="text" id="sheet-weapon1-name" placeholder="Nome da Arma"> <select id="sheet-weapon1-type"></select> </div>
-                            <div class="equip-item"> <label for="sheet-weapon2-name">Arma 2</label> <input type="text" id="sheet-weapon2-name" placeholder="Nome da Arma"> <select id="sheet-weapon2-type"></select> </div>
-                            <div class="equip-item"> <label for="sheet-armor-type">Armadura</label> <select id="sheet-armor-type"></select> </div>
-                            <div class="equip-item"> <label for="sheet-shield-type">Escudo</label> <select id="sheet-shield-type"></select> </div>
-                        </div>
-                         <div class="money-container">
-                            Dinheiro: <span id="sheet-money-copper">200</span> moedas de cobre
-                        </div>
-                         <p id="equipment-info-text" class="info-text"></p>
                     </div>
 
                 </div>
@@ -170,6 +156,19 @@
                             <div class="attr-item"> <label>Mente</label> <span id="sheet-final-attr-mente">0</span> </div>
                         </div>
                     </div>
+                    <div id="sheet-equipment-section" class="sheet-section">
+                        <h3>Equipamentos</h3>
+                        <div class="equipment-grid">
+                            <div class="equip-item"> <label for="sheet-weapon1-name">Arma 1</label> <input type="text" id="sheet-weapon1-name" placeholder="Nome da Arma"> <select id="sheet-weapon1-type"></select> </div>
+                            <div class="equip-item"> <label for="sheet-weapon2-name">Arma 2</label> <input type="text" id="sheet-weapon2-name" placeholder="Nome da Arma"> <select id="sheet-weapon2-type"></select> </div>
+                            <div class="equip-item"> <label for="sheet-armor-type">Armadura</label> <select id="sheet-armor-type"></select> </div>
+                            <div class="equip-item"> <label for="sheet-shield-type">Escudo</label> <select id="sheet-shield-type"></select> </div>
+                        </div>
+                         <div class="money-container">
+                            Dinheiro: <span id="sheet-money-copper">200</span> moedas de cobre
+                        </div>
+                         <p id="equipment-info-text" class="info-text"></p>
+                    </div>
                      <div class="sheet-section">
                         <h3>Informações Raciais</h3>
                         <div id="race-info-box" class="info-box">Selecione uma raça para ver os detalhes.</div>
@@ -181,6 +180,7 @@
                 </div>
             </div>
             
+            <!-- MOVIDO PARA FORA DAS COLUNAS -->
             <div class="sheet-footer">
                 <button id="sheet-save-btn" class="sheet-btn">Salvar Ficha</button>
                 <button id="sheet-confirm-btn" class="sheet-btn confirm">Concluir e Jogar</button>
