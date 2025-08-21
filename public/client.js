@@ -44,11 +44,27 @@ document.addEventListener('DOMContentLoaded', () => {
             "Grande": { cost: 120, defense: 6, agility_pen: -3, req_forca: 3 },
         },
         advancedElements: {
-            Fogo: "Chama Azul", Água: "Gelo", Terra: "Metal", 
-            Vento: "Raio", Luz: "Cura", Escuridão: "Gravidade"
+            fogo: "Chama Azul", agua: "Gelo", terra: "Metal", 
+            vento: "Raio", luz: "Cura", escuridao: "Gravidade"
+        },
+        spells: {
+            grade1: [
+                { name: "Estalo de Fogo", element: "fogo", desc: "Cria uma pequena chama para acender objetos. (Fora de combate)" },
+                { name: "Baforada Dracônica", element: "fogo", desc: "Causa 1D4 + nível de dano em área." },
+                { name: "Afogamento", element: "agua", desc: "Causa 2 de dano por 3 turnos (80% chance)." },
+                { name: "Geração de Água", element: "agua", desc: "Cria água potável. (Fora de combate)" },
+                { name: "Golpe Rochoso", element: "terra", desc: "+3 Força, -2 Agilidade por 3 turnos." },
+                { name: "Elevação", element: "terra", desc: "Eleva um pedaço de terra/rocha. (Fora de combate)" },
+                { name: "Aceleração", element: "vento", desc: "+3 Agilidade por 3 turnos." },
+                { name: "Tubo de Aceleração", element: "vento", desc: "Dispara algo/alguém a distância. (Fora de combate)" },
+                { name: "Iluminar", element: "luz", desc: "Cria um globo de luz por 1 hora. (Fora de combate)" },
+                { name: "Flash", element: "luz", desc: "Cega alvos por 1 turno (15% chance de resistir)." },
+                { name: "Desfazer Ilusão Mínima", element: "escuridao", desc: "Dissolve ilusões de grau 1. (Fora de combate)" },
+                { name: "Dano de Energia", element: "escuridao", desc: "Causa 1D6+1 de dano no Mahou/Ki do alvo." },
+            ]
         }
     };
-    let tempCharacterSheet = {}; // Objeto para construir a ficha do personagem
+    let tempCharacterSheet = {};
 
     // --- VARIÁVEIS DE ESTADO ---
     let myRole = null;
@@ -115,145 +131,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const coordsDisplay = document.getElementById('coords-display');
 
     // --- FUNÇÕES DE UTILIDADE ---
-    function scaleGame() {
-        setTimeout(() => {
-            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-            gameWrapper.style.transform = `scale(${scale})`;
-            gameWrapper.style.left = `${(window.innerWidth - (1280 * scale)) / 2}px`;
-            gameWrapper.style.top = `${(window.innerHeight - (720 * scale)) / 2}px`;
-        }, 10);
-    }
-
-    function showScreen(screenToShow) {
-        allScreens.forEach(screen => screen.classList.toggle('active', screen === screenToShow));
-    }
-
-    function showInfoModal(title, text, showButton = true) {
-        document.getElementById('modal-title').innerText = title;
-        document.getElementById('modal-text').innerHTML = text;
-        const oldButtons = document.getElementById('modal-content').querySelector('.modal-button-container');
-        if(oldButtons) oldButtons.remove();
-        document.getElementById('modal-button').classList.toggle('hidden', !showButton);
-        modal.classList.remove('hidden');
-        document.getElementById('modal-button').onclick = () => modal.classList.add('hidden');
-    }
-    
-    function showConfirmationModal(title, text, onConfirm, confirmText = 'Sim', cancelText = 'Não') {
-        const modalContent = document.getElementById('modal-content');
-        const modalText = document.getElementById('modal-text');
-        document.getElementById('modal-title').innerText = title;
-        modalText.innerHTML = `<p>${text}</p>`;
-        const oldButtons = modalContent.querySelector('.modal-button-container');
-        if(oldButtons) oldButtons.remove();
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'modal-button-container';
-        const confirmBtn = document.createElement('button');
-        confirmBtn.textContent = confirmText;
-        confirmBtn.onclick = () => {
-            onConfirm(true);
-            modal.classList.add('hidden');
-        };
-        const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = cancelText;
-        cancelBtn.onclick = () => {
-            onConfirm(false);
-            modal.classList.add('hidden');
-        };
-        buttonContainer.appendChild(confirmBtn);
-        buttonContainer.appendChild(cancelBtn);
-        modalContent.appendChild(buttonContainer);
-        document.getElementById('modal-button').classList.add('hidden');
-        modal.classList.remove('hidden');
-    }
-
-    function getGameScale() {
-        return (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a;
-    }
-
-    function copyToClipboard(text, element) {
-        if (!element) return;
-        navigator.clipboard.writeText(text).then(() => {
-            const originalHTML = element.innerHTML;
-            const isButton = element.tagName === 'BUTTON';
-            element.innerHTML = 'Copiado!';
-            if (isButton) element.style.fontSize = '14px';
-            setTimeout(() => { 
-                element.innerHTML = originalHTML; 
-                if (isButton) element.style.fontSize = '24px';
-            }, 2000);
-        });
-    }
-
-    function cancelTargeting() {
-        isTargeting = false;
-        targetingAttackerKey = null;
-        document.getElementById('targeting-indicator').classList.add('hidden');
-    }
-
-    function getFighter(state, key) {
-        if (!state || !state.fighters || !key) return null;
-        return state.fighters.players[key] || state.fighters.npcs[key];
-    }
+    function scaleGame(){setTimeout(()=>{const e=Math.min(window.innerWidth/1280,window.innerHeight/720);gameWrapper.style.transform=`scale(${e})`,gameWrapper.style.left=`${(window.innerWidth-1280*e)/2}px`,gameWrapper.style.top=`${(window.innerHeight-720*e)/2}px`},10)}
+    function showScreen(e){allScreens.forEach(t=>t.classList.toggle("active",t===e))}
+    function showInfoModal(e,t,o=!0){document.getElementById("modal-title").innerText=e,document.getElementById("modal-text").innerHTML=t;const n=document.getElementById("modal-content").querySelector(".modal-button-container");n&&n.remove(),document.getElementById("modal-button").classList.toggle("hidden",!o),modal.classList.remove("hidden"),document.getElementById("modal-button").onclick=()=>modal.classList.add("hidden")}
+    function showConfirmationModal(e,t,o,n="Sim",a="Não"){const l=document.getElementById("modal-content"),s=document.getElementById("modal-text");document.getElementById("modal-title").innerText=e,s.innerHTML=`<p>${t}</p>`;const i=l.querySelector(".modal-button-container");i&&i.remove();const c=document.createElement("div");c.className="modal-button-container";const d=document.createElement("button");d.textContent=n,d.onclick=()=>{o(!0),modal.classList.add("hidden")};const r=document.createElement("button");r.textContent=a,r.onclick=()=>{o(!1),modal.classList.add("hidden")},c.appendChild(d),c.appendChild(r),l.appendChild(c),document.getElementById("modal-button").classList.add("hidden"),modal.classList.remove("hidden")}
+    function getGameScale(){return"none"===window.getComputedStyle(gameWrapper).transform?1:(new DOMMatrix(window.getComputedStyle(gameWrapper).transform)).a}
+    function copyToClipboard(e,t){t&&navigator.clipboard.writeText(e).then(()=>{const o=t.innerHTML,n="BUTTON"===t.tagName;t.innerHTML="Copiado!",n&&(t.style.fontSize="14px"),setTimeout(()=>{t.innerHTML=o,n&&(t.style.fontSize="24px")},2e3)})}
+    function cancelTargeting(){isTargeting=!1,targetingAttackerKey=null,document.getElementById("targeting-indicator").classList.add("hidden")}
+    function getFighter(e,t){return e&&e.fighters&&t?e.fighters.players[t]||e.fighters.npcs[t]:null}
     
     // --- LÓGICA DO MODO AVENTURA ---
-    function handleAdventureMode(gameState) {
-        // Esta função será adaptada futuramente para usar as novas regras
-        const fightScreen = document.getElementById('fight-screen');
-        if (isGm) {
-             if (gameState.phase === 'party_setup') {
-                showScreen(document.getElementById('gm-party-setup-screen')); 
-                updateGmPartySetupScreen(gameState); // Lógica antiga mantida por enquanto
-             } else if (gameState.phase === 'npc_setup') {
-                showScreen(document.getElementById('gm-npc-setup-screen')); 
-                if (!oldGameState || oldGameState.phase !== 'npc_setup') {
-                    stagedNpcSlots.fill(null);
-                    selectedSlotIndex = null;
-                    customFighterPositions = {};
-                    renderNpcSelectionForGm(); 
-                } 
-            } else {
-                showScreen(fightScreen); 
-                updateAdventureUI(gameState);
-                if (gameState.phase === 'initiative_roll') renderInitiativeUI(gameState);
-                else initiativeUI.classList.add('hidden');
-            }
-        } else {
-            // Lógica do jogador para entrar em batalha/esperar
-             const amIInTheFight = !!getFighter(gameState, myPlayerKey);
-
-            if (myRole === 'player' && !amIInTheFight) {
-                showScreen(document.getElementById('player-waiting-screen'));
-                document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre...";
-            } else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
-                showScreen(document.getElementById('player-waiting-screen'));
-                document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
-            } 
-            else {
-                showScreen(fightScreen); 
-                updateAdventureUI(gameState);
-                if (gameState.phase === 'initiative_roll') {
-                    renderInitiativeUI(gameState);
-                } else {
-                    initiativeUI.classList.add('hidden');
-                }
-            }
-        }
-    }
+    function handleAdventureMode(e){const t=document.getElementById("fight-screen");if(isGm)switch(e.phase){case"party_setup":showScreen(document.getElementById("gm-party-setup-screen")),updateGmPartySetupScreen(e);break;case"npc_setup":showScreen(document.getElementById("gm-npc-setup-screen")),oldGameState&&"npc_setup"===oldGameState.phase||(stagedNpcSlots.fill(null),selectedSlotIndex=null,customFighterPositions={},renderNpcSelectionForGm());break;case"initiative_roll":case"battle":default:showScreen(t),updateAdventureUI(e),"initiative_roll"===e.phase?renderInitiativeUI(e):initiativeUI.classList.add("hidden")}else{getFighter(e,myPlayerKey)?"party_setup"!==e.phase&&"npc_setup"!==e.phase?(showScreen(t),updateAdventureUI(e),"initiative_roll"===e.phase?renderInitiativeUI(e):initiativeUI.classList.add("hidden")):(showScreen(document.getElementById("player-waiting-screen")),document.getElementById("player-waiting-message").innerText="O Mestre está preparando a aventura..."):(showScreen(document.getElementById("player-waiting-screen")),document.getElementById("player-waiting-message").innerText="Aguardando o Mestre...")}}
+    function updateGmLobbyUI(e){const t=document.getElementById("gm-lobby-player-list");if(t&&e&&e.connectedPlayers){t.innerHTML="";const o=Object.values(e.connectedPlayers);0===o.length?t.innerHTML="<li>Aguardando jogadores...</li>":o.forEach(e=>{const o=e.characterName||"<i>Criando ficha...</i>";t.innerHTML+=`<li>${"player"===e.role?"Jogador":"Espectador"} - Personagem: ${o}</li>`})}}
     
-    function updateGmLobbyUI(state) {
-        const playerListEl = document.getElementById('gm-lobby-player-list');
-        if (!playerListEl || !state || !state.connectedPlayers) return;
-        playerListEl.innerHTML = '';
-        const connectedPlayers = Object.values(state.connectedPlayers);
-        if (connectedPlayers.length === 0) { playerListEl.innerHTML = '<li>Aguardando jogadores...</li>'; } 
-        else {
-            connectedPlayers.forEach(p => {
-                const charName = p.characterName || '<i>Criando ficha...</i>';
-                playerListEl.innerHTML += `<li>${p.role === 'player' ? 'Jogador' : 'Espectador'} - Personagem: ${charName}</li>`;
-            });
-        }
-    }
-
     function renderPlayerTokenSelection(unavailable = []) {
         const charListContainer = document.getElementById('character-list-container');
         const confirmBtn = document.getElementById('confirm-selection-btn');
@@ -310,691 +200,49 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function renderNpcSelectionForGm() {
-        const npcArea = document.getElementById('npc-selection-area');
-        npcArea.innerHTML = '';
-        (ALL_CHARACTERS.npcs || []).forEach(npcData => {
-            const card = document.createElement('div');
-            card.className = 'npc-card';
-            card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
-            card.addEventListener('click', () => {
-                let targetSlot = selectedSlotIndex;
-                if (targetSlot === null) {
-                    targetSlot = stagedNpcSlots.findIndex(slot => slot === null);
-                }
-
-                if (targetSlot !== -1 && targetSlot !== null) {
-                    stagedNpcSlots[targetSlot] = { ...npcData, id: `npc-${Date.now()}-${targetSlot}` };
-                    selectedSlotIndex = null;
-                    renderNpcStagingArea();
-                } else if (stagedNpcSlots.every(slot => slot !== null)) {
-                     alert("Todos os slots estão cheios. Remova um inimigo para adicionar outro.");
-                } else {
-                     alert("Primeiro, clique em um slot vago abaixo para posicionar o inimigo.");
-                }
-            });
-            npcArea.appendChild(card);
-        });
-
-        renderNpcStagingArea();
-
-        document.getElementById('gm-start-battle-btn').onclick = () => {
-            const finalNpcs = stagedNpcSlots
-                .map((npc, index) => npc ? { ...npc, slotIndex: index } : null)
-                .filter(npc => npc !== null);
-
-            if (finalNpcs.length === 0) {
-                alert("Adicione pelo menos um inimigo para a batalha.");
-                return;
-            }
-            socket.emit('playerAction', { type: 'gmStartBattle', npcs: finalNpcs });
-        };
-    }
-
-    function renderNpcStagingArea() {
-        const stagingArea = document.getElementById('npc-staging-area');
-        stagingArea.innerHTML = '';
-        for (let i = 0; i < MAX_NPCS; i++) {
-            const slot = document.createElement('div');
-            slot.className = 'npc-slot';
-            const npc = stagedNpcSlots[i];
-
-            if (npc) {
-                slot.innerHTML = `<img src="${npc.img}" alt="${npc.name}"><button class="remove-staged-npc" data-index="${i}">X</button>`;
-                slot.querySelector('.remove-staged-npc').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const index = parseInt(e.target.dataset.index, 10);
-                    stagedNpcSlots[index] = null;
-                    if (selectedSlotIndex === index) selectedSlotIndex = null;
-                    renderNpcStagingArea();
-                });
-            } else {
-                slot.classList.add('empty-slot');
-                slot.innerHTML = `<span>Slot ${i + 1}</span>`;
-                slot.dataset.index = i;
-                slot.addEventListener('click', (e) => {
-                    const index = parseInt(e.currentTarget.dataset.index, 10);
-                    if (selectedSlotIndex === index) {
-                         selectedSlotIndex = null; // deselect
-                    } else {
-                        selectedSlotIndex = index;
-                    }
-                    renderNpcStagingArea();
-                });
-            }
-
-            if (selectedSlotIndex === i) {
-                slot.classList.add('selected-slot');
-            }
-            stagingArea.appendChild(slot);
+    function renderNpcSelectionForGm(){const e=document.getElementById("npc-selection-area");e.innerHTML="",(ALL_CHARACTERS.npcs||[]).forEach(t=>{const o=document.createElement("div");o.className="npc-card",o.innerHTML=`<img src="${t.img}" alt="${t.name}"><div class="char-name">${t.name}</div>`,o.addEventListener("click",()=>{let o=selectedSlotIndex;null===o&&(o=stagedNpcSlots.findIndex(e=>null===e)),-1!==o&&null!==o?(stagedNpcSlots[o]={...t,id:`npc-${Date.now()}-${o}`},selectedSlotIndex=null,renderNpcStagingArea()):stagedNpcSlots.every(e=>null!==e)?alert("Todos os slots estão cheios. Remova um inimigo para adicionar outro."):alert("Primeiro, clique em um slot vago abaixo para posicionar o inimigo.")}),e.appendChild(o)}),renderNpcStagingArea(),document.getElementById("gm-start-battle-btn").onclick=()=>{const e=stagedNpcSlots.map((e,t)=>e?{...e,slotIndex:t}:null).filter(e=>null!==e);0===e.length?alert("Adicione pelo menos um inimigo para a batalha."):socket.emit("playerAction",{type:"gmStartBattle",npcs:e})}}
+    function renderNpcStagingArea(){const e=document.getElementById("npc-staging-area");e.innerHTML="";for(let t=0;t<MAX_NPCS;t++){const o=document.createElement("div");o.className="npc-slot";const n=stagedNpcSlots[t];n?(o.innerHTML=`<img src="${n.img}" alt="${n.name}"><button class="remove-staged-npc" data-index="${t}">X</button>`,o.querySelector(".remove-staged-npc").addEventListener("click",e=>{e.stopPropagation();const o=parseInt(e.target.dataset.index,10);stagedNpcSlots[o]=null,selectedSlotIndex===o&&(selectedSlotIndex=null),renderNpcStagingArea()})):(o.classList.add("empty-slot"),o.innerHTML=`<span>Slot ${t+1}</span>`,o.dataset.index=t,o.addEventListener("click",e=>{const t=parseInt(e.currentTarget.dataset.index,10);selectedSlotIndex=selectedSlotIndex===t?null:t,renderNpcStagingArea()})),selectedSlotIndex===t&&o.classList.add("selected-slot"),e.appendChild(o)}}
+    function updateAdventureUI(e){if(e&&e.fighters){fightSceneCharacters.innerHTML="",document.getElementById("round-info").textContent=`ROUND ${e.currentRound}`,document.getElementById("fight-log").innerHTML=(e.log||[]).map(e=>`<p class="log-${e.type||"info"}">${e.text}</p>`).join("");const t=[{left:"150px",top:"500px"},{left:"250px",top:"400px"},{left:"350px",top:"300px"},{left:"450px",top:"200px"}],o=[{left:"1000px",top:"500px"},{left:"900px",top:"400px"},{left:"800px",top:"300px"},{left:"700px",top:"200px"},{left:"950px",top:"350px"}];Object.keys(e.fighters.players).forEach((n,a)=>{const l=e.fighters.players[n];if("fled"!==l.status){const s=e.customPositions[l.id]||t[a],i=createFighterElement(l,"player",e,s);i&&fightSceneCharacters.appendChild(i)}}),(e.npcSlots||[]).forEach((t,n)=>{const a=getFighter(e,t);if(a&&"fled"!==a.status){const l=e.customPositions[a.id]||o[n],s=createFighterElement(a,"npc",e,l);s&&fightSceneCharacters.appendChild(s)}}),renderActionButtons(e),renderTurnOrderUI(e),renderWaitingPlayers(e)}}
+    function createFighterElement(e,t,o,n){const a=document.createElement("div");a.className=`char-container ${t}-char-container`,a.id=e.id,a.dataset.key=e.id;const l=e.scale||1;if(n&&(Object.assign(a.style,n),a.style.zIndex=parseInt(n.top,10)),a.style.setProperty("--character-scale",l),oldGameState&&getFighter(oldGameState,e.id),oldGameState&&"active"===getFighter(oldGameState,e.id)?.status&&"down"===e.status&&!defeatAnimationPlayed.has(e.id)?(defeatAnimationPlayed.add(e.id),a.classList.add("player"===t?"animate-defeat-player":"animate-defeat-npc")):"down"===e.status&&a.classList.add("player"===t?"player-defeated-final":"npc-defeated-final"),"active"===e.status){o.activeCharacterKey===e.id&&a.classList.add("active-turn");const l=getFighter(o,o.activeCharacterKey);l&&"active"===l.status&&(!!o.fighters.players[l.id]!=="player"===t&&a.classList.add("targetable"))}a.classList.contains("targetable")&&a.addEventListener("click",handleTargetClick);let s="";if(e.isMultiPart&&e.parts){s='<div class="multi-health-bar-container">';const t=(e,t)=>(t/e*100).toFixed(2);e.parts.forEach(o=>{const n="down"===o.status?"defeated":"";s+=`\n                    <div class="health-bar-ingame-part ${n}" title="${o.name}: ${o.hp}/${o.hpMax}">\n                        <div class="health-bar-ingame-part-fill" style="width: ${t(o.hpMax,o.hp)}%"></div>\n                    </div>\n                `}),s+="</div>"}else{const t=(e.hp/e.hpMax*100).toFixed(2);s=`\n                <div class="health-bar-ingame">\n                    <div class="health-bar-ingame-fill" style="width: ${t}%"></div>\n                    <span class="health-bar-ingame-text">${e.hp}/${e.hpMax}</span>\n                </div>\n            `}return a.innerHTML=`${s}<img src="${e.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${e.nome}</div>`,a}
+    function renderActionButtons(e){if(actionButtonsWrapper.innerHTML="","battle"===e.phase&&!e.winner){const t=getFighter(e,e.activeCharacterKey);if(t){const o=!!e.fighters.npcs[t.id],n="player"===myRole&&e.activeCharacterKey===myPlayerKey||isGm&&o,a=document.createElement("button");a.className="action-btn",a.textContent="Atacar",a.disabled=!n,a.addEventListener("click",()=>{isTargeting=!0,targetingAttackerKey=e.activeCharacterKey,document.getElementById("targeting-indicator").classList.remove("hidden")});const l=document.createElement("button");l.className="action-btn flee-btn",l.textContent="Fugir",l.disabled=!n,l.addEventListener("click",()=>{socket.emit("playerAction",{type:"flee",actorKey:e.activeCharacterKey})});const s=document.createElement("button");s.className="end-turn-btn",s.textContent="Encerrar Turno",s.disabled=!n,s.addEventListener("click",()=>{socket.emit("playerAction",{type:"end_turn",actorKey:e.activeCharacterKey})}),actionButtonsWrapper.appendChild(a),actionButtonsWrapper.appendChild(l),actionButtonsWrapper.appendChild(s)}}}
+    function renderInitiativeUI(e){initiativeUI.classList.remove("hidden");const t=document.getElementById("player-roll-initiative-btn"),o=document.getElementById("gm-roll-initiative-btn");if(t.classList.add("hidden"),o.classList.add("hidden"),"player"===myRole&&getFighter(e,myPlayerKey)&&"active"===getFighter(e,myPlayerKey).status&&!e.initiativeRolls[myPlayerKey]&&(t.classList.remove("hidden"),t.disabled=!1,t.onclick=()=>{t.disabled=!0,socket.emit("playerAction",{type:"roll_initiative"})}),isGm){Object.values(e.fighters.npcs).some(t=>"active"===t.status&&!e.initiativeRolls[t.id])&&(o.classList.remove("hidden"),o.disabled=!1,o.onclick=()=>{o.disabled=!0,socket.emit("playerAction",{type:"roll_initiative",isGmRoll:!0})})}}
+    function renderTurnOrderUI(e){if("battle"!==e.phase&&"initiative_roll"!==e.phase)return void turnOrderSidebar.classList.add("hidden");turnOrderSidebar.innerHTML="",turnOrderSidebar.classList.remove("hidden");const t=e.turnOrder.map(t=>getFighter(e,t)).filter(e=>e&&"active"===e.status),o=t.findIndex(t=>t.id===e.activeCharacterKey),n=-1===o?t:t.slice(o).concat(t.slice(0,o));n.forEach((e,t)=>{const o=document.createElement("div");o.className="turn-order-card",0===t&&o.classList.add("active-turn-indicator");const n=document.createElement("img");n.src=e.img,n.alt=e.nome,n.title=e.nome,o.appendChild(n),turnOrderSidebar.appendChild(o)})}
+    function renderWaitingPlayers(e){if(waitingPlayersSidebar.innerHTML="",!e.waitingPlayers||0===Object.keys(e.waitingPlayers).length)return void waitingPlayersSidebar.classList.add("hidden");waitingPlayersSidebar.classList.remove("hidden");for(const t in e.waitingPlayers){const o=e.waitingPlayers[t],n=document.createElement("div");n.className="waiting-player-card",n.innerHTML=`<img src="${o.img}" alt="${o.nome}"><p>${o.nome}</p>`,isGm&&(n.classList.add("gm-clickable"),n.title=`Clique para admitir ${o.nome} na batalha`,n.onclick=()=>{socket.emit("playerAction",{type:"gmDecidesOnAdmission",playerId:t,admitted:!0})}),waitingPlayersSidebar.appendChild(n)}}
+    function showPartSelectionModal(e,t){let o='<div class="target-part-selection">';t.parts.forEach(e=>{const t="down"===e.status;o+=`\n                <button class="target-part-btn" data-part-key="${e.key}" ${t?"disabled":""}>\n                    ${e.name} (${e.hp}/${e.hpMax})\n                </button>\n            `}),o+="</div>",showInfoModal(`Selecione qual parte de ${t.nome} atacar:`,o,!1),document.querySelectorAll(".target-part-btn").forEach(o=>{o.addEventListener("click",n=>{const a=n.currentTarget.dataset.partKey;actionButtonsWrapper.querySelectorAll("button").forEach(e=>e.disabled=!0),socket.emit("playerAction",{type:"attack",attackerKey:e,targetKey:t.id,targetPartKey:a}),cancelTargeting(),modal.classList.add("hidden")})})}
+    function handleTargetClick(e){if(!isFreeMoveModeActive&&isTargeting&&targetingAttackerKey){const t=e.target.closest(".char-container.targetable");if(t){const e=t.dataset.key,o=getFighter(currentGameState,e);o&&o.isMultiPart?showPartSelectionModal(targetingAttackerKey,o):(actionButtonsWrapper.querySelectorAll("button").forEach(e=>e.disabled=!0),socket.emit("playerAction",{type:"attack",attackerKey:targetingAttackerKey,targetKey:e}),cancelTargeting())}}}
+    function showCheatModal(){let e=`<div class="cheat-menu">\n            <button id="cheat-add-npc-btn" class="mode-btn">Adicionar Inimigo em Slot</button>\n        </div>`;showInfoModal("Cheats",e,!1),document.getElementById("cheat-add-npc-btn").addEventListener("click",handleCheatAddNpc)}
+    function handleCheatAddNpc(){if(!currentGameState||!currentGameState.npcSlots)return;const{npcSlots:e}=currentGameState;let t=`<p>Selecione o slot para adicionar/substituir:</p><div class="npc-selection-container">`;let o=!1;for(let n=0;n<MAX_NPCS;n++){const a=e[n],l=getFighter(currentGameState,a);l&&"down"!==l.status&&"fled"!==l.status?t+=`<div class="npc-card disabled">\n                               <img src="${l.img}">\n                               <div class="char-name">${l.nome} (Ocupado)</div>\n                           </div>`: (o=!0,t+=`<div class="npc-card cheat-npc-slot" data-slot-index="${n}">\n                               ${l?`<img src="${l.img}" style="filter: grayscale(100%);">`:""}\n                               <div class="char-name">${l?`${l.nome} (Vago)`:`Slot Vazio ${n+1}`}</div>\n                           </div>`)}t+="</div>",o? (showInfoModal("Selecionar Slot",t,!1),document.querySelectorAll(".cheat-npc-slot").forEach(e=>{e.addEventListener("click",t=>{const o=t.currentTarget.dataset.slotIndex;void 0!==o&&selectNpcForSlot(o)})})) :showInfoModal("Erro","Todos os slots de inimigos estão ocupados por combatentes ativos.")}
+    function selectNpcForSlot(e){let t=`<p>Selecione o novo inimigo para o Slot ${parseInt(e,10)+1}:</p>\n                       <div class="npc-selection-container" style="max-height: 300px;">`;(ALL_CHARACTERS.npcs||[]).forEach(e=>{t+=`<div class="npc-card cheat-npc-card" data-name="${e.name}" data-img="${e.img}" data-scale="${e.scale||1}">\n                           <img src="${e.img}" alt="${e.name}">\n                           <div class="char-name">${e.name}</div>\n                       </div>`}),t+="</div>",showInfoModal("Selecionar Novo Inimigo",t,!1),document.querySelectorAll(".cheat-npc-card").forEach(t=>{t.addEventListener("click",()=>{const o={name:t.dataset.name,img:t.dataset.img,scale:parseFloat(t.dataset.scale)};socket.emit("playerAction",{type:"gmSetsNpcInSlot",slotIndex:e,npcData:o}),modal.classList.add("hidden")})})}
+    function makeFightersDraggable(e){document.querySelectorAll("#fight-screen .char-container").forEach(t=>{e?t.addEventListener("mousedown",onFighterMouseDown):t.removeEventListener("mousedown",onFighterMouseDown)}),document.body.classList.toggle("is-draggable",e)}
+    function onFighterMouseDown(e){if(isFreeMoveModeActive&&0===e.button){draggedFighter.element=e.currentTarget;const t=draggedFighter.element.getBoundingClientRect(),o=getGameScale();draggedFighter.offsetX=(e.clientX-t.left)/o,draggedFighter.offsetY=(e.clientY-t.top)/o,window.addEventListener("mousemove",onFighterMouseMove),window.addEventListener("mouseup",onFighterMouseUp)}}
+    function onFighterMouseMove(e){if(draggedFighter.element){e.preventDefault();const t=gameWrapper.getBoundingClientRect(),o=getGameScale(),n=(e.clientX-t.left)/o-draggedFighter.offsetX,a=(e.clientY-t.top)/o-draggedFighter.offsetY;draggedFighter.element.style.left=`${n}px`,draggedFighter.element.style.top=`${a}px`}}
+    function onFighterMouseUp(){draggedFighter.element&&(socket.emit("playerAction",{type:"gmMovesFighter",fighterId:draggedFighter.element.id,position:{left:draggedFighter.element.style.left,top:draggedFighter.element.style.top}})),draggedFighter.element=null,window.removeEventListener("mousemove",onFighterMouseMove),window.removeEventListener("mouseup",onFighterMouseUp)}
+    function showHelpModal(){const e='\n            <div style="text-align: left; font-size: 1.2em; line-height: 1.8;">\n                <p><b>C:</b> Abrir menu de Cheats (GM).</p>\n                <p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p>\n                <p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p>\n            </div>\n        ';showInfoModal("Atalhos do Teclado",e)}
+    function initializeTheaterMode(){localWorldScale=1,theaterWorldContainer.style.transform="scale(1)",theaterBackgroundViewport.scrollLeft=0,theaterBackgroundViewport.scrollTop=0,theaterCharList.innerHTML="";const e=t=>{const o=document.createElement("div");o.className="theater-char-mini",o.style.backgroundImage=`url("${t.img}")`,o.title=t.name,o.draggable=!0,o.addEventListener("dragstart",e=>{isGm&&e.dataTransfer.setData("application/json",JSON.stringify({charName:t.name,img:t.img}))}),theaterCharList.appendChild(o)};[...(ALL_CHARACTERS.players||[]),...(ALL_CHARACTERS.npcs||[]),...(ALL_CHARACTERS.dynamic||[])].forEach(t=>e(t))}
+    function renderTheaterMode(e){if(!isDragging){const t=e.scenarioStates?.[e.currentScenario],o=isGm?t:e.publicState;if(o&&o.scenario){const n=`images/${o.scenario}`;if(!theaterBackgroundImage.src.includes(o.scenario)){const e=new Image;e.onload=()=>{theaterBackgroundImage.src=e.src,theaterWorldContainer.style.width=`${e.naturalWidth}px`,theaterWorldContainer.style.height=`${e.naturalHeight}px`,isGm&&socket.emit("playerAction",{type:"update_scenario_dims",width:e.naturalWidth,height:e.naturalHeight})},e.src=n}document.getElementById("theater-gm-panel").classList.toggle("hidden",!isGm),document.getElementById("toggle-gm-panel-btn").classList.toggle("hidden",!isGm),document.getElementById("theater-publish-btn").classList.toggle("hidden",!isGm||!t?.isStaging),isGm&&t&&(theaterGlobalScale.value=t.globalTokenScale||1),theaterTokenContainer.innerHTML="";const a=document.createDocumentFragment();(o.tokenOrder||[]).forEach((e,t)=>{const n=o.tokens[e];if(n){const l=document.createElement("img");l.id=e,l.className="theater-token",l.src=n.img,l.style.left=`${n.x}px`,l.style.top=`${n.y}px`,l.style.zIndex=t,l.dataset.scale=n.scale||1,l.dataset.flipped=String(!!n.isFlipped),l.title=n.charName;const s=o.globalTokenScale||1,i=parseFloat(l.dataset.scale),c="true"===l.dataset.flipped;l.style.transform=`scale(${i*s}) ${c?"scaleX(-1)":""}`,isGm&&(selectedTokens.has(e)&&l.classList.add("selected"),l.addEventListener("mouseenter",()=>hoveredTokenId=e),l.addEventListener("mouseleave",()=>hoveredTokenId=null)),a.appendChild(l)}}),theaterTokenContainer.appendChild(a)}}}
+    
+    function setupTheaterEventListeners(){theaterBackgroundViewport.addEventListener("mousedown",e=>{if(0===e.button&&(dragStartPos={x:e.clientX,y:e.clientY},isGm)){const t=e.target.closest(".theater-token");if(isGroupSelectMode&&!t)return isSelectingBox=!0,selectionBoxStartPos={x:e.clientX,y:e.clientY},Object.assign(selectionBox.style,{left:`${(e.clientX-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale()}px`,top:`${(e.clientY-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale()}px`,width:"0px",height:"0px"}),void selectionBox.classList.remove("hidden");t?(isDragging=!0,e.ctrlKey||selectedTokens.has(t.id)||selectedTokens.clear(),e.ctrlKey?selectedTokens.has(t.id)?selectedTokens.delete(t.id):selectedTokens.add(t.id):selectedTokens.add(t.id),dragOffsets.clear(),selectedTokens.forEach(e=>{const t=currentGameState.scenarioStates[currentGameState.currentScenario].tokens[e];t&&dragOffsets.set(e,{startX:t.x,startY:t.y})}),renderTheaterMode(currentGameState)):isGroupSelectMode||(selectedTokens.size>0&&(selectedTokens.clear(),renderTheaterMode(currentGameState)),isPanning=!0)}else isPanning=!0}),window.addEventListener("mousemove",e=>{isGm&&isDragging?(e.preventDefault(),requestAnimationFrame(()=>{const t=getGameScale(),o=(e.clientX-dragStartPos.x)/t/localWorldScale,n=(e.clientY-dragStartPos.y)/t/localWorldScale;selectedTokens.forEach(e=>{const t=document.getElementById(e),a=dragOffsets.get(e);t&&a&&(t.style.left=`${a.startX+o}px`,t.style.top=`${a.startY+n}px`)})})):isGm&&isSelectingBox?(e.preventDefault(),Object.assign(selectionBox.style,{left:`${Math.min((e.clientX-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale(),(selectionBoxStartPos.x-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale())}px`,top:`${Math.min((e.clientY-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale(),(selectionBoxStartPos.y-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale())}px`,width:`${Math.abs((e.clientX-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale()-(selectionBoxStartPos.x-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale())}px`,height:`${Math.abs((e.clientY-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale()-(selectionBoxStartPos.y-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale())}px`})):isPanning&&(e.preventDefault(),theaterBackgroundViewport.scrollLeft-=e.movementX,theaterBackgroundViewport.scrollTop-=e.movementY)}),window.addEventListener("mouseup",e=>{if(isGm&&isDragging){isDragging=!1;const t=getGameScale(),o=(e.clientX-dragStartPos.x)/t/localWorldScale,n=(e.clientY-dragStartPos.y)/t/localWorldScale;selectedTokens.forEach(e=>{const t=dragOffsets.get(e);t&&socket.emit("playerAction",{type:"updateToken",token:{id:e,x:t.startX+o,y:t.startY+n}})})
+    } else if (isGm && isSelectingBox) {
+        const boxRect = selectionBox.getBoundingClientRect();
+        isSelectingBox = false;
+        selectionBox.classList.add('hidden');
+        if (!e.ctrlKey) {
+            selectedTokens.clear();
         }
-    }
-
-    function updateAdventureUI(state) {
-        if (!state || !state.fighters) return;
-        
-        fightSceneCharacters.innerHTML = '';
-        document.getElementById('round-info').textContent = `ROUND ${state.currentRound}`;
-        document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
-        
-        const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '950px', top: '350px' } ];
-        
-        const playerKeys = Object.keys(state.fighters.players);
-        playerKeys.forEach((key, index) => {
-            const player = state.fighters.players[key];
-             if (player.status === 'fled') return;
-             const position = state.customPositions[player.id] || PLAYER_POSITIONS[index];
-             const el = createFighterElement(player, 'player', state, position);
-             if (el) fightSceneCharacters.appendChild(el);
-        });
-
-        (state.npcSlots || []).forEach((npcId, index) => {
-            const npc = getFighter(state, npcId);
-            if (npc && npc.status !== 'fled') {
-                const position = state.customPositions[npc.id] || NPC_POSITIONS[index];
-                const el = createFighterElement(npc, 'npc', state, position);
-                if (el) fightSceneCharacters.appendChild(el);
+        document.querySelectorAll('.theater-token').forEach(token => {
+            const tokenRect = token.getBoundingClientRect();
+            if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
+                 if (e.ctrlKey && selectedTokens.has(token.id)) {
+                     selectedTokens.delete(token.id);
+                 } else {
+                     selectedTokens.add(token.id);
+                 }
             }
         });
-        
-        renderActionButtons(state);
-        renderTurnOrderUI(state);
-        renderWaitingPlayers(state);
+        renderTheaterMode(currentGameState);
     }
-    
-    function createFighterElement(fighter, type, state, position) {
-        const container = document.createElement('div');
-        container.className = `char-container ${type}-char-container`;
-        container.id = fighter.id;
-        container.dataset.key = fighter.id;
-    
-        const characterScale = fighter.scale || 1.0;
-        
-        if (position) {
-            Object.assign(container.style, position);
-            container.style.zIndex = parseInt(position.top, 10);
-        }
-        container.style.setProperty('--character-scale', characterScale);
-        
-        const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
-    
-        const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
-        if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
-            defeatAnimationPlayed.add(fighter.id);
-            container.classList.add(type === 'player' ? 'animate-defeat-player' : 'animate-defeat-npc');
-        } else if (fighter.status === 'down') {
-             container.classList.add(type === 'player' ? 'player-defeated-final' : 'npc-defeated-final');
-        }
-        if (fighter.status === 'active') {
-            if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
-            const activeFighter = getFighter(state, state.activeCharacterKey);
-            if (activeFighter && activeFighter.status === 'active') {
-                const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
-                const isThisFighterPlayer = type === 'player';
-                if (isActiveFighterPlayer !== isThisFighterPlayer) {
-                    container.classList.add('targetable');
-                }
-            }
-        }
-        if(container.classList.contains('targetable')) {
-            container.addEventListener('click', handleTargetClick);
-        }
-    
-        let healthBarHtml = '';
-        if (fighter.isMultiPart && fighter.parts) {
-            healthBarHtml = '<div class="multi-health-bar-container">';
-            fighter.parts.forEach(part => {
-                const partHealthPercentage = (part.hp / part.hpMax) * 100;
-                const isDefeated = part.status === 'down' ? 'defeated' : '';
-                healthBarHtml += `
-                    <div class="health-bar-ingame-part ${isDefeated}" title="${part.name}: ${part.hp}/${part.hpMax}">
-                        <div class="health-bar-ingame-part-fill" style="width: ${partHealthPercentage}%"></div>
-                    </div>
-                `;
-            });
-            healthBarHtml += '</div>';
-        } else {
-            const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
-            const mahouPercentage = (fighter.mahou / fighter.mahouMax) * 100; // Será usado no futuro
-            healthBarHtml = `
-                <div class="health-bar-ingame">
-                    <div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div>
-                    <span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span>
-                </div>
-            `;
-        }
-    
-        container.innerHTML = `${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
-        return container;
-    }
-    
-    function renderActionButtons(state) {
-        actionButtonsWrapper.innerHTML = '';
-        if(state.phase !== 'battle' || !!state.winner) return;
-        const activeFighter = getFighter(state, state.activeCharacterKey);
-        if (!activeFighter) return;
-
-        const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
-        const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
-        
-        const attackBtn = document.createElement('button');
-        attackBtn.className = 'action-btn';
-        attackBtn.textContent = 'Atacar';
-        attackBtn.disabled = !canControl;
-        attackBtn.addEventListener('click', () => {
-            isTargeting = true;
-            targetingAttackerKey = state.activeCharacterKey;
-            document.getElementById('targeting-indicator').classList.remove('hidden');
-        });
-
-        const fleeBtn = document.createElement('button');
-        fleeBtn.className = 'action-btn flee-btn';
-        fleeBtn.textContent = 'Fugir';
-        fleeBtn.disabled = !canControl;
-        fleeBtn.addEventListener('click', () => {
-            socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey });
-        });
-
-        const endTurnBtn = document.createElement('button');
-        endTurnBtn.className = 'end-turn-btn';
-        endTurnBtn.textContent = 'Encerrar Turno';
-        endTurnBtn.disabled = !canControl;
-        endTurnBtn.addEventListener('click', () => {
-            socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey });
-        });
-        
-        actionButtonsWrapper.appendChild(attackBtn);
-        actionButtonsWrapper.appendChild(fleeBtn);
-        actionButtonsWrapper.appendChild(endTurnBtn);
-    }
-
-    function renderInitiativeUI(state) {
-        initiativeUI.classList.remove('hidden');
-        const playerRollBtn = document.getElementById('player-roll-initiative-btn');
-        const gmRollBtn = document.getElementById('gm-roll-initiative-btn');
-        playerRollBtn.classList.add('hidden');
-        gmRollBtn.classList.add('hidden');
-        const myFighter = getFighter(state, myPlayerKey);
-        if (myRole === 'player' && myFighter && myFighter.status === 'active' && !state.initiativeRolls[myPlayerKey]) {
-            playerRollBtn.classList.remove('hidden'); 
-            playerRollBtn.disabled = false;
-            playerRollBtn.onclick = () => { playerRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative' }); };
-        }
-        if (isGm) {
-            const npcsNeedToRoll = Object.values(state.fighters.npcs).some(npc => npc.status === 'active' && !state.initiativeRolls[npc.id]);
-            if (npcsNeedToRoll) {
-                gmRollBtn.classList.remove('hidden'); 
-                gmRollBtn.disabled = false;
-                gmRollBtn.onclick = () => { gmRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative', isGmRoll: true }); };
-            }
-        }
-    }
-
-    function renderTurnOrderUI(state) {
-        if (state.phase !== 'battle' && state.phase !== 'initiative_roll') {
-            turnOrderSidebar.classList.add('hidden');
-            return;
-        }
-        turnOrderSidebar.innerHTML = '';
-        turnOrderSidebar.classList.remove('hidden');
-        const orderedFighters = state.turnOrder
-            .map(id => getFighter(state, id))
-            .filter(f => f && f.status === 'active');
-        
-        const activeIndex = orderedFighters.findIndex(f => f.id === state.activeCharacterKey);
-
-        const sortedVisibleFighters = activeIndex === -1 ? orderedFighters : orderedFighters.slice(activeIndex).concat(orderedFighters.slice(0, activeIndex));
-
-        sortedVisibleFighters.forEach((fighter, index) => {
-            const card = document.createElement('div');
-            card.className = 'turn-order-card';
-            if (index === 0) {
-                card.classList.add('active-turn-indicator');
-            }
-            const img = document.createElement('img');
-            img.src = fighter.img;
-            img.alt = fighter.nome;
-            img.title = fighter.nome;
-            card.appendChild(img);
-            turnOrderSidebar.appendChild(card);
-        });
-    }
-
-    function renderWaitingPlayers(state) {
-        waitingPlayersSidebar.innerHTML = '';
-        const waiting = state.waitingPlayers || {};
-        if (Object.keys(waiting).length === 0) {
-            waitingPlayersSidebar.classList.add('hidden');
-            return;
-        }
-        waitingPlayersSidebar.classList.remove('hidden');
-        for (const playerId in waiting) {
-            const character = waiting[playerId];
-            const card = document.createElement('div');
-            card.className = 'waiting-player-card';
-            card.innerHTML = `<img src="${character.img}" alt="${character.nome}"><p>${character.nome}</p>`;
-            if (isGm) {
-                card.classList.add('gm-clickable');
-                card.title = `Clique para admitir ${character.nome} na batalha`;
-                card.onclick = () => {
-                    socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted: true });
-                };
-            }
-            waitingPlayersSidebar.appendChild(card);
-        }
-    }
-
-    function showPartSelectionModal(attackerKey, targetFighter) {
-        let modalContentHtml = '<div class="target-part-selection">';
-    
-        targetFighter.parts.forEach(part => {
-            const isDisabled = part.status === 'down';
-            modalContentHtml += `
-                <button class="target-part-btn" data-part-key="${part.key}" ${isDisabled ? 'disabled' : ''}>
-                    ${part.name} (${part.hp}/${part.hpMax})
-                </button>
-            `;
-        });
-    
-        modalContentHtml += '</div>';
-    
-        showInfoModal(`Selecione qual parte de ${targetFighter.nome} atacar:`, modalContentHtml, false);
-    
-        document.querySelectorAll('.target-part-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const partKey = e.currentTarget.dataset.partKey;
-                actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
-                socket.emit('playerAction', { 
-                    type: 'attack', 
-                    attackerKey: attackerKey, 
-                    targetKey: targetFighter.id,
-                    targetPartKey: partKey
-                });
-                cancelTargeting();
-                modal.classList.add('hidden');
-            });
-        });
-    }
-
-    function handleTargetClick(event) {
-        if (isFreeMoveModeActive) return;
-        if (!isTargeting || !targetingAttackerKey) return;
-        
-        const targetContainer = event.target.closest('.char-container.targetable');
-        if (!targetContainer) return;
-    
-        const targetKey = targetContainer.dataset.key;
-        const targetFighter = getFighter(currentGameState, targetKey);
-    
-        if (targetFighter && targetFighter.isMultiPart) {
-            showPartSelectionModal(targetingAttackerKey, targetFighter);
-        } else {
-            actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
-            socket.emit('playerAction', { type: 'attack', attackerKey: targetingAttackerKey, targetKey: targetKey });
-            cancelTargeting();
-        }
-    }
-    
-    // --- CHEAT FUNCTIONS ---
-    function showCheatModal() {
-        let content = `<div class="cheat-menu">
-            <button id="cheat-add-npc-btn" class="mode-btn">Adicionar Inimigo em Slot</button>
-        </div>`;
-        showInfoModal('Cheats', content, false);
-        document.getElementById('cheat-add-npc-btn').addEventListener('click', handleCheatAddNpc);
-    }
-    
-    function handleCheatAddNpc() {
-        if (!currentGameState || !currentGameState.npcSlots) return;
-    
-        const { npcSlots } = currentGameState;
-        let content = `<p>Selecione o slot para adicionar/substituir:</p><div class="npc-selection-container">`;
-        let hasAvailableSlots = false;
-    
-        for (let i = 0; i < MAX_NPCS; i++) {
-            const npcId = npcSlots[i];
-            const npc = getFighter(currentGameState, npcId);
-            
-            if (!npc || npc.status === 'down' || npc.status === 'fled') {
-                hasAvailableSlots = true;
-                content += `<div class="npc-card cheat-npc-slot" data-slot-index="${i}">
-                               ${npc ? `<img src="${npc.img}" style="filter: grayscale(100%);">` : ''}
-                               <div class="char-name">${npc ? `${npc.nome} (Vago)` : `Slot Vazio ${i + 1}`}</div>
-                           </div>`;
-            } else {
-                 content += `<div class="npc-card disabled">
-                               <img src="${npc.img}">
-                               <div class="char-name">${npc.nome} (Ocupado)</div>
-                           </div>`;
-            }
-        }
-        content += `</div>`;
-    
-        if (!hasAvailableSlots) {
-             showInfoModal('Erro', 'Todos os slots de inimigos estão ocupados por combatentes ativos.');
-             return;
-        }
-    
-        showInfoModal('Selecionar Slot', content, false);
-    
-        document.querySelectorAll('.cheat-npc-slot').forEach(card => {
-            card.addEventListener('click', (e) => {
-                const slotIndex = e.currentTarget.dataset.slotIndex;
-                if (slotIndex !== undefined) {
-                    selectNpcForSlot(slotIndex);
-                }
-            });
-        });
-    }
-
-    function selectNpcForSlot(slotIndex) {
-        let content = `<p>Selecione o novo inimigo para o Slot ${parseInt(slotIndex, 10) + 1}:</p>
-                       <div class="npc-selection-container" style="max-height: 300px;">`;
-        
-        (ALL_CHARACTERS.npcs || []).forEach(npcData => {
-            content += `<div class="npc-card cheat-npc-card" data-name="${npcData.name}" data-img="${npcData.img}" data-scale="${npcData.scale || 1.0}">
-                           <img src="${npcData.img}" alt="${npcData.name}">
-                           <div class="char-name">${npcData.name}</div>
-                       </div>`;
-        });
-        content += `</div>`;
-    
-        showInfoModal('Selecionar Novo Inimigo', content, false);
-        
-        document.querySelectorAll('.cheat-npc-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const newNpcData = {
-                    name: card.dataset.name,
-                    img: card.dataset.img,
-                    scale: parseFloat(card.dataset.scale)
-                };
-                socket.emit('playerAction', { type: 'gmSetsNpcInSlot', slotIndex, npcData: newNpcData });
-                modal.classList.add('hidden');
-            });
-        });
-    }
-
-    // --- POSICIONAMENTO LIVRE (GM) ---
-    function makeFightersDraggable(isDraggable) {
-        const fighters = document.querySelectorAll('#fight-screen .char-container');
-        fighters.forEach(fighter => {
-            if (isDraggable) {
-                fighter.addEventListener('mousedown', onFighterMouseDown);
-            } else {
-                fighter.removeEventListener('mousedown', onFighterMouseDown);
-            }
-        });
-        document.body.classList.toggle('is-draggable', isDraggable);
-    }
-
-    function onFighterMouseDown(e) {
-        if (!isFreeMoveModeActive || e.button !== 0) return;
-        draggedFighter.element = e.currentTarget;
-        const rect = draggedFighter.element.getBoundingClientRect();
-        const gameScale = getGameScale();
-        draggedFighter.offsetX = (e.clientX - rect.left) / gameScale;
-        draggedFighter.offsetY = (e.clientY - rect.top) / gameScale;
-        window.addEventListener('mousemove', onFighterMouseMove);
-        window.addEventListener('mouseup', onFighterMouseUp);
-    }
-
-    function onFighterMouseMove(e) {
-        if (!draggedFighter.element) return;
-        e.preventDefault();
-        const gameWrapperRect = gameWrapper.getBoundingClientRect();
-        const gameScale = getGameScale();
-        const x = (e.clientX - gameWrapperRect.left) / gameScale - draggedFighter.offsetX;
-        const y = (e.clientY - gameWrapperRect.top) / gameScale - draggedFighter.offsetY;
-        draggedFighter.element.style.left = `${x}px`;
-        draggedFighter.element.style.top = `${y}px`;
-    }
-
-    function onFighterMouseUp() {
-        if (draggedFighter.element) {
-            const fighterId = draggedFighter.element.id;
-            const newPosition = {
-                left: draggedFighter.element.style.left,
-                top: draggedFighter.element.style.top
-            };
-            socket.emit('playerAction', { type: 'gmMovesFighter', fighterId: fighterId, position: newPosition });
-        }
-        draggedFighter.element = null;
-        window.removeEventListener('mousemove', onFighterMouseMove);
-        window.removeEventListener('mouseup', onFighterMouseUp);
-    }
-    
-    function showHelpModal() {
-        const content = `
-            <div style="text-align: left; font-size: 1.2em; line-height: 1.8;">
-                <p><b>C:</b> Abrir menu de Cheats (GM).</p>
-                <p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p>
-                <p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p>
-            </div>
-        `;
-        showInfoModal("Atalhos do Teclado", content);
-    }
-
-    // --- LÓGICA DO MODO CENÁRIO ---
-    function initializeTheaterMode() {
-        localWorldScale = 1.0;
-        theaterWorldContainer.style.transform = `scale(1)`;
-        theaterBackgroundViewport.scrollLeft = 0;
-        theaterBackgroundViewport.scrollTop = 0;
-        theaterCharList.innerHTML = '';
-        const createMini = (data) => {
-            const mini = document.createElement('div');
-            mini.className = 'theater-char-mini';
-            mini.style.backgroundImage = `url("${data.img}")`;
-            mini.title = data.name;
-            mini.draggable = true;
-            mini.addEventListener('dragstart', (e) => {
-                if (!isGm) return;
-                e.dataTransfer.setData('application/json', JSON.stringify({ charName: data.name, img: data.img }));
-            });
-            theaterCharList.appendChild(mini);
-        };
-        const allMinis = [...(ALL_CHARACTERS.players || []), ...(ALL_CHARACTERS.npcs || []), ...(ALL_CHARACTERS.dynamic || [])];
-        allMinis.forEach(char => createMini(char));
-    }
-
-    function renderTheaterMode(state) {
-        if (isDragging) return;
-        const currentScenarioState = state.scenarioStates?.[state.currentScenario];
-        const dataToRender = isGm ? currentScenarioState : state.publicState;
-        if (!dataToRender || !dataToRender.scenario) return;
-
-        const scenarioUrl = `images/${dataToRender.scenario}`;
-        if (!theaterBackgroundImage.src.includes(dataToRender.scenario)) {
-            const img = new Image();
-            img.onload = () => {
-                theaterBackgroundImage.src = img.src;
-                theaterWorldContainer.style.width = `${img.naturalWidth}px`;
-                theaterWorldContainer.style.height = `${img.naturalHeight}px`;
-                if (isGm) socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
-            };
-            img.src = scenarioUrl;
-        }
-        
-        document.getElementById('theater-gm-panel').classList.toggle('hidden', !isGm);
-        document.getElementById('toggle-gm-panel-btn').classList.toggle('hidden', !isGm);
-        document.getElementById('theater-publish-btn').classList.toggle('hidden', !isGm || !currentScenarioState?.isStaging);
-        
-        if (isGm && currentScenarioState) theaterGlobalScale.value = currentScenarioState.globalTokenScale || 1.0;
-        
-        theaterTokenContainer.innerHTML = '';
-        const fragment = document.createDocumentFragment();
-        (dataToRender.tokenOrder || []).forEach((tokenId, index) => {
-            const tokenData = dataToRender.tokens[tokenId];
-            if (!tokenData) return;
-            const tokenEl = document.createElement('img');
-            tokenEl.id = tokenId;
-            tokenEl.className = 'theater-token';
-            tokenEl.src = tokenData.img;
-            tokenEl.style.left = `${tokenData.x}px`;
-            tokenEl.style.top = `${tokenData.y}px`;
-            tokenEl.style.zIndex = index;
-            tokenEl.dataset.scale = tokenData.scale || 1.0;
-            tokenEl.dataset.flipped = String(!!tokenData.isFlipped);
-            tokenEl.title = tokenData.charName;
-            
-            const globalTokenScale = dataToRender.globalTokenScale || 1.0;
-            const baseScale = parseFloat(tokenEl.dataset.scale);
-            const isFlipped = tokenEl.dataset.flipped === 'true';
-            tokenEl.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
-            
-            if (isGm) {
-                if (selectedTokens.has(tokenId)) tokenEl.classList.add('selected');
-                tokenEl.addEventListener('mouseenter', () => hoveredTokenId = tokenId);
-                tokenEl.addEventListener('mouseleave', () => hoveredTokenId = null);
-            }
-            fragment.appendChild(tokenEl);
-        });
-        theaterTokenContainer.appendChild(fragment);
-    }
-    
-    function setupTheaterEventListeners() {
-        theaterBackgroundViewport.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return;
-            dragStartPos = { x: e.clientX, y: e.clientY };
-
-            if (isGm) {
-                const tokenElement = e.target.closest('.theater-token');
-                if (isGroupSelectMode && !tokenElement) {
-                    isSelectingBox = true;
-                    selectionBoxStartPos = { x: e.clientX, y: e.clientY };
-                    const gameScale = getGameScale();
-                    const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                    const startX = (e.clientX - viewportRect.left) / gameScale;
-                    const startY = (e.clientY - viewportRect.top) / gameScale;
-                    Object.assign(selectionBox.style, { left: `${startX}px`, top: `${startY}px`, width: '0px', height: '0px' });
-                    selectionBox.classList.remove('hidden');
-                    return;
-                }
-
-                if (tokenElement) {
-                    isDragging = true;
-                    if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) {
-                        selectedTokens.clear();
-                        selectedTokens.add(tokenElement.id);
-                    } else if (e.ctrlKey) {
-                        if (selectedTokens.has(tokenElement.id)) {
-                            selectedTokens.delete(tokenElement.id);
-                        } else {
-                            selectedTokens.add(tokenElement.id);
-                        }
-                    }
-                    dragOffsets.clear();
-                    selectedTokens.forEach(id => {
-                        const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
-                        if (tokenData) {
-                           dragOffsets.set(id, { startX: tokenData.x, startY: tokenData.y });
-                        }
-                    });
-                    renderTheaterMode(currentGameState);
-                } else if (!isGroupSelectMode) {
-                    if (selectedTokens.size > 0) {
-                        selectedTokens.clear();
-                        renderTheaterMode(currentGameState);
-                    }
-                    isPanning = true;
-                }
-            } else {
-                isPanning = true;
-            }
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            if (isGm && isDragging) {
-                e.preventDefault();
-                requestAnimationFrame(() => {
-                    const gameScale = getGameScale();
-                    const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
-                    const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
-                    selectedTokens.forEach(id => {
-                        const tokenEl = document.getElementById(id);
-                        const initialPos = dragOffsets.get(id);
-                        if (tokenEl && initialPos) {
-                            tokenEl.style.left = `${initialPos.startX + deltaX}px`;
-                            tokenEl.style.top = `${initialPos.startY + deltaY}px`;
-                        }
-                    });
-                });
-            } else if (isGm && isSelectingBox) {
-                e.preventDefault();
-                const gameScale = getGameScale();
-                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
-                const currentX = (e.clientX - viewportRect.left) / gameScale;
-                const currentY = (e.clientY - viewportRect.top) / gameScale;
-                const startX = (selectionBoxStartPos.x - viewportRect.left) / gameScale;
-                const startY = (selectionBoxStartPos.y - viewportRect.top) / gameScale;
-                const left = Math.min(currentX, startX);
-                const top = Math.min(currentY, startY);
-                const width = Math.abs(currentX - startX);
-                const height = Math.abs(currentY - startY);
-                Object.assign(selectionBox.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
-            } else if (isPanning) {
-                 e.preventDefault();
-                 theaterBackgroundViewport.scrollLeft -= e.movementX;
-                 theaterBackgroundViewport.scrollTop -= e.movementY;
-            }
-        });
-
-        window.addEventListener('mouseup', (e) => {
-            if (isGm && isDragging) {
-                isDragging = false;
-                const gameScale = getGameScale();
-                const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
-                const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
-                selectedTokens.forEach(id => {
-                    const initialPos = dragOffsets.get(id);
-                    if(initialPos) {
-                        const finalX = initialPos.startX + deltaX;
-                        const finalY = initialPos.startY + deltaY;
-                        socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: finalX, y: finalY } });
-                    }
-                });
-            } else if (isGm && isSelectingBox) {
-                const boxRect = selectionBox.getBoundingClientRect();
-                isSelectingBox = false;
-                selectionBox.classList.add('hidden');
-                if (!e.ctrlKey) {
-                    selectedTokens.clear();
-                }
-                document.querySelectorAll('.theater-token').forEach(token => {
-                    const tokenRect = token.getBoundingClientRect();
-                    if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
-                         if (e.ctrlKey && selectedTokens.has(token.id)) {
-                             selectedTokens.delete(token.id);
-                         } else {
-                             selectedTokens.add(token.id);
-                         }
-                    }
-                });
-                renderTheaterMode(currentGameState);
-            }
-            isPanning = false;
-        });
+    isPanning = false;
+});
 
         theaterBackgroundViewport.addEventListener('drop', (e) => {
             e.preventDefault(); 
@@ -1046,124 +294,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function initializeGlobalKeyListeners() {
-        window.addEventListener('keydown', (e) => {
-            if (!currentGameState) return;
-            if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape'){ cancelTargeting(); return; }
-            
-            const focusedEl = document.activeElement;
-            if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA') return;
-            
-            if (e.key.toLowerCase() === 'c' && isGm && currentGameState.mode === 'adventure') {
-                e.preventDefault();
-                showCheatModal();
-            }
-
-            if (e.key.toLowerCase() === 't') {
-                e.preventDefault();
-                coordsModeActive = !coordsModeActive;
-                coordsDisplay.classList.toggle('hidden', !coordsModeActive);
-            }
-            
-            if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'j') {
-                e.preventDefault();
-                isFreeMoveModeActive = !isFreeMoveModeActive;
-                makeFightersDraggable(isFreeMoveModeActive);
-                showInfoModal("Modo de Movimento", `Modo de movimento livre ${isFreeMoveModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
-            }
-
-            if (currentGameState.mode !== 'theater' || !isGm) return;
-            
-            if(e.key.toLowerCase() === 'g') {
-                e.preventDefault();
-                isGroupSelectMode = !isGroupSelectMode;
-                theaterBackgroundViewport.classList.toggle('group-select-mode', isGroupSelectMode);
-                if (!isGroupSelectMode) {
-                    isSelectingBox = false;
-                    selectionBox.classList.add('hidden');
-                }
-            }
-
-            const targetId = hoveredTokenId || (selectedTokens.size === 1 ? selectedTokens.values().next().value : null);
-            if (e.key.toLowerCase() === 'f' && targetId) {
-                e.preventDefault();
-                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[targetId];
-                if(tokenData) socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, isFlipped: !tokenData.isFlipped } });
-            } else if (e.key.toLowerCase() === 'o' && targetId) {
-                e.preventDefault();
-                socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, scale: 1.0 } });
-            } else if (e.key === 'Delete' && selectedTokens.size > 0) {
-                e.preventDefault();
-                socket.emit('playerAction', { type: 'updateToken', token: { remove: true, ids: Array.from(selectedTokens) } });
-                selectedTokens.clear();
-            } else if (selectedTokens.size === 1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                e.preventDefault();
-                const tokenId = selectedTokens.values().next().value;
-                const currentOrder = [...currentGameState.scenarioStates[currentGameState.currentScenario].tokenOrder];
-                const currentIndex = currentOrder.indexOf(tokenId);
-                
-                if (e.key === 'ArrowUp' && currentIndex < currentOrder.length - 1) {
-                    [currentOrder[currentIndex], currentOrder[currentIndex + 1]] = [currentOrder[currentIndex + 1], currentOrder[currentIndex]];
-                    socket.emit('playerAction', { type: 'updateTokenOrder', order: currentOrder });
-                } else if (e.key === 'ArrowDown' && currentIndex > 0) {
-                    [currentOrder[currentIndex], currentOrder[currentIndex - 1]] = [currentOrder[currentIndex - 1], currentOrder[currentIndex]];
-                    socket.emit('playerAction', { type: 'updateTokenOrder', order: currentOrder });
-                }
-            }
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            if (!coordsModeActive) return;
-            const gameWrapperRect = gameWrapper.getBoundingClientRect();
-            const gameScale = getGameScale();
-            const mouseX = e.clientX;
-            const mouseY = e.clientY;
-
-            const gameX = Math.round((mouseX - gameWrapperRect.left) / gameScale);
-            const gameY = Math.round((mouseY - gameWrapperRect.top) / gameScale);
-            
-            coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
-        });
-    }
-
-    function showScenarioSelectionModal() {
-        let content = '<div class="category-tabs">';
-        const categories = Object.keys(ALL_SCENARIOS);
-        categories.forEach((cat, index) => {
-            content += `<button class="category-tab-btn ${index === 0 ? 'active' : ''}" data-category="${cat}">${cat.replace(/_/g, ' ')}</button>`;
-        });
-        content += '</div>';
-        categories.forEach((cat, index) => {
-            content += `<div class="scenarios-grid ${index === 0 ? 'active' : ''}" id="grid-${cat}">`;
-            ALL_SCENARIOS[cat].forEach(scenarioPath => {
-                const scenarioName = scenarioPath.split('/').pop().replace('.png','').replace('.jpg','');
-                content += `<div class="scenario-card" data-path="${scenarioPath}"><img src="images/mapas/${scenarioPath}" alt="${scenarioName}"><div class="scenario-name">${scenarioName}</div></div>`;
-            });
-            content += '</div>';
-        });
-        showInfoModal('Mudar Cenário', content, false);
-        document.querySelectorAll('.category-tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.category-tab-btn, .scenarios-grid').forEach(el => el.classList.remove('active'));
-                btn.classList.add('active');
-                document.getElementById(`grid-${btn.dataset.category}`).classList.add('active');
-            });
-        });
-        document.querySelectorAll('.scenario-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const scenario = card.dataset.path;
-                socket.emit('playerAction', { type: 'changeScenario', scenario: scenario });
-                modal.classList.add('hidden');
-            });
-        });
-    }
-
+    function initializeGlobalKeyListeners(){window.addEventListener("keydown",e=>{if(currentGameState){if("adventure"===currentGameState.mode&&isTargeting&&"Escape"===e.key)return void cancelTargeting();const t=document.activeElement;if("INPUT"!==t.tagName&&"TEXTAREA"!==t.tagName){if("c"===e.key.toLowerCase()&&isGm&&"adventure"===currentGameState.mode&&(e.preventDefault(),showCheatModal()),"t"===e.key.toLowerCase()&&(e.preventDefault(),coordsModeActive=!coordsModeActive,coordsDisplay.classList.toggle("hidden",!coordsModeActive)),isGm&&"adventure"===currentGameState.mode&&"j"===e.key.toLowerCase()&&(e.preventDefault(),isFreeMoveModeActive=!isFreeMoveModeActive,makeFightersDraggable(isFreeMoveModeActive),showInfoModal("Modo de Movimento",`Modo de movimento livre ${isFreeMoveModeActive?"ATIVADO":"DESATIVADO"}.`)),"theater"===currentGameState.mode&&isGm&&("g"===e.key.toLowerCase()&&(e.preventDefault(),isGroupSelectMode=!isGroupSelectMode,theaterBackgroundViewport.classList.toggle("group-select-mode",isGroupSelectMode),isGroupSelectMode||(isSelectingBox=!1,selectionBox.classList.add("hidden"))),(()=>hoveredTokenId||1===selectedTokens.size&&selectedTokens.values().next().value)(),(()=>hoveredTokenId||1===selectedTokens.size&&selectedTokens.values().next().value)(),"Delete"===e.key&&selectedTokens.size>0&&(e.preventDefault(),socket.emit("playerAction",{type:"updateToken",token:{remove:!0,ids:Array.from(selectedTokens)}}),selectedTokens.clear()),1===selectedTokens.size&&("ArrowUp"===e.key||"ArrowDown"===e.key)&&(e.preventDefault(),(()=>{const e=selectedTokens.values().next().value,t=[...currentGameState.scenarioStates[currentGameState.currentScenario].tokenOrder],o=t.indexOf(e);"ArrowUp"===e.key&&o<t.length-1?([t[o],t[o+1]]=[t[o+1],t[o]],socket.emit("playerAction",{type:"updateTokenOrder",order:t})):"ArrowDown"===e.key&&o>0&&([t[o],t[o-1]]=[t[o-1],t[o]],socket.emit("playerAction",{type:"updateTokenOrder",order:t}))})()))}}}),window.addEventListener("mousemove",e=>{if(coordsModeActive){const t=gameWrapper.getBoundingClientRect(),o=getGameScale(),n=e.clientX,a=e.clientY,l=Math.round((n-t.left)/o),s=Math.round((a-t.top)/o);coordsDisplay.innerHTML=`X: ${l}<br>Y: ${s}`}})}
+    function showScenarioSelectionModal(){let e='<div class="category-tabs">';const t=Object.keys(ALL_SCENARIOS);t.forEach((t,o)=>{e+=`<button class="category-tab-btn ${0===o?"active":""}" data-category="${t}">${t.replace(/_/g," ")}</button>`}),e+="</div>",t.forEach((t,o)=>{e+=`<div class="scenarios-grid ${0===o?"active":""}" id="grid-${t}">`,ALL_SCENARIOS[t].forEach(t=>{const o=t.split("/").pop().replace(".png","").replace(".jpg","");e+=`<div class="scenario-card" data-path="${t}"><img src="images/mapas/${t}" alt="${o}"><div class="scenario-name">${o}</div></div>`}),e+="</div>"}),showInfoModal("Mudar Cenário",e,!1),document.querySelectorAll(".category-tab-btn").forEach(e=>{e.addEventListener("click",()=>{document.querySelectorAll(".category-tab-btn, .scenarios-grid").forEach(e=>e.classList.remove("active")),e.classList.add("active"),document.getElementById(`grid-${e.dataset.category}`).classList.add("active")})}),document.querySelectorAll(".scenario-card").forEach(e=>{e.addEventListener("click",()=>{const t=e.dataset.path;socket.emit("playerAction",{type:"changeScenario",scenario:t}),modal.classList.add("hidden")})})}
+    
     // --- LÓGICA DA FICHA DE PERSONAGEM (NOVO) ---
     function initializeCharacterSheet() {
         tempCharacterSheet = {
-            name: '',
-            class: '',
-            race: 'Anjo',
+            name: '', class: '', race: 'Anjo',
             tokenName: tempCharacterSheet.tokenName,
             tokenImg: tempCharacterSheet.tokenImg,
             baseAttributes: { forca: 0, agilidade: 0, protecao: 0, constituicao: 0, inteligencia: 0, mente: 0 },
@@ -1174,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 armor: 'Nenhuma',
                 shield: 'Nenhum'
             },
+            spells: [],
             money: 200,
         };
 
@@ -1211,14 +349,50 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCharacterSheet();
     }
 
+    function renderSpellSelection(playerElements) {
+        const spellGrid = document.getElementById('spell-selection-grid');
+        spellGrid.innerHTML = '';
+        
+        const availableSpells = GAME_RULES.spells.grade1.filter(spell => 
+            playerElements.includes(spell.element)
+        );
+
+        availableSpells.forEach(spell => {
+            const card = document.createElement('div');
+            card.className = 'spell-card';
+            card.dataset.spellName = spell.name;
+            card.innerHTML = `<h4>${spell.name}</h4><p>${spell.desc}</p>`;
+
+            if (tempCharacterSheet.spells.includes(spell.name)) {
+                card.classList.add('selected');
+            }
+
+            card.addEventListener('click', () => {
+                const selectedSpells = tempCharacterSheet.spells;
+                if (selectedSpells.includes(spell.name)) {
+                    // Desselecionar
+                    tempCharacterSheet.spells = selectedSpells.filter(s => s !== spell.name);
+                    card.classList.remove('selected');
+                } else {
+                    // Selecionar
+                    if (selectedSpells.length < 2) {
+                        tempCharacterSheet.spells.push(spell.name);
+                        card.classList.add('selected');
+                    }
+                }
+                document.getElementById('sheet-spells-selected-count').textContent = tempCharacterSheet.spells.length;
+            });
+
+            spellGrid.appendChild(card);
+        });
+    }
+
+
     function updateCharacterSheet() {
         const sheet = {};
-        let infoText = "";
-        let elementInfoText = "Distribua 2 pontos. Colocar 2 pontos em um elemento libera sua forma avançada.";
-
-        sheet.race = document.getElementById('sheet-race-select').value;
-        const raceData = GAME_RULES.races[sheet.race];
-        const isHuman = sheet.race === 'Humano';
+        const race = document.getElementById('sheet-race-select').value;
+        const raceData = GAME_RULES.races[race];
+        const isHuman = race === 'Humano';
         const totalAttrPointsAvailable = 5 + (isHuman ? 1 : 0);
 
         sheet.baseAttributes = {
@@ -1242,6 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const w2type = document.getElementById('sheet-weapon2-type').value;
         const armortype = document.getElementById('sheet-armor-type').value;
         const shieldtype = document.getElementById('sheet-shield-type').value;
+        
         sheet.equipment = {
             weapon1: GAME_RULES.weapons[w1type],
             weapon2: GAME_RULES.weapons[w2type],
@@ -1249,27 +424,28 @@ document.addEventListener('DOMContentLoaded', () => {
             shield: GAME_RULES.shields[shieldtype]
         };
         
-        // --- VALIDAÇÕES E CÁLCULOS ---
-        
-        document.getElementById('attribute-points-header').innerHTML = `Atributos Básicos <small>(<span id="sheet-points-attr-remaining">${totalAttrPointsAvailable}</span> pontos restantes)</small>`;
+        // --- CÁLCULOS E VALIDAÇÕES ---
         const totalAttrPoints = Object.values(sheet.baseAttributes).reduce((a, b) => a + b, 0);
         const remainingAttrPoints = totalAttrPointsAvailable - totalAttrPoints;
-        document.getElementById('sheet-points-attr-remaining').textContent = remainingAttrPoints;
-        if (remainingAttrPoints < 0) infoText += "Você gastou pontos de atributo a mais! ";
-
         const totalElemPoints = Object.values(sheet.elements).reduce((a, b) => a + b, 0);
         const remainingElemPoints = 2 - totalElemPoints;
-        document.getElementById('sheet-points-elem-remaining').textContent = remainingElemPoints;
-        if (remainingElemPoints < 0) infoText += "Você gastou pontos de elemento a mais! ";
 
-        // Checa por elementos avançados
+        document.getElementById('attribute-points-header').innerHTML = `Atributos Básicos <small>(<span id="sheet-points-attr-remaining">${remainingAttrPoints}</span>/${totalAttrPointsAvailable} pontos) <span class="error-message" id="attr-error-message"></span></small>`;
+        document.getElementById('sheet-points-elem-remaining').textContent = remainingElemPoints;
+        document.getElementById('attr-error-message').textContent = remainingAttrPoints < 0 ? "Pontos excedidos!" : "";
+        document.getElementById('elem-error-message').textContent = remainingElemPoints < 0 ? "Pontos excedidos!" : "";
+
+        const playerActiveElements = [];
         for (const [elem, points] of Object.entries(sheet.elements)) {
+            const advancedDisplay = document.getElementById(`advanced-${elem}`);
+            if (points > 0) playerActiveElements.push(elem);
             if (points === 2) {
-                const capitalElem = elem.charAt(0).toUpperCase() + elem.slice(1);
-                elementInfoText = `Elemento Avançado Liberado: ${GAME_RULES.advancedElements[capitalElem]}!`;
-                break;
+                advancedDisplay.textContent = GAME_RULES.advancedElements[elem];
+            } else {
+                advancedDisplay.textContent = "";
             }
         }
+        renderSpellSelection(playerActiveElements);
         
         sheet.finalAttributes = { ...sheet.baseAttributes };
         for (const attr in raceData.bon) { if (attr !== 'escolha') sheet.finalAttributes[attr] += raceData.bon[attr]; }
@@ -1282,57 +458,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let totalCost = sheet.equipment.weapon1.cost + sheet.equipment.weapon2.cost + sheet.equipment.armor.cost + sheet.equipment.shield.cost;
         let money = 200 - totalCost;
-        if (money < 0) infoText += `Dinheiro insuficiente! Custo: ${totalCost}, Você tem: 200. `;
         
-        const w1Data = sheet.equipment.weapon1;
-        const w2Data = sheet.equipment.weapon2;
-        const shieldData = sheet.equipment.shield;
-
+        const canOneHand2H = sheet.finalAttributes.forca >= 4;
         const w2Select = document.getElementById('sheet-weapon2-type');
         const shieldSelect = document.getElementById('sheet-shield-type');
 
-        const canOneHand2H = sheet.finalAttributes.forca >= 4;
-        let w1BlocksW2 = (w1Data.hand === 2 && !canOneHand2H) || shieldtype !== 'Nenhum';
-        let w1BlocksShield = (w1Data.hand === 2 && !canOneHand2H);
-        let w2BlocksShield = (w2type !== 'Desarmado');
-
-        if (w1BlocksW2) {
-            if (w2Select.value !== 'Desarmado') {
-                w2Select.value = 'Desarmado';
-                w2Select.dispatchEvent(new Event('change', { bubbles: true })); return;
-            } w2Select.disabled = true;
-        } else { w2Select.disabled = false; }
-
-        if (w1BlocksShield || w2BlocksShield) {
-            if (shieldSelect.value !== 'Nenhum') {
-                shieldSelect.value = 'Nenhum';
-                shieldSelect.dispatchEvent(new Event('change', { bubbles: true })); return;
-            } shieldSelect.disabled = true;
-        } else { shieldSelect.disabled = false; }
+        const w1BlocksW2 = (sheet.equipment.weapon1.hand === 2 && !canOneHand2H);
+        w2Select.disabled = w1BlocksW2 || shieldtype !== 'Nenhum';
+        shieldSelect.disabled = (sheet.equipment.weapon1.hand === 2 && !canOneHand2H) || w2type !== 'Desarmado';
+        if (w2Select.disabled && w2Select.value !== 'Desarmado') w2Select.value = 'Desarmado';
+        if (shieldSelect.disabled && shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         
-        if (sheet.finalAttributes.forca < shieldData.req_forca) {
-             infoText += `Você precisa de ${shieldData.req_forca} de Força para usar um Escudo ${shieldtype}. `;
-        }
-        
+        let equipInfo = [];
+        if (money < 0) equipInfo.push(`Dinheiro insuficiente!`);
+        if (sheet.finalAttributes.forca < sheet.equipment.shield.req_forca) equipInfo.push(`Requer ${sheet.equipment.shield.req_forca} Força para o escudo.`);
+        if (sheet.equipment.weapon1.hand === 2 && sheet.equipment.weapon2.hand === 2 && !canOneHand2H) equipInfo.push(`Requer 4 Força para usar 2 armas de Duas Mãos.`);
+
         const isAmbidextrous = w1type !== 'Desarmado' && w2type !== 'Desarmado';
         let bta = sheet.finalAttributes.agilidade;
         let btd = sheet.finalAttributes.forca;
         let btm = sheet.finalAttributes.inteligencia;
 
-        bta += isAmbidextrous ? (w1Data.bta + w1Data.ambi_bta_mod) : w1Data.bta;
-        btd += isAmbidextrous ? (w1Data.btd + w1Data.ambi_btd_mod) : w1Data.btd;
-        btm += w1Data.btm || 0;
-        if(w1Data.hand === 2 && canOneHand2H) bta += w1Data.one_hand_bta_mod || 0;
-        
-        if(isAmbidextrous) {
-            bta += w2Data.bta + w2Data.ambi_bta_mod;
-            btd += w2Data.btd + w2Data.ambi_btd_mod;
-            if((w2Data.btm || 0) > (w1Data.btm || 0)) btm += (w2Data.btm || 0);
-            if(w2Data.hand === 2 && canOneHand2H) bta += w2Data.one_hand_bta_mod || 0;
-        } else {
-             btm += w2Data.btm || 0;
+        const w1Data = sheet.equipment.weapon1;
+        const w2Data = sheet.equipment.weapon2;
+        if(w1Data){
+            bta += isAmbidextrous ? (w1Data.bta + w1Data.ambi_bta_mod) : w1Data.bta;
+            btd += isAmbidextrous ? (w1Data.btd + w1Data.ambi_btd_mod) : w1Data.btd;
+            btm += w1Data.btm || 0;
+            if(w1Data.hand === 2 && canOneHand2H) bta += w1Data.one_hand_bta_mod || 0;
         }
-
+        if(isAmbidextrous && w2Data){
+             bta += w2Data.bta + w2Data.ambi_bta_mod;
+             btd += w2Data.btd + w2Data.ambi_btd_mod;
+             if((w2Data.btm || 0) > (w1Data.btm || 0)) btm += (w2Data.btm || 0);
+             if(w2Data.hand === 2 && canOneHand2H) bta += w2Data.one_hand_bta_mod || 0;
+        }
+        
         // --- RENDERIZAÇÃO NA UI ---
         document.getElementById('sheet-final-attr-forca').textContent = sheet.finalAttributes.forca;
         document.getElementById('sheet-final-attr-agilidade').textContent = sheet.finalAttributes.agilidade;
@@ -1347,8 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-mahou-current').textContent = sheet.mahouMax;
 
         document.getElementById('race-info-box').textContent = raceData.text;
-        document.getElementById('element-info-text').textContent = elementInfoText;
-        document.getElementById('equipment-info-text').textContent = infoText || 'Tudo certo com seus equipamentos.';
+        document.getElementById('equipment-info-text').textContent = equipInfo.length > 0 ? equipInfo.join(' ') : 'Tudo certo com seus equipamentos.';
         document.getElementById('sheet-money-copper').textContent = Math.max(0, money);
 
         document.getElementById('sheet-bta').textContent = (bta >= 0 ? '+' : '') + bta;
@@ -1385,6 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 armor: document.getElementById('sheet-armor-type').value,
                 shield: document.getElementById('sheet-shield-type').value
             },
+            spells: tempCharacterSheet.spells,
         };
 
         const dataStr = JSON.stringify(sheetData, null, 2);
@@ -1405,11 +566,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const decodedData = atob(e.target.result);
                 const sheetData = JSON.parse(decodedData);
                 
-                // Preencher a ficha
                 tempCharacterSheet.tokenName = sheetData.tokenName;
                 tempCharacterSheet.tokenImg = sheetData.tokenImg;
+                tempCharacterSheet.spells = sheetData.spells || [];
                 
-                initializeCharacterSheet(); // Reseta e popula selects
+                initializeCharacterSheet();
 
                 document.getElementById('sheet-name').value = sheetData.name || '';
                 document.getElementById('sheet-class').value = sheetData.class || '';
@@ -1441,7 +602,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleConfirmCharacter() {
-        // Coletar dados finais da ficha para enviar ao servidor
         const finalSheet = {
              name: document.getElementById('sheet-name').value,
              class: document.getElementById('sheet-class').value,
@@ -1470,6 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 armor: document.getElementById('sheet-armor-type').value,
                 shield: document.getElementById('sheet-shield-type').value
              },
+             spells: tempCharacterSheet.spells,
         };
         socket.emit('playerAction', { type: 'playerFinalizesCharacter', characterData: finalSheet });
         showScreen(document.getElementById('player-waiting-screen'));
@@ -1494,9 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         
-        // Lógica de fluxo de tela do jogador
         if (myRole === 'player' && myPlayerData && !myPlayerData.characterFinalized) {
-            // Se o jogador ainda não finalizou a ficha, mantenha-o no fluxo de criação
             return; 
         }
         
@@ -1615,7 +774,6 @@ document.addEventListener('DOMContentLoaded', () => {
         clientFlowState = 'in_game';
 
         if (myRole === 'player') {
-             // Inicia o novo fluxo de criação de personagem
             showScreen(document.getElementById('player-initial-choice-screen'));
         }
     });
@@ -1688,27 +846,15 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
-        // Lógica de escolha de papel
-        document.getElementById('join-as-player-btn').addEventListener('click', () => {
-            socket.emit('playerChoosesRole', { role: 'player' });
-            // Não muda de tela aqui, espera a resposta do servidor com 'assignRole'
-        });
-        document.getElementById('join-as-spectator-btn').addEventListener('click', () => {
-            socket.emit('playerChoosesRole', { role: 'spectator' });
-            showScreen(document.getElementById('loading-screen'));
-        });
-
-        // Lógica do novo fluxo de criação
+        document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
+        document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
         document.getElementById('new-char-btn').addEventListener('click', () => {
             showScreen(document.getElementById('selection-screen'));
             renderPlayerTokenSelection();
         });
-        document.getElementById('load-char-btn').addEventListener('click', () => {
-            document.getElementById('load-char-input').click();
-        });
+        document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
         document.getElementById('load-char-input').addEventListener('change', handleLoadCharacter);
 
-        // Lógica da ficha
         document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
             el.addEventListener('change', updateCharacterSheet);
             el.addEventListener('input', updateCharacterSheet);
@@ -1716,17 +862,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-save-btn').addEventListener('click', handleSaveCharacter);
         document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
 
-        // Botões do GM
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
         document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
         
-        floatingSwitchModeBtn.addEventListener('click', () => {
-            socket.emit('playerAction', { type: 'gmSwitchesMode' });
-        });
-
+        floatingSwitchModeBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmSwitchesMode' }));
         floatingInviteBtn.addEventListener('click', () => {
              if (myRoomId) {
                 const inviteUrl = `${window.location.origin}?room=${myRoomId}`;

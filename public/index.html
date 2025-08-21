@@ -117,20 +117,19 @@
                     </div>
 
                     <div class="sheet-section">
-                        <h3 id="element-points-header">Elementos <small>(<span id="sheet-points-elem-remaining">2</span> pontos restantes)</small></h3>
+                        <h3>Elementos <small>(<span id="sheet-points-elem-remaining">2</span> pontos) <span class="error-message" id="elem-error-message"></span></small></h3>
                         <div class="attributes-grid elements-grid">
-                            <div class="attr-item"> <label>Fogo</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-fogo" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
-                            <div class="attr-item"> <label>Água</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-agua" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
-                            <div class="attr-item"> <label>Terra</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-terra" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
-                            <div class="attr-item"> <label>Vento</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-vento" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
-                            <div class="attr-item"> <label>Luz</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-luz" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
-                            <div class="attr-item"> <label>Escuridão</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-escuridao" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
+                            <div class="attr-item"> <label>Fogo</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-fogo" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> <div class="advanced-element-display" id="advanced-fogo"></div> </div>
+                            <div class="attr-item"> <label>Água</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-agua" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> <div class="advanced-element-display" id="advanced-agua"></div> </div>
+                            <div class="attr-item"> <label>Terra</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-terra" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> <div class="advanced-element-display" id="advanced-terra"></div> </div>
+                            <div class="attr-item"> <label>Vento</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-vento" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> <div class="advanced-element-display" id="advanced-vento"></div> </div>
+                            <div class="attr-item"> <label>Luz</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-luz" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> <div class="advanced-element-display" id="advanced-luz"></div> </div>
+                            <div class="attr-item"> <label>Escuridão</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-elem-escuridao" min="0" max="2" value="0"><button class="arrow-btn up-arrow">+</button></div> <div class="advanced-element-display" id="advanced-escuridao"></div> </div>
                         </div>
-                        <p id="element-info-text" class="info-text">Distribua 2 pontos. Colocar 2 pontos em um elemento libera sua forma avançada.</p>
                     </div>
                     
                     <div class="sheet-section">
-                        <h3 id="attribute-points-header">Atributos Básicos <small>(<span id="sheet-points-attr-remaining">5</span> pontos restantes)</small></h3>
+                        <h3 id="attribute-points-header">Atributos Básicos <small>(<span id="sheet-points-attr-remaining">5</span> pontos) <span class="error-message" id="attr-error-message"></span></small></h3>
                         <div class="attributes-grid">
                             <div class="attr-item"> <label>Força</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-base-attr-forca" min="0" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
                             <div class="attr-item"> <label>Agilidade</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-base-attr-agilidade" min="0" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
@@ -140,7 +139,6 @@
                             <div class="attr-item"> <label>Mente</label> <div class="number-input-wrapper"><button class="arrow-btn down-arrow">-</button><input type="number" id="sheet-base-attr-mente" min="0" value="0"><button class="arrow-btn up-arrow">+</button></div> </div>
                         </div>
                     </div>
-
                 </div>
 
                 <!-- COLUNA DA DIREITA -->
@@ -174,13 +172,14 @@
                         <div id="race-info-box" class="info-box">Selecione uma raça para ver os detalhes.</div>
                     </div>
                      <div class="sheet-section">
-                        <h3>Magias Iniciais (Grau 1)</h3>
-                        <div id="spell-info-box" class="info-box">Escolha seus elementos para ver as magias disponíveis.</div>
+                        <h3>Magias Iniciais (Grau 1) <small>(<span id="sheet-spells-selected-count">0</span>/2 selecionadas)</small></h3>
+                        <div id="spell-info-box" class="info-box">
+                            <div id="spell-selection-grid"></div>
+                        </div>
                     </div>
                 </div>
             </div>
             
-            <!-- MOVIDO PARA FORA DAS COLUNAS -->
             <div class="sheet-footer">
                 <button id="sheet-save-btn" class="sheet-btn">Salvar Ficha</button>
                 <button id="sheet-confirm-btn" class="sheet-btn confirm">Concluir e Jogar</button>
