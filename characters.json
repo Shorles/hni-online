@@ -7,16 +7,7 @@
     "Orc Barbaro"
   ],
   "npcs": {
-    "Quimera": {
-      "scale": 1.8,
-      "isMultiPart": true,
-      "parts": [
-        { "key": "leao", "name": "Cabeça de Leão"},
-        { "key": "cabra", "name": "Cabeça de Cabra"},
-        { "key": "cobra", "name": "Cabeça de Cobra"}
-      ]
-    },
-    "Aranha": {},
+      "Aranha": {},
     "Bandido 1": {},
     "Bandido 2": {},
     "Bandido 3": {},
@@ -50,5 +41,6 @@
     "Zumbi F": {},
     "Zumbi M": {},
     "Goblin M": {}
+
   }
 }

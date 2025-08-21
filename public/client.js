@@ -393,13 +393,12 @@ document.addEventListener('DOMContentLoaded', () => {
         renderWaitingPlayers(state);
     }
     
-    // MODIFICADO: Função ajustada para renderizar múltiplas barras de HP se necessário
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
         container.id = fighter.id;
         container.dataset.key = fighter.id;
-    
+
         const characterScale = fighter.scale || 1.0;
         
         if (position) {
@@ -409,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.style.setProperty('--character-scale', characterScale);
         
         const oldFighterState = oldGameState ? (getFighter(oldGameState, fighter.id)) : null;
-    
+
         const wasJustDefeated = oldFighterState && oldFighterState.status === 'active' && fighter.status === 'down';
         if (wasJustDefeated && !defeatAnimationPlayed.has(fighter.id)) {
             defeatAnimationPlayed.add(fighter.id);
@@ -428,36 +427,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+        // CORREÇÃO: A verificação do modo de movimento foi movida para a função de clique.
         if(container.classList.contains('targetable')) {
             container.addEventListener('click', handleTargetClick);
         }
-    
-        // NOVO: Lógica de renderização da barra de vida
-        let healthBarHtml = '';
-        if (fighter.isMultiPart && fighter.parts) {
-            healthBarHtml = '<div class="multi-health-bar-container">';
-            fighter.parts.forEach(part => {
-                const partHealthPercentage = (part.hp / part.hpMax) * 100;
-                const isDefeated = part.status === 'down' ? 'defeated' : '';
-                healthBarHtml += `
-                    <div class="health-bar-ingame-part ${isDefeated}" title="${part.name}: ${part.hp}/${part.hpMax}">
-                        <div class="health-bar-ingame-part-fill" style="width: ${partHealthPercentage}%"></div>
-                    </div>
-                `;
-            });
-            healthBarHtml += '</div>';
-        } else {
-            // Lógica original para criaturas normais
-            const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
-            healthBarHtml = `
-                <div class="health-bar-ingame">
-                    <div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div>
-                    <span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span>
-                </div>
-            `;
-        }
-    
-        container.innerHTML = `${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
+        const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
+        container.innerHTML = `<div class="health-bar-ingame"><div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div><span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span></div><img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
     
@@ -577,59 +552,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // NOVO: Função para mostrar o modal de seleção de partes do monstro
-    function showPartSelectionModal(attackerKey, targetFighter) {
-        let modalContentHtml = '<div class="target-part-selection">';
-    
-        targetFighter.parts.forEach(part => {
-            const isDisabled = part.status === 'down';
-            modalContentHtml += `
-                <button class="target-part-btn" data-part-key="${part.key}" ${isDisabled ? 'disabled' : ''}>
-                    ${part.name} (${part.hp}/${part.hpMax})
-                </button>
-            `;
-        });
-    
-        modalContentHtml += '</div>';
-    
-        showInfoModal(`Selecione qual parte de ${targetFighter.nome} atacar:`, modalContentHtml, false);
-    
-        document.querySelectorAll('.target-part-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const partKey = e.currentTarget.dataset.partKey;
-                actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
-                socket.emit('playerAction', { 
-                    type: 'attack', 
-                    attackerKey: attackerKey, 
-                    targetKey: targetFighter.id,
-                    targetPartKey: partKey // Informa a parte específica
-                });
-                cancelTargeting();
-                modal.classList.add('hidden');
-            });
-        });
-    }
-
-    // MODIFICADO: Lida com monstros de múltiplas partes
     function handleTargetClick(event) {
+        // CORREÇÃO: Adicionada a verificação aqui.
         if (isFreeMoveModeActive) return;
         if (!isTargeting || !targetingAttackerKey) return;
         
         const targetContainer = event.target.closest('.char-container.targetable');
         if (!targetContainer) return;
-    
+        actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
         const targetKey = targetContainer.dataset.key;
-        const targetFighter = getFighter(currentGameState, targetKey);
-    
-        if (targetFighter && targetFighter.isMultiPart) {
-            // NOVO: Se for um monstro com partes, abre o modal de seleção
-            showPartSelectionModal(targetingAttackerKey, targetFighter);
-        } else {
-            // Lógica original para alvos normais
-            actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
-            socket.emit('playerAction', { type: 'attack', attackerKey: targetingAttackerKey, targetKey: targetKey });
-            cancelTargeting();
-        }
+        socket.emit('playerAction', { type: 'attack', attackerKey: targetingAttackerKey, targetKey: targetKey });
+        cancelTargeting();
     }
     
     // --- CHEAT FUNCTIONS ---
