@@ -47,7 +47,150 @@
         <p id="room-full-message" class="hidden" style="margin-top: 20px; color: #ffc107;"></p>
     </div>
 
-    <!-- Tela para o GM confirmar o grupo e definir stats -->
+    <!-- NOVA TELA: ESCOLHA INICIAL DO JOGADOR (NOVO/CARREGAR) -->
+    <div id="player-initial-choice-screen" class="screen">
+        <h1>Criação de Personagem</h1>
+        <p>Como deseja prosseguir?</p>
+        <div class="mode-buttons-container">
+            <button id="new-char-btn" class="mode-btn">Novo Personagem</button>
+            <button id="load-char-btn" class="mode-btn">Carregar Personagem</button>
+            <input type="file" id="load-char-input" class="hidden" accept=".json,.txt">
+        </div>
+    </div>
+
+    <!-- TELA DE SELEÇÃO DE PERSONAGENS (TOKEN) -->
+    <div id="selection-screen" class="screen">
+        <h1 id="selection-title">Selecione seu Personagem (Token)</h1>
+        <div id="character-list-container"></div>
+        <button id="confirm-selection-btn">Confirmar Token</button>
+    </div>
+
+    <!-- NOVA TELA: FICHA DE CRIAÇÃO DE PERSONAGEM -->
+    <div id="character-sheet-screen" class="screen">
+        <div class="sheet-container">
+            <div class="sheet-header">
+                <h1>Ficha de Personagem</h1>
+            </div>
+
+            <div class="sheet-main-info">
+                <div class="sheet-field">
+                    <label for="sheet-name">Nome:</label>
+                    <input type="text" id="sheet-name" placeholder="Nome do Personagem">
+                </div>
+                <div class="sheet-field">
+                    <label for="sheet-class">Classe:</label>
+                    <input type="text" id="sheet-class" placeholder="Ex: Guerreiro, Mago (Opcional)">
+                </div>
+                <div class="sheet-field">
+                    <label for="sheet-race-select">Raça:</label>
+                    <select id="sheet-race-select"></select>
+                </div>
+            </div>
+
+            <div class="sheet-calculated-stats">
+                <div class="stat-box">
+                    <h4>Bônus Total Acerto</h4>
+                    <span id="sheet-bta" class="stat-value">+0</span>
+                </div>
+                <div class="stat-box">
+                    <h4>Bônus Total Dano</h4>
+                    <span id="sheet-btd" class="stat-value">+0</span>
+                </div>
+                <div class="stat-box">
+                    <h4>Bônus Total Mágico</h4>
+                    <span id="sheet-btm" class="stat-value">+0</span>
+                </div>
+            </div>
+
+            <div class="sheet-columns">
+                <!-- COLUNA DA ESQUERDA -->
+                <div class="sheet-column">
+                    <div class="sheet-section life-bars">
+                        <div class="bar-container">
+                            <label>VIDA (HP)</label>
+                            <div class="bar-value"><span id="sheet-hp-current">20</span> / <span id="sheet-hp-max">20</span></div>
+                        </div>
+                        <div class="bar-container">
+                            <label>MAHOU / KI</label>
+                            <div class="bar-value"><span id="sheet-mahou-current">10</span> / <span id="sheet-mahou-max">10</span></div>
+                        </div>
+                    </div>
+
+                    <div class="sheet-section">
+                        <h3>Elementos <small>(<span id="sheet-points-elem-remaining">2</span> pontos restantes)</small></h3>
+                        <div class="attributes-grid elements-grid">
+                            <!-- Inputs para os Elementos -->
+                            <div class="attr-item"> <label>Fogo</label> <input type="number" id="sheet-elem-fogo" min="0" max="2" value="0"> </div>
+                            <div class="attr-item"> <label>Água</label> <input type="number" id="sheet-elem-agua" min="0" max="2" value="0"> </div>
+                            <div class="attr-item"> <label>Terra</label> <input type="number" id="sheet-elem-terra" min="0" max="2" value="0"> </div>
+                            <div class="attr-item"> <label>Vento</label> <input type="number" id="sheet-elem-vento" min="0" max="2" value="0"> </div>
+                            <div class="attr-item"> <label>Luz</label> <input type="number" id="sheet-elem-luz" min="0" max="2" value="0"> </div>
+                            <div class="attr-item"> <label>Escuridão</label> <input type="number" id="sheet-elem-escuridao" min="0" max="2" value="0"> </div>
+                        </div>
+                        <p id="element-info-text" class="info-text">Distribua 2 pontos. Colocar 2 pontos em um elemento libera sua forma avançada.</p>
+                    </div>
+                    
+                    <div class="sheet-section">
+                        <h3>Atributos Básicos <small>(<span id="sheet-points-attr-remaining">5</span> pontos restantes)</small></h3>
+                        <div class="attributes-grid">
+                            <!-- Inputs para os Atributos -->
+                            <div class="attr-item"> <label>Força</label> <input type="number" id="sheet-base-attr-forca" min="0" value="0"> </div>
+                            <div class="attr-item"> <label>Agilidade</label> <input type="number" id="sheet-base-attr-agilidade" min="0" value="0"> </div>
+                            <div class="attr-item"> <label>Proteção</label> <input type="number" id="sheet-base-attr-protecao" min="0" value="0"> </div>
+                            <div class="attr-item"> <label>Constituição</label> <input type="number" id="sheet-base-attr-constituicao" min="0" value="0"> </div>
+                            <div class="attr-item"> <label>Inteligência</label> <input type="number" id="sheet-base-attr-inteligencia" min="0" value="0"> </div>
+                            <div class="attr-item"> <label>Mente</label> <input type="number" id="sheet-base-attr-mente" min="0" value="0"> </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- COLUNA DA DIREITA -->
+                <div class="sheet-column">
+                     <div class="sheet-section">
+                        <h3>Atributos Finais <small>(com bônus/penalidades)</small></h3>
+                        <div class="attributes-grid final-attributes">
+                            <div class="attr-item"> <label>Força</label> <span id="sheet-final-attr-forca">0</span> </div>
+                            <div class="attr-item"> <label>Agilidade</label> <span id="sheet-final-attr-agilidade">0</span> </div>
+                            <div class="attr-item"> <label>Proteção</label> <span id="sheet-final-attr-protecao">0</span> </div>
+                            <div class="attr-item"> <label>Constituição</label> <span id="sheet-final-attr-constituicao">0</span> </div>
+                            <div class="attr-item"> <label>Inteligência</label> <span id="sheet-final-attr-inteligencia">0</span> </div>
+                            <div class="attr-item"> <label>Mente</label> <span id="sheet-final-attr-mente">0</span> </div>
+                        </div>
+                    </div>
+                     <div class="sheet-section">
+                        <h3>Informações Raciais</h3>
+                        <div id="race-info-box" class="info-box">Selecione uma raça para ver os detalhes.</div>
+                    </div>
+                     <div class="sheet-section">
+                        <h3>Magias Iniciais (Grau 1)</h3>
+                        <div id="spell-info-box" class="info-box">Escolha seus elementos para ver as magias disponíveis.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sheet-equipment-section">
+                <h3>Equipamentos</h3>
+                <div class="equipment-grid">
+                    <div class="equip-item"> <label for="sheet-weapon1-name">Arma 1</label> <input type="text" id="sheet-weapon1-name" placeholder="Nome da Arma"> <select id="sheet-weapon1-type"></select> </div>
+                    <div class="equip-item"> <label for="sheet-weapon2-name">Arma 2</label> <input type="text" id="sheet-weapon2-name" placeholder="Nome da Arma"> <select id="sheet-weapon2-type"></select> </div>
+                    <div class="equip-item"> <label for="sheet-armor-type">Armadura</label> <select id="sheet-armor-type"></select> </div>
+                    <div class="equip-item"> <label for="sheet-shield-type">Escudo</label> <select id="sheet-shield-type"></select> </div>
+                </div>
+                 <div class="money-container">
+                    Dinheiro: <span id="sheet-money-copper">200</span> moedas de cobre
+                </div>
+                 <p id="equipment-info-text" class="info-text"></p>
+            </div>
+
+            <div class="sheet-footer">
+                <button id="sheet-save-btn" class="sheet-btn">Salvar Ficha</button>
+                <button id="sheet-confirm-btn" class="sheet-btn confirm">Concluir e Jogar</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Tela para o GM confirmar o grupo e definir stats (SERÁ REMOVIDA/ADAPTADA FUTURAMENTE) -->
     <div id="gm-party-setup-screen" class="screen">
         <h1>Definir Atributos do Grupo</h1>
         <p>Defina a Agilidade (AGI) e Resistência (RES) para cada aventureiro.</p>
@@ -79,13 +222,6 @@
          <p id="player-waiting-message">Aguardando o Mestre iniciar o jogo...</p>
     </div>
     
-    <!-- TELA DE SELEÇÃO DE PERSONAGENS (Para jogadores) -->
-    <div id="selection-screen" class="screen">
-        <h1 id="selection-title">Selecione seu Aventureiro</h1>
-        <div id="character-list-container"></div>
-        <button id="confirm-selection-btn">Confirmar</button>
-    </div>
-
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
         <div id="waiting-players-sidebar"></div> 
@@ -151,7 +287,7 @@
     <div id="floating-buttons-container" class="hidden">
         <button id="floating-invite-btn" title="Convidar Jogador">✉️</button>
         <button id="floating-switch-mode-btn" title="Mudar Modo de Jogo">🔄</button>
-        <button id="floating-help-btn" title="Ajuda (Atalhos)">?</button> <!-- NOVO BOTÃO -->
+        <button id="floating-help-btn" title="Ajuda (Atalhos)">?</button>
     </div>
 
     <!-- Janela de Coordenadas -->

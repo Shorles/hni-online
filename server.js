@@ -47,33 +47,27 @@ function rollD6() { return Math.floor(Math.random() * 6) + 1; }
 
 function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_players', gmId: gmId, connectedPlayers: {}, unavailableCharacters: [], log: [{ text: "Lobby criado. Aguardando jogadores..." }], }; }
 
+// MODIFICADO: Função ajustada para usar a nova ficha de personagem
 function createNewAdventureState(gmId, connectedPlayers) {
     const adventureState = {
         mode: 'adventure', fighters: { players: {}, npcs: {} }, npcSlots: new Array(MAX_NPCS).fill(null), 
         customPositions: {},
         winner: null, reason: null, currentRound: 1,
-        activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, phase: 'party_setup',
+        activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, 
+        phase: 'npc_setup', // Pula a fase 'party_setup' que se tornou obsoleta para players
         scenario: 'mapas/cenarios externos/externo (1).png',
-        gmId: gmId, log: [{ text: "Aguardando jogadores formarem o grupo..." }],
+        gmId: gmId, log: [{ text: "Aguardando o Mestre preparar o encontro..." }],
         waitingPlayers: {} 
     };
     for (const sId in connectedPlayers) {
         const playerData = connectedPlayers[sId];
-        if (playerData.selectedCharacter && playerData.role === 'player') {
-            const fighterData = { 
+        // NOVO: Verifica se o personagem foi finalizado antes de adicioná-lo
+        if (playerData.characterFinalized && playerData.role === 'player') {
+            const newFighter = createNewFighterState({ 
                 id: sId, 
-                nome: playerData.selectedCharacter.nome, 
-                img: playerData.selectedCharacter.img, 
-            };
-            if (playerData.persistentStats) {
-                Object.assign(fighterData, playerData.persistentStats);
-            } else {
-                 Object.assign(fighterData, { res: 3, agi: 2 });
-            }
-            const newFighter = createNewFighterState(fighterData);
-            if (newFighter.hp <= 0) {
-                newFighter.status = 'down';
-            }
+                isPlayer: true,
+                ...playerData.characterSheet,
+            });
             adventureState.fighters.players[sId] = newFighter;
             io.to(sId).emit('assignRole', { role: 'player', playerKey: sId });
         }
@@ -98,67 +92,86 @@ function createNewTheaterState(gmId, initialScenario) {
     return theaterState;
 }
 
-// MODIFICADO: Função ajustada para lidar com monstros de múltiplas partes
+// MODIFICADO: Função completamente reescrita para usar as regras do Almara RPG para players e manter a lógica antiga para NPCs
 function createNewFighterState(data) {
-    const agi = data.agi !== undefined ? parseInt(data.agi, 10) : 2;
-    const scale = data.scale !== undefined ? parseFloat(data.scale) : 1.0;
-    
     const fighter = {
         id: data.id,
-        nome: data.nome || data.name,
-        img: data.img,
-        agi: agi,
+        nome: data.name || data.tokenName,
+        img: data.tokenImg || data.img,
         status: 'active',
-        scale: scale,
-        isMultiPart: !!data.isMultiPart, // NOVO: Flag para identificar o monstro
-        parts: [] // NOVO: Array para guardar as partes
+        scale: data.scale !== undefined ? parseFloat(data.scale) : 1.0,
+        isPlayer: !!data.isPlayer
     };
 
-    if (fighter.isMultiPart && data.parts) {
-        // NOVO: Se for um monstro de múltiplas partes, cria cada parte com seu HP
-        fighter.parts = data.parts.map(partData => {
-            const partRes = partData.res !== undefined ? parseInt(partData.res, 10) : 1;
-            const partHpMax = partRes * 5;
-            return {
-                key: partData.key,
-                name: partData.name,
-                res: partRes,
-                hpMax: partHpMax,
-                hp: partHpMax,
-                status: 'active'
-            };
-        });
-        // O HP e HPMax do monstro principal será a soma de todas as partes
-        fighter.hpMax = fighter.parts.reduce((sum, part) => sum + part.hpMax, 0);
-        fighter.hp = fighter.hpMax;
-    } else {
-        // Lógica original para criaturas normais
-        const res = data.res !== undefined ? parseInt(data.res, 10) : 3;
-        fighter.res = res;
-        fighter.hpMax = res * 5;
+    if (fighter.isPlayer && data.baseAttributes) {
+        // --- LÓGICA DO ALMARA RPG PARA JOGADORES ---
+        // TODO: Futuramente, calcular os atributos finais aqui no servidor para segurança. Por enquanto, confiamos no cliente.
+        const constituicao = data.finalAttributes ? data.finalAttributes.constituicao : data.baseAttributes.constituicao;
+        const mente = data.finalAttributes ? data.finalAttributes.mente : data.baseAttributes.mente;
+        
+        fighter.hpMax = 20 + (constituicao * 5);
+        fighter.mahouMax = 10 + (mente * 5);
+
+        // Se o personagem já tem HP/Mahou de uma batalha anterior, usa esses valores.
         fighter.hp = data.hp !== undefined ? data.hp : fighter.hpMax;
+        fighter.mahou = data.mahou !== undefined ? data.mahou : fighter.mahouMax;
+
+        fighter.agilidade = data.finalAttributes ? data.finalAttributes.agilidade : data.baseAttributes.agilidade;
+        fighter.protecao = data.finalAttributes ? data.finalAttributes.protecao : data.baseAttributes.protecao;
+        fighter.sheet = data; // Armazena a ficha completa no combatente
+
+    } else {
+        // --- LÓGICA ANTIGA/SIMPLIFICADA PARA NPCS ---
+        const agi = data.agi !== undefined ? parseInt(data.agi, 10) : 2;
+        fighter.agi = agi; // Mantendo 'agi' para compatibilidade com a iniciativa antiga
+        fighter.agilidade = agi; // Usando o novo nome de atributo
+        fighter.protecao = data.protecao || 0; // NPCs precisam de proteção para a nova fórmula de dano
+
+        fighter.isMultiPart = !!data.isMultiPart;
+        fighter.parts = [];
+
+        if (fighter.isMultiPart && data.parts) {
+            fighter.parts = data.parts.map(partData => {
+                const partRes = partData.res !== undefined ? parseInt(partData.res, 10) : 1;
+                const partHpMax = partRes * 5;
+                return {
+                    key: partData.key, name: partData.name, res: partRes,
+                    hpMax: partHpMax, hp: partHpMax, status: 'active'
+                };
+            });
+            fighter.hpMax = fighter.parts.reduce((sum, part) => sum + part.hpMax, 0);
+            fighter.hp = fighter.hpMax;
+        } else {
+            const res = data.res !== undefined ? parseInt(data.res, 10) : 3;
+            fighter.res = res;
+            fighter.hpMax = res * 5;
+            fighter.hp = data.hp !== undefined ? data.hp : fighter.hpMax;
+        }
     }
+     if (fighter.hp <= 0) {
+        fighter.status = 'down';
+     }
 
     return fighter;
 }
 
-
+// MODIFICADO: Salva o HP e Mahou de volta na ficha do jogador no lobby
 function cachePlayerStats(room) {
     if (room.activeMode !== 'adventure' || !room.gameModes.adventure) return;
     const adventureState = room.gameModes.adventure;
     const lobbyState = room.gameModes.lobby;
 
     Object.values(adventureState.fighters.players).forEach(playerFighter => {
-        if (lobbyState.connectedPlayers[playerFighter.id]) {
+        const lobbyPlayer = lobbyState.connectedPlayers[playerFighter.id];
+        if (lobbyPlayer && lobbyPlayer.characterSheet) {
             if (playerFighter.status !== 'fled') {
-                 lobbyState.connectedPlayers[playerFighter.id].persistentStats = {
-                    hp: playerFighter.hp,
-                    hpMax: playerFighter.hpMax,
-                    res: playerFighter.res,
-                    agi: playerFighter.agi
-                };
+                 // Salva o HP e Mahou atuais na ficha do lobby
+                 lobbyPlayer.characterSheet.hp = playerFighter.hp;
+                 lobbyPlayer.characterSheet.mahou = playerFighter.mahou;
             } else {
-                delete lobbyState.connectedPlayers[playerFighter.id].persistentStats;
+                // Se fugiu, reseta para o máximo na próxima batalha
+                delete lobbyPlayer.characterSheet.hp;
+                delete lobbyPlayer.characterSheet.mahou;
             }
         }
     });
@@ -209,7 +222,6 @@ function advanceTurn(state) {
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
 }
 
-// MODIFICADO: Função de ataque agora aceita uma `targetPartKey` opcional
 function executeAttack(state, roomId, attackerKey, targetKey, targetPartKey) {
     const attacker = getFighter(state, attackerKey);
     const target = getFighter(state, targetKey);
@@ -221,20 +233,16 @@ function executeAttack(state, roomId, attackerKey, targetKey, targetPartKey) {
     if (hit) {
         damageDealt = ATTACK_MOVE.damage;
         
-        // NOVO: Lógica para aplicar dano a uma parte específica ou ao monstro inteiro
         if (target.isMultiPart && targetPartKey) {
             const part = target.parts.find(p => p.key === targetPartKey);
             if (part && part.status === 'active') {
                 part.hp = Math.max(0, part.hp - damageDealt);
-                // Atualiza o HP total do monstro
                 target.hp = Math.max(0, target.hp - damageDealt);
-                
                 logMessage(state, `${attacker.nome} ataca a ${part.name} de ${target.nome} e causa ${damageDealt} de dano!`, 'hit');
 
                 if (part.hp === 0) {
                     part.status = 'down';
                     logMessage(state, `A ${part.name} de ${target.nome} foi destruída!`, 'defeat');
-                    // Verifica se todas as partes foram destruídas
                     const allPartsDown = target.parts.every(p => p.status === 'down');
                     if (allPartsDown) {
                         target.status = 'down';
@@ -243,10 +251,9 @@ function executeAttack(state, roomId, attackerKey, targetKey, targetPartKey) {
                 }
             } else {
                  logMessage(state, `${attacker.nome} ataca uma parte já destruída de ${target.nome}!`, 'miss');
-                 damageDealt = 0; // Nenhum dano se a parte já estiver caída
+                 damageDealt = 0;
             }
         } else {
-            // Lógica original para alvos normais
             target.hp = Math.max(0, target.hp - damageDealt);
             logMessage(state, `${attacker.nome} ataca ${target.nome} e causa ${damageDealt} de dano!`, 'hit');
             if (target.hp === 0) {
@@ -284,7 +291,8 @@ function startBattle(state) {
             const rollA = state.initiativeRolls[a.id] || 0;
             const rollB = state.initiativeRolls[b.id] || 0;
             if (rollB !== rollA) return rollB - rollA;
-            return b.agi - a.agi;
+            // MODIFICADO: Usa 'agilidade' como critério de desempate
+            return b.agilidade - a.agilidade;
         }).map(f => f.id);
     state.phase = 'battle';
     state.activeCharacterKey = null;
@@ -323,12 +331,8 @@ io.on('connection', (socket) => {
         characters: { 
             players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), 
             npcs: Object.keys(ALL_NPCS).map(name => ({ 
-                name, 
-                img: `images/lutadores/${name}.png`, 
-                scale: ALL_NPCS[name].scale || 1.0,
-                // NOVO: Passa os dados das partes para o cliente, se existirem
-                isMultiPart: !!ALL_NPCS[name].isMultiPart,
-                parts: ALL_NPCS[name].parts || []
+                name, img: `images/lutadores/${name}.png`, scale: ALL_NPCS[name].scale || 1.0,
+                isMultiPart: !!ALL_NPCS[name].isMultiPart, parts: ALL_NPCS[name].parts || []
             })), 
             dynamic: DYNAMIC_CHARACTERS 
         }, 
@@ -356,7 +360,13 @@ io.on('connection', (socket) => {
             finalRole = 'spectator';
         }
         room.sockets[socket.id] = { role: finalRole };
-        lobbyState.connectedPlayers[socket.id] = { role: finalRole, selectedCharacter: null, persistentStats: null };
+        // NOVO: Estrutura de dados do jogador para o Almara RPG
+        lobbyState.connectedPlayers[socket.id] = { 
+            role: finalRole, 
+            characterName: null, 
+            characterSheet: null,
+            characterFinalized: false 
+        };
         logMessage(lobbyState, `Um ${finalRole} conectou-se.`);
         socket.emit('assignRole', { role: finalRole, roomId: roomId });
         io.to(roomId).emit('gameUpdate', getFullState(room));
@@ -411,7 +421,6 @@ io.on('connection', (socket) => {
                     room.adventureCache = null; 
                 } else { // 'new'
                     const newAdventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                    newAdventure.phase = 'npc_setup';
                     logMessage(newAdventure, 'Iniciando um novo encontro com o grupo existente.');
                     room.gameModes.adventure = newAdventure;
                 }
@@ -419,26 +428,14 @@ io.on('connection', (socket) => {
             }
         }
         
-        if (action.type === 'playerSelectsCharacter') {
+        // NOVO: Lógica para receber a ficha finalizada do jogador
+        if (action.type === 'playerFinalizesCharacter') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
-            if (!playerInfo) return;
-            if (lobbyState.unavailableCharacters.includes(action.character.nome)) {
-                 const mySelection = playerInfo.selectedCharacter;
-                 if (!mySelection || mySelection.nome !== action.character.nome) {
-                     socket.emit('characterUnavailable', action.character.nome);
-                     return;
-                 }
-            }
-            if(playerInfo.selectedCharacter){
-                lobbyState.unavailableCharacters = lobbyState.unavailableCharacters.filter(c => c !== playerInfo.selectedCharacter.nome);
-            }
-            lobbyState.unavailableCharacters.push(action.character.nome);
-            playerInfo.selectedCharacter = action.character;
-            logMessage(lobbyState, `Jogador selecionou ${action.character.nome}.`);
-            
-            if(room.activeMode === 'adventure' && room.gameModes.adventure) {
-                room.gameModes.adventure.waitingPlayers[socket.id] = { ...action.character };
-                io.to(lobbyState.gmId).emit('gmPromptToAdmit', { playerId: socket.id, character: action.character });
+            if (playerInfo) {
+                playerInfo.characterSheet = action.characterData;
+                playerInfo.characterName = action.characterData.name;
+                playerInfo.characterFinalized = true;
+                logMessage(lobbyState, `Jogador ${playerInfo.characterName} está pronto!`);
             }
         }
 
@@ -481,7 +478,6 @@ io.on('connection', (socket) => {
                                 }
                                 
                                 const newNpcId = `npc-${Date.now()}`;
-                                // NOVO: Puxa os dados completos do NPC, incluindo as partes
                                 const npcObj = ALL_NPCS[action.npcData.name] || {};
                                 adventureState.fighters.npcs[newNpcId] = createNewFighterState({
                                     id: newNpcId,
@@ -519,19 +515,18 @@ io.on('connection', (socket) => {
                             }
                         }
                         break;
+                    // Lógica de admissão mantida para jogadores que entram no meio da batalha (a ser revisada)
                     case 'gmDecidesOnAdmission':
                         if (isGm && action.playerId && adventureState.waitingPlayers[action.playerId]) {
                             const character = adventureState.waitingPlayers[action.playerId];
                             if (action.admitted) {
                                 const newPlayerId = action.playerId;
-                                
                                 io.to(newPlayerId).emit('assignRole', { role: 'player', playerKey: newPlayerId, roomId: roomId });
+                                // Esta parte precisará ser adaptada para usar a ficha completa
                                 adventureState.fighters.players[newPlayerId] = createNewFighterState({id: newPlayerId, ...character});
-                                
                                 if (adventureState.phase === 'battle') {
                                     adventureState.turnOrder.push(newPlayerId);
                                 } 
-                                
                                 logMessage(adventureState, `${character.nome} entrou na batalha!`);
                                 delete adventureState.waitingPlayers[action.playerId];
                             } else {
@@ -539,19 +534,10 @@ io.on('connection', (socket) => {
                             }
                         }
                         break;
+                    // Lógica obsoleta para players, mas pode ser usada para NPCs no futuro.
                     case 'gmConfirmParty':
                         if (isGm && adventureState.phase === 'party_setup' && action.playerStats) {
-                            action.playerStats.forEach(stats => {
-                                if (adventureState.fighters.players[stats.id]) {
-                                    const res = Math.max(1, stats.res);
-                                    Object.assign(adventureState.fighters.players[stats.id], {
-                                        agi: stats.agi, res: res, hpMax: res * 5, hp: res * 5
-                                    });
-                                }
-                            });
-                            cachePlayerStats(room);
-                            adventureState.phase = 'npc_setup';
-                            logMessage(adventureState, 'GM confirmou o grupo. Prepare o encontro!');
+                            // Este bloco não será mais executado para players normais.
                         }
                         break;
                     case 'gmStartBattle':
@@ -567,7 +553,6 @@ io.on('connection', (socket) => {
                                         const newNpc = createNewFighterState({ 
                                             ...npcData, 
                                             scale: npcObj.scale || 1.0,
-                                            // NOVO: Adiciona os dados das partes ao criar o NPC
                                             isMultiPart: npcObj.isMultiPart,
                                             parts: npcObj.parts
                                         });
@@ -607,7 +592,6 @@ io.on('connection', (socket) => {
                              const attacker = getFighter(adventureState, action.attackerKey);
                              const isNpcTurn = !!adventureState.fighters.npcs[attacker.id];
                              if ((isGm && isNpcTurn) || (!isNpcTurn && socket.id === action.attackerKey)) {
-                                 // MODIFICADO: Passa a `targetPartKey` para a função de ataque
                                  executeAttack(adventureState, roomId, action.attackerKey, action.targetKey, action.targetPartKey);
                                  shouldUpdate = false; 
                              }
@@ -703,22 +687,14 @@ io.on('connection', (socket) => {
         const playerInfo = lobbyState.connectedPlayers[socket.id];
         if (playerInfo) {
             logMessage(lobbyState, `Um ${playerInfo.role} desconectou.`);
-            if (playerInfo.selectedCharacter) {
-                lobbyState.unavailableCharacters = lobbyState.unavailableCharacters.filter(c => c !== playerInfo.selectedCharacter.nome);
-            }
         }
         delete room.sockets[socket.id];
         delete lobbyState.connectedPlayers[socket.id];
         const adventureState = room.gameModes.adventure;
-        if (adventureState) {
-            if (adventureState.fighters.players[socket.id]) {
-                adventureState.fighters.players[socket.id].status = 'disconnected';
-                logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
-                checkGameOver(adventureState);
-            }
-            if (adventureState.waitingPlayers[socket.id]) {
-                delete adventureState.waitingPlayers[socket.id];
-            }
+        if (adventureState && adventureState.fighters.players[socket.id]) {
+            adventureState.fighters.players[socket.id].status = 'disconnected';
+            logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
+            checkGameOver(adventureState);
         }
         io.to(roomId).emit('gameUpdate', getFullState(room));
         if (Object.keys(room.sockets).length === 0) {

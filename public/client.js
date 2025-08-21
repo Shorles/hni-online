@@ -1,6 +1,51 @@
 // client.js
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- CONSTANTES DE REGRAS DO JOGO (ALMARA RPG) ---
+    const GAME_RULES = {
+        races: {
+            "Anjo": { bon: {}, pen: { forca: -1 }, text: "Não podem usar elemento Escuridão. Obrigatoriamente começam com 1 ponto em Luz. Recebem +1 em magias de cura." },
+            "Demônio": { bon: {}, pen: {}, text: "Não podem usar elemento Luz. Obrigatoriamente começam com 1 ponto em Escuridão. Recebem +1 em dano de magias de Escuridão. Cura recebida é reduzida em 1." },
+            "Elfo": { bon: { agilidade: 2 }, pen: { forca: -1 }, text: "Enxergam no escuro (exceto escuridão mágica)." },
+            "Anão": { bon: { constituicao: 1 }, pen: {}, text: "Enxergam no escuro (exceto escuridão mágica)." },
+            "Goblin": { bon: { mente: 1 }, pen: { constituicao: -1 }, text: "Não podem utilizar armas do tipo Gigante e Colossal." },
+            "Orc": { bon: { forca: 2 }, pen: { inteligencia: -1 }, text: "Podem comer quase qualquer coisa sem adoecerem." },
+            "Humano": { bon: { escolha: 1 }, pen: {}, text: "Recebem +1 em um atributo à sua escolha." }, // Lógica especial será necessária
+            "Kairou": { bon: {}, pen: {}, text: "Respiram debaixo d'água. Devem umedecer a pele a cada dia. +1 em todos os atributos se lutarem na água." },
+            "Centauro": { bon: {}, pen: { agilidade: -1 }, text: "Não podem entrar em locais apertados ou subir escadas de mão. +3 em testes de velocidade/salto." },
+            "Halfling": { bon: { agilidade: 1, inteligencia: 1 }, pen: { forca: -1, constituicao: -1 }, text: "Não podem usar armas Gigante/Colossal. Enxergam no escuro." },
+            "Tritão": { bon: { forca: 2 }, pen: { inteligencia: -2 }, text: "Respiram debaixo d'água. Devem umedecer a pele a cada 5 dias." },
+            "Meio-Elfo": { bon: { agilidade: 1 }, pen: {}, text: "Enxergam no escuro (exceto escuridão mágica)." },
+            "Meio-Orc": { bon: { forca: 1 }, pen: {}, text: "Nenhuma característica única." },
+            "Auslender": { bon: { inteligencia: 2, agilidade: 1 }, pen: { forca: -1, protecao: -1 }, text: "Não precisam de testes para usar artefatos tecnológicos." },
+            "Tulku": { bon: { inteligencia: 1, mente: 1 }, pen: {}, text: "Recebem -1 para usar magias de Luz. Enxergam no escuro." },
+        },
+        weapons: {
+            "Desarmado": { cost: 0, damage: "1D4", hand: 1, bta: 0, btd: 0, ambi_bta_mod: 0, ambi_btd_mod: 0 },
+            "1 Mão Mínima": { cost: 60, damage: "1D6", hand: 1, bta: 4, btd: -1, ambi_bta_mod: 0, ambi_btd_mod: -1 },
+            "1 Mão Leve": { cost: 80, damage: "1D6", hand: 1, bta: 3, btd: 0, ambi_bta_mod: 0, ambi_btd_mod: -1 },
+            "1 Mão Mediana": { cost: 100, damage: "1D6", hand: 1, bta: 1, btd: 1, ambi_bta_mod: 0, ambi_btd_mod: -1 },
+            "Cetro": { cost: 80, damage: "1D4", hand: 1, bta: 1, btd: 0, btm: 1, ambi_bta_mod: 0, ambi_btd_mod: -1 },
+            "2 Mãos Pesada": { cost: 120, damage: "1D10", hand: 2, bta: 2, btd: 0, one_hand_bta_mod: -2, ambi_btd_mod: -2 },
+            "2 Mãos Gigante": { cost: 140, damage: "1D10", hand: 2, bta: 1, btd: 1, one_hand_bta_mod: -2, ambi_btd_mod: -2 },
+            "2 Mãos Colossal": { cost: 160, damage: "1D10", hand: 2, bta: -1, btd: 2, one_hand_bta_mod: -2, ambi_btd_mod: -2 },
+            "Cajado": { cost: 140, damage: "1D6", hand: 2, bta: 1, btd: 0, btm: 2, one_hand_bta_mod: -1 /* Diferente da regra excel, mas mais consistente */ },
+        },
+        armors: {
+            "Nenhuma": { cost: 0, protection: 0, agility_pen: 0 },
+            "Leve": { cost: 80, protection: 1, agility_pen: 0 },
+            "Mediana": { cost: 100, protection: 2, agility_pen: -1 },
+            "Pesada": { cost: 120, protection: 3, agility_pen: -2 },
+        },
+        shields: {
+            "Nenhum": { cost: 0, defense: 0, agility_pen: 0, req_forca: 0 },
+            "Pequeno": { cost: 80, defense: 2, agility_pen: -1, req_forca: 1 },
+            "Médio": { cost: 100, defense: 4, agility_pen: -2, req_forca: 2 },
+            "Grande": { cost: 120, defense: 6, agility_pen: -3, req_forca: 3 },
+        }
+    };
+    let tempCharacterSheet = {}; // Objeto para construir a ficha do personagem
+
     // --- VARIÁVEIS DE ESTADO ---
     let myRole = null;
     let myPlayerKey = null;
@@ -148,42 +193,34 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DO MODO AVENTURA ---
     function handleAdventureMode(gameState) {
+        // Esta função será adaptada futuramente para usar as novas regras
         const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
-            switch (gameState.phase) {
-                case 'party_setup': 
-                    showScreen(document.getElementById('gm-party-setup-screen')); 
-                    updateGmPartySetupScreen(gameState); 
-                    break;
-                case 'npc_setup': 
-                    showScreen(document.getElementById('gm-npc-setup-screen')); 
-                    if (!oldGameState || oldGameState.phase !== 'npc_setup') {
-                        stagedNpcSlots.fill(null);
-                        selectedSlotIndex = null;
-                        customFighterPositions = {};
-                        renderNpcSelectionForGm(); 
-                    } 
-                    break;
-                case 'initiative_roll': 
-                case 'battle':
-                default: 
-                    showScreen(fightScreen); 
-                    updateAdventureUI(gameState);
-                    if (gameState.phase === 'initiative_roll') {
-                        renderInitiativeUI(gameState);
-                    } else {
-                        initiativeUI.classList.add('hidden');
-                    }
+             if (gameState.phase === 'party_setup') {
+                showScreen(document.getElementById('gm-party-setup-screen')); 
+                updateGmPartySetupScreen(gameState); // Lógica antiga mantida por enquanto
+             } else if (gameState.phase === 'npc_setup') {
+                showScreen(document.getElementById('gm-npc-setup-screen')); 
+                if (!oldGameState || oldGameState.phase !== 'npc_setup') {
+                    stagedNpcSlots.fill(null);
+                    selectedSlotIndex = null;
+                    customFighterPositions = {};
+                    renderNpcSelectionForGm(); 
+                } 
+            } else {
+                showScreen(fightScreen); 
+                updateAdventureUI(gameState);
+                if (gameState.phase === 'initiative_roll') renderInitiativeUI(gameState);
+                else initiativeUI.classList.add('hidden');
             }
         } else {
-            const myPlayerData = gameState.connectedPlayers?.[socket.id];
-            const amIInTheFight = !!getFighter(gameState, myPlayerKey);
+            // Lógica do jogador para entrar em batalha/esperar
+             const amIInTheFight = !!getFighter(gameState, myPlayerKey);
 
-            if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter && !amIInTheFight) {
+            if (myRole === 'player' && !amIInTheFight) {
                 showScreen(document.getElementById('player-waiting-screen'));
-                document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
-            }
-            else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
+                document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre...";
+            } else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
                 showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
             } 
@@ -207,60 +244,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if (connectedPlayers.length === 0) { playerListEl.innerHTML = '<li>Aguardando jogadores...</li>'; } 
         else {
             connectedPlayers.forEach(p => {
-                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
+                const charName = p.characterName || '<i>Criando ficha...</i>';
                 playerListEl.innerHTML += `<li>${p.role === 'player' ? 'Jogador' : 'Espectador'} - Personagem: ${charName}</li>`;
             });
         }
     }
 
-    function renderPlayerCharacterSelection(unavailable = []) {
+    function renderPlayerTokenSelection(unavailable = []) {
         const charListContainer = document.getElementById('character-list-container');
         const confirmBtn = document.getElementById('confirm-selection-btn');
         charListContainer.innerHTML = '';
         confirmBtn.disabled = true;
-        let myCurrentSelection = currentGameState?.connectedPlayers?.[socket.id]?.selectedCharacter?.nome;
+        let myCurrentSelection = tempCharacterSheet.tokenImg;
+
         (ALL_CHARACTERS.players || []).forEach(data => {
             const card = document.createElement('div');
             card.className = 'char-card';
             card.dataset.name = data.name;
             card.dataset.img = data.img;
             card.innerHTML = `<img src="${data.img}" alt="${data.name}"><div class="char-name">${data.name}</div>`;
-            const isUnavailable = unavailable.includes(data.name);
-            const isMySelection = myCurrentSelection === data.name;
-            if (isMySelection) {
+            if (myCurrentSelection === data.img) {
                 card.classList.add('selected');
                 confirmBtn.disabled = false;
-            } else if (isUnavailable) {
-                card.classList.add('disabled');
-                card.innerHTML += `<div class="char-unavailable-overlay">SELECIONADO</div>`;
             }
-            if (!isUnavailable || isMySelection) {
-                card.addEventListener('click', () => {
-                    document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
-                    card.classList.add('selected');
-                    confirmBtn.disabled = false;
-                });
-            }
+            card.addEventListener('click', () => {
+                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                confirmBtn.disabled = false;
+            });
             charListContainer.appendChild(card);
         });
-        confirmBtn.onclick = onConfirmSelection;
-    }
-
-    function onConfirmSelection() {
-        const selectedCard = document.querySelector('.char-card.selected');
-        if (!selectedCard) { alert('Por favor, selecione um personagem!'); return; }
-        const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
-        socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
-        
-        showScreen(document.getElementById('player-waiting-screen'));
-        if (currentGameState && currentGameState.mode !== 'lobby') {
-             document.getElementById('player-waiting-message').innerText = "Aguardando permissão do Mestre para entrar na batalha...";
-        } else {
-             document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
-        }
+        confirmBtn.onclick = () => {
+            const selectedCard = document.querySelector('.char-card.selected');
+            if (selectedCard) {
+                tempCharacterSheet.tokenName = selectedCard.dataset.name;
+                tempCharacterSheet.tokenImg = selectedCard.dataset.img;
+                initializeCharacterSheet();
+                showScreen(document.getElementById('character-sheet-screen'));
+            }
+        };
     }
 
     function updateGmPartySetupScreen(state) {
+        // Lógica antiga, será substituída.
         const partyList = document.getElementById('gm-party-list');
         partyList.innerHTML = '';
         if(!state.fighters || !state.fighters.players) return;
@@ -393,7 +419,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderWaitingPlayers(state);
     }
     
-    // MODIFICADO: Função ajustada para renderizar múltiplas barras de HP se necessário
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
@@ -432,7 +457,6 @@ document.addEventListener('DOMContentLoaded', () => {
             container.addEventListener('click', handleTargetClick);
         }
     
-        // NOVO: Lógica de renderização da barra de vida
         let healthBarHtml = '';
         if (fighter.isMultiPart && fighter.parts) {
             healthBarHtml = '<div class="multi-health-bar-container">';
@@ -447,7 +471,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             healthBarHtml += '</div>';
         } else {
-            // Lógica original para criaturas normais
             const healthPercentage = (fighter.hp / fighter.hpMax) * 100;
             healthBarHtml = `
                 <div class="health-bar-ingame">
@@ -577,7 +600,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // NOVO: Função para mostrar o modal de seleção de partes do monstro
     function showPartSelectionModal(attackerKey, targetFighter) {
         let modalContentHtml = '<div class="target-part-selection">';
     
@@ -602,7 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'attack', 
                     attackerKey: attackerKey, 
                     targetKey: targetFighter.id,
-                    targetPartKey: partKey // Informa a parte específica
+                    targetPartKey: partKey
                 });
                 cancelTargeting();
                 modal.classList.add('hidden');
@@ -610,7 +632,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // MODIFICADO: Lida com monstros de múltiplas partes
     function handleTargetClick(event) {
         if (isFreeMoveModeActive) return;
         if (!isTargeting || !targetingAttackerKey) return;
@@ -622,10 +643,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetFighter = getFighter(currentGameState, targetKey);
     
         if (targetFighter && targetFighter.isMultiPart) {
-            // NOVO: Se for um monstro com partes, abre o modal de seleção
             showPartSelectionModal(targetingAttackerKey, targetFighter);
         } else {
-            // Lógica original para alvos normais
             actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
             socket.emit('playerAction', { type: 'attack', attackerKey: targetingAttackerKey, targetKey: targetKey });
             cancelTargeting();
@@ -1133,6 +1152,304 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    // --- LÓGICA DA FICHA DE PERSONAGEM (NOVO) ---
+    function initializeCharacterSheet() {
+        tempCharacterSheet = {
+            name: '',
+            class: '',
+            race: 'Humano',
+            tokenName: tempCharacterSheet.tokenName,
+            tokenImg: tempCharacterSheet.tokenImg,
+            baseAttributes: { forca: 0, agilidade: 0, protecao: 0, constituicao: 0, inteligencia: 0, mente: 0 },
+            elements: { fogo: 0, agua: 0, terra: 0, vento: 0, luz: 0, escuridao: 0 },
+            equipment: {
+                weapon1: { name: '', type: 'Desarmado' },
+                weapon2: { name: '', type: 'Desarmado' },
+                armor: 'Nenhuma',
+                shield: 'Nenhum'
+            },
+            money: 200,
+        };
+
+        // Popular selects
+        const raceSelect = document.getElementById('sheet-race-select');
+        raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(r => `<option value="${r}">${r}</option>`).join('');
+
+        const weaponSelects = [document.getElementById('sheet-weapon1-type'), document.getElementById('sheet-weapon2-type')];
+        weaponSelects.forEach(sel => sel.innerHTML = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join(''));
+        
+        document.getElementById('sheet-armor-type').innerHTML = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
+        document.getElementById('sheet-shield-type').innerHTML = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
+        
+        // Resetar campos
+        document.getElementById('sheet-name').value = '';
+        document.getElementById('sheet-class').value = '';
+        document.querySelectorAll('.attributes-grid input').forEach(input => input.value = 0);
+
+        updateCharacterSheet(); // Chamar para calcular os valores iniciais
+    }
+
+    function updateCharacterSheet() {
+        const sheet = {}; // Objeto temporário para cálculos
+        let infoText = "";
+        
+        // 1. Ler todos os inputs do jogador
+        sheet.race = document.getElementById('sheet-race-select').value;
+        sheet.baseAttributes = {
+            forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
+            agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+            protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
+            constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+            inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
+            mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+        };
+        sheet.elements = {
+            fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
+            agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+            terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
+            vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+            luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
+            escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+        };
+        sheet.equipment = {
+            weapon1: GAME_RULES.weapons[document.getElementById('sheet-weapon1-type').value],
+            weapon2: GAME_RULES.weapons[document.getElementById('sheet-weapon2-type').value],
+            armor: GAME_RULES.armors[document.getElementById('sheet-armor-type').value],
+            shield: GAME_RULES.shields[document.getElementById('sheet-shield-type').value]
+        };
+        
+        // 2. Validar pontos
+        const totalAttrPoints = Object.values(sheet.baseAttributes).reduce((a, b) => a + b, 0);
+        const remainingAttrPoints = 5 - totalAttrPoints;
+        document.getElementById('sheet-points-attr-remaining').textContent = remainingAttrPoints;
+        if (remainingAttrPoints < 0) infoText += "Você gastou pontos de atributo a mais! ";
+
+        const totalElemPoints = Object.values(sheet.elements).reduce((a, b) => a + b, 0);
+        const remainingElemPoints = 2 - totalElemPoints;
+        document.getElementById('sheet-points-elem-remaining').textContent = remainingElemPoints;
+        if (remainingElemPoints < 0) infoText += "Você gastou pontos de elemento a mais! ";
+
+        // 3. Calcular atributos finais (com bônus/penalidades)
+        const raceData = GAME_RULES.races[sheet.race];
+        sheet.finalAttributes = { ...sheet.baseAttributes };
+        for (const attr in raceData.bon) { if (attr !== 'escolha') sheet.finalAttributes[attr] += raceData.bon[attr]; }
+        for (const attr in raceData.pen) { sheet.finalAttributes[attr] += raceData.pen[attr]; }
+        // Penalidades de equipamento
+        sheet.finalAttributes.agilidade += sheet.equipment.armor.agility_pen;
+        sheet.finalAttributes.agilidade += sheet.equipment.shield.agility_pen;
+
+        // 4. Calcular HP e Mahou
+        sheet.hpMax = 20 + (sheet.finalAttributes.constituicao * 5);
+        sheet.mahouMax = 10 + (sheet.finalAttributes.mente * 5);
+
+        // 5. Lógica e custo de equipamentos
+        let totalCost = sheet.equipment.weapon1.cost + sheet.equipment.weapon2.cost + sheet.equipment.armor.cost + sheet.equipment.shield.cost;
+        let money = 200 - totalCost;
+        if (money < 0) infoText += `Dinheiro insuficiente! Custo: ${totalCost}, Você tem: 200. `;
+        
+        const w1type = document.getElementById('sheet-weapon1-type').value;
+        const w2type = document.getElementById('sheet-weapon2-type').value;
+        const shieldtype = document.getElementById('sheet-shield-type').value;
+        const w1Data = GAME_RULES.weapons[w1type];
+        const w2Data = GAME_RULES.weapons[w2type];
+        const shieldData = GAME_RULES.shields[shieldtype];
+
+        // Regras de bloqueio de slots
+        const w2Select = document.getElementById('sheet-weapon2-type');
+        const shieldSelect = document.getElementById('sheet-shield-type');
+
+        if (w1Data.hand === 2 || shieldtype !== 'Nenhum') {
+            w2Select.disabled = true;
+            if (w2Select.value !== 'Desarmado') w2Select.value = 'Desarmado';
+        } else {
+            w2Select.disabled = false;
+        }
+
+        if (w1Data.hand === 2 || w2type !== 'Desarmado') {
+            shieldSelect.disabled = true;
+            if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
+        } else {
+            shieldSelect.disabled = false;
+        }
+        
+        // Requisito de força para escudo
+        if (sheet.finalAttributes.forca < shieldData.req_forca) {
+             infoText += `Você precisa de ${shieldData.req_forca} de Força para usar um Escudo ${shieldtype}. `;
+        }
+        // Regra de 2 mãos com 1 mão
+        let isW1OneHanded2H = w1Data.hand === 2 && sheet.finalAttributes.forca >= 4;
+        let isW2OneHanded2H = w2Data.hand === 2 && sheet.finalAttributes.forca >= 4;
+        if(w1Data.hand === 2 && w2Data.hand === 2 && sheet.finalAttributes.forca < 4) {
+             infoText += `Você precisa de 4 de Força para usar duas armas de 2 mãos. `;
+        }
+
+
+        // 6. Calcular BTA, BTD, BTM
+        const isAmbidextrous = w1type !== 'Desarmado' && w2type !== 'Desarmado';
+        
+        let bta = sheet.finalAttributes.agilidade;
+        let btd = sheet.finalAttributes.forca;
+        let btm = sheet.finalAttributes.inteligencia;
+
+        // Arma 1
+        bta += isAmbidextrous ? (w1Data.bta + (w1Data.ambi_bta_mod || 0)) : w1Data.bta;
+        btd += isAmbidextrous ? (w1Data.btd + (w1Data.ambi_btd_mod || 0)) : w1Data.btd;
+        btm += w1Data.btm || 0;
+        if(isW1OneHanded2H && !isAmbidextrous) bta += w1Data.one_hand_bta_mod || 0;
+
+        // Arma 2 (só contribui para BTM se for a única arma mágica)
+        if(isAmbidextrous) {
+            btm += (w2Data.btm || 0) > (w1Data.btm || 0) ? (w2Data.btm || 0) : 0;
+        } else {
+             btm += w2Data.btm || 0;
+        }
+        
+        // Penalidades de Armadura e Escudo
+        bta += sheet.equipment.armor.agility_pen;
+        bta += sheet.equipment.shield.agility_pen;
+        
+        // 7. Renderizar tudo na UI
+        document.getElementById('sheet-final-attr-forca').textContent = sheet.finalAttributes.forca;
+        document.getElementById('sheet-final-attr-agilidade').textContent = sheet.finalAttributes.agilidade;
+        document.getElementById('sheet-final-attr-protecao').textContent = sheet.finalAttributes.protecao;
+        document.getElementById('sheet-final-attr-constituicao').textContent = sheet.finalAttributes.constituicao;
+        document.getElementById('sheet-final-attr-inteligencia').textContent = sheet.finalAttributes.inteligencia;
+        document.getElementById('sheet-final-attr-mente').textContent = sheet.finalAttributes.mente;
+        
+        document.getElementById('sheet-hp-max').textContent = sheet.hpMax;
+        document.getElementById('sheet-hp-current').textContent = sheet.hpMax;
+        document.getElementById('sheet-mahou-max').textContent = sheet.mahouMax;
+        document.getElementById('sheet-mahou-current').textContent = sheet.mahouMax;
+
+        document.getElementById('race-info-box').textContent = raceData.text;
+        document.getElementById('equipment-info-text').textContent = infoText || 'Tudo certo com seus equipamentos.';
+        document.getElementById('sheet-money-copper').textContent = Math.max(0, money);
+
+        document.getElementById('sheet-bta').textContent = (bta >= 0 ? '+' : '') + bta;
+        document.getElementById('sheet-btd').textContent = (btd >= 0 ? '+' : '') + btd;
+        document.getElementById('sheet-btm').textContent = (btm >= 0 ? '+' : '') + btm;
+    }
+
+    function handleSaveCharacter() {
+        const sheetData = {
+            name: document.getElementById('sheet-name').value,
+            class: document.getElementById('sheet-class').value,
+            race: document.getElementById('sheet-race-select').value,
+            tokenName: tempCharacterSheet.tokenName,
+            tokenImg: tempCharacterSheet.tokenImg,
+            baseAttributes: {
+                forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
+                agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+                protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
+                constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+                inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
+                mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+            },
+            elements: {
+                fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
+                agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+                terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
+                vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+                luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
+                escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+            },
+            equipment: {
+                weapon1: { name: document.getElementById('sheet-weapon1-name').value, type: document.getElementById('sheet-weapon1-type').value },
+                weapon2: { name: document.getElementById('sheet-weapon2-name').value, type: document.getElementById('sheet-weapon2-type').value },
+                armor: document.getElementById('sheet-armor-type').value,
+                shield: document.getElementById('sheet-shield-type').value
+            },
+        };
+
+        const dataStr = JSON.stringify(sheetData, null, 2);
+        const dataBase64 = btoa(dataStr);
+        const a = document.createElement("a");
+        a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(dataBase64);
+        a.download = `${sheetData.name || 'personagem'}_almara.txt`;
+        a.click();
+    }
+    
+    function handleLoadCharacter(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const decodedData = atob(e.target.result);
+                const sheetData = JSON.parse(decodedData);
+                
+                // Preencher a ficha
+                tempCharacterSheet.tokenName = sheetData.tokenName;
+                tempCharacterSheet.tokenImg = sheetData.tokenImg;
+                
+                initializeCharacterSheet(); // Reseta e popula selects
+
+                document.getElementById('sheet-name').value = sheetData.name || '';
+                document.getElementById('sheet-class').value = sheetData.class || '';
+                document.getElementById('sheet-race-select').value = sheetData.race || 'Humano';
+
+                Object.keys(sheetData.baseAttributes).forEach(attr => {
+                    document.getElementById(`sheet-base-attr-${attr}`).value = sheetData.baseAttributes[attr] || 0;
+                });
+                Object.keys(sheetData.elements).forEach(elem => {
+                    document.getElementById(`sheet-elem-${elem}`).value = sheetData.elements[elem] || 0;
+                });
+                
+                document.getElementById('sheet-weapon1-name').value = sheetData.equipment.weapon1.name || '';
+                document.getElementById('sheet-weapon1-type').value = sheetData.equipment.weapon1.type || 'Desarmado';
+                document.getElementById('sheet-weapon2-name').value = sheetData.equipment.weapon2.name || '';
+                document.getElementById('sheet-weapon2-type').value = sheetData.equipment.weapon2.type || 'Desarmado';
+                document.getElementById('sheet-armor-type').value = sheetData.equipment.armor || 'Nenhuma';
+                document.getElementById('sheet-shield-type').value = sheetData.equipment.shield || 'Nenhum';
+                
+                updateCharacterSheet();
+                showScreen(document.getElementById('character-sheet-screen'));
+
+            } catch (error) {
+                showInfoModal('Erro', 'Não foi possível carregar o arquivo. Formato inválido.');
+                console.error('Erro ao carregar personagem:', error);
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function handleConfirmCharacter() {
+        // Coletar dados finais da ficha para enviar ao servidor
+        const finalSheet = {
+             name: document.getElementById('sheet-name').value,
+             class: document.getElementById('sheet-class').value,
+             race: document.getElementById('sheet-race-select').value,
+             tokenName: tempCharacterSheet.tokenName,
+             tokenImg: tempCharacterSheet.tokenImg,
+             baseAttributes: {
+                forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
+                agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+                protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
+                constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+                inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
+                mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+             },
+             elements: {
+                fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
+                agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+                terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
+                vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+                luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
+                escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+             },
+             equipment: {
+                weapon1: { name: document.getElementById('sheet-weapon1-name').value, type: document.getElementById('sheet-weapon1-type').value },
+                weapon2: { name: document.getElementById('sheet-weapon2-name').value, type: document.getElementById('sheet-weapon2-type').value },
+                armor: document.getElementById('sheet-armor-type').value,
+                shield: document.getElementById('sheet-shield-type').value
+             },
+        };
+        socket.emit('playerAction', { type: 'playerFinalizesCharacter', characterData: finalSheet });
+        showScreen(document.getElementById('player-waiting-screen'));
+        document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+    }
     
     function renderGame(gameState) {
         scaleGame(); 
@@ -1152,10 +1469,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         
-        if (myRole === 'player' && (!myPlayerData || !myPlayerData.selectedCharacter)) {
-            showScreen(document.getElementById('selection-screen'));
-            const unavailable = Object.values(gameState.connectedPlayers).filter(p => p.selectedCharacter).map(p => p.selectedCharacter.nome);
-            renderPlayerCharacterSelection(unavailable);
+        // Lógica de fluxo de tela do jogador
+        if (myRole === 'player' && !myPlayerData.characterFinalized) {
+            // Se o jogador ainda não finalizou a ficha, mantenha-o no fluxo de criação
             return; 
         }
         
@@ -1195,12 +1511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateGmLobbyUI(gameState);
                 } else {
                     showScreen(document.getElementById('player-waiting-screen'));
-                    const msgEl = document.getElementById('player-waiting-message');
-                    if(msgEl) {
-                        if (myPlayerData?.role === 'player' && myPlayerData.selectedCharacter) msgEl.innerText = "Personagem enviado! Aguardando o Mestre...";
-                        else if (myPlayerData?.role === 'spectator') msgEl.innerText = "Aguardando como espectador...";
-                        else msgEl.innerText = "Aguardando o Mestre iniciar o jogo...";
-                    }
+                    document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre iniciar o jogo...";
                 }
                 break;
             case 'adventure':
@@ -1229,9 +1540,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => {
-        if (clientFlowState === 'choosing_role') {
-            return;
-        }
+        if (clientFlowState === 'choosing_role') return;
         renderGame(gameState);
     });
     
@@ -1279,6 +1588,11 @@ document.addEventListener('DOMContentLoaded', () => {
         isGm = !!data.isGm;
         myRoomId = data.roomId;
         clientFlowState = 'in_game';
+
+        if (myRole === 'player') {
+             // Inicia o novo fluxo de criação de personagem
+            showScreen(document.getElementById('player-initial-choice-screen'));
+        }
     });
 
     socket.on('gmPromptToAdmit', ({ playerId, character }) => {
@@ -1337,7 +1651,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
-
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
@@ -1350,15 +1663,35 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
+        // Lógica de escolha de papel
         document.getElementById('join-as-player-btn').addEventListener('click', () => {
             socket.emit('playerChoosesRole', { role: 'player' });
-            showScreen(document.getElementById('loading-screen'));
+            // Não muda de tela aqui, espera a resposta do servidor com 'assignRole'
         });
         document.getElementById('join-as-spectator-btn').addEventListener('click', () => {
             socket.emit('playerChoosesRole', { role: 'spectator' });
             showScreen(document.getElementById('loading-screen'));
         });
 
+        // Lógica do novo fluxo de criação
+        document.getElementById('new-char-btn').addEventListener('click', () => {
+            showScreen(document.getElementById('selection-screen'));
+            renderPlayerTokenSelection();
+        });
+        document.getElementById('load-char-btn').addEventListener('click', () => {
+            document.getElementById('load-char-input').click();
+        });
+        document.getElementById('load-char-input').addEventListener('change', handleLoadCharacter);
+
+        // Lógica da ficha
+        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
+            el.addEventListener('change', updateCharacterSheet);
+            el.addEventListener('input', updateCharacterSheet);
+        });
+        document.getElementById('sheet-save-btn').addEventListener('click', handleSaveCharacter);
+        document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
+
+        // Botões do GM
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
