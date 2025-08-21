@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALMARA RPG Online</title>
+    <title>Medieval Battle RPG</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="game-wrapper">
 
-    <!-- TELA DE CARREGAMENTO -->
+    <!-- TELA DE CARREGAMENTO PARA EVITAR O "FLASH" -->
     <div id="loading-screen" class="screen active">
-        <h1>ALMARA RPG</h1>
+        <h1>Medieval Battle RPG</h1>
         <p>Conectando ao servidor...</p>
     </div>
     
@@ -47,85 +47,72 @@
         <p id="room-full-message" class="hidden" style="margin-top: 20px; color: #ffc107;"></p>
     </div>
 
+    <!-- Tela para o GM confirmar o grupo e definir stats -->
+    <div id="gm-party-setup-screen" class="screen">
+        <h1>Definir Atributos do Grupo</h1>
+        <p>Defina a Agilidade (AGI) e Resistência (RES) para cada aventureiro.</p>
+        <div id="gm-party-list" class="party-list-container"></div>
+        <button id="gm-confirm-party-btn" class="mode-btn">Confirmar Grupo e Preparar Inimigos</button>
+    </div>
+
+    <!-- Tela para o GM selecionar os NPCs e definir stats -->
+    <div id="gm-npc-setup-screen" class="screen">
+        <h1>Montar Encontro</h1>
+        <p>Clique em um slot vago e depois em um inimigo para adicioná-lo.</p>
+
+        <div class="npc-setup-layout">
+            <div id="npc-staging-area-container">
+                <h3>Inimigos na Batalha:</h3>
+                <div id="npc-staging-area"></div>
+            </div>
+            <div class="npc-selection-wrapper">
+                 <div id="npc-selection-area"></div>
+            </div>
+        </div>
+        
+        <button id="gm-start-battle-btn" class="mode-btn">Iniciar Batalha!</button>
+    </div>
+
     <!-- TELA DE ESPERA DO JOGADOR/ESPECTADOR -->
     <div id="player-waiting-screen" class="screen">
-         <h1>ALMARA RPG</h1>
+         <h1>Medieval Battle RPG</h1>
          <p id="player-waiting-message">Aguardando o Mestre iniciar o jogo...</p>
     </div>
     
-    <!-- TELA DE SELEÇÃO DE PERSONAGEM (NOVO/CARREGAR) -->
-    <div id="character-entry-screen" class="screen">
-        <h1>Seu Aventureiro</h1>
-        <p>Crie um novo personagem ou carregue um já existente.</p>
-        <div class="mode-buttons-container">
-            <button id="new-char-btn" class="mode-btn">Novo Personagem</button>
-            <button id="load-char-btn" class="mode-btn">Carregar Personagem</button>
-            <input type="file" id="load-char-input" class="hidden" accept=".json">
-        </div>
-    </div>
-
-    <!-- TELA DE SELEÇÃO DE TOKEN -->
-    <div id="token-selection-screen" class="screen">
-        <h1>Selecione a Aparência do seu Personagem</h1>
-        <div id="token-list-container" class="character-list-container"></div>
-        <button id="confirm-token-btn" class="mode-btn" disabled>Confirmar Aparência</button>
-    </div>
-
-    <!-- TELA DE CRIAÇÃO DE FICHA -->
-    <div id="sheet-creation-screen" class="screen">
-        <h1>Criação de Personagem</h1>
-        <!-- CORREÇÃO: Estrutura HTML da ficha restaurada -->
-        <div class="sheet-form-container">
-            <div class="sheet-section"><h3>Identidade</h3><div class="form-grid">
-                <div class="form-field"><label for="sheet-name">Nome:</label><input type="text" id="sheet-name"></div>
-                <div class="form-field"><label for="sheet-class">Classe:</label><input type="text" id="sheet-class"></div>
-            </div></div>
-            <div class="sheet-section"><h3>Raça</h3><div class="form-grid" id="sheet-races"></div></div>
-            <div class="sheet-section"><h3>Atributos (<span id="points-to-distribute">0</span> pontos restantes)</h3><div class="form-grid" id="sheet-attributes"></div></div>
-            <div class="sheet-section"><h3>Elementos (<span id="element-points-to-distribute">0</span> pontos restantes)</h3><div class="form-grid" id="sheet-elements"></div></div>
-            <div class="sheet-section"><h3>Equipamentos (Dinheiro Restante: <span id="money-remaining">200</span> moedas)</h3><div class="form-grid" id="sheet-equipment"></div></div>
-            <div class="sheet-section"><h3>Magias (Selecione <span id="spells-to-select">2</span>)</h3><div class="form-grid" id="sheet-spells"></div></div>
-        </div>
-        <div class="sheet-buttons">
-            <button id="save-sheet-btn" class="mode-btn">Salvar Personagem</button>
-            <button id="finish-sheet-btn" class="mode-btn">PRONTO</button>
-        </div>
-    </div>
-
-    <!-- TELA DE PREPARAÇÃO DO GM (NPCs) -->
-    <div id="gm-npc-setup-screen" class="screen">
-        <h1>Montar Encontro</h1>
-        <p>Clique em um inimigo da lista para adicionar. Clique em um inimigo na batalha para editar.</p>
-        <div class="npc-setup-layout">
-            <div id="npc-staging-area">
-                <h3>Inimigos na Batalha:</h3>
-                <div id="staged-npc-list"></div>
-            </div>
-            <div class="npc-selection-wrapper">
-                <h3>Inimigos Disponíveis:</h3>
-                <div id="npc-selection-area"></div>
-            </div>
-        </div>
-        <div id="npc-editor" class="hidden"></div>
-        <button id="gm-start-battle-btn" class="mode-btn">Iniciar Batalha!</button>
+    <!-- TELA DE SELEÇÃO DE PERSONAGENS (Para jogadores) -->
+    <div id="selection-screen" class="screen">
+        <h1 id="selection-title">Selecione seu Aventureiro</h1>
+        <div id="character-list-container"></div>
+        <button id="confirm-selection-btn">Confirmar</button>
     </div>
 
     <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
-        <!-- Conteúdo da tela de luta -->
+        <div id="waiting-players-sidebar"></div> 
+        <div id="fight-scene-characters"></div>
+        <div id="turn-order-sidebar"></div>
+        <div id="fight-log-container">
+            <h2 id="round-info">ROUND 1</h2>
+            <div id="fight-log"></div>
+        </div>
+        <div id="initiative-ui" class="hidden">
+            <button id="player-roll-initiative-btn" class="initiative-btn hidden">Rolar Iniciativa</button>
+            <button id="gm-roll-initiative-btn" class="initiative-btn hidden">Rolar para Inimigos</button>
+        </div>
+        <div id="targeting-indicator" class="hidden">Selecione um alvo! (Clique direito ou ESC para cancelar)</div>
+        <div id="action-buttons-wrapper"></div>
     </div>
 
     <!-- MODO CENÁRIO -->
     <div id="theater-screen" class="screen">
         <div id="theater-background-viewport">
             <div id="theater-world-container">
-                <img id="theater-background-image" src="" alt="Cenário">
+                <img id="theater-background-image" src="" alt="Cenário do Teatro">
                 <div id="theater-token-container"></div>
             </div>
             <div id="selection-box" class="hidden"></div>
         </div>
-        <div id="theater-player-controls" class="hidden"></div>
-        <button id="toggle-gm-panel-btn" class="toggle-gm-panel-btn hidden" title="Painel do Mestre">☰</button>
+        <button id="toggle-gm-panel-btn" class="toggle-gm-panel-btn hidden" title="Mostrar/Ocultar Painel">☰</button>
         <div id="theater-gm-panel" class="hidden">
             <div class="panel-section">
                 <h4>Personagens</h4>
@@ -137,11 +124,9 @@
                 <input type="range" id="theater-global-scale" min="0.2" max="3" step="0.1" value="1">
                 <button id="theater-change-scenario-btn">Mudar Cenário</button>
                 <button id="theater-publish-btn" class="hidden">Publicar Cena</button>
-                <button id="theater-lock-players-btn">Bloquear Jogadores</button>
             </div>
              <div class="panel-section" id="theater-gm-legend">
                 <h4>Atalhos (GM)</h4>
-                <p><b>B:</b> Bloquear/Desbloquear Jogadores</p>
                 <p><b>G:</b> Seleção em Grupo</p>
                 <p><b>F:</b> Virar Personagem</p>
                 <p><b>Setas ↑↓:</b> Mudar Camada</p>
@@ -166,8 +151,11 @@
     <div id="floating-buttons-container" class="hidden">
         <button id="floating-invite-btn" title="Convidar Jogador">✉️</button>
         <button id="floating-switch-mode-btn" title="Mudar Modo de Jogo">🔄</button>
+        <button id="floating-help-btn" title="Ajuda (Atalhos)">?</button> <!-- NOVO BOTÃO -->
     </div>
-    <div id="player-sheet-button" class="floating-btn hidden" title="Ver Ficha">👤</div>
+
+    <!-- Janela de Coordenadas -->
+    <div id="coords-display" class="hidden"></div>
 
 </div>
 
