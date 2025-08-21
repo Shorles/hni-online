@@ -1187,6 +1187,30 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-class').value = '';
         document.querySelectorAll('.attributes-grid input').forEach(input => input.value = 0);
 
+        // Adicionar listeners para os botões de seta
+        document.querySelectorAll('.arrow-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const wrapper = e.target.closest('.number-input-wrapper');
+                const input = wrapper.querySelector('input[type="number"]');
+                let value = parseInt(input.value);
+                const min = parseInt(input.min);
+                const max = parseInt(input.max);
+
+                if (e.target.classList.contains('up-arrow')) {
+                    if (isNaN(max) || value < max) {
+                        value++;
+                    }
+                } else if (e.target.classList.contains('down-arrow')) {
+                    if (isNaN(min) || value > min) {
+                        value--;
+                    }
+                }
+                input.value = value;
+                // Dispara o evento 'change' para que a função updateCharacterSheet seja chamada
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        });
+
         updateCharacterSheet(); // Chamar para calcular os valores iniciais
     }
 
@@ -1260,15 +1284,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const shieldSelect = document.getElementById('sheet-shield-type');
 
         if (w1Data.hand === 2 || shieldtype !== 'Nenhum') {
+            if (w2Select.value !== 'Desarmado') {
+                w2Select.value = 'Desarmado';
+                // Dispara o evento para recalcular imediatamente
+                w2Select.dispatchEvent(new Event('change', { bubbles: true }));
+                return; // Para o cálculo atual para evitar inconsistências
+            }
             w2Select.disabled = true;
-            if (w2Select.value !== 'Desarmado') w2Select.value = 'Desarmado';
         } else {
             w2Select.disabled = false;
         }
 
         if (w1Data.hand === 2 || w2type !== 'Desarmado') {
+             if (shieldSelect.value !== 'Nenhum') {
+                shieldSelect.value = 'Nenhum';
+                shieldSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+            }
             shieldSelect.disabled = true;
-            if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         } else {
             shieldSelect.disabled = false;
         }
@@ -1305,9 +1338,9 @@ document.addEventListener('DOMContentLoaded', () => {
              btm += w2Data.btm || 0;
         }
         
-        // Penalidades de Armadura e Escudo
+        // Penalidades de Armadura
         bta += sheet.equipment.armor.agility_pen;
-        bta += sheet.equipment.shield.agility_pen;
+        // Penalidade de escudo já está no atributo final, mas pode ser somada aqui se a regra mudar.
         
         // 7. Renderizar tudo na UI
         document.getElementById('sheet-final-attr-forca').textContent = sheet.finalAttributes.forca;

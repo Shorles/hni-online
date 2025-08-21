@@ -511,7 +511,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     color: #e0e0e0;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 10px;
     font-family: 'Georgia', serif; /* Fonte mais temática para RPG */
     overflow-y: auto;
 }
@@ -590,7 +590,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .sheet-column {
     flex: 1;
     display: flex;
-    flex-direction: column;
+    flex-direction: column; /* CORRIGE A SOBREPOSIÇÃO */
     gap: 15px;
 }
 
@@ -656,15 +656,44 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     border-radius: 4px;
 }
 .attr-item label { font-size: 0.9em; }
+
+.number-input-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .attr-item input {
-    width: 50px;
+    width: 40px;
     text-align: center;
     font-size: 1.2em;
     background: #333;
     color: #fff;
     border: 1px solid #777;
     border-radius: 4px;
+    -moz-appearance: textfield; /* Para Firefox */
 }
+.attr-item input::-webkit-outer-spin-button,
+.attr-item input::-webkit-inner-spin-button {
+  -webkit-appearance: none; /* Para Chrome, Safari, etc. */
+  margin: 0;
+}
+
+.arrow-btn {
+    background: #555;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 1.2em;
+    width: 20px;
+    height: 30px;
+    line-height: 30px;
+    padding: 0;
+}
+.arrow-btn:hover { background: #777; }
+.down-arrow { border-radius: 4px 0 0 4px; }
+.up-arrow { border-radius: 0 4px 4px 0; }
+
 
 .final-attributes .attr-item span {
     font-size: 1.5em;
@@ -689,12 +718,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     min-height: 1.2em;
 }
 
-.sheet-equipment-section {
-    padding-top: 15px;
-    border-top: 1px solid #a18a59;
-}
-
-.sheet-equipment-section h3 {
+#sheet-equipment-section h3 {
     margin: 0 0 10px 0;
     color: #ffc107;
     font-size: 1.2em;
@@ -716,6 +740,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     border-radius: 4px;
     font-size: 1em;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .money-container {
@@ -731,8 +756,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     display: flex;
     justify-content: flex-end;
     gap: 20px;
-    margin-top: auto; /* Empurra o footer para o fundo */
     padding-top: 10px;
+    margin-top: auto; /* Empurra o footer para o fundo, mas flex-grow na coluna é mais eficaz */
 }
 
 .sheet-btn {
@@ -762,14 +787,4 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     color: #aaa;
     cursor: not-allowed;
     border-color: #6c757d;
-}
-
-/* Para remover as setas do input number */
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type=number] {
-  -moz-appearance: textfield;
 }
