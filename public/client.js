@@ -1057,167 +1057,153 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateCharacterSheet(event = null) {
         let isValid = true;
+        let infoText = '';
         
-        // 1. Limpar mensagens de erro
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
-        document.getElementById('equipment-info-text').textContent = '';
-
-        // 2. Ler todos os valores base da UI
+        
         const selectedRace = document.getElementById('sheet-race-select').value;
         const raceData = GAME_RULES.races[selectedRace];
         const baseAttributes = {
-            forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
-            agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
-            protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
-            constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
-            inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
-            mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+            forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0, agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+            protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0, constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+            inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0, mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
         };
         const elements = {
-            fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
-            agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
-            terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
-            vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
-            luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
-            escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+            fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0, agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+            terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0, vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+            luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0, escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
         };
-        const weapon1Type = document.getElementById('sheet-weapon1-type').value;
-        const weapon2Type = document.getElementById('sheet-weapon2-type').value;
-        const armorType = document.getElementById('sheet-armor-type').value;
-        const shieldType = document.getElementById('sheet-shield-type').value;
+        
+        let weapon1Type = document.getElementById('sheet-weapon1-type').value;
+        let weapon2Type = document.getElementById('sheet-weapon2-type').value;
+        let armorType = document.getElementById('sheet-armor-type').value;
+        let shieldType = document.getElementById('sheet-shield-type').value;
 
-        const weapon1Data = GAME_RULES.weapons[weapon1Type] || GAME_RULES.weapons['Desarmado'];
-        const weapon2Data = GAME_RULES.weapons[weapon2Type] || GAME_RULES.weapons['Desarmado'];
-        const armorData = GAME_RULES.armors[armorType] || GAME_RULES.armors['Nenhuma'];
-        const shieldData = GAME_RULES.shields[shieldType] || GAME_RULES.shields['Nenhum'];
-        
-        // 3. Lógica de Raça e Pontos de Atributos/Elementos
-        let maxAttrPoints = 5;
-        if (selectedRace === 'Humano') {
-            maxAttrPoints = 6;
-        }
-        document.getElementById('attribute-points-header').querySelector('small').innerHTML = `(<span id="sheet-points-attr-remaining">0</span> pontos) <span class="error-message" id="attr-error-message"></span>`; // Reset text
-        
-        // Aplica restrições de elementos de Anjo/Demônio
-        document.getElementById('sheet-elem-escuridao').disabled = (selectedRace === 'Anjo');
-        if (selectedRace === 'Anjo' && elements.escuridao > 0) { document.getElementById('sheet-elem-escuridao').value = 0; return updateCharacterSheet(); }
-        document.getElementById('sheet-elem-luz').disabled = (selectedRace === 'Demônio');
-        if (selectedRace === 'Demônio' && elements.luz > 0) { document.getElementById('sheet-elem-luz').value = 0; return updateCharacterSheet(); }
-        
+        // VALIDAÇÃO E LÓGICA DE PONTOS
+        let maxAttrPoints = 5 + (raceData.bon.escolha || 0);
         const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
         const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
         document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
-        if (attrPointsRemaining < 0) {
-            document.getElementById('attr-error-message').textContent = `Pontos excedidos! (${attrPointsRemaining})`;
-            isValid = false;
-        }
+        if (attrPointsRemaining < 0) { document.getElementById('attr-error-message').textContent = `Pontos excedidos!`; isValid = false; }
         
         const totalElemPoints = Object.values(elements).reduce((sum, val) => sum + val, 0);
         const elemPointsRemaining = 2 - totalElemPoints;
         document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
-        if (elemPointsRemaining < 0) {
-            document.getElementById('elem-error-message').textContent = `Pontos excedidos! (${elemPointsRemaining})`;
-            isValid = false;
-        }
-        
-        // 4. Lógica de Equipamentos (Custo e Restrições)
-        let totalCost = weapon1Data.cost + weapon2Data.cost + armorData.cost + shieldData.cost;
-        if (totalCost > 200) {
-            alert("Dinheiro insuficiente para comprar o item selecionado!");
-            if (event && event.target) {
-                const changedElement = event.target;
-                if (changedElement.id.includes('weapon')) changedElement.value = "Desarmado";
-                else if (changedElement.id.includes('armor')) changedElement.value = "Nenhuma";
-                else if (changedElement.id.includes('shield')) changedElement.value = "Nenhum";
-                return updateCharacterSheet(); 
-            }
-        }
-        
-        // Restrições de armas de 2 mãos
-        const weapon1Is2H = weapon1Data.hand === 2;
-        const weapon2Select = document.getElementById('sheet-weapon2-type');
-        const shieldSelect = document.getElementById('sheet-shield-type');
-        
-        weapon2Select.disabled = weapon1Is2H || shieldType !== 'Nenhum';
-        shieldSelect.disabled = weapon1Is2H || weapon2Type !== 'Desarmado';
+        if (elemPointsRemaining < 0) { document.getElementById('elem-error-message').textContent = `Pontos excedidos!`; isValid = false; }
 
-        if (weapon1Is2H && (weapon2Type !== 'Desarmado' || shieldType !== 'Nenhum')) {
-            document.getElementById('sheet-weapon2-type').value = "Desarmado";
-            document.getElementById('sheet-shield-type').value = "Nenhum";
-            return updateCharacterSheet();
-        }
-         if (shieldType !== 'Nenhum' && weapon2Type !== 'Desarmado') {
-            document.getElementById('sheet-weapon2-type').value = "Desarmado";
-            return updateCharacterSheet();
-        }
-        if(weapon2Type !== 'Desarmado' && shieldType !== 'Nenhum') {
-            document.getElementById('sheet-shield-type').value = "Nenhum";
-            return updateCharacterSheet();
-        }
-
-        // 5. Calcular Atributos Finais
+        // LÓGICA DE RAÇA
         let finalAttributes = { ...baseAttributes };
-        
-        // Bônus/Penalidades da Raça
         if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
-        if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] -= raceData.pen[attr]);
+        if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
 
-        // Penalidades de Equipamento
+        // LÓGICA DE EQUIPAMENTOS E DINHEIRO
+        let cost = 0;
+        let weapon1Data = GAME_RULES.weapons[weapon1Type];
+        let weapon2Data = GAME_RULES.weapons[weapon2Type];
+        let armorData = GAME_RULES.armors[armorType];
+        let shieldData = GAME_RULES.shields[shieldType];
+        
+        cost = weapon1Data.cost + weapon2Data.cost + armorData.cost + shieldData.cost;
+        if (cost > 200 && event && event.target) {
+            alert("Dinheiro insuficiente!");
+            event.target.value = event.target.id.includes('weapon') ? "Desarmado" : "Nenhum";
+            return updateCharacterSheet();
+        }
+        
+        const weapon1Is2H = weapon1Data.hand === 2;
+        const weapon2Is2H = weapon2Data.hand === 2;
+
+        if (weapon1Is2H && finalAttributes.forca < 4) {
+             if (weapon2Type !== 'Desarmado') { document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet(); }
+             if (shieldType !== 'Nenhum') { document.getElementById('sheet-shield-type').value = 'Nenhum'; return updateCharacterSheet(); }
+        }
+        if (weapon1Is2H && finalAttributes.forca >= 4) {
+            infoText += 'Você usa uma arma de 2 mãos com -2 no acerto. ';
+        }
+        if (weapon2Is2H) {
+             infoText += 'Não é possível equipar arma de 2 mãos na segunda mão. ';
+             document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet();
+        }
+        if (shieldType !== 'Nenhum' && weapon2Type !== 'Desarmado') {
+             document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet();
+        }
+
+        // APLICA PENALIDADES DE EQUIPAMENTO
+        finalAttributes.protecao += armorData.protection;
         finalAttributes.agilidade -= armorData.agility_pen;
         finalAttributes.agilidade -= shieldData.agility_pen;
-        finalAttributes.protecao += armorData.protection;
         
-        // Validações de equipamento pós-cálculo de atributos
-        if (shieldData.req_forca > finalAttributes.forca) {
-             document.getElementById('equipment-info-text').textContent += ` Força insuficiente para ${shieldType}! (${finalAttributes.forca}/${shieldData.req_forca})`;
-             isValid = false;
+        if (shieldData.req_forca > finalAttributes.forca) { infoText += `Força insuficiente para ${shieldType}. `; isValid = false; }
+        if ((selectedRace === 'Goblin' || selectedRace === 'Halfling') && (weapon1Type.includes('Gigante') || weapon1Type.includes('Colossal'))) {
+             infoText += `${selectedRace} não pode usar armas Gigantes/Colossais. `; isValid = false;
         }
-        if (selectedRace === 'Goblin' || selectedRace === 'Halfling') {
-            if(weapon1Type === '2 Mãos Gigante' || weapon1Type === '2 Mãos Colossal' || weapon2Type === '2 Mãos Gigante' || weapon2Type === '2 Mãos Colossal') {
-                document.getElementById('equipment-info-text').textContent += ` ${selectedRace} não pode usar armas Gigantes/Colossais.`;
-                isValid = false;
-            }
-        }
-        
-        // 6. Calcular Bônus Totais (BTA, BTD, BTM)
-        let bta = finalAttributes.agilidade + weapon1Data.bta;
-        let btd = finalAttributes.forca + weapon1Data.btd;
-        let btm = finalAttributes.inteligencia + (weapon1Data.btm || 0);
 
-        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-            btd -= 1; // Penalidade de -1 de dano por usar duas armas
-        }
+        // CÁLCULO DE BTA, BTD, BTM
+        let bta = finalAttributes.agilidade;
+        let btd = finalAttributes.forca;
+        let btm = finalAttributes.inteligencia;
+
+        bta += weapon1Data.bta || 0;
+        btd += weapon1Data.btd || 0;
+        btm += weapon1Data.btm || 0;
+
+        if(weapon1Is2H && finalAttributes.forca >= 4) bta += weapon1Data.one_hand_bta_mod || 0;
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
         
-        // 7. Calcular HP e Mahou
+        // ATUALIZAÇÃO DA UI
+        document.getElementById('sheet-money-copper').textContent = 200 - cost;
+        document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
+        document.getElementById('sheet-btd').textContent = btd >= 0 ? `+${btd}` : btd;
+        document.getElementById('sheet-btm').textContent = btm >= 0 ? `+${btm}` : btm;
+        
         const hpMax = 20 + (finalAttributes.constituicao * 5);
         const mahouMax = 10 + (finalAttributes.mente * 5);
-        
-        // 8. Atualizar a UI com todos os novos valores
-        document.getElementById('sheet-bta').textContent = `+${bta}`;
-        document.getElementById('sheet-btd').textContent = `+${btd}`;
-        document.getElementById('sheet-btm').textContent = `+${btm}`;
-        
         document.getElementById('sheet-hp-max').textContent = hpMax;
         document.getElementById('sheet-hp-current').textContent = hpMax;
         document.getElementById('sheet-mahou-max').textContent = mahouMax;
         document.getElementById('sheet-mahou-current').textContent = mahouMax;
         
-        document.getElementById('sheet-money-copper').textContent = 200 - totalCost;
-        
-        Object.keys(finalAttributes).forEach(attr => {
-            document.getElementById(`sheet-final-attr-${attr}`).textContent = finalAttributes[attr];
-        });
-        
+        Object.keys(finalAttributes).forEach(attr => { document.getElementById(`sheet-final-attr-${attr}`).textContent = finalAttributes[attr]; });
         document.getElementById('race-info-box').textContent = raceData.text;
-
+        document.getElementById('equipment-info-text').textContent = infoText;
+        
         Object.keys(elements).forEach(elem => {
             const display = document.getElementById(`advanced-${elem}`);
-            if (elements[elem] >= 2) {
-                display.textContent = GAME_RULES.advancedElements[elem];
-            } else {
-                display.textContent = '';
-            }
+            display.textContent = elements[elem] >= 2 ? GAME_RULES.advancedElements[elem] : '';
         });
+        
+        // LÓGICA DE MAGIAS
+        const spellGrid = document.getElementById('spell-selection-grid');
+        spellGrid.innerHTML = '';
+        const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
+        const availableSpells = GAME_RULES.spells.grade1.filter(s => availableElements.includes(s.element));
+        
+        availableSpells.forEach(spell => {
+            const card = document.createElement('div');
+            card.className = 'spell-card';
+            card.dataset.spellName = spell.name;
+            card.innerHTML = `<h4>${spell.name}</h4><p>${spell.desc}</p>`;
+            if (tempCharacterSheet.spells.includes(spell.name)) {
+                card.classList.add('selected');
+            }
+            card.addEventListener('click', () => {
+                if (tempCharacterSheet.spells.includes(spell.name)) {
+                    tempCharacterSheet.spells = tempCharacterSheet.spells.filter(s => s !== spell.name);
+                } else {
+                    if (tempCharacterSheet.spells.length < 2) {
+                        tempCharacterSheet.spells.push(spell.name);
+                    }
+                }
+                updateCharacterSheet();
+            });
+            spellGrid.appendChild(card);
+        });
+        
+        document.getElementById('sheet-spells-selected-count').textContent = tempCharacterSheet.spells.length;
+        if(tempCharacterSheet.spells.length !== 2) {
+            document.getElementById('spell-error-message').textContent = 'Selecione 2 magias.';
+            isValid = false;
+        }
 
         document.getElementById('sheet-confirm-btn').disabled = !isValid;
     }
@@ -1308,6 +1294,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleConfirmCharacter() {
+        // Obter os atributos finais calculados pela updateCharacterSheet antes de enviar
+        const finalAttributes = {};
+        const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
+        finalAttrElements.forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const value = parseInt(item.querySelector('span').textContent, 10);
+            finalAttributes[label] = value;
+        });
+
         const finalSheet = {
              name: document.getElementById('sheet-name').value,
              class: document.getElementById('sheet-class').value,
@@ -1322,6 +1317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
                 mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
              },
+             finalAttributes: finalAttributes, // Adiciona os atributos finais
              elements: {
                 fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
                 agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
