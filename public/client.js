@@ -928,7 +928,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 viewport.scrollTop = worldY * localWorldScale - mouseY;
             }
         }, { passive: false });
-        theaterGlobalScale.addEventListener('change', (e) => {
+        
+        // CORREÇÃO AQUI: 'change' -> 'input'
+        theaterGlobalScale.addEventListener('input', (e) => {
              if (isGm) socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
         });
     }
@@ -1116,7 +1118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (weapon1Is2H) {
             if (finalAttributes.forca < 4) {
-                infoText += 'Arma de 2 mãos requer ambas as mãos. ';
+                infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
                 if (weapon2Type !== 'Desarmado') { document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet(); }
                 if (shieldType !== 'Nenhum') { document.getElementById('sheet-shield-type').value = 'Nenhum'; return updateCharacterSheet(); }
             } else {
@@ -1126,7 +1128,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (weapon2Type !== 'Desarmado' && shieldType !== 'Nenhum') {
              infoText += 'Não é possível usar uma segunda arma com um escudo. ';
-             // Prioriza a arma, desequipando o escudo
              document.getElementById('sheet-shield-type').value = 'Nenhum';
              return updateCharacterSheet();
         }
