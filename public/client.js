@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- VARIÁVEIS DE ESTADO ---
     let myRole = null, myPlayerKey = null, isGm = false;
     let currentGameState = null, oldGameState = null;
-    let defeatAnimationPlayed = new set();
+    let defeatAnimationPlayed = new Set();
     const socket = io();
     let myRoomId = null; 
     let coordsModeActive = false;
@@ -1100,9 +1100,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Aplica restrições de elementos de Anjo/Demônio
         document.getElementById('sheet-elem-escuridao').disabled = (selectedRace === 'Anjo');
-        if (selectedRace === 'Anjo') document.getElementById('sheet-elem-escuridao').value = 0;
+        if (selectedRace === 'Anjo' && elements.escuridao > 0) { document.getElementById('sheet-elem-escuridao').value = 0; return updateCharacterSheet(); }
         document.getElementById('sheet-elem-luz').disabled = (selectedRace === 'Demônio');
-        if (selectedRace === 'Demônio') document.getElementById('sheet-elem-luz').value = 0;
+        if (selectedRace === 'Demônio' && elements.luz > 0) { document.getElementById('sheet-elem-luz').value = 0; return updateCharacterSheet(); }
         
         const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
         const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
@@ -1129,7 +1129,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (changedElement.id.includes('weapon')) changedElement.value = "Desarmado";
                 else if (changedElement.id.includes('armor')) changedElement.value = "Nenhuma";
                 else if (changedElement.id.includes('shield')) changedElement.value = "Nenhum";
-                // Roda a função novamente para recalcular tudo com o item revertido
                 return updateCharacterSheet(); 
             }
         }
@@ -1140,16 +1139,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const shieldSelect = document.getElementById('sheet-shield-type');
         
         weapon2Select.disabled = weapon1Is2H || shieldType !== 'Nenhum';
-        shieldSelect.disabled = weapon1Is2H;
+        shieldSelect.disabled = weapon1Is2H || weapon2Type !== 'Desarmado';
 
-        if (weapon1Is2H) {
-            if(weapon2Type !== 'Desarmado') document.getElementById('sheet-weapon2-type').value = "Desarmado";
-            if(shieldType !== 'Nenhum') document.getElementById('sheet-shield-type').value = "Nenhum";
-            return updateCharacterSheet(); // Recalcula após forçar a mudança
+        if (weapon1Is2H && (weapon2Type !== 'Desarmado' || shieldType !== 'Nenhum')) {
+            document.getElementById('sheet-weapon2-type').value = "Desarmado";
+            document.getElementById('sheet-shield-type').value = "Nenhum";
+            return updateCharacterSheet();
         }
-         if (shieldType !== 'Nenhum') {
-            if(weapon2Type !== 'Desarmado') document.getElementById('sheet-weapon2-type').value = "Desarmado";
-             return updateCharacterSheet();
+         if (shieldType !== 'Nenhum' && weapon2Type !== 'Desarmado') {
+            document.getElementById('sheet-weapon2-type').value = "Desarmado";
+            return updateCharacterSheet();
+        }
+        if(weapon2Type !== 'Desarmado' && shieldType !== 'Nenhum') {
+            document.getElementById('sheet-shield-type').value = "Nenhum";
+            return updateCharacterSheet();
         }
 
         // 5. Calcular Atributos Finais
