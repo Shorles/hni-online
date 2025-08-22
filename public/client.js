@@ -141,8 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function getFighter(e,t){return e&&e.fighters&&t?e.fighters.players[t]||e.fighters.npcs[t]:null}
     
     // --- LÓGICA DO MODO AVENTURA ---
-    function handleAdventureMode(e){const t=document.getElementById("fight-screen");if(isGm)switch(e.phase){case"party_setup":showScreen(document.getElementById("gm-party-setup-screen")),updateGmPartySetupScreen(e);break;case"npc_setup":showScreen(document.getElementById("gm-npc-setup-screen")),oldGameState&&"npc_setup"===oldGameState.phase||(stagedNpcSlots.fill(null),selectedSlotIndex=null,customFighterPositions={},renderNpcSelectionForGm());break;case"initiative_roll":case"battle":default:showScreen(t),updateAdventureUI(e),"initiative_roll"===e.phase?renderInitiativeUI(e):initiativeUI.classList.add("hidden")}else{getFighter(e,myPlayerKey)?"party_setup"!==e.phase&&"npc_setup"!==e.phase?(showScreen(t),updateAdventureUI(e),"initiative_roll"===e.phase?renderInitiativeUI(e):initiativeUI.classList.add("hidden")):(showScreen(document.getElementById("player-waiting-screen")),document.getElementById("player-waiting-message").innerText="O Mestre está preparando a aventura..."):(showScreen(document.getElementById("player-waiting-screen")),document.getElementById("player-waiting-message").innerText="Aguardando o Mestre...")}}
-    function updateGmLobbyUI(e){const t=document.getElementById("gm-lobby-player-list");if(t&&e&&e.connectedPlayers){t.innerHTML="";const o=Object.values(e.connectedPlayers);0===o.length?t.innerHTML="<li>Aguardando jogadores...</li>":o.forEach(e=>{const o=e.characterName||"<i>Criando ficha...</i>";t.innerHTML+=`<li>${"player"===e.role?"Jogador":"Espectador"} - Personagem: ${o}</li>`})}}
+    function handleAdventureMode(gameState){const fightScreen=document.getElementById("fight-screen");if(isGm)switch(gameState.phase){case"party_setup":showScreen(document.getElementById("gm-party-setup-screen")),updateGmPartySetupScreen(gameState);break;case"npc_setup":showScreen(document.getElementById("gm-npc-setup-screen")),oldGameState&&"npc_setup"===oldGameState.phase||(stagedNpcSlots.fill(null),selectedSlotIndex=null,customFighterPositions={},renderNpcSelectionForGm());break;case"initiative_roll":case"battle":default:showScreen(fightScreen),updateAdventureUI(gameState),"initiative_roll"===gameState.phase?renderInitiativeUI(gameState):initiativeUI.classList.add("hidden")}else{getFighter(gameState,myPlayerKey)?"party_setup"!==gameState.phase&&"npc_setup"!==gameState.phase?(showScreen(fightScreen),updateAdventureUI(gameState),"initiative_roll"===gameState.phase?renderInitiativeUI(gameState):initiativeUI.classList.add("hidden")):(showScreen(document.getElementById("player-waiting-screen")),document.getElementById("player-waiting-message").innerText="O Mestre está preparando a aventura..."):(showScreen(document.getElementById("player-waiting-screen")),document.getElementById("player-waiting-message").innerText="Aguardando o Mestre...")}}
+    function updateGmLobbyUI(state){const playerListEl=document.getElementById("gm-lobby-player-list");if(playerListEl&&state&&state.connectedPlayers){playerListEl.innerHTML="";const connectedPlayers=Object.values(state.connectedPlayers);0===connectedPlayers.length?playerListEl.innerHTML="<li>Aguardando jogadores...</li>":connectedPlayers.forEach(player=>{const charName=player.characterName||"<i>Criando ficha...</i>";playerListEl.innerHTML+=`<li>${"player"===player.role?"Jogador":"Espectador"} - Personagem: ${charName}</li>`})}}
     
     function renderPlayerTokenSelection(unavailable = []) {
         const charListContainer = document.getElementById('character-list-container');
@@ -179,31 +179,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function updateGmPartySetupScreen(state) {
-        // Lógica antiga, será substituída.
-        const partyList = document.getElementById('gm-party-list');
-        partyList.innerHTML = '';
-        if(!state.fighters || !state.fighters.players) return;
-        Object.values(state.fighters.players).forEach(player => {
-            const playerDiv = document.createElement('div');
-            playerDiv.className = 'party-member-card';
-            playerDiv.dataset.id = player.id;
-            playerDiv.innerHTML = `<img src="${player.img}" alt="${player.nome}"><h4>${player.nome}</h4><label>AGI: <input type="number" class="agi-input" value="${player.agi || 2}"></label><label>RES: <input type="number" class="res-input" value="${player.res || 3}"></label>`;
-            partyList.appendChild(playerDiv);
-        });
-        document.getElementById('gm-confirm-party-btn').onclick = () => {
-            const playerStats = [];
-            document.querySelectorAll('#gm-party-list .party-member-card').forEach(card => {
-                playerStats.push({ id: card.dataset.id, agi: parseInt(card.querySelector('.agi-input').value, 10), res: parseInt(card.querySelector('.res-input').value, 10) });
-            });
-            socket.emit('playerAction', { type: 'gmConfirmParty', playerStats });
-        };
-    }
-
+    function updateGmPartySetupScreen(state){const partyList=document.getElementById("gm-party-list");partyList.innerHTML="",state.fighters&&state.fighters.players&&(Object.values(state.fighters.players).forEach(player=>{const playerDiv=document.createElement("div");playerDiv.className="party-member-card",playerDiv.dataset.id=player.id,playerDiv.innerHTML=`<img src="${player.img}" alt="${player.nome}"><h4>${player.nome}</h4><label>AGI: <input type="number" class="agi-input" value="${player.agi||2}"></label><label>RES: <input type="number" class="res-input" value="${player.res||3}"></label>`,partyList.appendChild(playerDiv)}),document.getElementById("gm-confirm-party-btn").onclick=()=>{const playerStats=[];document.querySelectorAll("#gm-party-list .party-member-card").forEach(card=>{playerStats.push({id:card.dataset.id,agi:parseInt(card.querySelector(".agi-input").value,10),res:parseInt(card.querySelector(".res-input").value,10)})}),socket.emit("playerAction",{type:"gmConfirmParty",playerStats})})}
     function renderNpcSelectionForGm(){const e=document.getElementById("npc-selection-area");e.innerHTML="",(ALL_CHARACTERS.npcs||[]).forEach(t=>{const o=document.createElement("div");o.className="npc-card",o.innerHTML=`<img src="${t.img}" alt="${t.name}"><div class="char-name">${t.name}</div>`,o.addEventListener("click",()=>{let o=selectedSlotIndex;null===o&&(o=stagedNpcSlots.findIndex(e=>null===e)),-1!==o&&null!==o?(stagedNpcSlots[o]={...t,id:`npc-${Date.now()}-${o}`},selectedSlotIndex=null,renderNpcStagingArea()):stagedNpcSlots.every(e=>null!==e)?alert("Todos os slots estão cheios. Remova um inimigo para adicionar outro."):alert("Primeiro, clique em um slot vago abaixo para posicionar o inimigo.")}),e.appendChild(o)}),renderNpcStagingArea(),document.getElementById("gm-start-battle-btn").onclick=()=>{const e=stagedNpcSlots.map((e,t)=>e?{...e,slotIndex:t}:null).filter(e=>null!==e);0===e.length?alert("Adicione pelo menos um inimigo para a batalha."):socket.emit("playerAction",{type:"gmStartBattle",npcs:e})}}
     function renderNpcStagingArea(){const e=document.getElementById("npc-staging-area");e.innerHTML="";for(let t=0;t<MAX_NPCS;t++){const o=document.createElement("div");o.className="npc-slot";const n=stagedNpcSlots[t];n?(o.innerHTML=`<img src="${n.img}" alt="${n.name}"><button class="remove-staged-npc" data-index="${t}">X</button>`,o.querySelector(".remove-staged-npc").addEventListener("click",e=>{e.stopPropagation();const o=parseInt(e.target.dataset.index,10);stagedNpcSlots[o]=null,selectedSlotIndex===o&&(selectedSlotIndex=null),renderNpcStagingArea()})):(o.classList.add("empty-slot"),o.innerHTML=`<span>Slot ${t+1}</span>`,o.dataset.index=t,o.addEventListener("click",e=>{const t=parseInt(e.currentTarget.dataset.index,10);selectedSlotIndex=selectedSlotIndex===t?null:t,renderNpcStagingArea()})),selectedSlotIndex===t&&o.classList.add("selected-slot"),e.appendChild(o)}}
     function updateAdventureUI(e){if(e&&e.fighters){fightSceneCharacters.innerHTML="",document.getElementById("round-info").textContent=`ROUND ${e.currentRound}`,document.getElementById("fight-log").innerHTML=(e.log||[]).map(e=>`<p class="log-${e.type||"info"}">${e.text}</p>`).join("");const t=[{left:"150px",top:"500px"},{left:"250px",top:"400px"},{left:"350px",top:"300px"},{left:"450px",top:"200px"}],o=[{left:"1000px",top:"500px"},{left:"900px",top:"400px"},{left:"800px",top:"300px"},{left:"700px",top:"200px"},{left:"950px",top:"350px"}];Object.keys(e.fighters.players).forEach((n,a)=>{const l=e.fighters.players[n];if("fled"!==l.status){const s=e.customPositions[l.id]||t[a],i=createFighterElement(l,"player",e,s);i&&fightSceneCharacters.appendChild(i)}}),(e.npcSlots||[]).forEach((t,n)=>{const a=getFighter(e,t);if(a&&"fled"!==a.status){const l=e.customPositions[a.id]||o[n],s=createFighterElement(a,"npc",e,l);s&&fightSceneCharacters.appendChild(s)}}),renderActionButtons(e),renderTurnOrderUI(e),renderWaitingPlayers(e)}}
-    function createFighterElement(e,t,o,n){const a=document.createElement("div");a.className=`char-container ${t}-char-container`,a.id=e.id,a.dataset.key=e.id;const l=e.scale||1;if(n&&(Object.assign(a.style,n),a.style.zIndex=parseInt(n.top,10)),a.style.setProperty("--character-scale",l),oldGameState&&getFighter(oldGameState,e.id),oldGameState&&"active"===getFighter(oldGameState,e.id)?.status&&"down"===e.status&&!defeatAnimationPlayed.has(e.id)?(defeatAnimationPlayed.add(e.id),a.classList.add("player"===t?"animate-defeat-player":"animate-defeat-npc")):"down"===e.status&&a.classList.add("player"===t?"player-defeated-final":"npc-defeated-final"),"active"===e.status){o.activeCharacterKey===e.id&&a.classList.add("active-turn");const l=getFighter(o,o.activeCharacterKey);l&&"active"===l.status&&(!!o.fighters.players[l.id]!=="player"===t&&a.classList.add("targetable"))}a.classList.contains("targetable")&&a.addEventListener("click",handleTargetClick);let s="";if(e.isMultiPart&&e.parts){s='<div class="multi-health-bar-container">';const t=(e,t)=>(t/e*100).toFixed(2);e.parts.forEach(o=>{const n="down"===o.status?"defeated":"";s+=`\n                    <div class="health-bar-ingame-part ${n}" title="${o.name}: ${o.hp}/${o.hpMax}">\n                        <div class="health-bar-ingame-part-fill" style="width: ${t(o.hpMax,o.hp)}%"></div>\n                    </div>\n                `}),s+="</div>"}else{const t=(e.hp/e.hpMax*100).toFixed(2);s=`\n                <div class="health-bar-ingame">\n                    <div class="health-bar-ingame-fill" style="width: ${t}%"></div>\n                    <span class="health-bar-ingame-text">${e.hp}/${e.hpMax}</span>\n                </div>\n            `}return a.innerHTML=`${s}<img src="${e.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${e.nome}</div>`,a}
+    function createFighterElement(e,t,o,n){const a=document.createElement("div");a.className=`char-container ${t}-char-container`,a.id=e.id,a.dataset.key=e.id;const l=e.scale||1;if(n&&(Object.assign(a.style,n),a.style.zIndex=parseInt(n.top,10)),a.style.setProperty("--character-scale",l),oldGameState&&getFighter(oldGameState,e.id),oldGameState&&"active"===getFighter(oldGameState,e.id)?.status&&"down"===e.status&&!defeatAnimationPlayed.has(e.id)?(defeatAnimationPlayed.add(e.id),a.classList.add("player"===t?"animate-defeat-player":"animate-defeat-npc")):"down"===e.status&&a.classList.add("player"===t?"player-defeated-final":"npc-defeated-final"),"active"===e.status){o.activeCharacterKey===e.id&&a.classList.add("active-turn");const l=getFighter(o,o.activeCharacterKey);l&&"active"===l.status&&(!!o.fighters.players[l.id]!=="player"===t&&a.classList.add("targetable"))}a.classList.contains("targetable")&&a.addEventListener("click",handleTargetClick);let s="";if(e.isMultiPart&&e.parts){s='<div class="multi-health-bar-container">';e.parts.forEach(t=>{const o="down"===t.status?"defeated":"";s+=`\n                    <div class="health-bar-ingame-part ${o}" title="${t.name}: ${t.hp}/${t.hpMax}">\n                        <div class="health-bar-ingame-part-fill" style="width: ${t.hp/t.hpMax*100}%"></div>\n                    </div>\n                `}),s+="</div>"}else{const t=e.hp/e.hpMax*100;s=`\n                <div class="health-bar-ingame">\n                    <div class="health-bar-ingame-fill" style="width: ${t}%"></div>\n                    <span class="health-bar-ingame-text">${e.hp}/${e.hpMax}</span>\n                </div>\n            `}return a.innerHTML=`${s}<img src="${e.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${e.nome}</div>`,a}
     function renderActionButtons(e){if(actionButtonsWrapper.innerHTML="","battle"===e.phase&&!e.winner){const t=getFighter(e,e.activeCharacterKey);if(t){const o=!!e.fighters.npcs[t.id],n="player"===myRole&&e.activeCharacterKey===myPlayerKey||isGm&&o,a=document.createElement("button");a.className="action-btn",a.textContent="Atacar",a.disabled=!n,a.addEventListener("click",()=>{isTargeting=!0,targetingAttackerKey=e.activeCharacterKey,document.getElementById("targeting-indicator").classList.remove("hidden")});const l=document.createElement("button");l.className="action-btn flee-btn",l.textContent="Fugir",l.disabled=!n,l.addEventListener("click",()=>{socket.emit("playerAction",{type:"flee",actorKey:e.activeCharacterKey})});const s=document.createElement("button");s.className="end-turn-btn",s.textContent="Encerrar Turno",s.disabled=!n,s.addEventListener("click",()=>{socket.emit("playerAction",{type:"end_turn",actorKey:e.activeCharacterKey})}),actionButtonsWrapper.appendChild(a),actionButtonsWrapper.appendChild(l),actionButtonsWrapper.appendChild(s)}}}
     function renderInitiativeUI(e){initiativeUI.classList.remove("hidden");const t=document.getElementById("player-roll-initiative-btn"),o=document.getElementById("gm-roll-initiative-btn");if(t.classList.add("hidden"),o.classList.add("hidden"),"player"===myRole&&getFighter(e,myPlayerKey)&&"active"===getFighter(e,myPlayerKey).status&&!e.initiativeRolls[myPlayerKey]&&(t.classList.remove("hidden"),t.disabled=!1,t.onclick=()=>{t.disabled=!0,socket.emit("playerAction",{type:"roll_initiative"})}),isGm){Object.values(e.fighters.npcs).some(t=>"active"===t.status&&!e.initiativeRolls[t.id])&&(o.classList.remove("hidden"),o.disabled=!1,o.onclick=()=>{o.disabled=!0,socket.emit("playerAction",{type:"roll_initiative",isGmRoll:!0})})}}
     function renderTurnOrderUI(e){if("battle"!==e.phase&&"initiative_roll"!==e.phase)return void turnOrderSidebar.classList.add("hidden");turnOrderSidebar.innerHTML="",turnOrderSidebar.classList.remove("hidden");const t=e.turnOrder.map(t=>getFighter(e,t)).filter(e=>e&&"active"===e.status),o=t.findIndex(t=>t.id===e.activeCharacterKey),n=-1===o?t:t.slice(o).concat(t.slice(0,o));n.forEach((e,t)=>{const o=document.createElement("div");o.className="turn-order-card",0===t&&o.classList.add("active-turn-indicator");const n=document.createElement("img");n.src=e.img,n.alt=e.nome,n.title=e.nome,o.appendChild(n),turnOrderSidebar.appendChild(o)})}
@@ -221,28 +201,128 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeTheaterMode(){localWorldScale=1,theaterWorldContainer.style.transform="scale(1)",theaterBackgroundViewport.scrollLeft=0,theaterBackgroundViewport.scrollTop=0,theaterCharList.innerHTML="";const e=t=>{const o=document.createElement("div");o.className="theater-char-mini",o.style.backgroundImage=`url("${t.img}")`,o.title=t.name,o.draggable=!0,o.addEventListener("dragstart",e=>{isGm&&e.dataTransfer.setData("application/json",JSON.stringify({charName:t.name,img:t.img}))}),theaterCharList.appendChild(o)};[...(ALL_CHARACTERS.players||[]),...(ALL_CHARACTERS.npcs||[]),...(ALL_CHARACTERS.dynamic||[])].forEach(t=>e(t))}
     function renderTheaterMode(e){if(!isDragging){const t=e.scenarioStates?.[e.currentScenario],o=isGm?t:e.publicState;if(o&&o.scenario){const n=`images/${o.scenario}`;if(!theaterBackgroundImage.src.includes(o.scenario)){const e=new Image;e.onload=()=>{theaterBackgroundImage.src=e.src,theaterWorldContainer.style.width=`${e.naturalWidth}px`,theaterWorldContainer.style.height=`${e.naturalHeight}px`,isGm&&socket.emit("playerAction",{type:"update_scenario_dims",width:e.naturalWidth,height:e.naturalHeight})},e.src=n}document.getElementById("theater-gm-panel").classList.toggle("hidden",!isGm),document.getElementById("toggle-gm-panel-btn").classList.toggle("hidden",!isGm),document.getElementById("theater-publish-btn").classList.toggle("hidden",!isGm||!t?.isStaging),isGm&&t&&(theaterGlobalScale.value=t.globalTokenScale||1),theaterTokenContainer.innerHTML="";const a=document.createDocumentFragment();(o.tokenOrder||[]).forEach((e,t)=>{const n=o.tokens[e];if(n){const l=document.createElement("img");l.id=e,l.className="theater-token",l.src=n.img,l.style.left=`${n.x}px`,l.style.top=`${n.y}px`,l.style.zIndex=t,l.dataset.scale=n.scale||1,l.dataset.flipped=String(!!n.isFlipped),l.title=n.charName;const s=o.globalTokenScale||1,i=parseFloat(l.dataset.scale),c="true"===l.dataset.flipped;l.style.transform=`scale(${i*s}) ${c?"scaleX(-1)":""}`,isGm&&(selectedTokens.has(e)&&l.classList.add("selected"),l.addEventListener("mouseenter",()=>hoveredTokenId=e),l.addEventListener("mouseleave",()=>hoveredTokenId=null)),a.appendChild(l)}}),theaterTokenContainer.appendChild(a)}}}
     
-    function setupTheaterEventListeners(){theaterBackgroundViewport.addEventListener("mousedown",e=>{if(0===e.button&&(dragStartPos={x:e.clientX,y:e.clientY},isGm)){const t=e.target.closest(".theater-token");if(isGroupSelectMode&&!t)return isSelectingBox=!0,selectionBoxStartPos={x:e.clientX,y:e.clientY},Object.assign(selectionBox.style,{left:`${(e.clientX-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale()}px`,top:`${(e.clientY-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale()}px`,width:"0px",height:"0px"}),void selectionBox.classList.remove("hidden");t?(isDragging=!0,e.ctrlKey||selectedTokens.has(t.id)||selectedTokens.clear(),e.ctrlKey?selectedTokens.has(t.id)?selectedTokens.delete(t.id):selectedTokens.add(t.id):selectedTokens.add(t.id),dragOffsets.clear(),selectedTokens.forEach(e=>{const t=currentGameState.scenarioStates[currentGameState.currentScenario].tokens[e];t&&dragOffsets.set(e,{startX:t.x,startY:t.y})}),renderTheaterMode(currentGameState)):isGroupSelectMode||(selectedTokens.size>0&&(selectedTokens.clear(),renderTheaterMode(currentGameState)),isPanning=!0)}else isPanning=!0}),window.addEventListener("mousemove",e=>{isGm&&isDragging?(e.preventDefault(),requestAnimationFrame(()=>{const t=getGameScale(),o=(e.clientX-dragStartPos.x)/t/localWorldScale,n=(e.clientY-dragStartPos.y)/t/localWorldScale;selectedTokens.forEach(e=>{const t=document.getElementById(e),a=dragOffsets.get(e);t&&a&&(t.style.left=`${a.startX+o}px`,t.style.top=`${a.startY+n}px`)})})):isGm&&isSelectingBox?(e.preventDefault(),Object.assign(selectionBox.style,{left:`${Math.min((e.clientX-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale(),(selectionBoxStartPos.x-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale())}px`,top:`${Math.min((e.clientY-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale(),(selectionBoxStartPos.y-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale())}px`,width:`${Math.abs((e.clientX-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale()-(selectionBoxStartPos.x-theaterBackgroundViewport.getBoundingClientRect().left)/getGameScale())}px`,height:`${Math.abs((e.clientY-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale()-(selectionBoxStartPos.y-theaterBackgroundViewport.getBoundingClientRect().top)/getGameScale())}px`})):isPanning&&(e.preventDefault(),theaterBackgroundViewport.scrollLeft-=e.movementX,theaterBackgroundViewport.scrollTop-=e.movementY)}),window.addEventListener("mouseup",e=>{if(isGm&&isDragging){isDragging=!1;const t=getGameScale(),o=(e.clientX-dragStartPos.x)/t/localWorldScale,n=(e.clientY-dragStartPos.y)/t/localWorldScale;selectedTokens.forEach(e=>{const t=dragOffsets.get(e);t&&socket.emit("playerAction",{type:"updateToken",token:{id:e,x:t.startX+o,y:t.startY+n}})})
-    } else if (isGm && isSelectingBox) {
-        const boxRect = selectionBox.getBoundingClientRect();
-        isSelectingBox = false;
-        selectionBox.classList.add('hidden');
-        if (!e.ctrlKey) {
-            selectedTokens.clear();
-        }
-        document.querySelectorAll('.theater-token').forEach(token => {
-            const tokenRect = token.getBoundingClientRect();
-            if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
-                 if (e.ctrlKey && selectedTokens.has(token.id)) {
-                     selectedTokens.delete(token.id);
-                 } else {
-                     selectedTokens.add(token.id);
-                 }
+    function setupTheaterEventListeners() {
+        theaterBackgroundViewport.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            dragStartPos = { x: e.clientX, y: e.clientY };
+
+            if (isGm) {
+                const tokenElement = e.target.closest('.theater-token');
+                if (isGroupSelectMode && !tokenElement) {
+                    isSelectingBox = true;
+                    selectionBoxStartPos = { x: e.clientX, y: e.clientY };
+                    const gameScale = getGameScale();
+                    const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
+                    const startX = (e.clientX - viewportRect.left) / gameScale;
+                    const startY = (e.clientY - viewportRect.top) / gameScale;
+                    Object.assign(selectionBox.style, { left: `${startX}px`, top: `${startY}px`, width: '0px', height: '0px' });
+                    selectionBox.classList.remove('hidden');
+                    return;
+                }
+
+                if (tokenElement) {
+                    isDragging = true;
+                    if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) {
+                        selectedTokens.clear();
+                        selectedTokens.add(tokenElement.id);
+                    } else if (e.ctrlKey) {
+                        if (selectedTokens.has(tokenElement.id)) {
+                            selectedTokens.delete(tokenElement.id);
+                        } else {
+                            selectedTokens.add(tokenElement.id);
+                        }
+                    }
+                    dragOffsets.clear();
+                    selectedTokens.forEach(id => {
+                        const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
+                        if (tokenData) {
+                           dragOffsets.set(id, { startX: tokenData.x, startY: tokenData.y });
+                        }
+                    });
+                    renderTheaterMode(currentGameState);
+                } else if (!isGroupSelectMode) {
+                    if (selectedTokens.size > 0) {
+                        selectedTokens.clear();
+                        renderTheaterMode(currentGameState);
+                    }
+                    isPanning = true;
+                }
+            } else {
+                isPanning = true;
             }
         });
-        renderTheaterMode(currentGameState);
-    }
-    isPanning = false;
-});
+
+        window.addEventListener('mousemove', (e) => {
+            if (isGm && isDragging) {
+                e.preventDefault();
+                requestAnimationFrame(() => {
+                    const gameScale = getGameScale();
+                    const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
+                    const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
+                    selectedTokens.forEach(id => {
+                        const tokenEl = document.getElementById(id);
+                        const initialPos = dragOffsets.get(id);
+                        if (tokenEl && initialPos) {
+                            tokenEl.style.left = `${initialPos.startX + deltaX}px`;
+                            tokenEl.style.top = `${initialPos.startY + deltaY}px`;
+                        }
+                    });
+                });
+            } else if (isGm && isSelectingBox) {
+                e.preventDefault();
+                const gameScale = getGameScale();
+                const viewportRect = theaterBackgroundViewport.getBoundingClientRect();
+                const currentX = (e.clientX - viewportRect.left) / gameScale;
+                const currentY = (e.clientY - viewportRect.top) / gameScale;
+                const startX = (selectionBoxStartPos.x - viewportRect.left) / gameScale;
+                const startY = (selectionBoxStartPos.y - viewportRect.top) / gameScale;
+                const left = Math.min(currentX, startX);
+                const top = Math.min(currentY, startY);
+                const width = Math.abs(currentX - startX);
+                const height = Math.abs(currentY - startY);
+                Object.assign(selectionBox.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+            } else if (isPanning) {
+                 e.preventDefault();
+                 theaterBackgroundViewport.scrollLeft -= e.movementX;
+                 theaterBackgroundViewport.scrollTop -= e.movementY;
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (isGm && isDragging) {
+                isDragging = false;
+                const gameScale = getGameScale();
+                const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
+                const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
+                selectedTokens.forEach(id => {
+                    const initialPos = dragOffsets.get(id);
+                    if(initialPos) {
+                        const finalX = initialPos.startX + deltaX;
+                        const finalY = initialPos.startY + deltaY;
+                        socket.emit('playerAction', { type: 'updateToken', token: { id: id, x: finalX, y: finalY } });
+                    }
+                });
+            } else if (isGm && isSelectingBox) {
+                const boxRect = selectionBox.getBoundingClientRect();
+                isSelectingBox = false;
+                selectionBox.classList.add('hidden');
+                if (!e.ctrlKey) {
+                    selectedTokens.clear();
+                }
+                document.querySelectorAll('.theater-token').forEach(token => {
+                    const tokenRect = token.getBoundingClientRect();
+                    if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
+                         if (e.ctrlKey && selectedTokens.has(token.id)) {
+                             selectedTokens.delete(token.id);
+                         } else {
+                             selectedTokens.add(token.id);
+                         }
+                    }
+                });
+                renderTheaterMode(currentGameState);
+            }
+            isPanning = false;
+        });
 
         theaterBackgroundViewport.addEventListener('drop', (e) => {
             e.preventDefault(); 
@@ -294,7 +374,89 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function initializeGlobalKeyListeners(){window.addEventListener("keydown",e=>{if(currentGameState){if("adventure"===currentGameState.mode&&isTargeting&&"Escape"===e.key)return void cancelTargeting();const t=document.activeElement;if("INPUT"!==t.tagName&&"TEXTAREA"!==t.tagName){if("c"===e.key.toLowerCase()&&isGm&&"adventure"===currentGameState.mode&&(e.preventDefault(),showCheatModal()),"t"===e.key.toLowerCase()&&(e.preventDefault(),coordsModeActive=!coordsModeActive,coordsDisplay.classList.toggle("hidden",!coordsModeActive)),isGm&&"adventure"===currentGameState.mode&&"j"===e.key.toLowerCase()&&(e.preventDefault(),isFreeMoveModeActive=!isFreeMoveModeActive,makeFightersDraggable(isFreeMoveModeActive),showInfoModal("Modo de Movimento",`Modo de movimento livre ${isFreeMoveModeActive?"ATIVADO":"DESATIVADO"}.`)),"theater"===currentGameState.mode&&isGm&&("g"===e.key.toLowerCase()&&(e.preventDefault(),isGroupSelectMode=!isGroupSelectMode,theaterBackgroundViewport.classList.toggle("group-select-mode",isGroupSelectMode),isGroupSelectMode||(isSelectingBox=!1,selectionBox.classList.add("hidden"))),(()=>hoveredTokenId||1===selectedTokens.size&&selectedTokens.values().next().value)(),(()=>hoveredTokenId||1===selectedTokens.size&&selectedTokens.values().next().value)(),"Delete"===e.key&&selectedTokens.size>0&&(e.preventDefault(),socket.emit("playerAction",{type:"updateToken",token:{remove:!0,ids:Array.from(selectedTokens)}}),selectedTokens.clear()),1===selectedTokens.size&&("ArrowUp"===e.key||"ArrowDown"===e.key)&&(e.preventDefault(),(()=>{const e=selectedTokens.values().next().value,t=[...currentGameState.scenarioStates[currentGameState.currentScenario].tokenOrder],o=t.indexOf(e);"ArrowUp"===e.key&&o<t.length-1?([t[o],t[o+1]]=[t[o+1],t[o]],socket.emit("playerAction",{type:"updateTokenOrder",order:t})):"ArrowDown"===e.key&&o>0&&([t[o],t[o-1]]=[t[o-1],t[o]],socket.emit("playerAction",{type:"updateTokenOrder",order:t}))})()))}}}),window.addEventListener("mousemove",e=>{if(coordsModeActive){const t=gameWrapper.getBoundingClientRect(),o=getGameScale(),n=e.clientX,a=e.clientY,l=Math.round((n-t.left)/o),s=Math.round((a-t.top)/o);coordsDisplay.innerHTML=`X: ${l}<br>Y: ${s}`}})}
+    function initializeGlobalKeyListeners() {
+        window.addEventListener('keydown', (e) => {
+            if (!currentGameState) return;
+            if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape') {
+                cancelTargeting();
+                return;
+            }
+
+            const focusedEl = document.activeElement;
+            if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            if (e.key.toLowerCase() === 'c' && isGm && currentGameState.mode === 'adventure') {
+                e.preventDefault();
+                showCheatModal();
+            }
+
+            if (e.key.toLowerCase() === 't') {
+                e.preventDefault();
+                coordsModeActive = !coordsModeActive;
+                coordsDisplay.classList.toggle('hidden', !coordsModeActive);
+            }
+            
+            if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'j') {
+                e.preventDefault();
+                isFreeMoveModeActive = !isFreeMoveModeActive;
+                makeFightersDraggable(isFreeMoveModeActive);
+                showInfoModal("Modo de Movimento", `Modo de movimento livre ${isFreeMoveModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
+            }
+
+            if (currentGameState.mode !== 'theater' || !isGm) return;
+            
+            if(e.key.toLowerCase() === 'g') {
+                e.preventDefault();
+                isGroupSelectMode = !isGroupSelectMode;
+                theaterBackgroundViewport.classList.toggle('group-select-mode', isGroupSelectMode);
+                if (!isGroupSelectMode) {
+                    isSelectingBox = false;
+                    selectionBox.classList.add('hidden');
+                }
+            }
+
+            const targetId = hoveredTokenId || (selectedTokens.size === 1 ? selectedTokens.values().next().value : null);
+            if (e.key.toLowerCase() === 'f' && targetId) {
+                e.preventDefault();
+                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[targetId];
+                if (tokenData) socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, isFlipped: !tokenData.isFlipped } });
+            } else if (e.key.toLowerCase() === 'o' && targetId) {
+                e.preventDefault();
+                socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, scale: 1.0 } });
+            } else if (e.key === 'Delete' && selectedTokens.size > 0) {
+                e.preventDefault();
+                socket.emit('playerAction', { type: 'updateToken', token: { remove: true, ids: Array.from(selectedTokens) } });
+                selectedTokens.clear();
+            } else if (selectedTokens.size === 1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+                const tokenId = selectedTokens.values().next().value;
+                const currentOrder = [...currentGameState.scenarioStates[currentGameState.currentScenario].tokenOrder];
+                const currentIndex = currentOrder.indexOf(tokenId);
+                
+                if (e.key === 'ArrowUp' && currentIndex < currentOrder.length - 1) {
+                    [currentOrder[currentIndex], currentOrder[currentIndex + 1]] = [currentOrder[currentIndex + 1], currentOrder[currentIndex]];
+                    socket.emit('playerAction', { type: 'updateTokenOrder', order: currentOrder });
+                } else if (e.key === 'ArrowDown' && currentIndex > 0) {
+                    [currentOrder[currentIndex], currentOrder[currentIndex - 1]] = [currentOrder[currentIndex - 1], currentOrder[currentIndex]];
+                    socket.emit('playerAction', { type: 'updateTokenOrder', order: currentOrder });
+                }
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!coordsModeActive) return;
+            const gameWrapperRect = gameWrapper.getBoundingClientRect();
+            const gameScale = getGameScale();
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+            const gameX = Math.round((mouseX - gameWrapperRect.left) / gameScale);
+            const gameY = Math.round((mouseY - gameWrapperRect.top) / gameScale);
+            coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
+        });
+    }
+
     function showScenarioSelectionModal(){let e='<div class="category-tabs">';const t=Object.keys(ALL_SCENARIOS);t.forEach((t,o)=>{e+=`<button class="category-tab-btn ${0===o?"active":""}" data-category="${t}">${t.replace(/_/g," ")}</button>`}),e+="</div>",t.forEach((t,o)=>{e+=`<div class="scenarios-grid ${0===o?"active":""}" id="grid-${t}">`,ALL_SCENARIOS[t].forEach(t=>{const o=t.split("/").pop().replace(".png","").replace(".jpg","");e+=`<div class="scenario-card" data-path="${t}"><img src="images/mapas/${t}" alt="${o}"><div class="scenario-name">${o}</div></div>`}),e+="</div>"}),showInfoModal("Mudar Cenário",e,!1),document.querySelectorAll(".category-tab-btn").forEach(e=>{e.addEventListener("click",()=>{document.querySelectorAll(".category-tab-btn, .scenarios-grid").forEach(e=>e.classList.remove("active")),e.classList.add("active"),document.getElementById(`grid-${e.dataset.category}`).classList.add("active")})}),document.querySelectorAll(".scenario-card").forEach(e=>{e.addEventListener("click",()=>{const t=e.dataset.path;socket.emit("playerAction",{type:"changeScenario",scenario:t}),modal.classList.add("hidden")})})}
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (NOVO) ---
@@ -357,6 +519,11 @@ document.addEventListener('DOMContentLoaded', () => {
             playerElements.includes(spell.element)
         );
 
+        if (availableSpells.length === 0) {
+            spellGrid.innerHTML = "<p>Escolha seus elementos para ver as magias disponíveis.</p>";
+            return;
+        }
+
         availableSpells.forEach(spell => {
             const card = document.createElement('div');
             card.className = 'spell-card';
@@ -370,17 +537,14 @@ document.addEventListener('DOMContentLoaded', () => {
             card.addEventListener('click', () => {
                 const selectedSpells = tempCharacterSheet.spells;
                 if (selectedSpells.includes(spell.name)) {
-                    // Desselecionar
                     tempCharacterSheet.spells = selectedSpells.filter(s => s !== spell.name);
-                    card.classList.remove('selected');
                 } else {
-                    // Selecionar
                     if (selectedSpells.length < 2) {
                         tempCharacterSheet.spells.push(spell.name);
-                        card.classList.add('selected');
                     }
                 }
                 document.getElementById('sheet-spells-selected-count').textContent = tempCharacterSheet.spells.length;
+                renderSpellSelection(playerElements); // Re-renderiza para atualizar o estado visual
             });
 
             spellGrid.appendChild(card);
@@ -471,7 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let equipInfo = [];
         if (money < 0) equipInfo.push(`Dinheiro insuficiente!`);
-        if (sheet.finalAttributes.forca < sheet.equipment.shield.req_forca) equipInfo.push(`Requer ${sheet.equipment.shield.req_forca} Força para o escudo.`);
+        if (sheet.equipment.shield.req_forca > 0 && sheet.finalAttributes.forca < sheet.equipment.shield.req_forca) equipInfo.push(`Requer ${sheet.equipment.shield.req_forca} Força para o escudo.`);
         if (sheet.equipment.weapon1.hand === 2 && sheet.equipment.weapon2.hand === 2 && !canOneHand2H) equipInfo.push(`Requer 4 Força para usar 2 armas de Duas Mãos.`);
 
         const isAmbidextrous = w1type !== 'Desarmado' && w2type !== 'Desarmado';
@@ -482,16 +646,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const w1Data = sheet.equipment.weapon1;
         const w2Data = sheet.equipment.weapon2;
         if(w1Data){
-            bta += isAmbidextrous ? (w1Data.bta + w1Data.ambi_bta_mod) : w1Data.bta;
-            btd += isAmbidextrous ? (w1Data.btd + w1Data.ambi_btd_mod) : w1Data.btd;
+            let finalBTA1 = w1Data.bta;
+            let finalBTD1 = w1Data.btd;
+            if (isAmbidextrous) {
+                finalBTA1 += w1Data.ambi_bta_mod;
+                finalBTD1 += w1Data.ambi_btd_mod;
+            }
+            if(w1Data.hand === 2 && canOneHand2H) finalBTA1 += w1Data.one_hand_bta_mod || 0;
+            bta += finalBTA1;
+            btd += finalBTD1;
             btm += w1Data.btm || 0;
-            if(w1Data.hand === 2 && canOneHand2H) bta += w1Data.one_hand_bta_mod || 0;
         }
         if(isAmbidextrous && w2Data){
-             bta += w2Data.bta + w2Data.ambi_bta_mod;
-             btd += w2Data.btd + w2Data.ambi_btd_mod;
+             let finalBTA2 = w2Data.bta + w2Data.ambi_bta_mod;
+             let finalBTD2 = w2Data.btd + w2Data.ambi_btd_mod;
+             if(w2Data.hand === 2 && canOneHand2H) finalBTA2 += w2Data.one_hand_bta_mod || 0;
+             bta += finalBTA2;
+             btd += finalBTD2;
              if((w2Data.btm || 0) > (w1Data.btm || 0)) btm += (w2Data.btm || 0);
-             if(w2Data.hand === 2 && canOneHand2H) bta += w2Data.one_hand_bta_mod || 0;
         }
         
         // --- RENDERIZAÇÃO NA UI ---
