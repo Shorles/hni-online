@@ -130,8 +130,69 @@ document.addEventListener('DOMContentLoaded', () => {
     function getFighter(state, key) { if (!state || !state.fighters || !key) return null; return state.fighters.players[key] || state.fighters.npcs[key]; }
 
     // --- LÓGICA DE JOGO PRINCIPAL ---
-    function handleAdventureMode(gameState) { /* ... (código existente mantido) ... */ }
-    function updateGmLobbyUI(state) { /* ... (código existente mantido) ... */ }
+    function handleAdventureMode(gameState) {
+        const fightScreen = document.getElementById('fight-screen');
+        if (isGm) {
+            switch (gameState.phase) {
+                case 'party_setup': 
+                    showScreen(document.getElementById('gm-party-setup-screen')); 
+                    updateGmPartySetupScreen(gameState); 
+                    break;
+                case 'npc_setup': 
+                    showScreen(document.getElementById('gm-npc-setup-screen')); 
+                    if (!oldGameState || oldGameState.phase !== 'npc_setup') {
+                        stagedNpcSlots.fill(null);
+                        selectedSlotIndex = null;
+                        customFighterPositions = {};
+                        renderNpcSelectionForGm(); 
+                    } 
+                    break;
+                case 'initiative_roll': 
+                case 'battle':
+                default: 
+                    showScreen(fightScreen); 
+                    updateAdventureUI(gameState);
+                    if (gameState.phase === 'initiative_roll') {
+                        renderInitiativeUI(gameState);
+                    } else {
+                        initiativeUI.classList.add('hidden');
+                    }
+            }
+        } else {
+            const amIInTheFight = !!getFighter(gameState, myPlayerKey);
+            if (myRole === 'player' && !amIInTheFight) {
+                showScreen(document.getElementById('player-waiting-screen'));
+                document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre...";
+            }
+            else if (['party_setup', 'npc_setup'].includes(gameState.phase)) {
+                showScreen(document.getElementById('player-waiting-screen'));
+                document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
+            } 
+            else {
+                showScreen(fightScreen); 
+                updateAdventureUI(gameState);
+                if (gameState.phase === 'initiative_roll') {
+                    renderInitiativeUI(gameState);
+                } else {
+                    initiativeUI.classList.add('hidden');
+                }
+            }
+        }
+    }
+    
+    function updateGmLobbyUI(state) {
+        const playerListEl = document.getElementById('gm-lobby-player-list');
+        if (!playerListEl || !state || !state.connectedPlayers) return;
+        playerListEl.innerHTML = '';
+        const connectedPlayers = Object.values(state.connectedPlayers);
+        if (connectedPlayers.length === 0) { playerListEl.innerHTML = '<li>Aguardando jogadores...</li>'; } 
+        else {
+            connectedPlayers.forEach(p => {
+                const charName = p.characterName || '<i>Criando ficha...</i>';
+                playerListEl.innerHTML += `<li>${p.role === 'player' ? 'Jogador' : 'Espectador'} - Personagem: ${charName}</li>`;
+            });
+        }
+    }
 
     function renderPlayerTokenSelection() {
         const charListContainer = document.getElementById('character-list-container');
@@ -158,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
             charListContainer.appendChild(card);
         });
         
-        // CORREÇÃO APLICADA AQUI
         confirmBtn.onclick = () => {
             const selectedCard = document.querySelector('.char-card.selected');
             if (selectedCard) {
@@ -169,36 +229,54 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
+    
+    function updateGmPartySetupScreen(state) { /* ... (código existente mantido) ... */ }
+    function renderNpcSelectionForGm() { /* ... (código existente mantido) ... */ }
+    function renderNpcStagingArea() { /* ... (código existente mantido) ... */ }
+    function updateAdventureUI(state) { /* ... (código existente mantido) ... */ }
+    function createFighterElement(fighter, type, state, position) { /* ... (código existente mantido) ... */ }
+    function renderActionButtons(state) { /* ... (código existente mantido) ... */ }
+    function renderInitiativeUI(state) { /* ... (código existente mantido) ... */ }
+    function renderTurnOrderUI(state) { /* ... (código existente mantido) ... */ }
+    function renderWaitingPlayers(state) { /* ... (código existente mantido) ... */ }
+    function showPartSelectionModal(attackerKey, targetFighter) { /* ... (código existente mantido) ... */ }
+    function handleTargetClick(event) { /* ... (código existente mantido) ... */ }
+    function showCheatModal() { /* ... (código existente mantido) ... */ }
+    function handleCheatAddNpc() { /* ... (código existente mantido) ... */ }
+    function selectNpcForSlot(slotIndex) { /* ... (código existente mantido) ... */ }
+    function makeFightersDraggable(isDraggable) { /* ... (código existente mantido) ... */ }
+    function onFighterMouseDown(e) { /* ... (código existente mantido) ... */ }
+    function onFighterMouseMove(e) { /* ... (código existente mantido) ... */ }
+    function onFighterMouseUp() { /* ... (código existente mantido) ... */ }
+    function showHelpModal() { /* ... (código existente mantido) ... */ }
+    function initializeTheaterMode() { /* ... (código existente mantido) ... */ }
+    function renderTheaterMode(state) { /* ... (código existente mantido) ... */ }
+    function setupTheaterEventListeners() { /* ... (código existente mantido) ... */ }
+    function initializeGlobalKeyListeners() { /* ... (código existente mantido) ... */ }
+    function showScenarioSelectionModal() { /* ... (código existente mantido) ... */ }
 
     // --- FUNÇÕES DA FICHA DE PERSONAGEM ---
     function initializeCharacterSheet() {
         tempCharacterSheet = {
             name: '', class: '', race: 'Anjo',
-            tokenName: tempCharacterSheet.tokenName,
-            tokenImg: tempCharacterSheet.tokenImg,
+            tokenName: tempCharacterSheet.tokenName, tokenImg: tempCharacterSheet.tokenImg,
             baseAttributes: { forca: 0, agilidade: 0, protecao: 0, constituicao: 0, inteligencia: 0, mente: 0 },
             elements: { fogo: 0, agua: 0, terra: 0, vento: 0, luz: 0, escuridao: 0 },
             equipment: {
-                weapon1: { name: '', type: 'Desarmado' },
-                weapon2: { name: '', type: 'Desarmado' },
-                armor: 'Nenhuma',
-                shield: 'Nenhum'
+                weapon1: { name: '', type: 'Desarmado' }, weapon2: { name: '', type: 'Desarmado' },
+                armor: 'Nenhuma', shield: 'Nenhum'
             },
-            spells: [],
-            money: 200,
+            spells: [], money: 200,
         };
-
         const raceSelect = document.getElementById('sheet-race-select');
         raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(r => `<option value="${r}">${r}</option>`).join('');
         const weaponSelects = [document.getElementById('sheet-weapon1-type'), document.getElementById('sheet-weapon2-type')];
         weaponSelects.forEach(sel => sel.innerHTML = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join(''));
         document.getElementById('sheet-armor-type').innerHTML = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
         document.getElementById('sheet-shield-type').innerHTML = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
-        
         document.getElementById('sheet-name').value = '';
         document.getElementById('sheet-class').value = '';
         document.querySelectorAll('#character-sheet-screen input[type="number"]').forEach(input => input.value = 0);
-
         document.querySelectorAll('.arrow-btn').forEach(button => {
             if (button.dataset.listenerAttached) return;
             button.dataset.listenerAttached = true;
@@ -206,25 +284,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const wrapper = e.target.closest('.number-input-wrapper');
                 const input = wrapper.querySelector('input[type="number"]');
                 let value = parseInt(input.value);
-                const min = parseInt(input.min);
-                const max = parseInt(input.max);
-
-                if (e.target.classList.contains('up-arrow')) {
-                    if (isNaN(max) || value < max) value++;
-                } else if (e.target.classList.contains('down-arrow')) {
-                    if (isNaN(min) || value > min) value--;
-                }
+                const min = parseInt(input.min), max = parseInt(input.max);
+                if (e.target.classList.contains('up-arrow')) { if (isNaN(max) || value < max) value++; } 
+                else if (e.target.classList.contains('down-arrow')) { if (isNaN(min) || value > min) value--; }
                 input.value = value;
                 input.dispatchEvent(new Event('change', { bubbles: true }));
             });
         });
-
         document.querySelectorAll('#sheet-equipment-section select').forEach(select => {
-            select.addEventListener('focus', (e) => {
-                e.target.dataset.previousValue = e.target.value;
-            });
+            select.addEventListener('focus', (e) => { e.target.dataset.previousValue = e.target.value; });
         });
-
         updateCharacterSheet();
     }
     
@@ -243,9 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'spell-card';
             card.dataset.spellName = spell.name;
             card.innerHTML = `<h4>${spell.name}</h4><p>${spell.desc}</p>`;
-
             if (tempCharacterSheet.spells.includes(spell.name)) card.classList.add('selected');
-
             card.addEventListener('click', () => {
                 const selectedSpells = tempCharacterSheet.spells;
                 if (selectedSpells.includes(spell.name)) {
@@ -266,24 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const raceData = GAME_RULES.races[race];
         const isHuman = race === 'Humano';
         const totalAttrPointsAvailable = 5 + (isHuman ? 1 : 0);
-
-        sheet.baseAttributes = {
-            forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
-            agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
-            protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
-            constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
-            inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
-            mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
-        };
-        sheet.elements = {
-            fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
-            agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
-            terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
-            vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
-            luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
-            escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
-        };
-        
+        sheet.baseAttributes = { forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0, agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0, protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0, constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0, inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0, mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0 };
+        sheet.elements = { fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0, agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0, terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0, vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0, luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0, escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0 };
         const w1type = document.getElementById('sheet-weapon1-type').value, w2type = document.getElementById('sheet-weapon2-type').value;
         const armortype = document.getElementById('sheet-armor-type').value, shieldtype = document.getElementById('sheet-shield-type').value;
         sheet.equipment = { weapon1: GAME_RULES.weapons[w1type], weapon2: GAME_RULES.weapons[w2type], armor: GAME_RULES.armors[armortype], shield: GAME_RULES.shields[shieldtype] };
@@ -292,12 +343,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const remainingAttrPoints = totalAttrPointsAvailable - totalAttrPoints;
         const totalElemPoints = Object.values(sheet.elements).reduce((a, b) => a + b, 0);
         const remainingElemPoints = 2 - totalElemPoints;
-
         document.getElementById('attribute-points-header').innerHTML = `Atributos Básicos <small>(<span id="sheet-points-attr-remaining">${remainingAttrPoints}</span>/${totalAttrPointsAvailable} pontos) <span class="error-message" id="attr-error-message"></span></small>`;
         document.getElementById('sheet-points-elem-remaining').textContent = remainingElemPoints;
         document.getElementById('attr-error-message').textContent = remainingAttrPoints < 0 ? "Pontos excedidos!" : "";
         document.getElementById('elem-error-message').textContent = remainingElemPoints < 0 ? "Pontos excedidos!" : "";
-
         const playerActiveElements = [];
         for (const [elem, points] of Object.entries(sheet.elements)) {
             const advancedDisplay = document.getElementById(`advanced-${elem}`);
@@ -339,7 +388,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isAmbidextrous = w1type !== 'Desarmado' && w2type !== 'Desarmado';
         let bta = sheet.finalAttributes.agilidade, btd = sheet.finalAttributes.forca, btm = sheet.finalAttributes.inteligencia;
-        
         const w1Data = sheet.equipment.weapon1, w2Data = sheet.equipment.weapon2;
         if(w1Data){
             let finalBTA1 = w1Data.bta, finalBTD1 = w1Data.btd;
@@ -372,15 +420,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleSaveCharacter() {
-        // ... (código existente)
+        // ... (código mantido)
     }
     
     function handleLoadCharacter(event) {
-        // ... (código existente)
+        // ... (código mantido)
     }
 
     function handleConfirmCharacter() {
-        // ... (código existente)
+        // ... (código mantido)
     }
     
     function renderGame(gameState) {
@@ -391,6 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(document.getElementById('loading-screen'));
             return;
         }
+        
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
         
         if (myRole === 'player' && myPlayerData && !myPlayerData.characterFinalized) {
@@ -445,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => { ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] }; ALL_SCENARIOS = data.scenarios || {}; });
     socket.on('gameUpdate', (gameState) => { if (clientFlowState !== 'choosing_role') renderGame(gameState); });
-    socket.on('fighterMoved', ({ fighterId, position }) => { /* ... */ });
+    socket.on('fighterMoved', ({ fighterId, position }) => { customFighterPositions[fighterId] = position; const fighterEl = document.getElementById(fighterId); if (fighterEl) { fighterEl.style.left = position.left; fighterEl.style.top = position.top; } });
     socket.on('roomCreated', (roomId) => {
         myRoomId = roomId;
         if (isGm) {
@@ -479,8 +528,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen(document.getElementById('player-initial-choice-screen'));
         }
     });
-    socket.on('gmPromptToAdmit', ({ playerId, character }) => { /* ... */ });
-    socket.on('promptForAdventureType', () => { /* ... */ });
+    socket.on('gmPromptToAdmit', ({ playerId, character }) => { if (isGm) showConfirmationModal('Novo Jogador', `${character.nome} deseja entrar na batalha. Permitir?`, (admitted) => socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted })); });
+    socket.on('promptForAdventureType', () => { if (isGm) showConfirmationModal('Retornar à Aventura', 'Deseja continuar a aventura anterior ou começar uma nova batalha?', (continuar) => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: continuar ? 'continue' : 'new' }), 'Continuar Batalha', 'Nova Batalha'); });
     socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => { /* ... */ });
     socket.on('fleeResolved', ({ actorKey }) => { /* ... */ });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
