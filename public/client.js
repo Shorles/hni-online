@@ -1097,36 +1097,42 @@ document.addEventListener('DOMContentLoaded', () => {
         if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
 
         // LÓGICA DE EQUIPAMENTOS E DINHEIRO
-        let cost = 0;
         let weapon1Data = GAME_RULES.weapons[weapon1Type];
         let weapon2Data = GAME_RULES.weapons[weapon2Type];
         let armorData = GAME_RULES.armors[armorType];
         let shieldData = GAME_RULES.shields[shieldType];
         
-        cost = weapon1Data.cost + weapon2Data.cost + armorData.cost + shieldData.cost;
+        let cost = weapon1Data.cost + weapon2Data.cost + armorData.cost + shieldData.cost;
         if (cost > 200 && event && event.target) {
             alert("Dinheiro insuficiente!");
-            event.target.value = event.target.id.includes('weapon') ? "Desarmado" : "Nenhum";
+            const changedElement = event.target;
+            if (changedElement.id.includes('weapon')) { changedElement.value = "Desarmado"; }
+            else if (changedElement.id.includes('armor')) { changedElement.value = "Nenhuma"; }
+            else if (changedElement.id.includes('shield')) { changedElement.value = "Nenhum"; }
             return updateCharacterSheet();
         }
         
         const weapon1Is2H = weapon1Data.hand === 2;
-        const weapon2Is2H = weapon2Data.hand === 2;
-
-        if (weapon1Is2H && finalAttributes.forca < 4) {
-             if (weapon2Type !== 'Desarmado') { document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet(); }
-             if (shieldType !== 'Nenhum') { document.getElementById('sheet-shield-type').value = 'Nenhum'; return updateCharacterSheet(); }
+        
+        if (weapon1Is2H) {
+            if (finalAttributes.forca < 4) {
+                infoText += 'Arma de 2 mãos requer ambas as mãos. ';
+                if (weapon2Type !== 'Desarmado') { document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet(); }
+                if (shieldType !== 'Nenhum') { document.getElementById('sheet-shield-type').value = 'Nenhum'; return updateCharacterSheet(); }
+            } else {
+                infoText += 'Você usa uma arma de 2 mãos com uma mão (-2 no acerto). ';
+            }
         }
-        if (weapon1Is2H && finalAttributes.forca >= 4) {
-            infoText += 'Você usa uma arma de 2 mãos com -2 no acerto. ';
+        
+        if (weapon2Type !== 'Desarmado' && shieldType !== 'Nenhum') {
+             infoText += 'Não é possível usar uma segunda arma com um escudo. ';
+             // Prioriza a arma, desequipando o escudo
+             document.getElementById('sheet-shield-type').value = 'Nenhum';
+             return updateCharacterSheet();
         }
-        if (weapon2Is2H) {
-             infoText += 'Não é possível equipar arma de 2 mãos na segunda mão. ';
-             document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet();
-        }
-        if (shieldType !== 'Nenhum' && weapon2Type !== 'Desarmado') {
-             document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet();
-        }
+        
+        document.getElementById('sheet-weapon2-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || shieldType !== 'Nenhum';
+        document.getElementById('sheet-shield-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || weapon2Type !== 'Desarmado';
 
         // APLICA PENALIDADES DE EQUIPAMENTO
         finalAttributes.protecao += armorData.protection;
@@ -1209,6 +1215,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleSaveCharacter() {
+        // Obter os atributos finais calculados pela updateCharacterSheet antes de salvar
+        const finalAttributes = {};
+        const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
+        finalAttrElements.forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const value = parseInt(item.querySelector('span').textContent, 10);
+            finalAttributes[label] = value;
+        });
+
         const sheetData = {
             name: document.getElementById('sheet-name').value,
             class: document.getElementById('sheet-class').value,
@@ -1223,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
                 mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
             },
+            finalAttributes: finalAttributes, // Adiciona os atributos finais
             elements: {
                 fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
                 agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
