@@ -574,7 +574,7 @@ body {
 }
 
 /* Regras de Animação */
-@keyframes player1-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(-50px); } }
+@keyframes player1-attack-lunge-classic { 50% { transform: translateX(50px); } }
 @keyframes player2-attack-lunge-classic { 50% { transform: scaleX(-1) translateX(50px); } }
 @keyframes player1-attack-lunge-arena { 50% { transform: translateX(50px); } }
 @keyframes player2-attack-lunge-arena { 50% { transform: scaleX(-1) translateX(50px); } }
@@ -587,9 +587,9 @@ body {
     100% { box-shadow: 0 0 0 0 rgba(255, 235, 59, 0); }
 }
 
-/* Regras para MODO CLÁSSICO */
-.mode-classic #player1-fight-img { left: 380px; transform: scaleX(-1); }
-.mode-classic #player2-fight-img { right: 380px; transform: scaleX(-1); }
+/* Regras para MODO CLÁSSICO - CORRIGIDO */
+.mode-classic #player1-fight-img { left: 380px; } /* P1 (GM) não é mais virado */
+.mode-classic #player2-fight-img { right: 380px; transform: scaleX(-1); } /* P2 (Player) é virado */
 .mode-classic .is-attacking-player1 { animation: player1-attack-lunge-classic 0.4s ease-in-out; }
 .mode-classic .is-attacking-player2 { animation: player2-attack-lunge-classic 0.4s ease-in-out; }
 

@@ -197,9 +197,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (isGm && currentGameState.phase === 'gm_npc_selection') {
-            const npcName = selectedCard.dataset.name;
-            socket.emit('playerAction', { type: 'gmSelectsNpcOpponent', npcName });
+        if (isGm && currentGameState.phase === 'gm_classic_fighter_setup') {
+            const fighterData = { 
+                nome: selectedCard.dataset.name, 
+                img: selectedCard.dataset.img,
+                agi: selectedCard.querySelector('.agi-input').value, 
+                res: selectedCard.querySelector('.res-input').value,
+                specialMoves: Array.from(document.querySelectorAll('#special-moves-list .selected')).map(c => c.dataset.name)
+            };
+            socket.emit('playerAction', { type: 'gmConfirmsOwnFighter', fighterData });
+            // The modal will be hidden by the gameUpdate that changes the phase
             return;
         }
     }
@@ -230,7 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderGmCharacterSelection(npcList, showStatsInputs = false) {
+    function renderGmCharacterSelection(npcList, showStatsInputs = false, availableMoves = null) {
         charListContainer.innerHTML = '';
         const imgPath = 'images/lutadores/';
 
@@ -241,16 +248,29 @@ document.addEventListener('DOMContentLoaded', () => {
             card.dataset.name = name;
             card.dataset.img = `${imgPath}${name}.png`;
 
-            const statsHtml = showStatsInputs ?
-                `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` :
-                ``;
-
+            let statsHtml = '';
+            if (showStatsInputs) {
+                statsHtml = `<div class="char-stats">
+                                <label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label>
+                                <label>RES: <input type="number" class="res-input" value="${stats.res}"></label>
+                             </div>`;
+            }
             card.innerHTML = `<img src="${imgPath}${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
             card.addEventListener('click', () => {
                 document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
             });
             charListContainer.appendChild(card);
+        }
+
+        // Moves Selection for GM
+        if (availableMoves) {
+            const movesContainer = document.createElement('div');
+            movesContainer.id = 'special-moves-list';
+            movesContainer.style.width = '100%';
+            movesContainer.style.marginTop = '20px';
+            renderSpecialMoveSelection(movesContainer, availableMoves);
+            charListContainer.insertAdjacentElement('afterend', movesContainer);
         }
     }
 
@@ -337,6 +357,33 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    socket.on('promptOpponentSelection', ({ availablePlayers }) => {
+        if (!isGm) return;
+        let playerListHtml = '<ul>';
+        if (availablePlayers.length > 0) {
+            availablePlayers.forEach(player => {
+                playerListHtml += `
+                    <li class="opponent-selection-item" data-socket-id="${player.id}">
+                        <img src="${player.selectedCharacter.img}" alt="${player.selectedCharacter.nome}">
+                        <span>${player.selectedCharacter.nome}</span>
+                    </li>`;
+            });
+        } else {
+            playerListHtml += `<li>Nenhum jogador configurado disponível para lutar.</li>`;
+        }
+        playerListHtml += '</ul>';
+
+        showInfoModal("Selecione o Oponente", playerListHtml);
+
+        document.querySelectorAll('.opponent-selection-item').forEach(item => {
+            item.onclick = () => {
+                const opponentSocketId = item.dataset.socketId;
+                socket.emit('playerAction', { type: 'gmSelectsOpponent', opponentSocketId });
+                modal.classList.add('hidden');
+            };
+        });
+    });
+
     socket.on('promptArenaOpponentSelection', ({ availablePlayers }) => {
         if (!isGm) return;
         let selected = [];
@@ -400,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen(gmInitialLobby);
                 updateGmLobbyUI(gameState);
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
-                if (['gm_npc_selection', 'gm_npc_configuration', 'gm_classic_player_selection'].includes(gameState.phase)) {
+                if (['gm_classic_fighter_setup', 'opponent_selection'].includes(gameState.phase)) {
                     // Stay on selection/modal screen, don't show fight screen yet
                 } else {
                     showScreen(fightScreen);
@@ -433,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
                 }
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
-                const setupPhases = ['opponent_selection', 'arena_opponent_selection', 'gm_npc_selection', 'gm_npc_configuration', 'gm_classic_player_selection'];
+                const setupPhases = ['opponent_selection', 'arena_opponent_selection', 'gm_classic_fighter_setup'];
                 if (setupPhases.includes(gameState.phase)) {
                     showScreen(playerWaitingScreen);
                     document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
@@ -513,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
         const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
-        const isCombatPhase = !['waiting', 'gameover', 'opponent_selection', 'arena_opponent_selection', 'gm_npc_selection', 'gm_npc_configuration', 'gm_classic_player_selection'].includes(state.phase);
+        const isCombatPhase = !['waiting', 'gameover', 'opponent_selection', 'arena_opponent_selection', 'gm_classic_fighter_setup'].includes(state.phase);
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');
@@ -570,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state.phase === 'gameover') roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
         else if (state.phase === 'double_knockdown') roundInfoEl.innerHTML = `<span class="turn-highlight">QUEDA DUPLA!</span>`;
         else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
-        else if (state.phase && (['gm_npc_selection', 'gm_npc_configuration', 'gm_classic_player_selection', 'arena_opponent_selection'].includes(state.phase))) roundInfoEl.innerHTML = `Aguardando início...`;
+        else if (state.phase && (['gm_classic_fighter_setup', 'opponent_selection', 'arena_opponent_selection'].includes(state.phase))) roundInfoEl.innerHTML = `Aguardando início...`;
         else if (state.mode !== 'theater') {
             const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome.replace(/-SD$/, '') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
@@ -742,72 +789,14 @@ document.addEventListener('DOMContentLoaded', () => {
         processGmConfigQueueClient();
     });
 
-    socket.on('promptNpcSelection', ({ npcList }) => {
+    socket.on('promptGmFighterSetup', ({ npcList, availableMoves }) => {
         if (!isGm) return;
         showScreen(selectionScreen);
-        selectionTitle.innerText = "Selecione o Oponente NPC";
-        confirmBtn.innerText = "Confirmar Oponente";
-        renderGmCharacterSelection(npcList, false);
-    });
-    
-    socket.on('promptNpcConfiguration', ({ p2data, availableMoves }) => {
-        if (!isGm) return;
-        const modalContentHtml = `
-            <div class="player-config-body">
-                 <div class="player-config-stats">
-                    <h4>Atributos</h4>
-                    <img src="${p2data.img}" alt="${p2data.nome}">
-                    <label>AGI: <input type="number" id="config-agi" value="2"></label>
-                    <label>RES: <input type="number" id="config-res" value="2"></label>
-                </div>
-                <div class="player-config-moves">
-                    <h4>Golpes Especiais</h4>
-                    <div class="player-config-moves-list"></div>
-                </div>
-            </div>`;
-        showInteractiveModal(`Configurar ${p2data.nome}`, modalContentHtml, "Confirmar Oponente", null);
-
-        const movesContainer = document.querySelector('.player-config-moves-list');
-        renderSpecialMoveSelection(movesContainer, availableMoves);
-
-        modalButton.onclick = () => {
-            const agi = document.getElementById('config-agi').value;
-            const res = document.getElementById('config-res').value;
-            const specialMoves = Array.from(movesContainer.querySelectorAll('.selected')).map(c => c.dataset.name);
-            if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) {
-                alert("AGI e RES devem ser números maiores que 0.");
-                return;
-            }
-            socket.emit('playerAction', { type: 'gmConfirmsNpcOpponent', config: { agi, res, specialMoves }});
-            modal.classList.add('hidden');
-        };
-    });
-    
-    socket.on('promptClassicPlayerSelection', ({ availablePlayers }) => {
-        if (!isGm) return;
-        let playerListHtml = '<ul>';
-        if (availablePlayers.length > 0) {
-            availablePlayers.forEach(player => {
-                playerListHtml += `
-                    <li class="opponent-selection-item" data-socket-id="${player.id}">
-                        <img src="${player.selectedCharacter.img}" alt="${player.selectedCharacter.nome}">
-                        <span>${player.selectedCharacter.nome}</span>
-                    </li>`;
-            });
-        } else {
-            playerListHtml += `<li>Nenhum jogador configurado para lutar.</li>`;
-        }
-        playerListHtml += '</ul>';
-
-        showInfoModal("Selecione o Jogador (P1)", playerListHtml);
-
-        document.querySelectorAll('.opponent-selection-item').forEach(item => {
-            item.onclick = () => {
-                const playerSocketId = item.dataset.socketId;
-                socket.emit('playerAction', { type: 'gmSelectsClassicPlayer', playerSocketId });
-                modal.classList.add('hidden');
-            };
-        });
+        selectionTitle.innerText = "GM: Monte seu Lutador (P1)";
+        confirmBtn.innerText = "Confirmar Lutador e Avançar";
+        const oldMoves = document.getElementById('special-moves-list');
+        if (oldMoves) oldMoves.remove();
+        renderGmCharacterSelection(npcList, true, availableMoves);
     });
 
     function showDiceRollAnimation({ playerKey, rollValue, diceType }) {
@@ -1448,8 +1437,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let btn = document.getElementById(`${targetPlayerKey}-roll-btn`); const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
         const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); btn = newBtn;
         btn.innerText = text; btn.classList.remove('hidden', 'inactive');
-        if (isMyTurnToRoll) { btn.onclick = () => { btn.disabled = true; socket.emit('playerAction', action); }; btn.disabled = false;
-        } else { btn.disabled = true; btn.onclick = null; if (myRole !== 'spectator' && !isGm) btn.classList.add('inactive'); }
+        if (isMyTurnToRoll || isGm) { // Allow GM to click for players
+            btn.onclick = () => { btn.disabled = true; socket.emit('playerAction', action); }; 
+            btn.disabled = false;
+        } else { 
+            btn.disabled = true; btn.onclick = null; 
+            if (myRole !== 'spectator') btn.classList.add('inactive'); 
+        }
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });

@@ -93,7 +93,7 @@ function createNewLobbyState(gmId) {
         mode: 'lobby',
         phase: 'waiting_players',
         gmId: gmId,
-        connectedPlayers: {}, // { socketId: { id, role, selectedCharacter, isConfigured } }
+        connectedPlayers: {},
         unavailableCharacters: [],
         log: [{ text: "Lobby criado. Aguardando jogadores..." }],
         isGmConfiguring: false,
@@ -104,7 +104,7 @@ function createNewGameState() {
     return {
         fighters: {}, pendingP2Choice: null, winner: null, reason: null,
         moves: ALL_MOVES, currentRound: 1, currentTurn: 1, whoseTurn: null, didPlayer1GoFirst: false,
-        phase: 'waiting', previousPhase: null, log: [{ text: "Aguardando oponente..." }], initiativeRolls: {}, knockdownInfo: null,
+        phase: 'waiting', previousPhase: null, log: [], initiativeRolls: {}, knockdownInfo: null,
         doubleKnockdownInfo: null,
         decisionInfo: null, followUpState: null, scenario: 'Ringue.png',
         mode: null,
@@ -499,8 +499,7 @@ function isActionValid(state, action) {
     const gmOnlyActions = [
         'gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 
         'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 
-        'toggle_force_dice', 'gmConfiguresPlayer', 'gmSelectsNpcOpponent', 'gmConfirmsNpcOpponent',
-        'gmSelectsClassicPlayer'
+        'toggle_force_dice', 'gmConfiguresPlayer', 'gmConfirmsOwnFighter'
     ];
     if (gmOnlyActions.includes(type)) {
         return isGm;
@@ -533,11 +532,9 @@ function isActionValid(state, action) {
         return reactor.pa >= move.cost;
     }
     switch (state.phase) {
+        case 'gm_classic_fighter_setup': return type === 'gmConfirmsOwnFighter' && isGm;
         case 'opponent_selection': return type === 'gmSelectsOpponent' && isGm;
         case 'arena_opponent_selection': return type === 'gmSelectsArenaFighters' && isGm;
-        case 'gm_npc_selection': return type === 'gmSelectsNpcOpponent' && isGm;
-        case 'gm_npc_configuration': return type === 'gmConfirmsNpcOpponent' && isGm;
-        case 'gm_classic_player_selection': return type === 'gmSelectsClassicPlayer' && isGm;
         case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
@@ -567,25 +564,17 @@ function dispatchAction(room) {
 
     switch (state.phase) {
         case 'paused': return;
-        case 'gm_npc_selection':
+        case 'gm_classic_fighter_setup':
             if (state.gmId) {
-                io.to(state.gmId).emit('promptNpcSelection', { npcList: LUTA_CHARACTERS });
+                io.to(state.gmId).emit('promptGmFighterSetup', { npcList: LUTA_CHARACTERS, availableMoves: SPECIAL_MOVES });
             }
             return;
-        case 'gm_npc_configuration':
-             if (state.gmId) {
-                io.to(state.gmId).emit('promptNpcConfiguration', { 
-                    p2data: state.pendingP2Choice, 
-                    availableMoves: SPECIAL_MOVES 
-                });
-            }
-            return;
-        case 'gm_classic_player_selection':
-             if (state.gmId) {
+        case 'opponent_selection':
+            if (state.gmId) {
                 const availablePlayers = Object.values(state.connectedPlayers).filter(p => 
-                    p.role === 'player' && p.selectedCharacter && p.selectedCharacter.isConfigured
+                    p.id !== state.gmId && p.role === 'player' && p.selectedCharacter && p.selectedCharacter.isConfigured
                 );
-                io.to(state.gmId).emit('promptClassicPlayerSelection', { availablePlayers });
+                io.to(state.gmId).emit('promptOpponentSelection', { availablePlayers });
             }
             return;
         case 'arena_opponent_selection':
@@ -822,7 +811,7 @@ io.on('connection', (socket) => {
                     logMessage(newState, `GM iniciou o modo ${targetMode}.`);
                     
                     if(targetMode === 'classic') {
-                        newState.phase = 'gm_npc_selection';
+                        newState.phase = 'gm_classic_fighter_setup';
                     } else if (targetMode === 'arena') {
                         newState.hostId = state.gmId;
                         newState.phase = 'arena_opponent_selection';
@@ -832,52 +821,40 @@ io.on('connection', (socket) => {
                 room.state = newState;
                 break;
             }
-             case 'gmSelectsNpcOpponent': {
-                const { npcName } = action;
-                if (LUTA_CHARACTERS[npcName]) {
-                    state.pendingP2Choice = {
-                        nome: npcName,
-                        img: `images/lutadores/${npcName}.png`
-                    };
-                    state.phase = 'gm_npc_configuration';
-                }
+            case 'gmConfirmsOwnFighter': {
+                const { fighterData } = action;
+                state.fighters.player1 = createNewFighterState(fighterData);
+                const gmAsPlayer = room.players.find(p => p.id === state.gmId);
+                if(gmAsPlayer) gmAsPlayer.playerKey = 'player1';
+                else room.players.push({id: state.gmId, role: 'gm', playerKey: 'player1'});
+                io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1', isGm: true });
+                logMessage(state, `GM assume como ${fighterData.nome}. Agora, selecione o oponente.`);
+                state.phase = 'opponent_selection';
                 break;
             }
-            case 'gmConfirmsNpcOpponent': {
-                const p2Data = state.pendingP2Choice;
-                const p2Config = action.config;
-                state.fighters.player2 = createNewFighterState({
-                    ...p2Data,
-                    ...p2Config
-                });
-                delete state.pendingP2Choice;
-                logMessage(state, `${state.fighters.player2.nome} configurado pelo GM. Agora, selecione o jogador.`);
-                state.phase = 'gm_classic_player_selection';
-                break;
-            }
-            case 'gmSelectsClassicPlayer': {
-                const { playerSocketId } = action;
-                const playerData = state.connectedPlayers[playerSocketId];
-                if (!playerData || !playerData.selectedCharacter || !playerData.selectedCharacter.isConfigured) {
-                    logMessage(state, 'Erro: Jogador selecionado não é válido ou não foi configurado.', 'log-crit');
+            case 'gmSelectsOpponent': {
+                const { opponentSocketId } = action;
+                const opponentData = state.connectedPlayers[opponentSocketId].selectedCharacter;
+
+                if (!opponentData || !opponentData.isConfigured) {
+                    logMessage(state, `Erro: O oponente selecionado não foi configurado.`, 'log-crit');
                     return;
                 }
-
-                state.fighters.player1 = createNewFighterState(playerData.selectedCharacter);
-
-                const playerInRoom = room.players.find(p => p.id === playerSocketId);
-                if (playerInRoom) playerInRoom.playerKey = 'player1';
                 
-                io.to(playerSocketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
+                state.fighters.player2 = createNewFighterState(opponentData);
+                
+                const opponentAsPlayer = room.players.find(p => p.id === opponentSocketId);
+                if(opponentAsPlayer) opponentAsPlayer.playerKey = 'player2';
                 
                 Object.values(state.connectedPlayers).forEach(p => {
-                    if (p.id !== playerSocketId && p.id !== state.gmId) {
+                    if (p.id !== state.gmId && p.id !== opponentSocketId) {
                         io.to(p.id).emit('assignRole', { role: 'spectator' });
                     }
                 });
-                io.to(state.gmId).emit('assignRole', { role: 'spectator', isGm: true });
 
-                logMessage(state, `${playerData.selectedCharacter.nome} foi escolhido para lutar!`);
+                logMessage(state, `GM selecionou ${opponentData.nome} como oponente. A luta vai começar!`);
+                io.to(opponentSocketId).emit('assignRole', {role: 'player', playerKey: 'player2'});
+                
                 state.phase = 'initiative_p1';
                 break;
             }
@@ -916,7 +893,7 @@ io.on('connection', (socket) => {
                         logMessage(newState, `GM trocou para o modo ${targetMode}.`);
                         
                          if(targetMode === 'classic') {
-                            newState.phase = 'gm_npc_selection';
+                            newState.phase = 'gm_classic_fighter_setup';
                         } else if (targetMode === 'arena') {
                             newState.hostId = state.gmId;
                             newState.phase = 'arena_opponent_selection';
