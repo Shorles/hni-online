@@ -7,8 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     
     let ALL_FIGHTERS_DATA = {};
-    let gmConfigQueue = []; // Fila do lado do cliente para notificações do GM
-    let isModalOpen = false; // Flag para controlar se um modal já está aberto
+    let gmConfigQueue = []; 
+    let isModalOpen = false; 
 
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
@@ -337,33 +337,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    socket.on('promptOpponentSelection', ({ availablePlayers }) => {
-        if (!isGm) return;
-        let playerListHtml = '<ul>';
-        if (availablePlayers.length > 0) {
-            availablePlayers.forEach(player => {
-                playerListHtml += `
-                    <li class="opponent-selection-item" data-socket-id="${player.id}">
-                        <img src="${player.selectedCharacter.img}" alt="${player.selectedCharacter.nome}">
-                        <span>${player.selectedCharacter.nome}</span>
-                    </li>`;
-            });
-        } else {
-            playerListHtml += `<li>Nenhum jogador configurado disponível para lutar.</li>`;
-        }
-        playerListHtml += '</ul>';
-
-        showInfoModal("Selecione o Oponente", playerListHtml);
-
-        document.querySelectorAll('.opponent-selection-item').forEach(item => {
-            item.onclick = () => {
-                const opponentSocketId = item.dataset.socketId;
-                socket.emit('playerAction', { type: 'gmSelectsOpponent', opponentSocketId });
-                modal.classList.add('hidden');
-            };
-        });
-    });
-
     socket.on('promptArenaOpponentSelection', ({ availablePlayers }) => {
         if (!isGm) return;
         let selected = [];
@@ -427,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen(gmInitialLobby);
                 updateGmLobbyUI(gameState);
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
-                if (['gm_npc_selection', 'gm_npc_configuration'].includes(gameState.phase)) {
+                if (['gm_npc_selection', 'gm_npc_configuration', 'gm_classic_player_selection'].includes(gameState.phase)) {
                     // Stay on selection/modal screen, don't show fight screen yet
                 } else {
                     showScreen(fightScreen);
@@ -460,7 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
                 }
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
-                const setupPhases = ['opponent_selection', 'arena_opponent_selection', 'gm_npc_selection', 'gm_npc_configuration'];
+                const setupPhases = ['opponent_selection', 'arena_opponent_selection', 'gm_npc_selection', 'gm_npc_configuration', 'gm_classic_player_selection'];
                 if (setupPhases.includes(gameState.phase)) {
                     showScreen(playerWaitingScreen);
                     document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
@@ -517,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playerListEl.innerHTML = '<li>Aguardando jogadores...</li>';
         } else {
             connectedPlayers.forEach(p => {
-                if (p.role !== 'gm') {
+                if (p.role !== 'gm') { 
                     const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
                     const status = p.selectedCharacter ? (p.selectedCharacter.isConfigured ? '<span style="color: #28a745;">(Pronto)</span>' : '<span style="color: #ffc107;">(Aguardando Conf.)</span>') : '';
                     const li = document.createElement('li');
@@ -540,7 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
         const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
-        const isCombatPhase = !['waiting', 'gameover', 'opponent_selection', 'arena_opponent_selection', 'gm_npc_selection', 'gm_npc_configuration'].includes(state.phase);
+        const isCombatPhase = !['waiting', 'gameover', 'opponent_selection', 'arena_opponent_selection', 'gm_npc_selection', 'gm_npc_configuration', 'gm_classic_player_selection'].includes(state.phase);
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');
@@ -597,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (state.phase === 'gameover') roundInfoEl.innerHTML = `<span class="turn-highlight">FIM DE JOGO!</span>`;
         else if (state.phase === 'double_knockdown') roundInfoEl.innerHTML = `<span class="turn-highlight">QUEDA DUPLA!</span>`;
         else if (state.phase === 'decision_table_wait') roundInfoEl.innerHTML = `<span class="turn-highlight">DECISÃO DOS JUÍZES</span>`;
-        else if (state.phase && (state.phase.startsWith('arena_') || ['gm_classic_setup', 'opponent_selection', 'gm_npc_selection', 'gm_npc_configuration'].includes(state.phase))) roundInfoEl.innerHTML = `Aguardando início...`;
+        else if (state.phase && (['gm_npc_selection', 'gm_npc_configuration', 'gm_classic_player_selection', 'arena_opponent_selection'].includes(state.phase))) roundInfoEl.innerHTML = `Aguardando início...`;
         else if (state.mode !== 'theater') {
             const turnName = state.whoseTurn && state.fighters[state.whoseTurn] ? state.fighters[state.whoseTurn].nome.replace(/-SD$/, '') : '...';
             roundInfoEl.innerHTML = `ROUND ${state.currentRound} - RODADA ${state.currentTurn} - Vez de: <span class="turn-highlight">${turnName}</span>`;
@@ -792,7 +765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="player-config-moves-list"></div>
                 </div>
             </div>`;
-        showInteractiveModal(`Configurar ${p2data.nome}`, modalContentHtml, "Confirmar e Iniciar Luta", null);
+        showInteractiveModal(`Configurar ${p2data.nome}`, modalContentHtml, "Confirmar Oponente", null);
 
         const movesContainer = document.querySelector('.player-config-moves-list');
         renderSpecialMoveSelection(movesContainer, availableMoves);
@@ -808,6 +781,33 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'gmConfirmsNpcOpponent', config: { agi, res, specialMoves }});
             modal.classList.add('hidden');
         };
+    });
+    
+    socket.on('promptClassicPlayerSelection', ({ availablePlayers }) => {
+        if (!isGm) return;
+        let playerListHtml = '<ul>';
+        if (availablePlayers.length > 0) {
+            availablePlayers.forEach(player => {
+                playerListHtml += `
+                    <li class="opponent-selection-item" data-socket-id="${player.id}">
+                        <img src="${player.selectedCharacter.img}" alt="${player.selectedCharacter.nome}">
+                        <span>${player.selectedCharacter.nome}</span>
+                    </li>`;
+            });
+        } else {
+            playerListHtml += `<li>Nenhum jogador configurado para lutar.</li>`;
+        }
+        playerListHtml += '</ul>';
+
+        showInfoModal("Selecione o Jogador (P1)", playerListHtml);
+
+        document.querySelectorAll('.opponent-selection-item').forEach(item => {
+            item.onclick = () => {
+                const playerSocketId = item.dataset.socketId;
+                socket.emit('playerAction', { type: 'gmSelectsClassicPlayer', playerSocketId });
+                modal.classList.add('hidden');
+            };
+        });
     });
 
     function showDiceRollAnimation({ playerKey, rollValue, diceType }) {
