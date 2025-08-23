@@ -693,7 +693,17 @@ body {
 #modal-button, #confirm-special-moves-btn { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
 #confirm-special-moves-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-#special-moves-list, #p2-moves-selection-list { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 20px; max-height: 400px; overflow-y: auto; padding: 10px; }
+/* <<< ÚNICA ALTERAÇÃO NESTE ARQUIVO FOI ADICIONAR #player-config-moves-list AO SELETOR ABAIXO */
+#special-moves-list, #p2-moves-selection-list, #player-config-moves-list { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 15px; 
+    justify-content: center; 
+    margin-top: 20px; 
+    max-height: 400px; 
+    overflow-y: auto; 
+    padding: 10px; 
+}
 #arena-p1-moves, #arena-p2-moves { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 10px; max-height: 200px; overflow-y: auto; }
 .special-move-card { background-color: #444; border: 2px solid #666; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; width: 150px; text-align: left;}
 .special-move-card:hover { border-color: #999; }
