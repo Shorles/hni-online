@@ -93,7 +93,7 @@ function createNewLobbyState(gmId) {
         mode: 'lobby',
         phase: 'waiting_players',
         gmId: gmId,
-        connectedPlayers: {}, // { socketId: { id, role, selectedCharacter } }
+        connectedPlayers: {}, // { socketId: { id, role, selectedCharacter, isConfigured } }
         unavailableCharacters: [],
         log: [{ text: "Lobby criado. Aguardando jogadores..." }],
     };
@@ -496,7 +496,7 @@ function isActionValid(state, action) {
     if (!state) return false;
 
     // GM-only actions
-    if (['gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 'configure_and_start_arena', 'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 'toggle_force_dice'].includes(type)) {
+    if (['gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 'configure_and_start_arena', 'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 'toggle_force_dice', 'gmConfiguresPlayer'].includes(type)) {
         return isGm;
     }
 
@@ -566,34 +566,25 @@ function dispatchAction(room) {
         case 'paused': return;
         case 'opponent_selection':
             if (state.gmId) {
-                io.to(state.gmId).emit('promptOpponentSelection', {
-                    availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter)
-                });
+                // Filter for players who are fully configured by the GM
+                const availablePlayers = Object.values(state.connectedPlayers).filter(p => 
+                    p.role === 'player' && p.selectedCharacter && p.selectedCharacter.isConfigured
+                );
+                io.to(state.gmId).emit('promptOpponentSelection', { availablePlayers });
             }
             return;
         case 'arena_opponent_selection':
             if(state.gmId) {
-                 io.to(state.gmId).emit('promptArenaOpponentSelection', {
-                    availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter)
-                });
-            }
-            return;
-        case 'arena_configuring':
-            if (state.gmId) {
-                io.to(state.gmId).emit('promptArenaConfiguration', {
-                    p1: state.fighters.player1,
-                    p2: state.fighters.player2,
-                    availableMoves: SPECIAL_MOVES
-                });
+                // Filter for players who are fully configured by the GM
+                const availablePlayers = Object.values(state.connectedPlayers).filter(p => 
+                    p.role === 'player' && p.selectedCharacter && p.selectedCharacter.isConfigured
+                );
+                 io.to(state.gmId).emit('promptArenaOpponentSelection', { availablePlayers });
             }
             return;
         case 'p1_special_moves_selection':
             const p1socketIdMoves = room.players.find(p => p.playerKey === 'player1').id;
             io.to(p1socketIdMoves).emit('promptSpecialMoves', { availableMoves: SPECIAL_MOVES });
-            return;
-        case 'p2_stat_assignment':
-            const gmSocketId = state.gmId;
-            io.to(gmSocketId).emit('promptP2StatsAndMoves', { p2data: state.pendingP2Choice, availableMoves: SPECIAL_MOVES });
             return;
         case 'initiative_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }}); return;
         case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
@@ -671,6 +662,7 @@ io.on('connection', (socket) => {
         games[newRoomId] = {
             id: newRoomId,
             players: [{ id: socket.id, role: 'gm' }],
+            connections: [socket.id], // All sockets, roles assigned later
             spectators: [],
             state: newState,
             theaterState: null 
@@ -681,7 +673,7 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
     });
 
-    socket.on('playerJoinsLobby', ({ roomId, role }) => {
+    socket.on('playerJoinsLobby', ({ roomId }) => {
         const room = games[roomId];
         if (!room) {
             socket.emit('error', { message: 'Sala não encontrada.' });
@@ -690,20 +682,36 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         socket.currentRoomId = roomId;
 
-        if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
-
-        if (role === 'spectator') {
-            room.spectators.push(socket.id);
-        } else {
-             room.players.push({ id: socket.id, role: 'player' });
-             if (room.state.mode === 'lobby') {
-                room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
-             }
+        if (!room.connections.includes(socket.id)) {
+            room.connections.push(socket.id);
         }
        
-        socket.emit('assignRole', { role });
+        socket.emit('requestRole', roomId);
+    });
+
+    socket.on('playerSetsRole', ({ roomId, role }) => {
+        const room = games[roomId];
+        if (!room || !room.state) {
+            socket.emit('error', { message: 'Sala inválida ou expirada.' });
+            return;
+        }
+
+        if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
+        
+        if (role === 'spectator') {
+            room.spectators.push(socket.id);
+            socket.emit('assignRole', { role: 'spectator' });
+            logMessage(room.state, `Um espectador entrou na sala.`);
+        } else { // role === 'player'
+             room.players.push({ id: socket.id, role: 'player' });
+             if (room.state.mode === 'lobby') {
+                room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null, isConfigured: false };
+             }
+             socket.emit('assignRole', { role: 'player' });
+             logMessage(room.state, `Um jogador entrou na sala.`);
+        }
+       
         io.to(roomId).emit('gameUpdate', room.state);
-        logMessage(room.state, `Um ${role} entrou na sala.`);
     });
     
     socket.on('spectateGame', (roomId) => { 
@@ -748,7 +756,23 @@ io.on('connection', (socket) => {
                 }
                 state.unavailableCharacters.push(character.nome);
                 state.connectedPlayers[socket.id].selectedCharacter = character;
-                logMessage(state, `Jogador selecionou ${character.nome}.`);
+                logMessage(state, `Jogador selecionou ${character.nome}. Aguardando configuração do GM.`);
+                
+                // NOTIFY GM TO CONFIGURE THE NEW PLAYER
+                io.to(state.gmId).emit('promptPlayerConfiguration', { 
+                    playerData: state.connectedPlayers[socket.id],
+                    availableMoves: SPECIAL_MOVES 
+                });
+                break;
+            }
+            case 'gmConfiguresPlayer': {
+                const { playerSocketId, configData } = action;
+                const playerToConfig = state.connectedPlayers[playerSocketId];
+                if (playerToConfig && playerToConfig.selectedCharacter) {
+                    Object.assign(playerToConfig.selectedCharacter, configData);
+                    playerToConfig.selectedCharacter.isConfigured = true;
+                    logMessage(state, `GM configurou ${playerToConfig.selectedCharacter.nome}.`);
+                }
                 break;
             }
             case 'gmStartsMode': {
@@ -776,7 +800,16 @@ io.on('connection', (socket) => {
                     logMessage(newState, `GM iniciou o modo ${targetMode}.`);
                     
                     if(targetMode === 'classic') {
-                        newState.phase = 'gm_classic_setup';
+                        // GM is always P1 in classic mode
+                        const gmData = { nome: "GM-Lutador", img: "images/Ryu.png", agi: 3, res: 3, specialMoves: ['Smash', 'Counter'] }; // Default/Placeholder
+                        newState.fighters.player1 = createNewFighterState(gmData);
+                        const gmAsPlayer = room.players.find(p => p.id === state.gmId);
+                        if(gmAsPlayer) gmAsPlayer.playerKey = 'player1';
+                        else room.players.push({id: state.gmId, role: 'gm', playerKey: 'player1'});
+                        io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1', isGm: true });
+                        logMessage(newState, `GM assume como Jogador 1.`);
+
+                        newState.phase = 'opponent_selection';
                     } else if (targetMode === 'arena') {
                         newState.hostId = state.gmId;
                         newState.phase = 'arena_opponent_selection';
@@ -830,33 +863,24 @@ io.on('connection', (socket) => {
                  room.state = newState;
                 break;
             }
-            case 'gm_confirm_p1_setup':
-                state.fighters.player1 = createNewFighterState(action.player1Data);
-                logMessage(state, `GM definiu ${action.player1Data.nome} como Jogador 1.`);
-                
-                const gmAsPlayer = room.players.find(p => p.id === state.gmId);
-                if(gmAsPlayer) gmAsPlayer.playerKey = 'player1';
-                else room.players.push({id: state.gmId, role: 'gm', playerKey: 'player1'})
-                
-                io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1', isGm: true });
-
-                // <<< CORREÇÃO: Mudar para a fase de seleção de golpes especiais
-                state.phase = 'p1_special_moves_selection';
-                break;
-
             case 'gmSelectsArenaFighters': {
                 const { p1_socketId, p2_socketId } = action;
-                const p1Data = state.connectedPlayers[p1_socketId];
-                const p2Data = state.connectedPlayers[p2_socketId];
+                const p1Data = state.connectedPlayers[p1_socketId].selectedCharacter;
+                const p2Data = state.connectedPlayers[p2_socketId].selectedCharacter;
 
-                if (!p1Data || !p1Data.selectedCharacter || !p2Data || !p2Data.selectedCharacter) return;
+                if (!p1Data || !p1Data.isConfigured || !p2Data || !p2Data.isConfigured) {
+                     logMessage(state, `Erro: Um dos jogadores selecionados não foi configurado.`, 'log-crit');
+                     return;
+                }
                 
-                state.fighters.player1 = { nome: p1Data.selectedCharacter.nome, img: p1Data.selectedCharacter.img };
-                state.fighters.player2 = { nome: p2Data.selectedCharacter.nome, img: p2Data.selectedCharacter.img };
+                state.fighters.player1 = createNewFighterState(p1Data);
+                state.fighters.player2 = createNewFighterState(p2Data);
                 
                 io.to(p1_socketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
                 io.to(p2_socketId).emit('assignRole', { role: 'player', playerKey: 'player2' });
                 
+                const gmPlayer = room.players.find(p => p.id === state.gmId);
+                if (gmPlayer) gmPlayer.playerKey = null;
                 io.to(state.gmId).emit('assignRole', { role: 'spectator', isGm: true });
                 
                 Object.keys(state.connectedPlayers).forEach(id => {
@@ -865,17 +889,20 @@ io.on('connection', (socket) => {
                     }
                 });
 
-                logMessage(state, `GM selecionou ${p1Data.selectedCharacter.nome} vs ${p2Data.selectedCharacter.nome} para a Arena.`);
-                state.phase = 'arena_configuring';
+                logMessage(state, `GM selecionou ${p1Data.nome} vs ${p2Data.nome} para a Arena.`);
+                state.phase = 'initiative_p1';
                 break;
             }
-
             case 'gmSelectsOpponent': {
                 const { opponentSocketId } = action;
-                const opponentData = state.connectedPlayers[opponentSocketId];
-                if (!opponentData || !opponentData.selectedCharacter) return;
+                const opponentData = state.connectedPlayers[opponentSocketId].selectedCharacter;
+
+                if (!opponentData || !opponentData.isConfigured) {
+                    logMessage(state, `Erro: O oponente selecionado não foi configurado.`, 'log-crit');
+                    return;
+                }
                 
-                state.pendingP2Choice = opponentData.selectedCharacter;
+                state.fighters.player2 = createNewFighterState(opponentData);
                 
                 const opponentAsPlayer = room.players.find(p => p.id === opponentSocketId);
                 if(opponentAsPlayer) opponentAsPlayer.playerKey = 'player2';
@@ -886,10 +913,10 @@ io.on('connection', (socket) => {
                     }
                 });
 
-                logMessage(state, `GM selecionou ${opponentData.selectedCharacter.nome} como oponente.`);
+                logMessage(state, `GM selecionou ${opponentData.nome} como oponente. A luta vai começar!`);
                 io.to(opponentSocketId).emit('assignRole', {role: 'player', playerKey: 'player2'});
                 
-                state.phase = 'p2_stat_assignment';
+                state.phase = 'initiative_p1';
                 break;
             }
             case 'update_scenario_dims': {
@@ -1000,8 +1027,6 @@ io.on('connection', (socket) => {
                 logMessage(state, `GM mudou para o cenário: ${action.scenario}. Use 'Publicar' para mostrar aos espectadores.`);
                 break;
             }
-
-            // BATTLE MODE ACTIONS
             case 'toggle_force_dice':
                 let currentForce = (typeof state.diceCheat === 'number') ? state.diceCheat : 0;
                 if (currentForce === 0) {
@@ -1086,30 +1111,6 @@ io.on('connection', (socket) => {
                 state.phase = 'gameover';
                 state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
                 state.reason = finalCountReason;
-                break;
-            case 'configure_and_start_arena':
-                state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
-                state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
-                logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
-                state.phase = 'initiative_p1';
-                break;
-            case 'set_p1_special_moves':
-                state.fighters.player1.specialMoves = action.moves;
-                logMessage(state, `${state.fighters.player1.nome} definiu seus golpes especiais.`);
-                state.phase = 'opponent_selection';
-                break;
-            case 'set_p2_stats':
-                const p2Data = state.pendingP2Choice;
-                const p2Stats = action.stats;
-                state.fighters.player2 = createNewFighterState({
-                    ...p2Data,
-                    agi: p2Stats.agi,
-                    res: p2Stats.res,
-                    specialMoves: action.moves
-                });
-                delete state.pendingP2Choice;
-                logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
-                state.phase = 'initiative_p1';
                 break;
             case 'attack':
                 const attacker = state.fighters[playerKey];
@@ -1327,6 +1328,8 @@ io.on('connection', (socket) => {
 
         const room = games[roomId];
         let state = room.state;
+
+        room.connections = room.connections.filter(id => id !== socket.id);
 
         if (socket.id === state.gmId) {
             io.to(roomId).emit('error', { message: 'O Mestre da Sala encerrou a sessão.' });

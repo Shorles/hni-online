@@ -15,25 +15,21 @@
 
     <div id="dice-cheat-indicator" class="cheat-indicator hidden"></div>
 
-    <!-- TELA DE SENHA (NOVA) -->
+    <!-- TELA DE SENHA -->
     <div id="password-screen" class="screen active">
         <h1>Acesso do Mestre</h1>
         <input type="password" id="password-input" placeholder="Digite a senha">
         <button id="password-submit-btn" class="mode-btn">Entrar</button>
     </div>
 
-    <!-- TELA INICIAL DO LOBBY DO GM (NOVA) -->
+    <!-- TELA DE LOBBY DO GM -->
     <div id="gm-initial-lobby" class="screen">
         <h1>Lobby do Mestre</h1>
-        <p>Envie os links abaixo para os jogadores e espectadores.</p>
+        <p>Envie o link abaixo para convidar participantes.</p>
         <div class="gm-links-container">
             <div>
-                <h3>Link do Jogador:</h3>
-                <div id="gm-link-player" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-            <div>
-                <h3>Link de Espectador:</h3>
-                <div id="gm-link-spectator" class="share-link" title="Clique para copiar">Gerando...</div>
+                <h3>Link de Convite:</h3>
+                <div id="gm-link-invite" class="share-link" title="Clique para copiar">Gerando...</div>
             </div>
         </div>
         <div id="gm-lobby-status-container">
@@ -50,8 +46,20 @@
         </div>
         <button id="exit-game-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
     </div>
+    
+    <!-- NOVA TELA: SELEÇÃO DE PAPEL -->
+    <div id="role-selection-screen" class="screen">
+        <h1>Bem-vindo!</h1>
+        <p>Você foi convidado para uma sessão de HNI Battle Online.</p>
+        <h2>Como deseja participar?</h2>
+        <div class="mode-buttons-container">
+            <button id="role-player-btn" class="mode-btn">Entrar como Jogador</button>
+            <button id="role-spectator-btn" class="mode-btn">Entrar como Espectador</button>
+        </div>
+    </div>
 
-    <!-- TELA DE ESPERA DO JOGADOR/ESPECTADOR (NOVA) -->
+
+    <!-- TELA DE ESPERA DO JOGADOR/ESPECTADOR -->
     <div id="player-waiting-screen" class="screen">
          <h1>HNI Battle Online</h1>
          <p id="player-waiting-message">Aguardando o Mestre iniciar o jogo...</p>
@@ -65,36 +73,6 @@
             <button id="mode-classic-btn" class="mode-btn">Player vs. "NPC" (Clássico)</button>
             <button id="mode-arena-btn" class="mode-btn">Player vs. Player (Arena)</button>
             <button id="mode-theater-btn" class="mode-btn">Cenários (GM)</button>
-        </div>
-    </div>
-
-    <!-- TELA DE LOBBY DA ARENA (NÃO MAIS USADA DIRETAMENTE) -->
-    <div id="arena-lobby-screen" class="screen">
-        <h1>Lobby da Arena</h1>
-        <p>Envie os links abaixo para os jogadores e espectadores.</p>
-        <div class="arena-links-container">
-            <div>
-                <h3>Link do Jogador 1:</h3>
-                <div id="arena-link-p1" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-            <div>
-                <h3>Link do Jogador 2:</h3>
-                <div id="arena-link-p2" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-            <div>
-                <h3>Link de Espectador:</h3>
-                <div id="arena-link-spectator" class="share-link" title="Clique para copiar">Gerando...</div>
-            </div>
-        </div>
-        <div class="arena-status-container">
-            <div id="arena-p1-status" class="arena-player-status">
-                <h4>Jogador 1</h4>
-                <p>Aguardando conexão...</p>
-            </div>
-            <div id="arena-p2-status" class="arena-player-status">
-                <h4>Jogador 2</h4>
-                <p>Aguardando conexão...</p>
-            </div>
         </div>
     </div>
 
@@ -150,22 +128,6 @@
         <h1 id="selection-title">Selecione seu Lutador</h1>
         <div id="character-list-container"></div>
         <button id="confirm-selection-btn">Confirmar</button>
-    </div>
-
-    <!-- TELA DE LOBBY (MODO CLÁSSICO - NÃO MAIS USADA DIRETAMENTE) -->
-    <div id="lobby-screen" class="screen">
-        <button id="lobby-back-btn" class="back-btn" title="Voltar para Golpes">←</button>
-        <h1>Hajime no Ippo: Batalha Online</h1>
-        <div id="lobby-content">
-            <p>Aguardando conexão...</p>
-        </div>
-        <div id="share-container" class="hidden">
-            <p>Você é o Jogador 1. Envie este link para seu oponente:</p>
-            <div id="share-link-p2" class="share-link" title="Clique para copiar">Carregando...</div>
-            <br>
-            <p>Ou envie este link para espectadores:</p>
-            <div id="share-link-spectator" class="share-link" title="Clique para copiar">Carregando...</div>
-        </div>
     </div>
 
     <!-- TELA DE LUTA -->
@@ -285,8 +247,19 @@
             <button id="modal-button">OK</button>
         </div>
     </div>
+
+    <!-- NOVO MODAL: CONFIGURAÇÃO DE JOGADOR (PARA O GM) -->
+    <div id="player-config-modal" class="hidden">
+        <div id="player-config-content">
+            <h3 id="player-config-title">Configurar Jogador</h3>
+            <div id="player-config-body">
+                <!-- Conteúdo será injetado dinamicamente -->
+            </div>
+            <button id="confirm-player-config-btn">Confirmar Configuração</button>
+        </div>
+    </div>
     
-    <!-- MODAL DE SELEÇÃO DE GOLPES ESPECIAIS -->
+    <!-- MODAL DE SELEÇÃO DE GOLPES ESPECIAIS (REMOVIDO DO FLUXO PRINCIPAL) -->
     <div id="special-moves-modal" class="hidden">
         <div id="special-moves-content">
              <button id="special-moves-back-btn" class="back-btn" title="Voltar para Personagens">←</button>
