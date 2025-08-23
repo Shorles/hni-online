@@ -496,10 +496,11 @@ function isActionValid(state, action) {
 
     if (!state) return false;
 
+    // GM-only actions
     const gmOnlyActions = [
         'gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 
         'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 
-        'toggle_force_dice', 'gmConfiguresPlayer', 'gmConfirmsOwnFighter'
+        'toggle_force_dice', 'gmConfirmsOwnFighter'
     ];
     if (gmOnlyActions.includes(type)) {
         return isGm;
@@ -532,9 +533,10 @@ function isActionValid(state, action) {
         return reactor.pa >= move.cost;
     }
     switch (state.phase) {
-        case 'gm_classic_fighter_setup': return type === 'gmConfirmsOwnFighter' && isGm;
+        case 'gm_classic_setup': return type === 'gmConfirmsOwnFighter' && isGm;
         case 'opponent_selection': return type === 'gmSelectsOpponent' && isGm;
         case 'arena_opponent_selection': return type === 'gmSelectsArenaFighters' && isGm;
+        case 'p2_stat_assignment': return type === 'set_p2_stats' && isGm; 
         case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
@@ -564,7 +566,7 @@ function dispatchAction(room) {
 
     switch (state.phase) {
         case 'paused': return;
-        case 'gm_classic_fighter_setup':
+        case 'gm_classic_setup':
             if (state.gmId) {
                 io.to(state.gmId).emit('promptGmFighterSetup', { npcList: LUTA_CHARACTERS, availableMoves: SPECIAL_MOVES });
             }
@@ -572,17 +574,21 @@ function dispatchAction(room) {
         case 'opponent_selection':
             if (state.gmId) {
                 const availablePlayers = Object.values(state.connectedPlayers).filter(p => 
-                    p.id !== state.gmId && p.role === 'player' && p.selectedCharacter && p.selectedCharacter.isConfigured
+                    p.role === 'player' && p.selectedCharacter
                 );
                 io.to(state.gmId).emit('promptOpponentSelection', { availablePlayers });
             }
             return;
         case 'arena_opponent_selection':
             if(state.gmId) {
-                const availablePlayers = Object.values(state.connectedPlayers).filter(p => 
-                    p.role === 'player' && p.selectedCharacter && p.selectedCharacter.isConfigured
-                );
-                 io.to(state.gmId).emit('promptArenaOpponentSelection', { availablePlayers });
+                 io.to(state.gmId).emit('promptArenaOpponentSelection', {
+                    availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter)
+                });
+            }
+            return;
+        case 'p2_stat_assignment':
+            if (state.gmId) {
+                io.to(state.gmId).emit('promptP2StatsAndMoves', { p2data: state.pendingP2Choice, availableMoves: SPECIAL_MOVES });
             }
             return;
         case 'initiative_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }}); return;
@@ -648,27 +654,6 @@ function dispatchAction(room) {
     }
 }
 
-function processGmConfigQueue(room) {
-    const state = room.state;
-    if (state.isGmConfiguring || room.gmConfigQueue.length === 0) {
-        return;
-    }
-    state.isGmConfiguring = true;
-    const nextPlayerId = room.gmConfigQueue[0];
-    const playerData = state.connectedPlayers[nextPlayerId];
-
-    if (playerData) {
-        io.to(state.gmId).emit('promptPlayerConfiguration', { 
-            playerData: playerData,
-            availableMoves: SPECIAL_MOVES 
-        });
-    } else {
-        room.gmConfigQueue.shift();
-        state.isGmConfiguring = false;
-        processGmConfigQueue(room);
-    }
-}
-
 io.on('connection', (socket) => {
     socket.emit('availableFighters', {
         p1: LUTA_CHARACTERS
@@ -683,11 +668,9 @@ io.on('connection', (socket) => {
         games[newRoomId] = {
             id: newRoomId,
             players: [{ id: socket.id, role: 'gm' }],
-            connections: [socket.id],
             spectators: [],
             state: newState,
-            theaterState: null,
-            gmConfigQueue: [],
+            theaterState: null 
         };
         
         socket.emit('assignRole', { role: 'gm', isGm: true });
@@ -695,7 +678,7 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
     });
 
-    socket.on('playerJoinsLobby', ({ roomId }) => {
+    socket.on('playerJoinsLobby', ({ roomId, role }) => {
         const room = games[roomId];
         if (!room) {
             socket.emit('error', { message: 'Sala não encontrada.' });
@@ -704,35 +687,31 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         socket.currentRoomId = roomId;
 
-        if (!room.connections.includes(socket.id)) {
-            room.connections.push(socket.id);
-        }
-       
-        socket.emit('requestRole', roomId);
-    });
-
-    socket.on('playerSetsRole', ({ roomId, role }) => {
-        const room = games[roomId];
-        if (!room || !room.state) {
-            socket.emit('error', { message: 'Sala inválida ou expirada.' });
-            return;
-        }
-
         if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
-        
+
         if (role === 'spectator') {
             room.spectators.push(socket.id);
-            socket.emit('assignRole', { role: 'spectator' });
-            logMessage(room.state, `Um espectador entrou na sala.`);
-        } else { // role === 'player'
+        } else {
              room.players.push({ id: socket.id, role: 'player' });
              if (room.state.mode === 'lobby') {
-                room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null, isConfigured: false };
+                room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
              }
-             socket.emit('assignRole', { role: 'player' });
-             logMessage(room.state, `Um jogador entrou na sala.`);
         }
        
+        socket.emit('assignRole', { role });
+        io.to(roomId).emit('gameUpdate', room.state);
+        logMessage(room.state, `Um ${role} entrou na sala.`);
+    });
+    
+    socket.on('spectateGame', (roomId) => { 
+        const room = games[roomId];
+        if (!room) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
+        socket.join(roomId);
+        room.spectators.push(socket.id);
+        socket.currentRoomId = roomId;
+        socket.emit('assignRole', { role: 'spectator' });
+        socket.emit('gameUpdate', room.state);
+        logMessage(room.state, 'Um espectador entrou na sala.');
         io.to(roomId).emit('gameUpdate', room.state);
     });
 
@@ -765,25 +744,7 @@ io.on('connection', (socket) => {
                 }
                 state.unavailableCharacters.push(character.nome);
                 state.connectedPlayers[socket.id].selectedCharacter = character;
-                logMessage(state, `Jogador selecionou ${character.nome}. Aguardando configuração do GM.`);
-                
-                if (!room.gmConfigQueue.includes(socket.id)) {
-                    room.gmConfigQueue.push(socket.id);
-                }
-                processGmConfigQueue(room);
-                break;
-            }
-            case 'gmConfiguresPlayer': {
-                const { playerSocketId, configData } = action;
-                const playerToConfig = state.connectedPlayers[playerSocketId];
-                if (playerToConfig && playerToConfig.selectedCharacter) {
-                    Object.assign(playerToConfig.selectedCharacter, configData);
-                    playerToConfig.selectedCharacter.isConfigured = true;
-                    logMessage(state, `GM configurou ${playerToConfig.selectedCharacter.nome}.`);
-                }
-                room.gmConfigQueue.shift();
-                state.isGmConfiguring = false;
-                processGmConfigQueue(room);
+                logMessage(state, `Jogador selecionou ${character.nome}.`);
                 break;
             }
             case 'gmStartsMode': {
@@ -811,7 +772,7 @@ io.on('connection', (socket) => {
                     logMessage(newState, `GM iniciou o modo ${targetMode}.`);
                     
                     if(targetMode === 'classic') {
-                        newState.phase = 'gm_classic_fighter_setup';
+                        newState.phase = 'gm_classic_setup';
                     } else if (targetMode === 'arena') {
                         newState.hostId = state.gmId;
                         newState.phase = 'arena_opponent_selection';
@@ -821,41 +782,17 @@ io.on('connection', (socket) => {
                 room.state = newState;
                 break;
             }
-            case 'gmConfirmsOwnFighter': {
+             case 'gmConfirmsOwnFighter': {
                 const { fighterData } = action;
                 state.fighters.player1 = createNewFighterState(fighterData);
                 const gmAsPlayer = room.players.find(p => p.id === state.gmId);
                 if(gmAsPlayer) gmAsPlayer.playerKey = 'player1';
-                else room.players.push({id: state.gmId, role: 'gm', playerKey: 'player1'});
+                else room.players.push({id: state.gmId, role: 'gm', playerKey: 'player1'})
+                
                 io.to(socket.id).emit('assignRole', { role: 'gm', playerKey: 'player1', isGm: true });
+
                 logMessage(state, `GM assume como ${fighterData.nome}. Agora, selecione o oponente.`);
                 state.phase = 'opponent_selection';
-                break;
-            }
-            case 'gmSelectsOpponent': {
-                const { opponentSocketId } = action;
-                const opponentData = state.connectedPlayers[opponentSocketId].selectedCharacter;
-
-                if (!opponentData || !opponentData.isConfigured) {
-                    logMessage(state, `Erro: O oponente selecionado não foi configurado.`, 'log-crit');
-                    return;
-                }
-                
-                state.fighters.player2 = createNewFighterState(opponentData);
-                
-                const opponentAsPlayer = room.players.find(p => p.id === opponentSocketId);
-                if(opponentAsPlayer) opponentAsPlayer.playerKey = 'player2';
-                
-                Object.values(state.connectedPlayers).forEach(p => {
-                    if (p.id !== state.gmId && p.id !== opponentSocketId) {
-                        io.to(p.id).emit('assignRole', { role: 'spectator' });
-                    }
-                });
-
-                logMessage(state, `GM selecionou ${opponentData.nome} como oponente. A luta vai começar!`);
-                io.to(opponentSocketId).emit('assignRole', {role: 'player', playerKey: 'player2'});
-                
-                state.phase = 'initiative_p1';
                 break;
             }
             case 'gm_switch_mode': {
@@ -866,9 +803,7 @@ io.on('connection', (socket) => {
                 if (targetMode === 'lobby') {
                     newState = lobbyState; 
                     Object.values(newState.connectedPlayers).forEach(p => {
-                        if (p.id !== newState.gmId) {
-                           io.to(p.id).emit('assignRole', { role: 'player' });
-                        }
+                        io.to(p.id).emit('assignRole', { role: 'player' });
                     });
                      io.to(newState.gmId).emit('assignRole', { role: 'gm', isGm: true });
                 } else {
@@ -882,7 +817,7 @@ io.on('connection', (socket) => {
                             room.theaterState = newState;
                         }
                         Object.keys(lobbyState.connectedPlayers).forEach(playerId => {
-                           if(playerId !== state.gmId) io.to(playerId).emit('assignRole', { role: 'spectator' });
+                            io.to(playerId).emit('assignRole', { role: 'spectator' });
                         });
                     } else {
                         newState = createNewGameState();
@@ -892,8 +827,8 @@ io.on('connection', (socket) => {
                         newState.connectedPlayers = lobbyState.connectedPlayers;
                         logMessage(newState, `GM trocou para o modo ${targetMode}.`);
                         
-                         if(targetMode === 'classic') {
-                            newState.phase = 'gm_classic_fighter_setup';
+                        if(targetMode === 'classic') {
+                            newState.phase = 'gm_classic_setup';
                         } else if (targetMode === 'arena') {
                             newState.hostId = state.gmId;
                             newState.phase = 'arena_opponent_selection';
@@ -906,22 +841,17 @@ io.on('connection', (socket) => {
             }
             case 'gmSelectsArenaFighters': {
                 const { p1_socketId, p2_socketId } = action;
-                const p1Data = state.connectedPlayers[p1_socketId].selectedCharacter;
-                const p2Data = state.connectedPlayers[p2_socketId].selectedCharacter;
+                const p1Data = state.connectedPlayers[p1_socketId];
+                const p2Data = state.connectedPlayers[p2_socketId];
 
-                if (!p1Data || !p1Data.isConfigured || !p2Data || !p2Data.isConfigured) {
-                     logMessage(state, `Erro: Um dos jogadores selecionados não foi configurado.`, 'log-crit');
-                     return;
-                }
+                if (!p1Data || !p1Data.selectedCharacter || !p2Data || !p2Data.selectedCharacter) return;
                 
-                state.fighters.player1 = createNewFighterState(p1Data);
-                state.fighters.player2 = createNewFighterState(p2Data);
+                state.fighters.player1 = createNewFighterState(p1Data.selectedCharacter);
+                state.fighters.player2 = createNewFighterState(p2Data.selectedCharacter);
                 
                 io.to(p1_socketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
                 io.to(p2_socketId).emit('assignRole', { role: 'player', playerKey: 'player2' });
                 
-                const gmPlayer = room.players.find(p => p.id === state.gmId);
-                if (gmPlayer) gmPlayer.playerKey = null;
                 io.to(state.gmId).emit('assignRole', { role: 'spectator', isGm: true });
                 
                 Object.keys(state.connectedPlayers).forEach(id => {
@@ -930,7 +860,30 @@ io.on('connection', (socket) => {
                     }
                 });
 
-                logMessage(state, `GM selecionou ${p1Data.nome} vs ${p2Data.nome} para a Arena.`);
+                logMessage(state, `GM selecionou ${p1Data.selectedCharacter.nome} vs ${p2Data.selectedCharacter.nome} para a Arena.`);
+                state.phase = 'initiative_p1';
+                break;
+            }
+
+            case 'gmSelectsOpponent': {
+                const { opponentSocketId } = action;
+                const opponentData = state.connectedPlayers[opponentSocketId];
+                if (!opponentData || !opponentData.selectedCharacter) return;
+                
+                state.fighters.player2 = createNewFighterState(opponentData.selectedCharacter);
+                
+                const opponentAsPlayer = room.players.find(p => p.id === opponentSocketId);
+                if(opponentAsPlayer) opponentAsPlayer.playerKey = 'player2';
+                
+                Object.values(state.connectedPlayers).forEach(p => {
+                    if (p.id !== state.gmId && p.id !== opponentSocketId) {
+                        io.to(p.id).emit('assignRole', { role: 'spectator' });
+                    }
+                });
+
+                logMessage(state, `GM selecionou ${opponentData.selectedCharacter.nome} como oponente. A luta vai começar!`);
+                io.to(opponentSocketId).emit('assignRole', {role: 'player', playerKey: 'player2'});
+                
                 state.phase = 'initiative_p1';
                 break;
             }
@@ -1042,6 +995,8 @@ io.on('connection', (socket) => {
                 logMessage(state, `GM mudou para o cenário: ${action.scenario}. Use 'Publicar' para mostrar aos espectadores.`);
                 break;
             }
+
+            // BATTLE MODE ACTIONS
             case 'toggle_force_dice':
                 let currentForce = (typeof state.diceCheat === 'number') ? state.diceCheat : 0;
                 if (currentForce === 0) {
@@ -1126,6 +1081,30 @@ io.on('connection', (socket) => {
                 state.phase = 'gameover';
                 state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
                 state.reason = finalCountReason;
+                break;
+            case 'configure_and_start_arena':
+                state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
+                state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
+                logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
+                state.phase = 'initiative_p1';
+                break;
+            case 'set_p1_special_moves':
+                state.fighters.player1.specialMoves = action.moves;
+                logMessage(state, `${state.fighters.player1.nome} definiu seus golpes especiais.`);
+                state.phase = 'opponent_selection';
+                break;
+            case 'set_p2_stats':
+                const p2Data = state.pendingP2Choice;
+                const p2Stats = action.stats;
+                state.fighters.player2 = createNewFighterState({
+                    ...p2Data,
+                    agi: p2Stats.agi,
+                    res: p2Stats.res,
+                    specialMoves: action.moves
+                });
+                delete state.pendingP2Choice;
+                logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
+                state.phase = 'initiative_p1';
                 break;
             case 'attack':
                 const attacker = state.fighters[playerKey];
@@ -1344,10 +1323,6 @@ io.on('connection', (socket) => {
         const room = games[roomId];
         let state = room.state;
 
-        room.connections = room.connections.filter(id => id !== socket.id);
-        
-        room.gmConfigQueue = room.gmConfigQueue.filter(id => id !== socket.id);
-        
         if (socket.id === state.gmId) {
             io.to(roomId).emit('error', { message: 'O Mestre da Sala encerrou a sessão.' });
             delete games[roomId];
@@ -1374,7 +1349,7 @@ io.on('connection', (socket) => {
 
             if (state.mode !== 'lobby' && state.phase !== 'gameover') {
                  const playerKey = disconnectedPlayer.playerKey;
-                 if ((playerKey === 'player1' || playerKey === 'player2') && state.fighters && state.fighters[playerKey]) {
+                 if ((playerKey === 'player1' || playerKey === 'player2') && state.fighters[playerKey]) {
                      logMessage(state, `AVISO: ${state.fighters[playerKey].nome} (${playerKey}) desconectou. O Mestre pode pausar ou gerenciar a situação.`, 'log-crit');
                  }
             }
