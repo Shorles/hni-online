@@ -5,15 +5,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentGameState = null;
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
-
-    let availableSpecialMoves = {};
     
     let ALL_FIGHTERS_DATA = {};
+    let gmConfigQueue = []; // Fila do lado do cliente para notificações do GM
+    let isModalOpen = false; // Flag para controlar se um modal já está aberto
 
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
 
     // Telas
+    const connectingScreen = document.getElementById('connecting-screen');
     const passwordScreen = document.getElementById('password-screen');
     const gmInitialLobby = document.getElementById('gm-initial-lobby');
     const roleSelectionScreen = document.getElementById('role-selection-screen');
@@ -90,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let playerSpecialMoves = [];
         if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
             const fighter = currentGameState.fighters[myPlayerKey];
-            if (fighter && fighter.specialMoves) { playerSpecialMoves = fighter.specialMoves; } else { playerSpecialMoves = Object.keys(availableSpecialMoves || {}); }
+            if (fighter && fighter.specialMoves) { playerSpecialMoves = fighter.specialMoves; } else { playerSpecialMoves = Object.keys(currentGameState.moves).filter(m => !BASIC_MOVES_ORDER.includes(m)); }
         } else { playerSpecialMoves = Object.keys(currentGameState.moves).filter(m => !BASIC_MOVES_ORDER.includes(m)); }
         playerSpecialMoves.sort();
         let tableHtml = `<div class="help-table-container"><table id="help-modal-table"><thead><tr><th>Nome</th><th>Custo (PA)</th><th>Dano</th><th>Penalidade</th><th>Efeito</th></tr></thead><tbody>`;
@@ -132,6 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [charSelectBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
+        showScreen(connectingScreen); // Evita o flash da tela de senha
+
         if (currentRoomId) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId });
         } else {
@@ -150,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         confirmBtn.addEventListener('click', onConfirmSelection);
 
-        // GM Mode Selection buttons in the new lobby
+        // GM Mode Selection buttons
         document.getElementById('start-classic-btn').onclick = () => { showScreen(scenarioScreen); renderScenarioSelection('classic'); };
         document.getElementById('start-arena-btn').onclick = () => { 
             socket.emit('playerAction', { type: 'gmStartsMode', targetMode: 'arena', scenario: 'Ringue2.png' });
@@ -167,10 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
         };
 
-        charSelectBackBtn.addEventListener('click', () => {
-             // This button is mostly irrelevant now for non-GMs but we'll leave the hook
-        });
-        
         const exitAndReload = () => {
             showInfoModal("Sair da Partida", `<p>Tem certeza que deseja voltar ao menu principal? A sessão atual será encerrada.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-exit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Sair</button><button id="cancel-exit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Ficar</button></div>`);
             document.getElementById('confirm-exit-btn').onclick = () => { socket.disconnect(); window.location.href = '/'; }; document.getElementById('cancel-exit-btn').onclick = () => modal.classList.add('hidden');
@@ -487,11 +486,13 @@ document.addEventListener('DOMContentLoaded', () => {
             playerListEl.innerHTML = '<li>Aguardando jogadores...</li>';
         } else {
             connectedPlayers.forEach(p => {
-                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
-                const status = p.selectedCharacter ? (p.selectedCharacter.isConfigured ? '<span style="color: #28a745;">(Pronto)</span>' : '<span style="color: #ffc107;">(Aguardando Conf.)</span>') : '';
-                const li = document.createElement('li');
-                li.innerHTML = `Jogador: ${charName} ${status}`;
-                playerListEl.appendChild(li);
+                if (p.role !== 'gm') { // Don't show GM in player list
+                    const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
+                    const status = p.selectedCharacter ? (p.selectedCharacter.isConfigured ? '<span style="color: #28a745;">(Pronto)</span>' : '<span style="color: #ffc107;">(Aguardando Conf.)</span>') : '';
+                    const li = document.createElement('li');
+                    li.innerHTML = `Jogador: ${charName} ${status}`;
+                    playerListEl.appendChild(li);
+                }
             });
         }
         const inviteLinkEl = document.getElementById('gm-link-invite');
@@ -675,10 +676,14 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'apply_cheats', cheats }); socket.emit('playerAction', { type: 'toggle_pause' });
         };
     }
+    
+    function processGmConfigQueueClient() {
+        if (isModalOpen || gmConfigQueue.length === 0) {
+            return;
+        }
+        isModalOpen = true;
+        const { playerData, availableMoves } = gmConfigQueue[0];
 
-    socket.on('promptPlayerConfiguration', ({ playerData, availableMoves }) => {
-        if (!isGm) return;
-        
         const configTitle = document.getElementById('player-config-title');
         const configBody = document.getElementById('player-config-body');
         const confirmConfigBtn = document.getElementById('confirm-player-config-btn');
@@ -719,9 +724,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             playerConfigModal.classList.add('hidden');
+            gmConfigQueue.shift(); // Remove from queue
+            isModalOpen = false;
+            setTimeout(processGmConfigQueueClient, 200); // Check for next one
         };
 
         playerConfigModal.classList.remove('hidden');
+    }
+
+    socket.on('promptPlayerConfiguration', (data) => {
+        if (!isGm) return;
+        gmConfigQueue.push(data);
+        processGmConfigQueueClient();
     });
 
     function showDiceRollAnimation({ playerKey, rollValue, diceType }) {

@@ -50,7 +50,7 @@ body {
 }
 
 /* --- TELAS DE LOBBY, SENHA E SELEÇÃO DE PAPEL --- */
-#password-screen, #gm-initial-lobby, #player-waiting-screen, #role-selection-screen {
+#password-screen, #gm-initial-lobby, #player-waiting-screen, #role-selection-screen, #connecting-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
     text-align: center;
@@ -58,7 +58,7 @@ body {
     box-sizing: border-box;
 }
 
-#password-screen h1, #gm-initial-lobby h1, #player-waiting-screen h1, #role-selection-screen h1 {
+#password-screen h1, #gm-initial-lobby h1, #player-waiting-screen h1, #role-selection-screen h1, #connecting-screen h1 {
     font-size: 3.5em;
     color: #ffeb3b;
     text-shadow: 2px 2px 5px #000;
