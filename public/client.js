@@ -206,7 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 specialMoves: Array.from(document.querySelectorAll('#special-moves-list .selected')).map(c => c.dataset.name)
             };
             socket.emit('playerAction', { type: 'gmConfirmsOwnFighter', fighterData });
-            // The modal will be hidden by the gameUpdate that changes the phase
             return;
         }
     }
@@ -239,6 +238,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderGmCharacterSelection(npcList, showStatsInputs = false, availableMoves = null) {
         charListContainer.innerHTML = '';
+        const oldMoves = document.getElementById('special-moves-list');
+        if(oldMoves) oldMoves.remove();
+
         const imgPath = 'images/lutadores/';
 
         for (const name in npcList) {
@@ -373,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         playerListHtml += '</ul>';
 
-        showInfoModal("Selecione o Oponente", playerListHtml);
+        showInfoModal("Selecione o Oponente (Jogador)", playerListHtml);
 
         document.querySelectorAll('.opponent-selection-item').forEach(item => {
             item.onclick = () => {
@@ -794,8 +796,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen(selectionScreen);
         selectionTitle.innerText = "GM: Monte seu Lutador (P1)";
         confirmBtn.innerText = "Confirmar Lutador e Avançar";
-        const oldMoves = document.getElementById('special-moves-list');
-        if (oldMoves) oldMoves.remove();
         renderGmCharacterSelection(npcList, true, availableMoves);
     });
 
@@ -1417,7 +1417,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // #endregion
 
-    socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });
+    socket.on('playSound', (soundFile) => { 
+        if (!soundFile) return; 
+        const sound = new Audio(`sons/${soundFile}`); 
+        sound.currentTime = 0; 
+        sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); 
+    });
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     socket.on('assignRole', (data) => {
@@ -1437,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let btn = document.getElementById(`${targetPlayerKey}-roll-btn`); const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
         const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); btn = newBtn;
         btn.innerText = text; btn.classList.remove('hidden', 'inactive');
-        if (isMyTurnToRoll || isGm) { // Allow GM to click for players
+        if (isMyTurnToRoll || isGm) {
             btn.onclick = () => { btn.disabled = true; socket.emit('playerAction', action); }; 
             btn.disabled = false;
         } else { 
