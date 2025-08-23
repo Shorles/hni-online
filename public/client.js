@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentRoomId = new URLSearchParams(window.location.search).get('room');
     const socket = io();
 
+    let player1SetupData = { scenario: null };
     let availableSpecialMoves = {};
     
     let ALL_FIGHTERS_DATA = {};
@@ -20,10 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Telas antigas
     const modeSelectionScreen = document.getElementById('mode-selection-screen');
-    const arenaLobbyScreen = document.getElementById('arena-lobby-screen');
+    const arenaLobbyScreen = document.getElementById('arena-lobby-screen'); // Reutilizado para GM
     const scenarioScreen = document.getElementById('scenario-screen');
     const selectionScreen = document.getElementById('selection-screen');
-    const lobbyScreen = document.getElementById('lobby-screen');
+    const lobbyScreen = document.getElementById('lobby-screen'); // Reutilizado para P2 Classic
     const fightScreen = document.getElementById('fight-screen');
     const theaterScreen = document.getElementById('theater-screen');
 
@@ -67,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
+    // Agora são os personagens que os JOGADORES podem escolher
     const PLAYABLE_CHARACTERS = { 'Ryu':{img:'images/Ryu.png'},'Yobu':{img:'images/Yobu.png'},'Nathan':{img:'images/Nathan.png'},'Okami':{img:'images/Okami.png'} };
     
     const DYNAMIC_CHARACTERS = [];
@@ -86,6 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
         "outros": { baseName: "outro", count: 50 }
     };
 
+    let linkInitialized = false;
+
     socket.on('availableFighters', ({ p1 }) => {
         ALL_FIGHTERS_DATA = p1 || {};
         if(myRole === 'gm' && theaterScreen.classList.contains('active')){
@@ -94,19 +98,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function showHelpModal() {
-        if (!currentGameState || currentGameState.mode === 'theater' || !currentGameState.moves) return;
+        if (!currentGameState || currentGameState.mode === 'theater') return;
         const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum'};
         const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Esquiva'];
         let playerSpecialMoves = [];
-        if (myPlayerKey && currentGameState.fighters && currentGameState.fighters[myPlayerKey]) {
+        if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
             const fighter = currentGameState.fighters[myPlayerKey];
-            if (fighter && fighter.specialMoves) { playerSpecialMoves = fighter.specialMoves; }
+            if (fighter && fighter.specialMoves) { playerSpecialMoves = fighter.specialMoves; } else { playerSpecialMoves = Object.keys(availableSpecialMoves || {}); }
         } else { playerSpecialMoves = Object.keys(currentGameState.moves).filter(m => !BASIC_MOVES_ORDER.includes(m)); }
         playerSpecialMoves.sort();
         let tableHtml = `<div class="help-table-container"><table id="help-modal-table"><thead><tr><th>Nome</th><th>Custo (PA)</th><th>Dano</th><th>Penalidade</th><th>Efeito</th></tr></thead><tbody>`;
         const renderRow = (moveName) => {
             const move = currentGameState.moves[moveName]; if (!move) return '';
-            const displayName = move.displayName || moveName; const cost = moveName === 'Counter' ? 'Variável' : move.cost; const effect = MOVE_EFFECTS[moveName] || 'Nenhum'; const penaltyDisplay = move.penalty > 0 ? `-${move.penalty}` : (move.penalty < 0 ? `+${-move.penalty}`: move.penalty);
+            const displayName = move.displayName || moveName; const cost = moveName === 'Counter' ? 'Variável' : move.cost; const effect = MOVE_EFFECTS[moveName] || 'Nenhum'; const penaltyDisplay = move.penalty > 0 ? `-${move.penalty}` : move.penalty;
             return `<tr><td>${displayName}</td><td>${cost}</td><td>${move.damage}</td><td>${penaltyDisplay}</td><td>${effect}</td></tr>`;
         };
         BASIC_MOVES_ORDER.forEach(moveName => { tableHtml += renderRow(moveName); });
@@ -169,6 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         confirmBtn.addEventListener('click', onConfirmSelection);
 
+        // GM Mode Selection buttons in the new lobby
         document.getElementById('start-classic-btn').onclick = () => { showScreen(scenarioScreen); renderScenarioSelection('classic'); };
         document.getElementById('start-arena-btn').onclick = () => { 
             socket.emit('playerAction', { type: 'gmStartsMode', targetMode: 'arena', scenario: 'Ringue2.png' });
@@ -206,20 +211,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
             socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
             showScreen(playerWaitingScreen);
-            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre configurar seus atributos...";
             confirmBtn.disabled = true;
             return;
         }
 
-        if (isGm && currentGameState.phase === 'gm_classic_setup') {
+        if (currentGameState && currentGameState.phase === 'gm_classic_setup') {
             const player1Data = { 
                 nome: selectedCard.dataset.name, 
                 img: selectedCard.dataset.img,
                 agi: selectedCard.querySelector('.agi-input').value, 
                 res: selectedCard.querySelector('.res-input').value,
-                specialMoves: Array.from(document.querySelectorAll('#special-moves-list .selected')).map(c => c.dataset.name)
             };
-            socket.emit('playerAction', { type: 'gmConfirmsOwnFighter', fighterData: player1Data });
+            confirmBtn.disabled = true;
+            socket.emit('playerAction', { type: 'gm_confirm_p1_setup', player1Data });
             return;
         }
     }
@@ -250,43 +255,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderGmCharacterSelection(npcList, showStatsInputs = false, availableMoves = null) {
-        charListContainer.innerHTML = '';
-        const oldMoves = document.getElementById('special-moves-list');
-        if(oldMoves) oldMoves.remove();
 
+    function renderGmCharacterSelection(showStatsInputs = false) {
+        charListContainer.innerHTML = ''; 
+        
+        const charData = ALL_FIGHTERS_DATA;
         const imgPath = 'images/lutadores/';
 
-        for (const name in npcList) {
-            const stats = npcList[name];
-            const card = document.createElement('div');
-            card.className = 'char-card';
-            card.dataset.name = name;
+        for (const name in charData) {
+            const stats = charData[name]; 
+            const card = document.createElement('div'); 
+            card.className = 'char-card'; 
+            card.dataset.name = name; 
             card.dataset.img = `${imgPath}${name}.png`;
+            
+            const statsHtml = showStatsInputs 
+                ? `<div class="char-stats"><label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label><label>RES: <input type="number" class="res-input" value="${stats.res}"></label></div>` 
+                : ``;
 
-            let statsHtml = '';
-            if (showStatsInputs) {
-                statsHtml = `<div class="char-stats">
-                                <label>AGI: <input type="number" class="agi-input" value="${stats.agi}"></label>
-                                <label>RES: <input type="number" class="res-input" value="${stats.res}"></label>
-                             </div>`;
-            }
             card.innerHTML = `<img src="${imgPath}${name}.png" alt="${name}"><div class="char-name">${name}</div>${statsHtml}`;
-            card.addEventListener('click', () => {
-                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
+            card.addEventListener('click', () => { 
+                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected')); 
+                card.classList.add('selected'); 
             });
             charListContainer.appendChild(card);
-        }
-
-        // Moves Selection for GM
-        if (availableMoves) {
-            const movesContainer = document.createElement('div');
-            movesContainer.id = 'special-moves-list';
-            movesContainer.style.width = '100%';
-            movesContainer.style.marginTop = '20px';
-            renderSpecialMoveSelection(movesContainer, availableMoves);
-            charListContainer.insertAdjacentElement('afterend', movesContainer);
         }
     }
 
@@ -378,14 +370,18 @@ document.addEventListener('DOMContentLoaded', () => {
         let playerListHtml = '<ul>';
         if (availablePlayers.length > 0) {
             availablePlayers.forEach(player => {
+                // <<< ALTERADO: Adiciona o status configurado
+                const stats = player.configuredStats;
+                const statsText = `(AGI: ${stats.agi}, RES: ${stats.res})`;
                 playerListHtml += `
                     <li class="opponent-selection-item" data-socket-id="${player.id}">
                         <img src="${player.selectedCharacter.img}" alt="${player.selectedCharacter.nome}">
                         <span>${player.selectedCharacter.nome}</span>
+                        <small>${statsText}</small>
                     </li>`;
             });
         } else {
-            playerListHtml += `<li>Nenhum jogador disponível para lutar.</li>`;
+            playerListHtml += `<li>Nenhum jogador configurado disponível para lutar.</li>`;
         }
         playerListHtml += '</ul>';
 
@@ -440,17 +436,73 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-    socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => {
-        const modalContentHtml = `<div style="display:flex; gap: 30px;"><div style="flex: 1; text-align: center;"><h4>Definir Atributos de ${p2data.nome}</h4><img src="${p2data.img}" alt="${p2data.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;"><label>AGI: <input type="number" id="p2-stat-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="p2-stat-res" value="2" style="width: 50px; text-align: center;"></label></div><div style="flex: 2; border-left: 1px solid #555; padding-left: 20px; text-align: center;"><h4>Escolher Golpes Especiais</h4><div id="p2-moves-selection-list"></div></div></div>`;
-        showInteractiveModal("Definir Oponente", modalContentHtml, "Confirmar e Iniciar Luta", null);
-        const p2MovesContainer = document.getElementById('p2-moves-selection-list'); renderSpecialMoveSelection(p2MovesContainer, availableMoves);
+    socket.on('promptArenaConfiguration', ({ p1, p2, availableMoves }) => {
+        const modalContentHtml = `<div style="display:flex; gap: 20px;"><div style="flex: 1; text-align: center; border-right: 1px solid #555; padding-right: 20px;"><h4>${p1.nome} (Jogador 1)</h4><label>AGI: <input type="number" id="arena-p1-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p1-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p1-moves"></div></div><div style="flex: 1; text-align: center;"><h4>${p2.nome} (Jogador 2)</h4><label>AGI: <input type="number" id="arena-p2-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p2-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p2-moves"></div></div></div>`;
+        showInteractiveModal("Configurar Batalha da Arena", modalContentHtml, "Iniciar Batalha", null);
+        renderSpecialMoveSelection(document.getElementById('arena-p1-moves'), availableMoves); renderSpecialMoveSelection(document.getElementById('arena-p2-moves'), availableMoves);
         modalButton.onclick = () => {
-            const agi = document.getElementById('p2-stat-agi').value; const res = document.getElementById('p2-stat-res').value; const selectedMoves = Array.from(p2MovesContainer.querySelectorAll('.selected')).map(card => card.dataset.name);
-            if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) { alert("Valores inválidos para AGI/RES."); return; }
-            const action = { type: 'set_p2_stats', playerKey: myPlayerKey, stats: { agi, res }, moves: selectedMoves };
-            socket.emit('playerAction', action); modal.classList.add('hidden');
+            const p1_config = { agi: document.getElementById('arena-p1-agi').value, res: document.getElementById('arena-p1-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p1-moves .selected')).map(c => c.dataset.name) };
+            const p2_config = { agi: document.getElementById('arena-p2-agi').value, res: document.getElementById('arena-p2-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p2-moves .selected')).map(c => c.dataset.name) };
+            socket.emit('playerAction', { type: 'configure_and_start_arena', p1_config, p2_config }); modal.classList.add('hidden');
         };
     });
+
+
+    socket.on('promptSpecialMoves', (data) => {
+        availableSpecialMoves = data.availableMoves;
+        specialMovesTitle.innerText = 'Selecione os Golpes Especiais do GM';
+        renderSpecialMoveSelection(specialMovesList, data.availableMoves);
+        specialMovesModal.classList.remove('hidden');
+        confirmSpecialMovesBtn.onclick = () => {
+            const selectedMoves = Array.from(specialMovesList.querySelectorAll('.selected')).map(card => card.dataset.name);
+            socket.emit('playerAction', { type: 'set_p1_special_moves', playerKey: myPlayerKey, moves: selectedMoves });
+            specialMovesModal.classList.add('hidden');
+        };
+    });
+
+    // <<< NOVO: Listener para o modal de configuração de jogador
+    socket.on('promptPlayerConfiguration', ({ playerData, availableMoves }) => {
+        if (!isGm) return;
+        const char = playerData.selectedCharacter;
+        const modalContentHtml = `
+            <div style="display:flex; gap: 30px;">
+                <div style="flex: 1; text-align: center;">
+                    <h4>Definir Atributos de ${char.nome}</h4>
+                    <img src="${char.img}" alt="${char.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;">
+                    <label>AGI: <input type="number" id="player-config-agi" value="2" style="width: 50px; text-align: center;"></label>
+                    <label>RES: <input type="number" id="player-config-res" value="2" style="width: 50px; text-align: center;"></label>
+                </div>
+                <div style="flex: 2; border-left: 1px solid #555; padding-left: 20px; text-align: center;">
+                    <h4>Escolher Golpes Especiais</h4>
+                    <div id="player-config-moves-list"></div>
+                </div>
+            </div>`;
+        showInteractiveModal(`Configurar Jogador: ${char.nome}`, modalContentHtml, "Confirmar Configuração", null);
+        const movesContainer = document.getElementById('player-config-moves-list');
+        renderSpecialMoveSelection(movesContainer, availableMoves);
+
+        modalButton.onclick = () => {
+            const agi = document.getElementById('player-config-agi').value;
+            const res = document.getElementById('player-config-res').value;
+            const selectedMoves = Array.from(movesContainer.querySelectorAll('.selected')).map(card => card.dataset.name);
+
+            if (!agi || !res || isNaN(agi) || isNaN(res) || agi < 1 || res < 1) {
+                alert("Valores inválidos para AGI/RES.");
+                return;
+            }
+            const action = {
+                type: 'gmSetsPlayerStats',
+                playerId: playerData.id,
+                stats: { agi, res },
+                moves: selectedMoves
+            };
+            socket.emit('playerAction', action);
+            modal.classList.add('hidden');
+        };
+    });
+
+    // <<< REMOVIDO: Listener obsoleto
+    // socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => { ... });
 
     socket.on('characterUnavailable', (charName) => {
         showGameAlert(`O personagem ${charName} já foi escolhido!`);
@@ -463,14 +515,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('gameUpdate', (gameState) => {
-        modal.classList.add('hidden');
+        if (!modal.classList.contains('hidden') && !modal.querySelector('#player-config-agi')) {
+            modal.classList.add('hidden');
+        }
         specialMovesModal.classList.add('hidden');
         
         const oldState = currentGameState;
         currentGameState = gameState;
         scaleGame();
         
-        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring', 'p2_stat_assignment'];
+        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring' /*, 'p2_stat_assignment'*/]; // 'p2_stat_assignment' removido
 
         // GM Logic
         if (isGm) {
@@ -479,7 +533,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateGmLobbyUI(gameState);
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
                 if (gameState.phase === 'gm_classic_setup') {
-                    // This phase is handled by promptGmFighterSetup event now
+                    showScreen(selectionScreen);
+                    selectionTitle.innerText = 'GM: Selecione seu Lutador';
+                    confirmBtn.innerText = 'Confirmar Personagem';
+                    confirmBtn.disabled = false;
+                    renderGmCharacterSelection(true);
                 } else {
                     showScreen(fightScreen);
                 }
@@ -499,7 +557,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         renderPlayerCharacterSelection(gameState.unavailableCharacters);
                     } else {
                         showScreen(playerWaitingScreen);
-                        document.getElementById('player-waiting-message').innerText = myPlayerData ? "Personagem enviado! Aguardando o Mestre..." : "Aguardando o Mestre iniciar o jogo...";
+                        // <<< ALTERADO: Mensagem de espera reflete o novo fluxo
+                        let waitMessage = "Aguardando o Mestre iniciar o jogo...";
+                        if (myPlayerData) {
+                            if (!myPlayerData.configuredStats) {
+                                waitMessage = "Personagem enviado! Aguardando o Mestre configurar seus atributos...";
+                            } else {
+                                waitMessage = "Você está pronto! Aguardando o Mestre iniciar uma partida...";
+                            }
+                        }
+                        document.getElementById('player-waiting-message').innerText = waitMessage;
                     }
                 } else { // Spectator
                      showScreen(playerWaitingScreen);
@@ -560,19 +627,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerListEl = document.getElementById('gm-lobby-player-list');
         playerListEl.innerHTML = '';
         const connectedPlayers = Object.values(state.connectedPlayers);
+
         if(connectedPlayers.length === 0) {
             playerListEl.innerHTML = '<li>Aguardando jogadores...</li>';
         } else {
             connectedPlayers.forEach(p => {
-                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
                 const li = document.createElement('li');
-                li.innerHTML = `Jogador Conectado - Personagem: ${charName}`;
+                const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
+                let statusText = '';
+                
+                // <<< ALTERADO: Lógica de status do jogador
+                if (!p.selectedCharacter) {
+                    statusText = `<span style="color: #ffc107;">Selecionando personagem...</span>`;
+                } else if (state.isConfiguringPlayer === p.id) {
+                    statusText = `<span style="color: #17a2b8;">Configurando agora...</span>`;
+                } else if (!p.configuredStats) {
+                    statusText = `<span style="color: #dc3545;">Aguardando Configuração</span>`;
+                } else {
+                    statusText = `<span style="color: #28a745;">Pronto para Lutar</span>`;
+                }
+
+                li.innerHTML = `Jogador: <b>${charName}</b> - Status: ${statusText}`;
                 playerListEl.appendChild(li);
             });
         }
         const playerLinkEl = document.getElementById('gm-link-player');
         const specLinkEl = document.getElementById('gm-link-spectator');
-        if (!playerLinkEl.textContent.includes('Gerando')) {
+        if (playerLinkEl && !playerLinkEl.textContent.includes('Gerando')) {
              const baseUrl = window.location.origin;
              playerLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=player`;
              specLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=spectator`;
@@ -1373,12 +1454,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // #endregion
 
-    socket.on('playSound', (soundFile) => { 
-        if (!soundFile) return; 
-        const sound = new Audio(`sons/${soundFile}`); 
-        sound.currentTime = 0; 
-        sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); 
-    });
+    socket.on('playSound', (soundFile) => { if (!soundFile) return; const sound = new Audio(`sons/${soundFile}`); sound.currentTime = 0; sound.play().catch(e => console.error(`Erro ao tocar som: ${soundFile}`, e)); });
     socket.on('triggerAttackAnimation', ({ attackerKey }) => { const img = document.getElementById(`${attackerKey}-fight-img`); if (img) { img.classList.add(`is-attacking-${attackerKey}`); setTimeout(() => img.classList.remove(`is-attacking-${attackerKey}`), 400); } });
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     socket.on('assignRole', (data) => {
@@ -1391,13 +1467,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let btn = document.getElementById(`${targetPlayerKey}-roll-btn`); const isMyTurnToRoll = myPlayerKey === targetPlayerKey;
         const newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn); btn = newBtn;
         btn.innerText = text; btn.classList.remove('hidden', 'inactive');
-        if (isMyTurnToRoll || isGm) {
-            btn.onclick = () => { btn.disabled = true; socket.emit('playerAction', action); }; 
-            btn.disabled = false;
-        } else { 
-            btn.disabled = true; btn.onclick = null; 
-            if (myRole !== 'spectator') btn.classList.add('inactive'); 
-        }
+        if (isMyTurnToRoll) { btn.onclick = () => { btn.disabled = true; socket.emit('playerAction', action); }; btn.disabled = false;
+        } else { btn.disabled = true; btn.onclick = null; if (myRole !== 'spectator' && !isGm) btn.classList.add('inactive'); }
     });
 
     socket.on('hideRollButtons', () => { ['player1-roll-btn', 'player2-roll-btn'].forEach(id => document.getElementById(id).classList.add('hidden')); });

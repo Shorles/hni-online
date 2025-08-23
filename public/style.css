@@ -97,7 +97,7 @@ body {
     padding: 15px;
     width: 80%;
     max-width: 800px;
-    max-height: 180px; 
+    max-height: 180px; /* <<< MODIFICAÇÃO: Aumentado de 100px para dar mais espaço */
     overflow-y: auto;
 }
 
@@ -609,7 +609,7 @@ body {
 
 /* Regras para MODO CLÁSSICO */
 .mode-classic #player1-fight-img { left: 380px; transform: scaleX(-1); }
-.mode-classic #player2-fight-img { right: 380px; }
+.mode-classic #player2-fight-img { right: 380px; transform: scaleX(-1); }
 .mode-classic .is-attacking-player1 { animation: player1-attack-lunge-classic 0.4s ease-in-out; }
 .mode-classic .is-attacking-player2 { animation: player2-attack-lunge-classic 0.4s ease-in-out; }
 
