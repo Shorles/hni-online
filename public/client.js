@@ -65,10 +65,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
     const theaterBackBtn = document.getElementById('theater-back-btn');
     const theaterPublishBtn = document.getElementById('theater-publish-btn');
+    
+    // <<< NOVOS ELEMENTOS DO MODO TEATRO
+    const testAgiBtn = document.getElementById('test-agi-btn');
+    const testResBtn = document.getElementById('test-res-btn');
+    const attributeTestOverlay = document.getElementById('attribute-test-overlay');
+    const attributeTestContent = document.getElementById('attribute-test-content');
+    const testResultHeader = document.getElementById('test-result-header');
+    const testResultCritText = document.getElementById('test-result-crit-text');
+    const testResultTotal = document.getElementById('test-result-total');
+    const testResultGmOkBtn = document.getElementById('test-result-gm-ok-btn');
+
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
-    // Agora são os personagens que os JOGADORES podem escolher
     const PLAYABLE_CHARACTERS = { 'Ryu':{img:'images/Ryu.png'},'Yobu':{img:'images/Yobu.png'},'Nathan':{img:'images/Nathan.png'},'Okami':{img:'images/Okami.png'} };
     
     const DYNAMIC_CHARACTERS = [];
@@ -173,7 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         confirmBtn.addEventListener('click', onConfirmSelection);
 
-        // GM Mode Selection buttons in the new lobby
         document.getElementById('start-classic-btn').onclick = () => { showScreen(scenarioScreen); renderScenarioSelection('classic'); };
         document.getElementById('start-arena-btn').onclick = () => { 
             socket.emit('playerAction', { type: 'gmStartsMode', targetMode: 'arena', scenario: 'Ringue2.png' });
@@ -199,6 +208,17 @@ document.addEventListener('DOMContentLoaded', () => {
         gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
         
         copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copySpectatorLinkInGameBtn); };
+        
+        // <<< NOVOS EVENT LISTENERS PARA TESTES DE ATRIBUTO
+        testAgiBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'player_roll_attribute_test', attribute: 'agi' });
+        });
+        testResBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'player_roll_attribute_test', attribute: 'res' });
+        });
+        testResultGmOkBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'gm_clear_attribute_test' });
+        });
 
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
@@ -370,7 +390,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let playerListHtml = '<ul>';
         if (availablePlayers.length > 0) {
             availablePlayers.forEach(player => {
-                // <<< ALTERADO: Adiciona o status configurado
                 const stats = player.configuredStats;
                 const statsText = `(AGI: ${stats.agi}, RES: ${stats.res})`;
                 playerListHtml += `
@@ -460,7 +479,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-    // <<< NOVO: Listener para o modal de configuração de jogador
     socket.on('promptPlayerConfiguration', ({ playerData, availableMoves }) => {
         if (!isGm) return;
         const char = playerData.selectedCharacter;
@@ -501,9 +519,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     });
 
-    // <<< REMOVIDO: Listener obsoleto
-    // socket.on('promptP2StatsAndMoves', ({ p2data, availableMoves }) => { ... });
-
     socket.on('characterUnavailable', (charName) => {
         showGameAlert(`O personagem ${charName} já foi escolhido!`);
         const card = document.querySelector(`.char-card[data-name="${charName}"]`);
@@ -524,9 +539,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGameState = gameState;
         scaleGame();
         
-        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring' /*, 'p2_stat_assignment'*/]; // 'p2_stat_assignment' removido
+        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring'];
 
-        // GM Logic
         if (isGm) {
             if (gameState.mode === 'lobby') {
                 showScreen(gmInitialLobby);
@@ -547,7 +561,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTheaterMode(gameState);
             }
         } 
-        // Player & Spectator Logic
         else if (myRole === 'player' || myRole === 'spectator') {
             if (gameState.mode === 'lobby') {
                 if (myRole === 'player') {
@@ -557,7 +570,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         renderPlayerCharacterSelection(gameState.unavailableCharacters);
                     } else {
                         showScreen(playerWaitingScreen);
-                        // <<< ALTERADO: Mensagem de espera reflete o novo fluxo
                         let waitMessage = "Aguardando o Mestre iniciar o jogo...";
                         if (myPlayerData) {
                             if (!myPlayerData.configuredStats) {
@@ -568,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         document.getElementById('player-waiting-message').innerText = waitMessage;
                     }
-                } else { // Spectator
+                } else { 
                      showScreen(playerWaitingScreen);
                      document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
                 }
@@ -636,7 +648,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const charName = p.selectedCharacter ? p.selectedCharacter.nome : '<i>Selecionando...</i>';
                 let statusText = '';
                 
-                // <<< ALTERADO: Lógica de status do jogador
                 if (!p.selectedCharacter) {
                     statusText = `<span style="color: #ffc107;">Selecionando personagem...</span>`;
                 } else if (state.isConfiguringPlayer === p.id) {
@@ -1354,6 +1365,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTheaterMode(state) {
+        // <<< NOVO: Lógica para exibir/ocultar overlay de teste
+        if (state.activeTestResult) {
+            const result = state.activeTestResult;
+            testResultHeader.textContent = `${result.playerName} rolou um teste de ${result.attribute}`;
+            testResultTotal.textContent = result.total;
+            
+            attributeTestContent.classList.remove('crit', 'fumble');
+            if (result.type === 'crit') {
+                testResultCritText.textContent = 'ACERTO CRÍTICO!';
+                attributeTestContent.classList.add('crit');
+            } else if (result.type === 'fumble') {
+                testResultCritText.textContent = 'ERRO CRÍTICO!';
+                attributeTestContent.classList.add('fumble');
+            } else {
+                testResultCritText.textContent = '';
+            }
+            
+            testResultGmOkBtn.classList.toggle('hidden', !isGm);
+            attributeTestOverlay.classList.remove('hidden');
+        } else {
+            attributeTestOverlay.classList.add('hidden');
+        }
+
+        // <<< NOVO: Lógica para exibir/ocultar controles do jogador
+        const playerControls = document.getElementById('theater-player-controls');
+        const myPlayerData = state.lobbyCache?.connectedPlayers[socket.id];
+        const showPlayerControls = myRole === 'player' && myPlayerData?.configuredStats;
+        playerControls.classList.toggle('hidden', !showPlayerControls);
+        
+        // Desabilita botões se um teste está ativo
+        if (showPlayerControls) {
+            const isTestActive = !!state.activeTestResult;
+            testAgiBtn.disabled = isTestActive;
+            testResBtn.disabled = isTestActive;
+        }
+
         const currentScenarioState = state.scenarioStates?.[state.currentScenario];
         const dataToRender = isGm ? currentScenarioState : state.publicState;
         
@@ -1459,7 +1506,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('triggerHitAnimation', ({ defenderKey }) => { const img = document.getElementById(`${defenderKey}-fight-img`); if (img) { img.classList.add('is-hit'); setTimeout(() => img.classList.remove('is-hit'), 500); } });
     socket.on('assignRole', (data) => {
         myRole = data.role;
-        myPlayerKey = data.playerKey || null; // e.g., 'player1', 'player2'
+        myPlayerKey = data.playerKey || null; 
         isGm = data.isGm || myRole === 'gm';
         if (isGm) exitGameBtn.classList.remove('hidden');
     });
@@ -1518,20 +1565,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const w = document.getElementById('game-wrapper');
         const isMobile = window.innerWidth <= 800;
 
-        // Reset styles for recalculation
         w.style.width = '1280px';
         w.style.height = '720px';
 
         if (isMobile) {
             if (currentGameState && currentGameState.mode === 'theater') {
-                // Modo Cenário no Celular: Sem escala, ocupa a tela visível
                 w.style.transform = 'none';
                 w.style.width = '100%';
                 w.style.height = `${window.innerHeight}px`;
                 w.style.left = '0';
                 w.style.top = '0';
             } else {
-                // Modo Luta no Celular: Escala para caber na tela
                 const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
                 w.style.transform = `scale(${scale})`;
                 const left = (window.innerWidth - (1280 * scale)) / 2;
@@ -1540,7 +1584,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 w.style.top = `${top}px`;
             }
         } else {
-            // Desktop: Lógica de escala padrão
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
             w.style.transform = `scale(${scale})`;
             const left = (window.innerWidth - (1280 * scale)) / 2;

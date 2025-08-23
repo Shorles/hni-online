@@ -96,8 +96,8 @@ function createNewLobbyState(gmId) {
         connectedPlayers: {}, // { socketId: { id, role, selectedCharacter, configuredStats } }
         unavailableCharacters: [],
         log: [{ text: "Lobby criado. Aguardando jogadores..." }],
-        playerConfigQueue: [], // <<< NOVO: Fila para o GM configurar jogadores
-        isConfiguringPlayer: null, // <<< NOVO: ID do jogador sendo configurado no momento
+        playerConfigQueue: [], 
+        isConfiguringPlayer: null, 
     };
 }
 
@@ -115,7 +115,7 @@ function createNewGameState() {
         reactionState: null,
         diceCheat: null,
         illegalCheat: 'normal',
-        lobbyCache: null // Para guardar o estado do lobby ao mudar de modo
+        lobbyCache: null 
     };
 }
 
@@ -126,7 +126,8 @@ function createNewTheaterState(initialScenario) {
         log: [{ text: "Modo Teatro iniciado."}],
         currentScenario: initialScenario,
         scenarioStates: {},
-        publicState: {}
+        publicState: {},
+        activeTestResult: null, // <<< NOVO: Para armazenar o resultado do teste de atributo
     };
     theaterState.scenarioStates[initialScenario] = {
         scenario: initialScenario,
@@ -498,16 +499,21 @@ function isActionValid(state, action) {
     if (!state) return false;
 
     // GM-only actions
-    if (['gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 'configure_and_start_arena', 'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 'toggle_force_dice'].includes(type)) {
+    if (['gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 'configure_and_start_arena', 'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 'toggle_force_dice', 'gm_clear_attribute_test'].includes(type)) {
         return isGm;
     }
 
     if (state.mode === 'lobby') {
-        // <<< ALTERADO: GM pode configurar jogadores a qualquer momento no lobby
         return ['playerSelectsCharacter', 'gmSetsPlayerStats'].includes(type);
     }
 
     if (state.mode === 'theater') {
+        // <<< ALTERADO: Validação para novas ações do modo teatro
+        if (type === 'player_roll_attribute_test') {
+            const player = room.players.find(p => p.id === socket.id);
+            // Permite rolar apenas se não houver um teste ativo
+            return player && state.activeTestResult === null;
+        }
         return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage' || type === 'updateGlobalScale' || type === 'update_scenario_dims') && isGm;
     }
 
@@ -534,7 +540,6 @@ function isActionValid(state, action) {
         case 'opponent_selection': return type === 'gmSelectsOpponent' && isGm;
         case 'arena_opponent_selection': return type === 'gmSelectsArenaFighters' && isGm;
         case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
-        // case 'p2_stat_assignment': return type === 'set_p2_stats' && isGm; // <<< REMOVIDO: Fase obsoleta
         case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
         case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
         case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
@@ -554,7 +559,6 @@ function isActionValid(state, action) {
     }
 }
 
-// <<< NOVA FUNÇÃO: Processa o próximo jogador na fila de configuração
 function processNextPlayerInConfigQueue(room) {
     if (!room || !room.state || room.state.mode !== 'lobby') return;
     const state = room.state;
@@ -573,7 +577,6 @@ function processNextPlayerInConfigQueue(room) {
             availableMoves: SPECIAL_MOVES
         });
     } else {
-        // Jogador pode ter desconectado, tenta o próximo
         processNextPlayerInConfigQueue(room);
     }
 }
@@ -584,7 +587,6 @@ function dispatchAction(room) {
     io.to(roomId).emit('hideRollButtons');
 
     if (state.mode === 'lobby') {
-        // <<< NOVO: Garante que a fila de configuração seja processada se necessário
         processNextPlayerInConfigQueue(room);
         return;
     }
@@ -596,7 +598,6 @@ function dispatchAction(room) {
         case 'opponent_selection':
             if (state.gmId) {
                 io.to(state.gmId).emit('promptOpponentSelection', {
-                    // <<< ALTERADO: Filtra apenas jogadores já configurados
                     availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter && p.configuredStats)
                 });
             }
@@ -621,10 +622,6 @@ function dispatchAction(room) {
             const p1socketIdMoves = room.players.find(p => p.playerKey === 'player1').id;
             io.to(p1socketIdMoves).emit('promptSpecialMoves', { availableMoves: SPECIAL_MOVES });
             return;
-        // case 'p2_stat_assignment': // <<< REMOVIDO: Fase obsoleta
-        //     const gmSocketId = state.gmId;
-        //     io.to(gmSocketId).emit('promptP2StatsAndMoves', { p2data: state.pendingP2Choice, availableMoves: SPECIAL_MOVES });
-        //     return;
         case 'initiative_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player1' }}); return;
         case 'initiative_p2': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player2', text: 'Rolar Iniciativa (D6)', action: { type: 'roll_initiative', playerKey: 'player2' }}); return;
         case 'defense_p1': io.to(roomId).emit('promptRoll', { targetPlayerKey: 'player1', text: 'Rolar Defesa (D3)', action: { type: 'roll_defense', playerKey: 'player1' }}); return;
@@ -754,12 +751,13 @@ io.on('connection', (socket) => {
         
         const room = games[roomId];
         const state = room.state;
-        action.gmSocketId = state.gmId; 
-
-        if (!isActionValid(state, action)) {
-            console.log("Ação inválida recebida:", action, "no modo/fase:", state.mode, state.phase);
-            return;
-        }
+        const isGm = socket.id === state.gmId;
+        
+        // <<< ATUALIZADO: Validação movida para dentro do switch para casos mais complexos
+        // if (!isActionValid(state, action)) {
+        //     console.log("Ação inválida recebida:", action, "no modo/fase:", state.mode, state.phase);
+        //     return;
+        // }
 
         const moveName = action.move;
         const move = (state.moves && moveName) ? state.moves[moveName] : undefined;
@@ -780,25 +778,59 @@ io.on('connection', (socket) => {
                 state.connectedPlayers[socket.id].selectedCharacter = character;
                 logMessage(state, `Jogador selecionou ${character.nome}.`);
                 
-                // <<< ALTERADO: Adiciona jogador à fila de configuração
                 state.playerConfigQueue.push(socket.id);
                 processNextPlayerInConfigQueue(room);
                 break;
             }
-            // <<< NOVA AÇÃO: GM envia a configuração de um jogador
             case 'gmSetsPlayerStats': {
                 if (state.mode !== 'lobby' || !state.connectedPlayers[action.playerId]) return;
 
                 const playerInfo = state.connectedPlayers[action.playerId];
                 playerInfo.configuredStats = {
-                    agi: action.stats.agi,
-                    res: action.stats.res,
+                    agi: parseInt(action.stats.agi, 10),
+                    res: parseInt(action.stats.res, 10),
                     specialMoves: action.moves
                 };
                 
                 logMessage(state, `GM configurou os atributos e golpes de ${playerInfo.selectedCharacter.nome}.`);
                 state.isConfiguringPlayer = null;
                 processNextPlayerInConfigQueue(room);
+                break;
+            }
+            // <<< NOVAS AÇÕES PARA O MODO TEATRO
+            case 'player_roll_attribute_test': {
+                if (state.mode !== 'theater' || state.activeTestResult) return;
+                
+                const lobbyState = room.theaterState.lobbyCache || room.state.lobbyCache;
+                if (!lobbyState) return;
+                
+                const playerData = lobbyState.connectedPlayers[socket.id];
+                if (!playerData || !playerData.configuredStats) return;
+
+                const attribute = action.attribute; // 'agi' ou 'res'
+                const statValue = playerData.configuredStats[attribute];
+                const roll = Math.floor(Math.random() * 6) + 1;
+                const total = roll + statValue;
+                
+                let type = 'normal';
+                if (roll === 1) type = 'fumble';
+                if (roll === 6) type = 'crit';
+
+                room.theaterState.activeTestResult = {
+                    playerName: playerData.selectedCharacter.nome,
+                    attribute: attribute.toUpperCase(),
+                    roll: roll,
+                    total: total,
+                    type: type,
+                };
+                io.to(roomId).emit('playSound', 'dice1.mp3');
+                break;
+            }
+            case 'gm_clear_attribute_test': {
+                if (state.mode !== 'theater' || !isGm) return;
+                if (room.theaterState) {
+                    room.theaterState.activeTestResult = null;
+                }
                 break;
             }
             case 'gmStartsMode': {
@@ -815,7 +847,10 @@ io.on('connection', (socket) => {
                         room.theaterState = newState; 
                     }
                     Object.keys(state.connectedPlayers).forEach(playerId => {
-                        io.to(playerId).emit('assignRole', { role: 'spectator' });
+                        // Mantém o role de 'player' para os testes de atributo
+                        if(state.connectedPlayers[playerId].role !== 'player'){
+                            io.to(playerId).emit('assignRole', { role: 'spectator' });
+                        }
                     });
                 } else {
                     newState = createNewGameState();
@@ -834,6 +869,7 @@ io.on('connection', (socket) => {
                 }
                 newState.lobbyCache = lobbyStateCache; 
                 room.state = newState;
+                if (targetMode === 'theater') room.theaterState.lobbyCache = lobbyStateCache;
                 break;
             }
             case 'gm_switch_mode': {
@@ -858,7 +894,9 @@ io.on('connection', (socket) => {
                             room.theaterState = newState;
                         }
                         Object.keys(lobbyState.connectedPlayers).forEach(playerId => {
-                            io.to(playerId).emit('assignRole', { role: 'spectator' });
+                           if(lobbyState.connectedPlayers[playerId].role !== 'player'){
+                                io.to(playerId).emit('assignRole', { role: 'spectator' });
+                           }
                         });
                     } else {
                         newState = createNewGameState();
@@ -876,6 +914,7 @@ io.on('connection', (socket) => {
                         }
                     }
                     newState.lobbyCache = lobbyState;
+                    if (targetMode === 'theater') room.theaterState.lobbyCache = lobbyState;
                 }
                  room.state = newState;
                 break;
@@ -921,13 +960,11 @@ io.on('connection', (socket) => {
             case 'gmSelectsOpponent': {
                 const { opponentSocketId } = action;
                 const opponentData = state.connectedPlayers[opponentSocketId];
-                // <<< ALTERADO: Verifica se o oponente foi configurado
                 if (!opponentData || !opponentData.selectedCharacter || !opponentData.configuredStats) {
                      logMessage(state, 'Erro: Oponente selecionado ainda não foi configurado pelo GM.');
                      return;
                 }
                 
-                // <<< ALTERADO: Cria o lutador 2 diretamente com os dados salvos
                 state.fighters.player2 = createNewFighterState({
                     nome: opponentData.selectedCharacter.nome,
                     img: opponentData.selectedCharacter.img,
@@ -946,7 +983,6 @@ io.on('connection', (socket) => {
                 logMessage(state, `GM selecionou ${opponentData.selectedCharacter.nome} como oponente. A luta vai começar!`);
                 io.to(opponentSocketId).emit('assignRole', {role: 'player', playerKey: 'player2'});
                 
-                // <<< ALTERADO: Pula direto para o início da luta
                 state.phase = 'initiative_p1';
                 break;
             }
@@ -1156,19 +1192,6 @@ io.on('connection', (socket) => {
                 logMessage(state, `${state.fighters.player1.nome} definiu seus golpes especiais.`);
                 state.phase = 'opponent_selection';
                 break;
-            // case 'set_p2_stats': // <<< REMOVIDO: Ação obsoleta
-            //     const p2Data = state.pendingP2Choice;
-            //     const p2Stats = action.stats;
-            //     state.fighters.player2 = createNewFighterState({
-            //         ...p2Data,
-            //         agi: p2Stats.agi,
-            //         res: p2Stats.res,
-            //         specialMoves: action.moves
-            //     });
-            //     delete state.pendingP2Choice;
-            //     logMessage(state, `${state.fighters.player2.nome} teve seus atributos e golpes definidos. Preparem-se!`);
-            //     state.phase = 'initiative_p1';
-            //     break;
             case 'attack':
                 const attacker = state.fighters[playerKey];
                 const defenderKey = (playerKey === 'player1') ? 'player2' : 'player1';
@@ -1375,8 +1398,21 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
+            default:
+                // Se a ação não foi tratada acima, executa a validação genérica
+                 if (!isActionValid(state, action)) {
+                    console.log("Ação inválida recebida:", action, "no modo/fase:", state.mode, state.phase);
+                    return;
+                }
         }
-        io.to(roomId).emit('gameUpdate', room.state);
+
+        // <<< ALTERADO: O estado do modo teatro agora pode ser enviado de forma independente
+        if (room.state.mode === 'theater' && room.theaterState) {
+            io.to(roomId).emit('gameUpdate', room.theaterState);
+        } else {
+            io.to(roomId).emit('gameUpdate', room.state);
+        }
+
         dispatchAction(room);
     });
     socket.on('disconnect', () => {
@@ -1399,13 +1435,11 @@ io.on('connection', (socket) => {
             const lobbyState = state.mode === 'lobby' ? state : state.lobbyCache;
 
             if (lobbyState) {
-                // <<< ALTERADO: Lógica de desconexão para a nova fila
                  if (lobbyState.playerConfigQueue) {
                     lobbyState.playerConfigQueue = lobbyState.playerConfigQueue.filter(id => id !== socket.id);
                 }
                 if (lobbyState.isConfiguringPlayer === socket.id) {
                     lobbyState.isConfiguringPlayer = null;
-                    // Imediatamente tenta configurar o próximo, se houver
                     processNextPlayerInConfigQueue(room);
                 }
 

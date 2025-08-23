@@ -97,7 +97,7 @@ body {
     padding: 15px;
     width: 80%;
     max-width: 800px;
-    max-height: 180px; /* <<< MODIFICAÇÃO: Aumentado de 100px para dar mais espaço */
+    max-height: 180px;
     overflow-y: auto;
 }
 
@@ -437,6 +437,41 @@ body {
     right: 0;
 }
 
+/* <<< NOVOS ESTILOS PARA CONTROLES DE JOGADOR NO MODO TEATRO >>> */
+#theater-player-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    display: flex;
+    gap: 15px;
+    z-index: 5;
+    background-color: rgba(0,0,0,0.5);
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.theater-test-btn {
+    padding: 10px 20px;
+    font-size: 1.1em;
+    color: #fff;
+    background-color: #007bff;
+    border: 1px solid #0056b3;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.theater-test-btn:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.theater-test-btn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+    border-color: #495057;
+}
+
+
 /* --- TELA DE SELEÇÃO DE PERSONAGENS --- */
 #selection-screen {
     background-color: rgba(0, 0, 0, 0.9);
@@ -693,7 +728,6 @@ body {
 #modal-button, #confirm-special-moves-btn { padding: 10px 20px; font-size: 1.1em; cursor: pointer; margin-top: 15px; background-color: #28a745; color: white; border: none; border-radius: 5px; }
 #confirm-special-moves-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-/* <<< ÚNICA ALTERAÇÃO NESTE ARQUIVO FOI ADICIONAR #player-config-moves-list AO SELETOR ABAIXO */
 #special-moves-list, #p2-moves-selection-list, #player-config-moves-list { 
     display: flex; 
     flex-wrap: wrap; 
@@ -779,6 +813,62 @@ body {
 .dk-result-overlay p { margin: 0; font-size: 1.2em; }
 .dk-result-overlay.success { border: 3px solid #28a745; color: #28a745; }
 .dk-result-overlay.fail { border: 3px solid #dc3545; color: #dc3545; }
+
+/* <<< NOVOS ESTILOS PARA OVERLAY DE TESTE DE ATRIBUTO >>> */
+#attribute-test-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 4500;
+    pointer-events: none;
+}
+#attribute-test-content {
+    background-color: #1a1a1a;
+    border: 3px solid #555;
+    border-radius: 15px;
+    padding: 30px 50px;
+    text-align: center;
+    color: #fff;
+    min-width: 350px;
+    pointer-events: all;
+}
+#test-result-header {
+    margin: 0 0 10px 0;
+    font-size: 1.2em;
+    color: #ccc;
+}
+#test-result-crit-text {
+    margin: 0;
+    font-size: 1.5em;
+    font-weight: bold;
+    height: 1.5em; /* Garante espaço mesmo quando vazio */
+}
+#test-result-total {
+    font-size: 6em;
+    font-weight: bold;
+    margin: 10px 0;
+    color: #2e5a88; /* Cor padrão/neutra */
+}
+#attribute-test-content.crit #test-result-crit-text { color: #28a745; }
+#attribute-test-content.crit #test-result-total { color: #28a745; }
+#attribute-test-content.fumble #test-result-crit-text { color: #dc3545; }
+#attribute-test-content.fumble #test-result-total { color: #dc3545; }
+
+#test-result-gm-ok-btn {
+    padding: 10px 30px;
+    font-size: 1.2em;
+    color: #000;
+    background-color: #ffeb3b;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 15px;
+}
+
 
 /* RESPONSIVIDADE */
 @media screen and (max-width: 800px) {

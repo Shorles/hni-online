@@ -140,6 +140,13 @@
                 <p><b>O (hover):</b> Resetar Tamanho</p>
             </div>
         </div>
+
+        <!-- <<< NOVO: Controles do Jogador no Modo Teatro -->
+        <div id="theater-player-controls" class="hidden">
+            <button id="test-agi-btn" class="theater-test-btn">Teste AGI</button>
+            <button id="test-res-btn" class="theater-test-btn">Teste RES</button>
+        </div>
+
         <button id="theater-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
     </div>
 
@@ -298,6 +305,16 @@
 
     <div id="get-up-success-overlay" class="hidden">
         <div id="get-up-success-content"></div>
+    </div>
+
+    <!-- <<< NOVO: Overlay para resultado de teste de atributo -->
+    <div id="attribute-test-overlay" class="hidden">
+        <div id="attribute-test-content">
+            <p id="test-result-header">Jogador rolou um teste...</p>
+            <h2 id="test-result-crit-text"></h2>
+            <div id="test-result-total">0</div>
+            <button id="test-result-gm-ok-btn" class="hidden">OK</button>
+        </div>
     </div>
 
 </div>
