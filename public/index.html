@@ -114,8 +114,9 @@
                 <div id="selection-box" class="hidden"></div>
             </div>
         </div>
-
-        <button id="copy-theater-spectator-link" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
+        
+        <!-- <<< ALTERADO: ID do botão unificado com o do modo luta -->
+        <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
         
         <button id="toggle-gm-panel-btn" class="toggle-gm-panel-btn hidden" title="Mostrar/Ocultar Painel">☰</button>
         
@@ -141,10 +142,11 @@
             </div>
         </div>
 
-        <!-- <<< NOVO: Controles do Jogador no Modo Teatro -->
         <div id="theater-player-controls" class="hidden">
+            <!-- <<< NOVO: Botão de Teste Padrão -->
             <button id="test-agi-btn" class="theater-test-btn">Teste AGI</button>
             <button id="test-res-btn" class="theater-test-btn">Teste RES</button>
+            <button id="test-padrao-btn" class="theater-test-btn">Teste Padrão</button>
         </div>
 
         <button id="theater-back-btn" class="back-btn hidden" title="Voltar ao Menu Principal">⌂</button>
@@ -188,9 +190,7 @@
 
         <img src="images/lutadores/Kureha Shoji.png" alt="Jogador 1" class="fighter-img" id="player1-fight-img">
         <img src="" alt="Jogador 2" id="player2-fight-img" class="fighter-img">
-
-        <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
-
+        
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
                 <!-- ÁREA JOGADOR 1 -->
@@ -307,7 +307,6 @@
         <div id="get-up-success-content"></div>
     </div>
 
-    <!-- <<< NOVO: Overlay para resultado de teste de atributo -->
     <div id="attribute-test-overlay" class="hidden">
         <div id="attribute-test-content">
             <p id="test-result-header">Jogador rolou um teste...</p>

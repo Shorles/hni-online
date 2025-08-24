@@ -93,7 +93,7 @@ function createNewLobbyState(gmId) {
         mode: 'lobby',
         phase: 'waiting_players',
         gmId: gmId,
-        connectedPlayers: {}, // { socketId: { id, role, selectedCharacter, configuredStats } }
+        connectedPlayers: {}, 
         unavailableCharacters: [],
         log: [{ text: "Lobby criado. Aguardando jogadores..." }],
         playerConfigQueue: [], 
@@ -127,7 +127,8 @@ function createNewTheaterState(initialScenario) {
         currentScenario: initialScenario,
         scenarioStates: {},
         publicState: {},
-        activeTestResult: null, // <<< NOVO: Para armazenar o resultado do teste de atributo
+        activeTestResult: null,
+        diceCheat: null // <<< NOVO: Para cheats de dado no modo cenário
     };
     theaterState.scenarioStates[initialScenario] = {
         scenario: initialScenario,
@@ -492,73 +493,6 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null, isLastChance: false };
 }
 
-function isActionValid(state, action) {
-    const { type, playerKey, gmSocketId } = action;
-    const isGm = gmSocketId === state.gmId;
-
-    if (!state) return false;
-
-    // GM-only actions
-    if (['gm_switch_mode', 'gmStartsMode', 'gmSelectsOpponent', 'gmSelectsArenaFighters', 'configure_and_start_arena', 'toggle_pause', 'apply_cheats', 'toggle_dice_cheat', 'toggle_illegal_cheat', 'toggle_force_dice', 'gm_clear_attribute_test'].includes(type)) {
-        return isGm;
-    }
-
-    if (state.mode === 'lobby') {
-        return ['playerSelectsCharacter', 'gmSetsPlayerStats'].includes(type);
-    }
-
-    if (state.mode === 'theater') {
-        // <<< ALTERADO: Validação para novas ações do modo teatro
-        if (type === 'player_roll_attribute_test') {
-            const player = room.players.find(p => p.id === socket.id);
-            // Permite rolar apenas se não houver um teste ativo
-            return player && state.activeTestResult === null;
-        }
-        return (type === 'updateToken' || type === 'changeScenario' || type === 'changeTokenOrder' || type === 'publish_stage' || type === 'updateGlobalScale' || type === 'update_scenario_dims') && isGm;
-    }
-
-    const move = state.moves[action.move];
-
-    if (state.phase === 'paused') { return false; }
-    if (state.phase === 'white_fang_follow_up') {
-        if (playerKey !== state.followUpState.playerKey) return false;
-        if (type === 'attack') {
-            const fighter = state.fighters[playerKey];
-            const moveData = state.moves[action.move];
-            if (action.move === 'White Fang') return true;
-            return fighter.pa >= moveData.cost;
-        }
-        return type === 'end_turn' || type === 'forfeit';
-    }
-    if (state.phase === 'turn' && move && move.reaction && playerKey !== state.whoseTurn) {
-        if (state.reactionState) return false;
-        const reactor = state.fighters[playerKey];
-        return reactor.pa >= move.cost;
-    }
-    switch (state.phase) {
-        case 'gm_classic_setup': return type === 'gm_confirm_p1_setup' && isGm;
-        case 'opponent_selection': return type === 'gmSelectsOpponent' && isGm;
-        case 'arena_opponent_selection': return type === 'gmSelectsArenaFighters' && isGm;
-        case 'p1_special_moves_selection': return type === 'set_p1_special_moves' && playerKey === 'player1';
-        case 'initiative_p1': return type === 'roll_initiative' && playerKey === 'player1';
-        case 'initiative_p2': return type === 'roll_initiative' && playerKey === 'player2';
-        case 'defense_p1': return type === 'roll_defense' && playerKey === 'player1';
-        case 'defense_p2': return type === 'roll_defense' && playerKey === 'player2';
-        case 'turn': 
-            if (playerKey !== state.whoseTurn) return false;
-            return (type === 'attack' || type === 'end_turn' || type === 'forfeit');
-        case 'double_knockdown':
-            return type === 'request_get_up' && (playerKey === 'player1' || playerKey === 'player2');
-        case 'knockdown': return type === 'request_get_up' && playerKey === state.knockdownInfo?.downedPlayer;
-        case 'gm_decision_knockdown': return (type === 'resolve_knockdown_loss' || type === 'give_last_chance') && isGm;
-        case 'gm_disqualification_ack': return type === 'confirm_disqualification' && isGm;
-        case 'decision_table_wait': return (type === 'reveal_winner' && isGm);
-        case 'arena_configuring': return type === 'configure_and_start_arena' && isGm;
-        case 'gameover': return false;
-        default: return false;
-    }
-}
-
 function processNextPlayerInConfigQueue(room) {
     if (!room || !room.state || room.state.mode !== 'lobby') return;
     const state = room.state;
@@ -753,12 +687,6 @@ io.on('connection', (socket) => {
         const state = room.state;
         const isGm = socket.id === state.gmId;
         
-        // <<< ATUALIZADO: Validação movida para dentro do switch para casos mais complexos
-        // if (!isActionValid(state, action)) {
-        //     console.log("Ação inválida recebida:", action, "no modo/fase:", state.mode, state.phase);
-        //     return;
-        // }
-
         const moveName = action.move;
         const move = (state.moves && moveName) ? state.moves[moveName] : undefined;
         if (move && move.reaction) {
@@ -797,28 +725,37 @@ io.on('connection', (socket) => {
                 processNextPlayerInConfigQueue(room);
                 break;
             }
-            // <<< NOVAS AÇÕES PARA O MODO TEATRO
-            case 'player_roll_attribute_test': {
+            case 'player_roll_theater_test': { // <<< RENOMEADO E ATUALIZADO
                 if (state.mode !== 'theater' || state.activeTestResult) return;
                 
-                const lobbyState = room.theaterState.lobbyCache || room.state.lobbyCache;
+                const lobbyState = state.lobbyCache;
                 if (!lobbyState) return;
                 
                 const playerData = lobbyState.connectedPlayers[socket.id];
                 if (!playerData || !playerData.configuredStats) return;
 
-                const attribute = action.attribute; // 'agi' ou 'res'
-                const statValue = playerData.configuredStats[attribute];
-                const roll = Math.floor(Math.random() * 6) + 1;
+                const testType = action.testType; // 'AGI', 'RES', ou 'Padrão'
+                let statValue = 0;
+                if (testType === 'AGI') {
+                    statValue = playerData.configuredStats.agi;
+                } else if (testType === 'RES') {
+                    statValue = playerData.configuredStats.res;
+                }
+                
+                let roll = Math.floor(Math.random() * 6) + 1;
+                // Aplica cheats do GM
+                if (state.diceCheat === 'crit') roll = 6;
+                if (state.diceCheat === 'fumble') roll = 1;
+                
                 const total = roll + statValue;
                 
                 let type = 'normal';
                 if (roll === 1) type = 'fumble';
                 if (roll === 6) type = 'crit';
 
-                room.theaterState.activeTestResult = {
+                state.activeTestResult = {
                     playerName: playerData.selectedCharacter.nome,
-                    attribute: attribute.toUpperCase(),
+                    testType: testType,
                     roll: roll,
                     total: total,
                     type: type,
@@ -828,8 +765,15 @@ io.on('connection', (socket) => {
             }
             case 'gm_clear_attribute_test': {
                 if (state.mode !== 'theater' || !isGm) return;
-                if (room.theaterState) {
-                    room.theaterState.activeTestResult = null;
+                state.activeTestResult = null;
+                break;
+            }
+            case 'gm_toggle_theater_cheat': { // <<< NOVA AÇÃO
+                if (state.mode !== 'theater' || !isGm) return;
+                if (state.diceCheat === action.cheat) {
+                    state.diceCheat = null; // Desliga se clicar no mesmo
+                } else {
+                    state.diceCheat = action.cheat; // Liga o novo cheat
                 }
                 break;
             }
@@ -847,7 +791,6 @@ io.on('connection', (socket) => {
                         room.theaterState = newState; 
                     }
                     Object.keys(state.connectedPlayers).forEach(playerId => {
-                        // Mantém o role de 'player' para os testes de atributo
                         if(state.connectedPlayers[playerId].role !== 'player'){
                             io.to(playerId).emit('assignRole', { role: 'spectator' });
                         }
@@ -1398,16 +1341,9 @@ io.on('connection', (socket) => {
                     }
                 }
                 break;
-            default:
-                // Se a ação não foi tratada acima, executa a validação genérica
-                 if (!isActionValid(state, action)) {
-                    console.log("Ação inválida recebida:", action, "no modo/fase:", state.mode, state.phase);
-                    return;
-                }
         }
 
-        // <<< ALTERADO: O estado do modo teatro agora pode ser enviado de forma independente
-        if (room.state.mode === 'theater' && room.theaterState) {
+        if (room.state.mode === 'theater') {
             io.to(roomId).emit('gameUpdate', room.theaterState);
         } else {
             io.to(roomId).emit('gameUpdate', room.state);
@@ -1432,7 +1368,7 @@ io.on('connection', (socket) => {
         if (playerIndex > -1) {
             const disconnectedPlayer = room.players.splice(playerIndex, 1)[0];
 
-            const lobbyState = state.mode === 'lobby' ? state : state.lobbyCache;
+            const lobbyState = state.mode === 'lobby' ? state : (state.lobbyCache || room.theaterState?.lobbyCache);
 
             if (lobbyState) {
                  if (lobbyState.playerConfigQueue) {

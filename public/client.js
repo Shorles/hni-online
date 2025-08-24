@@ -62,12 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterCharList = document.getElementById('theater-char-list');
     const theaterGlobalScale = document.getElementById('theater-global-scale');
     const theaterChangeScenarioBtn = document.getElementById('theater-change-scenario-btn');
-    const copyTheaterSpectatorLinkBtn = document.getElementById('copy-theater-spectator-link');
     const theaterBackBtn = document.getElementById('theater-back-btn');
     const theaterPublishBtn = document.getElementById('theater-publish-btn');
     
     const testAgiBtn = document.getElementById('test-agi-btn');
     const testResBtn = document.getElementById('test-res-btn');
+    const testPadraoBtn = document.getElementById('test-padrao-btn'); // <<< NOVO
     const attributeTestOverlay = document.getElementById('attribute-test-overlay');
     const attributeTestContent = document.getElementById('attribute-test-content');
     const testResultHeader = document.getElementById('test-result-header');
@@ -96,8 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
         "objetos": { baseName: "objeto", count: 50 },
         "outros": { baseName: "outro", count: 50 }
     };
-
-    let linkInitialized = false;
 
     socket.on('availableFighters', ({ p1 }) => {
         ALL_FIGHTERS_DATA = p1 || {};
@@ -154,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = urlParams.get('room');
         const roleFromUrl = urlParams.get('role');
 
-        [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, copyTheaterSpectatorLinkBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
+        [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
         if (currentRoomId && roleFromUrl) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
@@ -206,13 +204,19 @@ document.addEventListener('DOMContentLoaded', () => {
         helpBtn.addEventListener('click', showHelpModal);
         gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
         
-        copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copySpectatorLinkInGameBtn); };
+        // <<< ALTERADO: Listener do botão de link unificado
+        copySpectatorLinkInGameBtn.onclick = () => { 
+            if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copySpectatorLinkInGameBtn);
+        };
         
         testAgiBtn.addEventListener('click', () => {
-            socket.emit('playerAction', { type: 'player_roll_attribute_test', attribute: 'agi' });
+            socket.emit('playerAction', { type: 'player_roll_theater_test', testType: 'AGI' });
         });
         testResBtn.addEventListener('click', () => {
-            socket.emit('playerAction', { type: 'player_roll_attribute_test', attribute: 'res' });
+            socket.emit('playerAction', { type: 'player_roll_theater_test', testType: 'RES' });
+        });
+        testPadraoBtn.addEventListener('click', () => {
+            socket.emit('playerAction', { type: 'player_roll_theater_test', testType: 'Padrão' });
         });
         testResultGmOkBtn.addEventListener('click', () => {
             socket.emit('playerAction', { type: 'gm_clear_attribute_test' });
@@ -676,23 +680,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state || !myRole) return;
         
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
-        const isCombatMode = state.mode === 'classic' || state.mode === 'arena';
-        const isCombatPhase = !['waiting', 'p1_special_moves_selection', 'p2_stat_assignment', 'arena_lobby', 'arena_configuring', 'gm_classic_setup', 'gameover', 'opponent_selection', 'arena_opponent_selection'].includes(state.phase);
-        copySpectatorLinkInGameBtn.classList.toggle('hidden', !(isGm && isCombatMode && isCombatPhase));
+        
+        const showCopyLink = isGm && (state.mode === 'classic' || state.mode === 'arena' || state.mode === 'theater');
+        copySpectatorLinkInGameBtn.classList.toggle('hidden', !showCopyLink);
         
         helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');
-        copyTheaterSpectatorLinkBtn.classList.toggle('hidden', !isGm || state.mode !== 'theater');
 
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
-        document.getElementById('gm-cheats-panel').classList.toggle('hidden', !isGm || state.mode === 'theater');
+        
+        const showCheatsPanel = isGm && state.mode !== 'theater';
+        document.getElementById('gm-cheats-panel').classList.toggle('hidden', !showCheatsPanel);
 
         if(isGm) {
             const cheatIndicator = document.getElementById('dice-cheat-indicator'); let cheatText = '';
+            // <<< ALTERADO: Checa o cheat do modo correto
+            const cheatType = state.mode === 'theater' ? state.diceCheat : state.illegalCheat;
+            
             if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; 
-            if (state.diceCheat === 'fumble') cheatText += 'Erros (R) ';
-            if (typeof state.diceCheat === 'number') cheatText += `Forçar D${state.diceCheat} (Y) `;
-            if (state.illegalCheat === 'always') cheatText += 'Sempre Ilegal (I) '; 
-            else if (state.illegalCheat === 'never') cheatText += 'Nunca Ilegal (I) ';
+            if (state.diceCheat === 'fumble') cheatText += 'Erros (I/R) ';
+            if (state.mode !== 'theater') {
+                if (typeof state.diceCheat === 'number') cheatText += `Forçar D${state.diceCheat} (Y) `;
+                if (state.illegalCheat === 'always') cheatText += 'Sempre Ilegal (I) '; 
+                else if (state.illegalCheat === 'never') cheatText += 'Nunca Ilegal (I) ';
+            }
             
             if (cheatText) { cheatIndicator.textContent = 'CHEAT ATIVO: ' + cheatText.trim(); cheatIndicator.classList.remove('hidden'); } 
             else { cheatIndicator.classList.add('hidden'); }
@@ -932,6 +942,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (currentGameState && currentGameState.mode === 'theater') {
+                // <<< NOVOS CHEATS PARA O MODO TEATRO
+                if (e.key.toLowerCase() === 't') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'gm_toggle_theater_cheat', cheat: 'crit' });
+                } else if (e.key.toLowerCase() === 'i') {
+                    e.preventDefault();
+                    socket.emit('playerAction', { type: 'gm_toggle_theater_cheat', cheat: 'fumble' });
+                }
+
                 if (e.key.toLowerCase() === 'g') {
                     e.preventDefault();
                     isGroupSelectMode = !isGroupSelectMode;
@@ -1245,8 +1264,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.addEventListener('mouseup', onMouseUpToken);
 
             } else if (!isToken && !(isGm && isGroupSelectMode)) {
-                // <<< ÚNICA ALTERAÇÃO NESTE ARQUIVO <<<
-                // Se o GM clicar no fundo e tiver tokens selecionados, deseleciona todos.
                 if (isGm && selectedTokens.size > 0) {
                     document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
                     selectedTokens.clear();
@@ -1372,7 +1389,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTheaterMode(state) {
         if (state.activeTestResult) {
             const result = state.activeTestResult;
-            testResultHeader.textContent = `${result.playerName} rolou um teste de ${result.attribute}`;
+            const testType = result.testType === 'Padrão' ? `Teste Padrão` : `Teste de ${result.testType}`;
+            testResultHeader.textContent = `${result.playerName} rolou um ${testType}`;
             testResultTotal.textContent = result.total;
             
             attributeTestContent.classList.remove('crit', 'fumble');
@@ -1401,6 +1419,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const isTestActive = !!state.activeTestResult;
             testAgiBtn.disabled = isTestActive;
             testResBtn.disabled = isTestActive;
+            testPadraoBtn.disabled = isTestActive;
         }
 
         const currentScenarioState = state.scenarioStates?.[state.currentScenario];

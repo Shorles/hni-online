@@ -275,7 +275,7 @@ body {
 
 #theater-background-image {
     display: block;
-    pointer-events: none; /* Important for clicking through to the viewport */
+    pointer-events: none;
 }
 
 #theater-token-container {
@@ -296,10 +296,10 @@ body {
     -webkit-user-drag: none;
     pointer-events: all;
     transform-origin: center center;
-    transition: opacity 0.3s ease-in-out; /* Added for off-stage effect */
+    transition: opacity 0.3s ease-in-out;
 }
 .theater-token.off-stage {
-    opacity: 0.5; /* For GM to see which tokens are hidden */
+    opacity: 0.5;
 }
 .theater-token:active {
     cursor: grabbing;
@@ -391,24 +391,13 @@ body {
 #theater-gm-legend b {
     color: #ffc107;
     display: inline-block;
-    width: 70px; /* Align keys */
-}
-
-#copy-theater-spectator-link {
-    z-index: 4;
-    right: 20px;
-    top: 20px;
-}
-#copy-theater-spectator-link:disabled {
-    background-color: #6c757d;
-    cursor: not-allowed;
-    border-color: #888;
+    width: 70px;
 }
 
 .toggle-gm-panel-btn {
     position: absolute;
     top: 0;
-    right: 250px; /* Largura do painel */
+    right: 250px;
     width: 40px;
     height: 40px;
     font-size: 1.8em;
@@ -437,7 +426,6 @@ body {
     right: 0;
 }
 
-/* <<< NOVOS ESTILOS PARA CONTROLES DE JOGADOR NO MODO TEATRO >>> */
 #theater-player-controls {
     position: absolute;
     bottom: 20px;
@@ -469,6 +457,14 @@ body {
     background-color: #6c757d;
     cursor: not-allowed;
     border-color: #495057;
+}
+/* <<< NOVO: Estilo para o botão de Teste Padrão */
+#test-padrao-btn {
+    background-color: #6f42c1;
+    border-color: #5a349b;
+}
+#test-padrao-btn:hover:not(:disabled) {
+    background-color: #5a349b;
 }
 
 
@@ -814,7 +810,6 @@ body {
 .dk-result-overlay.success { border: 3px solid #28a745; color: #28a745; }
 .dk-result-overlay.fail { border: 3px solid #dc3545; color: #dc3545; }
 
-/* <<< NOVOS ESTILOS PARA OVERLAY DE TESTE DE ATRIBUTO >>> */
 #attribute-test-overlay {
     position: absolute;
     top: 0; left: 0;
@@ -845,13 +840,13 @@ body {
     margin: 0;
     font-size: 1.5em;
     font-weight: bold;
-    height: 1.5em; /* Garante espaço mesmo quando vazio */
+    height: 1.5em;
 }
 #test-result-total {
     font-size: 6em;
     font-weight: bold;
     margin: 10px 0;
-    color: #2e5a88; /* Cor padrão/neutra */
+    color: #2e5a88;
 }
 #attribute-test-content.crit #test-result-crit-text { color: #28a745; }
 #attribute-test-content.crit #test-result-total { color: #28a745; }
