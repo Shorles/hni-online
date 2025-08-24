@@ -21,10 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Telas antigas
     const modeSelectionScreen = document.getElementById('mode-selection-screen');
-    const arenaLobbyScreen = document.getElementById('arena-lobby-screen'); // Reutilizado para GM
+    const arenaLobbyScreen = document.getElementById('arena-lobby-screen');
     const scenarioScreen = document.getElementById('scenario-screen');
     const selectionScreen = document.getElementById('selection-screen');
-    const lobbyScreen = document.getElementById('lobby-screen'); // Reutilizado para P2 Classic
+    const lobbyScreen = document.getElementById('lobby-screen');
     const fightScreen = document.getElementById('fight-screen');
     const theaterScreen = document.getElementById('theater-screen');
 
@@ -66,7 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterBackBtn = document.getElementById('theater-back-btn');
     const theaterPublishBtn = document.getElementById('theater-publish-btn');
     
-    // <<< NOVOS ELEMENTOS DO MODO TEATRO
     const testAgiBtn = document.getElementById('test-agi-btn');
     const testResBtn = document.getElementById('test-res-btn');
     const attributeTestOverlay = document.getElementById('attribute-test-overlay');
@@ -209,7 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         copySpectatorLinkInGameBtn.onclick = () => { if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copySpectatorLinkInGameBtn); };
         
-        // <<< NOVOS EVENT LISTENERS PARA TESTES DE ATRIBUTO
         testAgiBtn.addEventListener('click', () => {
             socket.emit('playerAction', { type: 'player_roll_attribute_test', attribute: 'agi' });
         });
@@ -1247,6 +1245,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.addEventListener('mouseup', onMouseUpToken);
 
             } else if (!isToken && !(isGm && isGroupSelectMode)) {
+                // <<< ÚNICA ALTERAÇÃO NESTE ARQUIVO <<<
+                // Se o GM clicar no fundo e tiver tokens selecionados, deseleciona todos.
+                if (isGm && selectedTokens.size > 0) {
+                    document.querySelectorAll('.theater-token.selected').forEach(t => t.classList.remove('selected'));
+                    selectedTokens.clear();
+                }
+                
                 isDraggingScenario = true;
                 theaterBackgroundViewport.style.cursor = 'grabbing';
                 let lastMouseX = e.clientX;
@@ -1365,7 +1370,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTheaterMode(state) {
-        // <<< NOVO: Lógica para exibir/ocultar overlay de teste
         if (state.activeTestResult) {
             const result = state.activeTestResult;
             testResultHeader.textContent = `${result.playerName} rolou um teste de ${result.attribute}`;
@@ -1388,13 +1392,11 @@ document.addEventListener('DOMContentLoaded', () => {
             attributeTestOverlay.classList.add('hidden');
         }
 
-        // <<< NOVO: Lógica para exibir/ocultar controles do jogador
         const playerControls = document.getElementById('theater-player-controls');
         const myPlayerData = state.lobbyCache?.connectedPlayers[socket.id];
         const showPlayerControls = myRole === 'player' && myPlayerData?.configuredStats;
         playerControls.classList.toggle('hidden', !showPlayerControls);
         
-        // Desabilita botões se um teste está ativo
         if (showPlayerControls) {
             const isTestActive = !!state.activeTestResult;
             testAgiBtn.disabled = isTestActive;
