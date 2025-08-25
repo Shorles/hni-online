@@ -15,24 +15,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const gameWrapper = document.getElementById('game-wrapper');
 
     // Novas telas
+    const initialLoadingScreen = document.getElementById('initial-loading-screen');
     const passwordScreen = document.getElementById('password-screen');
+    const roleSelectionScreen = document.getElementById('role-selection-screen');
     const gmInitialLobby = document.getElementById('gm-initial-lobby');
     const playerWaitingScreen = document.getElementById('player-waiting-screen');
 
     // Telas antigas
-    const modeSelectionScreen = document.getElementById('mode-selection-screen');
-    const arenaLobbyScreen = document.getElementById('arena-lobby-screen');
     const scenarioScreen = document.getElementById('scenario-screen');
     const selectionScreen = document.getElementById('selection-screen');
-    const lobbyScreen = document.getElementById('lobby-screen');
     const fightScreen = document.getElementById('fight-screen');
     const theaterScreen = document.getElementById('theater-screen');
 
     const charListContainer = document.getElementById('character-list-container');
     const confirmBtn = document.getElementById('confirm-selection-btn');
     const selectionTitle = document.getElementById('selection-title');
-    const lobbyContent = document.getElementById('lobby-content');
-    const shareContainer = document.getElementById('share-container');
     const copySpectatorLinkInGameBtn = document.getElementById('copy-spectator-link-ingame');
     let modal = document.getElementById('modal');
     let modalTitle = document.getElementById('modal-title');
@@ -67,14 +64,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const testAgiBtn = document.getElementById('test-agi-btn');
     const testResBtn = document.getElementById('test-res-btn');
-    const testPadraoBtn = document.getElementById('test-padrao-btn'); // <<< NOVO
+    const testPadraoBtn = document.getElementById('test-padrao-btn');
     const attributeTestOverlay = document.getElementById('attribute-test-overlay');
     const attributeTestContent = document.getElementById('attribute-test-content');
     const testResultHeader = document.getElementById('test-result-header');
     const testResultCritText = document.getElementById('test-result-crit-text');
     const testResultTotal = document.getElementById('test-result-total');
     const testResultGmOkBtn = document.getElementById('test-result-gm-ok-btn');
-
 
     const SCENARIOS = { 'Ringue Clássico': 'Ringue.png', 'Arena Subterrânea': 'Ringue2.png', 'Dojo Antigo': 'Ringue3.png', 'Ginásio Moderno': 'Ringue4.png', 'Ringue na Chuva': 'Ringue5.png' };
     
@@ -150,33 +146,40 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialize() {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
-        const roleFromUrl = urlParams.get('role');
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
-        if (currentRoomId && roleFromUrl) {
-            socket.emit('playerJoinsLobby', { roomId: currentRoomId, role: roleFromUrl });
-            if (roleFromUrl === 'player') {
-                showScreen(selectionScreen);
-                selectionTitle.innerText = `Selecione seu Personagem`;
-                confirmBtn.innerText = 'Confirmar Personagem';
-            } else { // spectator
-                showScreen(playerWaitingScreen);
-                document.getElementById('player-waiting-message').innerText = "Aguardando o GM iniciar o jogo como espectador...";
-            }
+        // <<< ALTERADO: Lógica de inicialização para evitar o flash
+        if (currentRoomId) {
+            socket.emit('playerJoinsLobby', { roomId: currentRoomId });
+            showScreen(roleSelectionScreen);
         } else {
             showScreen(passwordScreen);
-            const passInput = document.getElementById('password-input');
-            const passBtn = document.getElementById('password-submit-btn');
-            passInput.onkeydown = (e) => { if(e.key === 'Enter') passBtn.click(); }
-            passBtn.onclick = () => {
-                if (passInput.value === 'abif13') {
-                    socket.emit('gmCreatesLobby');
-                } else {
-                    alert('Senha incorreta.');
-                }
-            };
         }
+        
+        document.getElementById('join-as-player-btn').onclick = () => {
+            socket.emit('playerSetsRole', { role: 'player' });
+            showScreen(selectionScreen);
+            selectionTitle.innerText = `Selecione seu Personagem`;
+            confirmBtn.innerText = 'Confirmar Personagem';
+        };
+
+        document.getElementById('join-as-spectator-btn').onclick = () => {
+            socket.emit('playerSetsRole', { role: 'spectator' });
+            showScreen(playerWaitingScreen);
+            document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
+        };
+
+        const passInput = document.getElementById('password-input');
+        const passBtn = document.getElementById('password-submit-btn');
+        passInput.onkeydown = (e) => { if(e.key === 'Enter') passBtn.click(); }
+        passBtn.onclick = () => {
+            if (passInput.value === 'abif13') {
+                socket.emit('gmCreatesLobby');
+            } else {
+                alert('Senha incorreta.');
+            }
+        };
         
         confirmBtn.addEventListener('click', onConfirmSelection);
 
@@ -204,9 +207,8 @@ document.addEventListener('DOMContentLoaded', () => {
         helpBtn.addEventListener('click', showHelpModal);
         gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
         
-        // <<< ALTERADO: Listener do botão de link unificado
         copySpectatorLinkInGameBtn.onclick = () => { 
-            if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}&role=spectator`, copySpectatorLinkInGameBtn);
+            if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}`, copySpectatorLinkInGameBtn);
         };
         
         testAgiBtn.addEventListener('click', () => {
@@ -431,11 +433,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </li>`;
             });
         } else {
-             playerListHtml += `<li>São necessários pelo menos 2 jogadores para o modo Arena.</li>`;
+             playerListHtml += `<li>São necessários pelo menos 2 jogadores configurados para o modo Arena.</li>`;
         }
         playerListHtml += '</ul>';
 
-        showInteractiveModal("Selecione 2 Lutadores para a Arena", playerListHtml, "Confirmar Lutadores", null);
+        showInteractiveModal("Selecione 2 Lutadores para a Arena", playerListHtml, "Confirmar e Iniciar Luta", null);
         modalButton.disabled = true;
 
         document.querySelectorAll('.opponent-selection-item').forEach(item => {
@@ -456,18 +458,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     });
-
-    socket.on('promptArenaConfiguration', ({ p1, p2, availableMoves }) => {
-        const modalContentHtml = `<div style="display:flex; gap: 20px;"><div style="flex: 1; text-align: center; border-right: 1px solid #555; padding-right: 20px;"><h4>${p1.nome} (Jogador 1)</h4><label>AGI: <input type="number" id="arena-p1-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p1-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p1-moves"></div></div><div style="flex: 1; text-align: center;"><h4>${p2.nome} (Jogador 2)</h4><label>AGI: <input type="number" id="arena-p2-agi" value="2" style="width: 50px; text-align: center;"></label><label>RES: <input type="number" id="arena-p2-res" value="2" style="width: 50px; text-align: center;"></label><p>Golpes Especiais:</p><div id="arena-p2-moves"></div></div></div>`;
-        showInteractiveModal("Configurar Batalha da Arena", modalContentHtml, "Iniciar Batalha", null);
-        renderSpecialMoveSelection(document.getElementById('arena-p1-moves'), availableMoves); renderSpecialMoveSelection(document.getElementById('arena-p2-moves'), availableMoves);
-        modalButton.onclick = () => {
-            const p1_config = { agi: document.getElementById('arena-p1-agi').value, res: document.getElementById('arena-p1-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p1-moves .selected')).map(c => c.dataset.name) };
-            const p2_config = { agi: document.getElementById('arena-p2-agi').value, res: document.getElementById('arena-p2-res').value, specialMoves: Array.from(document.querySelectorAll('#arena-p2-moves .selected')).map(c => c.dataset.name) };
-            socket.emit('playerAction', { type: 'configure_and_start_arena', p1_config, p2_config }); modal.classList.add('hidden');
-        };
-    });
-
 
     socket.on('promptSpecialMoves', (data) => {
         availableSpecialMoves = data.availableMoves;
@@ -541,14 +531,17 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGameState = gameState;
         scaleGame();
         
-        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection', 'arena_configuring'];
+        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection'];
 
         if (isGm) {
             if (gameState.mode === 'lobby') {
                 showScreen(gmInitialLobby);
                 updateGmLobbyUI(gameState);
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
-                if (gameState.phase === 'gm_classic_setup') {
+                if (SETUP_PHASES.includes(gameState.phase)) {
+                    showScreen(playerWaitingScreen);
+                    document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
+                } else if (gameState.phase === 'gm_classic_setup') {
                     showScreen(selectionScreen);
                     selectionTitle.innerText = 'GM: Selecione seu Lutador';
                     confirmBtn.innerText = 'Confirmar Personagem';
@@ -621,17 +614,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = roomId;
         if (myRole === 'gm') {
             const baseUrl = window.location.origin;
-            const playerUrl = `${baseUrl}?room=${roomId}&role=player`;
-            const specUrl = `${baseUrl}?room=${roomId}&role=spectator`;
+            const unifiedUrl = `${baseUrl}?room=${roomId}`;
 
-            const playerLinkEl = document.getElementById('gm-link-player');
-            const specLinkEl = document.getElementById('gm-link-spectator');
-
-            playerLinkEl.textContent = playerUrl;
-            specLinkEl.textContent = specUrl;
-            
-            playerLinkEl.onclick = () => copyToClipboard(playerUrl, playerLinkEl);
-            specLinkEl.onclick = () => copyToClipboard(specUrl, specLinkEl);
+            const unifiedLinkEl = document.getElementById('gm-link-unified');
+            unifiedLinkEl.textContent = unifiedUrl;
+            unifiedLinkEl.onclick = () => copyToClipboard(unifiedUrl, unifiedLinkEl);
 
             showScreen(gmInitialLobby);
         }
@@ -664,12 +651,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerListEl.appendChild(li);
             });
         }
-        const playerLinkEl = document.getElementById('gm-link-player');
-        const specLinkEl = document.getElementById('gm-link-spectator');
-        if (playerLinkEl && !playerLinkEl.textContent.includes('Gerando')) {
+        const unifiedLinkEl = document.getElementById('gm-link-unified');
+        if (unifiedLinkEl && !unifiedLinkEl.textContent.includes('Gerando')) {
              const baseUrl = window.location.origin;
-             playerLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=player`;
-             specLinkEl.textContent = `${baseUrl}?room=${currentRoomId}&role=spectator`;
+             unifiedLinkEl.textContent = `${baseUrl}?room=${currentRoomId}`;
         }
     }
 
@@ -693,12 +678,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(isGm) {
             const cheatIndicator = document.getElementById('dice-cheat-indicator'); let cheatText = '';
-            // <<< ALTERADO: Checa o cheat do modo correto
-            const cheatType = state.mode === 'theater' ? state.diceCheat : state.illegalCheat;
             
-            if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; 
-            if (state.diceCheat === 'fumble') cheatText += 'Erros (I/R) ';
-            if (state.mode !== 'theater') {
+            if (state.mode === 'theater') {
+                if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; 
+                if (state.diceCheat === 'fumble') cheatText += 'Erros (I) ';
+            } else {
+                if (state.diceCheat === 'crit') cheatText += 'Críticos (T) '; 
+                if (state.diceCheat === 'fumble') cheatText += 'Erros (R) ';
                 if (typeof state.diceCheat === 'number') cheatText += `Forçar D${state.diceCheat} (Y) `;
                 if (state.illegalCheat === 'always') cheatText += 'Sempre Ilegal (I) '; 
                 else if (state.illegalCheat === 'never') cheatText += 'Nunca Ilegal (I) ';
@@ -942,7 +928,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (currentGameState && currentGameState.mode === 'theater') {
-                // <<< NOVOS CHEATS PARA O MODO TEATRO
                 if (e.key.toLowerCase() === 't') {
                     e.preventDefault();
                     socket.emit('playerAction', { type: 'gm_toggle_theater_cheat', cheat: 'crit' });

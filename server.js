@@ -93,7 +93,7 @@ function createNewLobbyState(gmId) {
         mode: 'lobby',
         phase: 'waiting_players',
         gmId: gmId,
-        connectedPlayers: {}, 
+        connectedPlayers: {},
         unavailableCharacters: [],
         log: [{ text: "Lobby criado. Aguardando jogadores..." }],
         playerConfigQueue: [], 
@@ -128,7 +128,7 @@ function createNewTheaterState(initialScenario) {
         scenarioStates: {},
         publicState: {},
         activeTestResult: null,
-        diceCheat: null // <<< NOVO: Para cheats de dado no modo cenário
+        diceCheat: null
     };
     theaterState.scenarioStates[initialScenario] = {
         scenario: initialScenario,
@@ -539,16 +539,7 @@ function dispatchAction(room) {
         case 'arena_opponent_selection':
             if(state.gmId) {
                  io.to(state.gmId).emit('promptArenaOpponentSelection', {
-                    availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter)
-                });
-            }
-            return;
-        case 'arena_configuring':
-            if (state.gmId) {
-                io.to(state.gmId).emit('promptArenaConfiguration', {
-                    p1: state.fighters.player1,
-                    p2: state.fighters.player2,
-                    availableMoves: SPECIAL_MOVES
+                    availablePlayers: Object.values(state.connectedPlayers).filter(p => p.role === 'player' && p.selectedCharacter && p.configuredStats)
                 });
             }
             return;
@@ -631,18 +622,20 @@ io.on('connection', (socket) => {
         
         games[newRoomId] = {
             id: newRoomId,
-            players: [{ id: socket.id, role: 'gm' }],
+            players: [], // <<< ALTERADO: GM não entra como player por padrão
             spectators: [],
             state: newState,
             theaterState: null 
         };
+        games[newRoomId].players.push({ id: socket.id, role: 'gm' });
         
         socket.emit('assignRole', { role: 'gm', isGm: true });
         socket.emit('roomCreated', newRoomId);
         io.to(socket.id).emit('gameUpdate', newState);
     });
 
-    socket.on('playerJoinsLobby', ({ roomId, role }) => {
+    // <<< ALTERADO: Simplificado para apenas juntar à sala
+    socket.on('playerJoinsLobby', ({ roomId }) => {
         const room = games[roomId];
         if (!room) {
             socket.emit('error', { message: 'Sala não encontrada.' });
@@ -650,6 +643,13 @@ io.on('connection', (socket) => {
         }
         socket.join(roomId);
         socket.currentRoomId = roomId;
+    });
+
+    // <<< NOVO: Para o jogador definir sua função
+    socket.on('playerSetsRole', ({ role }) => {
+        const roomId = socket.currentRoomId;
+        if (!roomId || !games[roomId]) return;
+        const room = games[roomId];
 
         if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
 
@@ -667,18 +667,6 @@ io.on('connection', (socket) => {
         logMessage(room.state, `Um ${role} entrou na sala.`);
     });
     
-    socket.on('spectateGame', (roomId) => { 
-        const room = games[roomId];
-        if (!room) { socket.emit('error', { message: 'Sala não encontrada.' }); return; }
-        socket.join(roomId);
-        room.spectators.push(socket.id);
-        socket.currentRoomId = roomId;
-        socket.emit('assignRole', { role: 'spectator' });
-        socket.emit('gameUpdate', room.state);
-        logMessage(room.state, 'Um espectador entrou na sala.');
-        io.to(roomId).emit('gameUpdate', room.state);
-    });
-
     socket.on('playerAction', (action) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId] || !action || !action.type) return;
@@ -725,7 +713,7 @@ io.on('connection', (socket) => {
                 processNextPlayerInConfigQueue(room);
                 break;
             }
-            case 'player_roll_theater_test': { // <<< RENOMEADO E ATUALIZADO
+            case 'player_roll_theater_test': {
                 if (state.mode !== 'theater' || state.activeTestResult) return;
                 
                 const lobbyState = state.lobbyCache;
@@ -734,7 +722,7 @@ io.on('connection', (socket) => {
                 const playerData = lobbyState.connectedPlayers[socket.id];
                 if (!playerData || !playerData.configuredStats) return;
 
-                const testType = action.testType; // 'AGI', 'RES', ou 'Padrão'
+                const testType = action.testType;
                 let statValue = 0;
                 if (testType === 'AGI') {
                     statValue = playerData.configuredStats.agi;
@@ -743,7 +731,6 @@ io.on('connection', (socket) => {
                 }
                 
                 let roll = Math.floor(Math.random() * 6) + 1;
-                // Aplica cheats do GM
                 if (state.diceCheat === 'crit') roll = 6;
                 if (state.diceCheat === 'fumble') roll = 1;
                 
@@ -768,12 +755,12 @@ io.on('connection', (socket) => {
                 state.activeTestResult = null;
                 break;
             }
-            case 'gm_toggle_theater_cheat': { // <<< NOVA AÇÃO
+            case 'gm_toggle_theater_cheat': {
                 if (state.mode !== 'theater' || !isGm) return;
                 if (state.diceCheat === action.cheat) {
-                    state.diceCheat = null; // Desliga se clicar no mesmo
+                    state.diceCheat = null;
                 } else {
-                    state.diceCheat = action.cheat; // Liga o novo cheat
+                    state.diceCheat = action.cheat;
                 }
                 break;
             }
@@ -879,10 +866,13 @@ io.on('connection', (socket) => {
                 const p1Data = state.connectedPlayers[p1_socketId];
                 const p2Data = state.connectedPlayers[p2_socketId];
 
-                if (!p1Data || !p1Data.selectedCharacter || !p2Data || !p2Data.selectedCharacter) return;
+                if (!p1Data?.configuredStats || !p2Data?.configuredStats) {
+                    logMessage(state, 'Erro: Um ou ambos os jogadores selecionados para a Arena não estão configurados.');
+                    return;
+                }
                 
-                state.fighters.player1 = { nome: p1Data.selectedCharacter.nome, img: p1Data.selectedCharacter.img };
-                state.fighters.player2 = { nome: p2Data.selectedCharacter.nome, img: p2Data.selectedCharacter.img };
+                state.fighters.player1 = createNewFighterState({ ...p1Data.selectedCharacter, ...p1Data.configuredStats });
+                state.fighters.player2 = createNewFighterState({ ...p2Data.selectedCharacter, ...p2Data.configuredStats });
                 
                 io.to(p1_socketId).emit('assignRole', { role: 'player', playerKey: 'player1' });
                 io.to(p2_socketId).emit('assignRole', { role: 'player', playerKey: 'player2' });
@@ -895,8 +885,9 @@ io.on('connection', (socket) => {
                     }
                 });
 
-                logMessage(state, `GM selecionou ${p1Data.selectedCharacter.nome} vs ${p2Data.selectedCharacter.nome} para a Arena.`);
-                state.phase = 'arena_configuring';
+                logMessage(state, `GM selecionou ${p1Data.selectedCharacter.nome} vs ${p2Data.selectedCharacter.nome} para a Arena. A luta vai começar!`);
+                
+                state.phase = 'initiative_p1';
                 break;
             }
 
@@ -1123,12 +1114,6 @@ io.on('connection', (socket) => {
                 state.phase = 'gameover';
                 state.winner = (state.knockdownInfo.downedPlayer === 'player1') ? 'player2' : 'player1';
                 state.reason = finalCountReason;
-                break;
-            case 'configure_and_start_arena':
-                state.fighters.player1 = createNewFighterState({ ...state.fighters.player1, ...action.p1_config });
-                state.fighters.player2 = createNewFighterState({ ...state.fighters.player2, ...action.p2_config });
-                logMessage(state, `Anfitrião configurou a batalha! Preparem-se!`);
-                state.phase = 'initiative_p1';
                 break;
             case 'set_p1_special_moves':
                 state.fighters.player1.specialMoves = action.moves;

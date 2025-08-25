@@ -50,7 +50,7 @@ body {
 }
 
 /* --- TELAS DE LOBBY E SENHA --- */
-#password-screen, #gm-initial-lobby, #player-waiting-screen {
+#password-screen, #gm-initial-lobby, #player-waiting-screen, #role-selection-screen, #initial-loading-screen {
     background-color: rgba(0, 0, 0, 0.9);
     gap: 20px;
     text-align: center;
@@ -58,11 +58,15 @@ body {
     box-sizing: border-box;
 }
 
-#password-screen h1, #gm-initial-lobby h1, #player-waiting-screen h1 {
+#password-screen h1, #gm-initial-lobby h1, #player-waiting-screen h1, #role-selection-screen h1, #initial-loading-screen h1 {
     font-size: 3.5em;
     color: #ffeb3b;
     text-shadow: 2px 2px 5px #000;
     margin-bottom: 20px;
+}
+#role-selection-screen h2 {
+    font-size: 2em;
+    color: #fff;
 }
 
 #password-input {
@@ -238,7 +242,7 @@ body {
 #theater-screen {
     justify-content: flex-start;
     align-items: flex-start;
-    background-color: #222; /* Fundo de emergência */
+    background-color: #222;
 }
 
 #theater-background-viewport {
@@ -458,7 +462,6 @@ body {
     cursor: not-allowed;
     border-color: #495057;
 }
-/* <<< NOVO: Estilo para o botão de Teste Padrão */
 #test-padrao-btn {
     background-color: #6f42c1;
     border-color: #5a349b;
@@ -897,8 +900,8 @@ body {
     #player1-roll-btn, #player2-roll-btn { left: auto; right: auto; }
     #modal-content, #special-moves-content { width: 90vw; min-width: 90vw; box-sizing: border-box; }
     #special-moves-list { max-height: 50vh; }
-    #password-screen h1, #gm-initial-lobby h1, #selection-title { font-size: 2.5em; text-align: center; }
-    #gm-initial-lobby h2 { font-size: 1.5em; text-align: center; }
+    #password-screen h1, #gm-initial-lobby h1, #selection-title, #role-selection-screen h1 { font-size: 2.5em; text-align: center; }
+    #gm-initial-lobby h2, #role-selection-screen h2 { font-size: 1.5em; text-align: center; }
     #game-alert-content { font-size: 1.5em; padding: 20px; }
     .dk-result-overlay { top: 30%; width: 120px; }
     #player1-dk-result { left: 20px; }
