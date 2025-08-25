@@ -45,7 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const getUpSuccessContent = document.getElementById('get-up-success-content');
     const charSelectBackBtn = document.getElementById('char-select-back-btn');
     const specialMovesBackBtn = document.getElementById('special-moves-back-btn');
-    const lobbyBackBtn = document.getElementById('lobby-back-btn');
+    // <<< REMOVIDO: Este elemento não existe mais no HTML e causava o erro.
+    // const lobbyBackBtn = document.getElementById('lobby-back-btn'); 
     const exitGameBtn = document.getElementById('exit-game-btn');
     const helpBtn = document.getElementById('help-btn');
     const gmModeSwitchBtn = document.getElementById('gm-mode-switch-btn');
@@ -145,7 +146,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
 
-        [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
+        // <<< CORRIGIDO: Removido 'lobbyBackBtn' do array
+        [charSelectBackBtn, specialMovesBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, theaterBackBtn].forEach(btn => {
+            if (btn) btn.classList.add('hidden');
+        });
         
         if (currentRoomId) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId });
@@ -190,7 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (myRole === 'gm') showScreen(modeSelectionScreen);
         });
         specialMovesBackBtn.addEventListener('click', () => { showScreen(selectionScreen); });
-        lobbyBackBtn.addEventListener('click', () => { specialMovesModal.classList.remove('hidden'); });
         
         const exitAndReload = () => {
             showInfoModal("Sair da Partida", `<p>Tem certeza que deseja voltar ao menu principal? A sessão atual será encerrada.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-exit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Sair</button><button id="cancel-exit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Ficar</button></div>`);
@@ -610,7 +613,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = roomId;
         if (myRole === 'gm') {
             const baseUrl = window.location.origin;
-            // <<< ALTERADO: URL unificada
             const unifiedUrl = `${baseUrl}?room=${roomId}`;
 
             const unifiedLinkEl = document.getElementById('gm-link-unified');
