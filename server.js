@@ -622,7 +622,7 @@ io.on('connection', (socket) => {
         
         games[newRoomId] = {
             id: newRoomId,
-            players: [], // <<< ALTERADO: GM não entra como player por padrão
+            players: [],
             spectators: [],
             state: newState,
             theaterState: null 
@@ -634,7 +634,6 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
     });
 
-    // <<< ALTERADO: Simplificado para apenas juntar à sala
     socket.on('playerJoinsLobby', ({ roomId }) => {
         const room = games[roomId];
         if (!room) {
@@ -645,7 +644,6 @@ io.on('connection', (socket) => {
         socket.currentRoomId = roomId;
     });
 
-    // <<< NOVO: Para o jogador definir sua função
     socket.on('playerSetsRole', ({ role }) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId]) return;
@@ -734,7 +732,7 @@ io.on('connection', (socket) => {
                 if (state.diceCheat === 'crit') roll = 6;
                 if (state.diceCheat === 'fumble') roll = 1;
                 
-                const total = roll + statValue;
+                const total = (testType === 'Padrão') ? roll : roll + statValue;
                 
                 let type = 'normal';
                 if (roll === 1) type = 'fumble';
@@ -809,10 +807,17 @@ io.on('connection', (socket) => {
 
                 if (targetMode === 'lobby') {
                     newState = lobbyState; 
-                    Object.values(newState.connectedPlayers).forEach(p => {
-                        io.to(p.id).emit('assignRole', { role: 'player' });
+                    // <<< ALTERADO: Notifica TODOS os participantes para resetar o role
+                    const allParticipantIds = room.players.map(p => p.id).concat(room.spectators);
+                    allParticipantIds.forEach(id => {
+                        if (id === newState.gmId) {
+                            io.to(id).emit('assignRole', { role: 'gm', isGm: true });
+                        } else {
+                            // Deixa o cliente decidir entre 'player' e 'spectator' na próxima conexão/tela
+                            // Apenas garante que não está mais em um modo de jogo ativo
+                            io.to(id).emit('assignRole', { role: null }); 
+                        }
                     });
-                     io.to(newState.gmId).emit('assignRole', { role: 'gm', isGm: true });
                 } else {
                      let scenario = (targetMode === 'classic' ? 'Ringue.png' : (targetMode === 'arena' ? 'Ringue2.png' : 'mapas/cenarios externos/externo (1).png'));
                      if (targetMode === 'theater') {
