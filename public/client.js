@@ -14,14 +14,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
 
-    // Novas telas
     const initialLoadingScreen = document.getElementById('initial-loading-screen');
     const passwordScreen = document.getElementById('password-screen');
     const roleSelectionScreen = document.getElementById('role-selection-screen');
     const gmInitialLobby = document.getElementById('gm-initial-lobby');
     const playerWaitingScreen = document.getElementById('player-waiting-screen');
 
-    // Telas antigas
     const scenarioScreen = document.getElementById('scenario-screen');
     const selectionScreen = document.getElementById('selection-screen');
     const fightScreen = document.getElementById('fight-screen');
@@ -149,7 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
-        // <<< ALTERADO: Lógica movida para dentro dos blocos condicionais
         if (currentRoomId) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId });
             showScreen(roleSelectionScreen);
@@ -613,6 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = roomId;
         if (myRole === 'gm') {
             const baseUrl = window.location.origin;
+            // <<< ALTERADO: URL unificada
             const unifiedUrl = `${baseUrl}?room=${roomId}`;
 
             const unifiedLinkEl = document.getElementById('gm-link-unified');
