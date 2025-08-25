@@ -45,8 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const getUpSuccessContent = document.getElementById('get-up-success-content');
     const charSelectBackBtn = document.getElementById('char-select-back-btn');
     const specialMovesBackBtn = document.getElementById('special-moves-back-btn');
-    // <<< REMOVIDO: Este elemento não existe mais no HTML e causava o erro.
-    // const lobbyBackBtn = document.getElementById('lobby-back-btn'); 
     const exitGameBtn = document.getElementById('exit-game-btn');
     const helpBtn = document.getElementById('help-btn');
     const gmModeSwitchBtn = document.getElementById('gm-mode-switch-btn');
@@ -146,7 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
 
-        // <<< CORRIGIDO: Removido 'lobbyBackBtn' do array
         [charSelectBackBtn, specialMovesBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, theaterBackBtn].forEach(btn => {
             if (btn) btn.classList.add('hidden');
         });
@@ -191,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         charSelectBackBtn.addEventListener('click', () => {
-            if (myRole === 'gm') showScreen(modeSelectionScreen);
+            // Este botão não tem mais um lugar para "voltar" no fluxo do GM. Poderia ser escondido.
         });
         specialMovesBackBtn.addEventListener('click', () => { showScreen(selectionScreen); });
         
@@ -530,22 +527,23 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGameState = gameState;
         scaleGame();
         
-        const SETUP_PHASES = ['gm_classic_setup', 'p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection'];
+        // <<< CORRIGIDO: Removido 'gm_classic_setup' do array
+        const SETUP_PHASES = ['p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection'];
 
         if (isGm) {
             if (gameState.mode === 'lobby') {
                 showScreen(gmInitialLobby);
                 updateGmLobbyUI(gameState);
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
-                if (SETUP_PHASES.includes(gameState.phase)) {
-                    showScreen(playerWaitingScreen);
-                    document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
-                } else if (gameState.phase === 'gm_classic_setup') {
+                 if (gameState.phase === 'gm_classic_setup') {
                     showScreen(selectionScreen);
                     selectionTitle.innerText = 'GM: Selecione seu Lutador';
                     confirmBtn.innerText = 'Confirmar Personagem';
                     confirmBtn.disabled = false;
                     renderGmCharacterSelection(true);
+                } else if (SETUP_PHASES.includes(gameState.phase)) {
+                    showScreen(playerWaitingScreen);
+                    document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                 } else {
                     showScreen(fightScreen);
                 }
@@ -557,29 +555,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } 
         else if (myRole === 'player' || myRole === 'spectator') {
             if (gameState.mode === 'lobby') {
-                if (myRole === 'player') {
-                     const myPlayerData = gameState.connectedPlayers[socket.id];
-                     if (myPlayerData && !myPlayerData.selectedCharacter) {
-                        showScreen(selectionScreen);
-                        renderPlayerCharacterSelection(gameState.unavailableCharacters);
-                    } else {
-                        showScreen(playerWaitingScreen);
-                        let waitMessage = "Aguardando o Mestre iniciar o jogo...";
-                        if (myPlayerData) {
-                            if (!myPlayerData.configuredStats) {
-                                waitMessage = "Personagem enviado! Aguardando o Mestre configurar seus atributos...";
-                            } else {
-                                waitMessage = "Você está pronto! Aguardando o Mestre iniciar uma partida...";
-                            }
-                        }
-                        document.getElementById('player-waiting-message').innerText = waitMessage;
-                    }
-                } else { 
-                     showScreen(playerWaitingScreen);
-                     document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
-                }
+                // A lógica de inicialização já lida com a tela do player no lobby
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
-                if (SETUP_PHASES.includes(gameState.phase)) {
+                if (SETUP_PHASES.includes(gameState.phase) || gameState.phase === 'gm_classic_setup') {
                     showScreen(playerWaitingScreen);
                     document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                 } else {
