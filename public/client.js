@@ -149,37 +149,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         [charSelectBackBtn, specialMovesBackBtn, lobbyBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, theaterBackBtn].forEach(btn => btn.classList.add('hidden'));
         
-        // <<< ALTERADO: Lógica de inicialização para evitar o flash
+        // <<< ALTERADO: Lógica movida para dentro dos blocos condicionais
         if (currentRoomId) {
             socket.emit('playerJoinsLobby', { roomId: currentRoomId });
             showScreen(roleSelectionScreen);
+
+            document.getElementById('join-as-player-btn').onclick = () => {
+                socket.emit('playerSetsRole', { role: 'player' });
+                showScreen(selectionScreen);
+                selectionTitle.innerText = `Selecione seu Personagem`;
+                confirmBtn.innerText = 'Confirmar Personagem';
+            };
+
+            document.getElementById('join-as-spectator-btn').onclick = () => {
+                socket.emit('playerSetsRole', { role: 'spectator' });
+                showScreen(playerWaitingScreen);
+                document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
+            };
         } else {
             showScreen(passwordScreen);
+            const passInput = document.getElementById('password-input');
+            const passBtn = document.getElementById('password-submit-btn');
+            passInput.onkeydown = (e) => { if (e.key === 'Enter') passBtn.click(); };
+            passBtn.onclick = () => {
+                if (passInput.value === 'abif13') {
+                    socket.emit('gmCreatesLobby');
+                } else {
+                    alert('Senha incorreta.');
+                }
+            };
         }
-        
-        document.getElementById('join-as-player-btn').onclick = () => {
-            socket.emit('playerSetsRole', { role: 'player' });
-            showScreen(selectionScreen);
-            selectionTitle.innerText = `Selecione seu Personagem`;
-            confirmBtn.innerText = 'Confirmar Personagem';
-        };
-
-        document.getElementById('join-as-spectator-btn').onclick = () => {
-            socket.emit('playerSetsRole', { role: 'spectator' });
-            showScreen(playerWaitingScreen);
-            document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
-        };
-
-        const passInput = document.getElementById('password-input');
-        const passBtn = document.getElementById('password-submit-btn');
-        passInput.onkeydown = (e) => { if(e.key === 'Enter') passBtn.click(); }
-        passBtn.onclick = () => {
-            if (passInput.value === 'abif13') {
-                socket.emit('gmCreatesLobby');
-            } else {
-                alert('Senha incorreta.');
-            }
-        };
         
         confirmBtn.addEventListener('click', onConfirmSelection);
 
