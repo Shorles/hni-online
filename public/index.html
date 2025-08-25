@@ -35,7 +35,6 @@
         </div>
     </div>
 
-    <!-- TELA INICIAL DO LOBBY DO GM (AGORA COM LINK ÚNICO) -->
     <div id="gm-initial-lobby" class="screen">
         <h1>Lobby do Mestre</h1>
         <p>Envie o link abaixo para os participantes.</p>
@@ -65,24 +64,24 @@
          <p id="player-waiting-message">Aguardando o Mestre iniciar o jogo...</p>
     </div>
     
+    <!-- <<< REMOVIDO: Este elemento estava causando o erro, pois não é mais usado.
     <div id="mode-selection-screen" class="screen">
-        <h1>HNI Battle Online</h1>
-        <h2>Selecione o Modo de Jogo</h2>
-        <div class="mode-buttons-container">
-            <button id="mode-classic-btn" class="mode-btn">Player vs. "NPC" (Clássico)</button>
-            <button id="mode-arena-btn" class="mode-btn">Player vs. Player (Arena)</button>
-            <button id="mode-theater-btn" class="mode-btn">Cenários (GM)</button>
-        </div>
+        ...
     </div>
+    -->
 
-    <!-- TELA DE SELEÇÃO DE CENÁRIO (REUTILIZADA) -->
+    <!-- <<< REMOVIDO: Este elemento estava causando o erro, pois não é mais usado.
+    <div id="arena-lobby-screen" class="screen">
+        ...
+    </div>
+    -->
+
     <div id="scenario-screen" class="screen">
         <h1 id="scenario-title">Selecione o Cenário</h1>
         <div id="scenario-category-tabs"></div>
         <div id="scenario-list-container"></div>
     </div>
     
-    <!-- TELA DO MODO TEATRO -->
     <div id="theater-screen" class="screen">
         <div id="theater-background-viewport">
             <div id="theater-world-container">
@@ -128,15 +127,19 @@
     </div>
 
 
-    <!-- TELA DE SELEÇÃO DE PERSONAGENS -->
     <div id="selection-screen" class="screen">
         <button id="char-select-back-btn" class="back-btn" title="Voltar para Cenários">←</button>
         <h1 id="selection-title">Selecione seu Lutador</h1>
         <div id="character-list-container"></div>
         <button id="confirm-selection-btn">Confirmar</button>
     </div>
+    
+    <!-- <<< REMOVIDO: Este elemento estava causando o erro, pois não é mais usado.
+    <div id="lobby-screen" class="screen">
+        ...
+    </div>
+    -->
 
-    <!-- TELA DE LUTA -->
     <div id="fight-screen" class="screen">
         <div id="gm-cheats-panel" class="hidden">
             <h4>Atalhos GM</h4>
@@ -152,7 +155,6 @@
         
         <div id="fight-ui-wrapper">
             <div class="fight-ui-container">
-                <!-- ÁREA JOGADOR 1 -->
                 <div class="fighter-info" id="player1-area">
                     <h2 id="player1-fight-name">Jogador 1</h2>
                     <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player1-hp-bar" class="hp-bar"></div></div><span id="player1-hp-text">10 / 10</span></div>
@@ -170,12 +172,10 @@
                     <p>Dano Recebido: <span id="player1-damage-taken">0</span></p>
                     <p>Penalidades: <span id="player1-point-deductions">0</span></p>
                 </div>
-                <!-- LOG DE LUTA -->
                 <div id="fight-log-container">
                     <h2 id="round-info">ROUND 1</h2>
                     <div id="fight-log"></div>
                 </div>
-                <!-- ÁREA JOGADOR 2 -->
                 <div class="fighter-info" id="player2-area">
                     <h2 id="player2-fight-name">Jogador 2</h2>
                     <div class="stats-bar"><span>HP: </span><div class="hp-bar-container"><div id="player2-hp-bar" class="hp-bar"></div></div><span id="player2-hp-text">15 / 15</span></div>
@@ -194,9 +194,7 @@
                     <p>Penalidades: <span id="player2-point-deductions">0</span></p>
                 </div>
             </div>
-            <!-- BOTÕES DE AÇÃO -->
             <div id="action-buttons-wrapper">
-                <!-- BOTÕES DO JOGADOR 1 (VERMELHOS) -->
                 <div id="p1-controls" class="move-buttons hidden">
                     <button class="action-btn p1-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p1-btn" data-move="Direto">Direto (2 PA)</button>
@@ -208,7 +206,6 @@
                     <div id="p1-special-moves" class="special-moves-container"></div>
                     <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
                 </div>
-                <!-- BOTÕES DO JOGADOR 2 (AZUIS) -->
                 <div id="p2-controls" class="move-buttons hidden">
                     <button class="action-btn p2-btn" data-move="Jab">Jab (1 PA)</button>
                     <button class="action-btn p2-btn" data-move="Direto">Direto (2 PA)</button>
