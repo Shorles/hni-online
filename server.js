@@ -807,17 +807,17 @@ io.on('connection', (socket) => {
 
                 if (targetMode === 'lobby') {
                     newState = lobbyState; 
-                    // <<< ALTERADO: Notifica TODOS os participantes para resetar o role
-                    const allParticipantIds = room.players.map(p => p.id).concat(room.spectators);
-                    allParticipantIds.forEach(id => {
-                        if (id === newState.gmId) {
-                            io.to(id).emit('assignRole', { role: 'gm', isGm: true });
-                        } else {
-                            // Deixa o cliente decidir entre 'player' e 'spectator' na próxima conexão/tela
-                            // Apenas garante que não está mais em um modo de jogo ativo
-                            io.to(id).emit('assignRole', { role: null }); 
-                        }
+                    // <<< CORRIGIDO: Lógica restaurada para players e adicionada para spectators
+                    io.to(newState.gmId).emit('assignRole', { role: 'gm', isGm: true });
+                    
+                    Object.values(newState.connectedPlayers).forEach(p => {
+                        io.to(p.id).emit('assignRole', { role: 'player' });
                     });
+                    
+                    room.spectators.forEach(id => {
+                        io.to(id).emit('assignRole', { role: 'spectator' });
+                    });
+
                 } else {
                      let scenario = (targetMode === 'classic' ? 'Ringue.png' : (targetMode === 'arena' ? 'Ringue2.png' : 'mapas/cenarios externos/externo (1).png'));
                      if (targetMode === 'theater') {
