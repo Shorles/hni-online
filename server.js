@@ -810,10 +810,13 @@ io.on('connection', (socket) => {
                     
                     io.to(newState.gmId).emit('assignRole', { role: 'gm', isGm: true });
                     
+                    // <<< CORRIGIDO: Lógica separada e correta para players e spectators
+                    // Notifica os players para voltarem à tela de seleção de função
                     Object.values(newState.connectedPlayers).forEach(p => {
                         io.to(p.id).emit('assignRole', { role: 'player' });
                     });
                     
+                    // Notifica os spectators para que o client.js os coloque na tela de espera
                     room.spectators.forEach(spectatorId => {
                         io.to(spectatorId).emit('assignRole', { role: 'spectator' });
                     });
