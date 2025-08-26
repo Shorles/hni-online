@@ -807,15 +807,15 @@ io.on('connection', (socket) => {
 
                 if (targetMode === 'lobby') {
                     newState = lobbyState; 
-                    // <<< CORRIGIDO: Lógica restaurada para players e adicionada para spectators
+                    
                     io.to(newState.gmId).emit('assignRole', { role: 'gm', isGm: true });
                     
                     Object.values(newState.connectedPlayers).forEach(p => {
                         io.to(p.id).emit('assignRole', { role: 'player' });
                     });
                     
-                    room.spectators.forEach(id => {
-                        io.to(id).emit('assignRole', { role: 'spectator' });
+                    room.spectators.forEach(spectatorId => {
+                        io.to(spectatorId).emit('assignRole', { role: 'spectator' });
                     });
 
                 } else {
