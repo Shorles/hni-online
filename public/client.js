@@ -144,7 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const urlParams = new URLSearchParams(window.location.search);
         currentRoomId = urlParams.get('room');
 
-        // <<< CORRIGIDO: Removido 'lobbyBackBtn' do array
         [charSelectBackBtn, specialMovesBackBtn, exitGameBtn, copySpectatorLinkInGameBtn, theaterBackBtn].forEach(btn => {
             if (btn) btn.classList.add('hidden');
         });
@@ -555,8 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } 
         else if (myRole === 'player' || myRole === 'spectator') {
             if (gameState.mode === 'lobby') {
-                // A lógica para esta tela agora é tratada na função initialize() e playerSetsRole
-                // <<< CORREÇÃO: Lógica para renderizar personagens para o jogador
+                // <<< CORREÇÃO APLICADA AQUI
                 if (myRole === 'player') {
                      const myPlayerData = gameState.connectedPlayers[socket.id];
                      if (myPlayerData && !myPlayerData.selectedCharacter) {
@@ -574,6 +572,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         document.getElementById('player-waiting-message').innerText = waitMessage;
                     }
+                } else if (myRole === 'spectator') {
+                     showScreen(playerWaitingScreen);
+                     document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
                 }
             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
                 if (SETUP_PHASES.includes(gameState.phase) || gameState.phase === 'gm_classic_setup') {
