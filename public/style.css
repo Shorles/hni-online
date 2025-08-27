@@ -69,9 +69,10 @@ body {
     color: #fff;
 }
 
-/* <<< NOVO: Estilo para a imagem de título >>> */
+/* <<< CORRIGIDO: Estilo ajustado para a imagem de título >>> */
 .main-title-image {
-    max-width: 80%;
+    max-width: 600px; /* Define uma largura máxima fixa */
+    width: 80%; /* Garante que ela se ajuste em telas menores */
     height: auto;
     margin-bottom: 30px;
 }
@@ -883,7 +884,7 @@ body {
     #player1-roll-btn, #player2-roll-btn { left: auto; right: auto; }
     #modal-content, #special-moves-content { width: 90vw; min-width: 90vw; box-sizing: border-box; }
     #special-moves-list { max-height: 50vh; }
-    #password-screen .main-title-image, #role-selection-screen .main-title-image { max-width: 90%; } /* Ajuste para mobile */
+    #password-screen .main-title-image, #role-selection-screen .main-title-image { max-width: 90%; }
     #gm-initial-lobby h1, #role-selection-screen h1 { font-size: 2.5em; text-align: center; }
     #gm-initial-lobby h2, #role-selection-screen h2 { font-size: 1.5em; text-align: center; }
     #game-alert-content { font-size: 1.5em; padding: 20px; }
