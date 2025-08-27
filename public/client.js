@@ -99,7 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
-        const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum'};
+        // <<< NOVO GOLPE >>>
+        const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum', 'Dempsey Roll': 'Recebe +2 no acerto. Se errar, o usuário recebe o dano do golpe.'};
         const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Esquiva'];
         let playerSpecialMoves = [];
         if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
@@ -110,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let tableHtml = `<div class="help-table-container"><table id="help-modal-table"><thead><tr><th>Nome</th><th>Custo (PA)</th><th>Dano</th><th>Penalidade</th><th>Efeito</th></tr></thead><tbody>`;
         const renderRow = (moveName) => {
             const move = currentGameState.moves[moveName]; if (!move) return '';
-            const displayName = move.displayName || moveName; const cost = moveName === 'Counter' ? 'Variável' : move.cost; const effect = MOVE_EFFECTS[moveName] || 'Nenhum'; const penaltyDisplay = move.penalty > 0 ? `-${move.penalty}` : move.penalty;
+            const displayName = move.displayName || moveName; const cost = moveName === 'Counter' ? 'Variável' : move.cost; const effect = MOVE_EFFECTS[moveName] || 'Nenhum'; const penaltyDisplay = move.penalty > 0 ? `-${move.penalty}` : (move.hitBonus > 0 ? `+${move.hitBonus}` : move.penalty);
             return `<tr><td>${displayName}</td><td>${cost}</td><td>${move.damage}</td><td>${penaltyDisplay}</td><td>${effect}</td></tr>`;
         };
         BASIC_MOVES_ORDER.forEach(moveName => { tableHtml += renderRow(moveName); });
@@ -529,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const SETUP_PHASES = ['p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection'];
         
-        // <<< AJUSTE 2 (CORRIGIDO): Lógica para determinar a tela correta para cada role >>>
         const lobbyState = gameState.mode === 'lobby' ? gameState : gameState.lobbyCache;
 
         if (isGm) {
@@ -559,11 +559,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const myPlayerData = lobbyState?.connectedPlayers[socket.id];
             
             if (myPlayerData && !myPlayerData.selectedCharacter) {
-                // Se eu sou um jogador e ainda não escolhi um personagem, vou para a tela de seleção.
                 showScreen(selectionScreen);
                 renderPlayerCharacterSelection(lobbyState.unavailableCharacters);
             } else {
-                // Se já escolhi, a tela depende do estado GERAL do jogo.
                 if (gameState.mode === 'lobby') {
                     showScreen(playerWaitingScreen);
                     let waitMessage = "Aguardando o Mestre iniciar o jogo...";
@@ -586,7 +584,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } else if (myRole === 'spectator') {
-             // Espectadores simplesmente veem o que o GM está fazendo.
              if (gameState.mode === 'lobby') {
                 showScreen(playerWaitingScreen);
                 document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";

@@ -50,7 +50,9 @@ const SPECIAL_MOVES = {
     'Gazelle Punch': { cost: 3, damage: 8, penalty: 2 },
     'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
-    'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 } 
+    'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 },
+    // <<< NOVO GOLPE >>>
+    'Dempsey Roll': { cost: 7, damage: 10, penalty: 0, hitBonus: 2 } 
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
@@ -69,7 +71,9 @@ const MOVE_SOUNDS = {
     'OraOraOra': 'OraOraOra.mp3',
     'Golpe Ilegal': ['especialforte01.mp3', 'especialforte02.mp3'],
     'Clinch': ['Esquiva.mp3'],
-    'Esquiva': ['Esquiva.mp3']
+    'Esquiva': ['Esquiva.mp3'],
+    // <<< NOVO GOLPE >>>
+    'Dempsey Roll': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3']
 };
 
 function rollD(s, state) {
@@ -286,8 +290,11 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         let crit = false;
         let hit = false;
         let soundToPlay = null;
-        const attackValue = roll + attacker.agi - move.penalty;
-        logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
+        // <<< LÓGICA DEMPSEY ROLL: Bônus de acerto >>>
+        const hitBonus = move.hitBonus || 0;
+        const attackValue = roll + attacker.agi - move.penalty + hitBonus;
+        const logBonus = hitBonus > 0 ? ` + ${hitBonus} Bônus` : '';
+        logMessage(state, `Rolagem de Ataque: D6(${roll}) + ${attacker.agi} AGI - ${move.penalty} Pen${logBonus} = <span class="highlight-result">${attackValue}</span> (Defesa: ${defender.def})`, 'log-info');
         
         if (roll === 1) { logMessage(state, "Erro Crítico!", 'log-miss');
         } else if (roll === 6) { logMessage(state, "Acerto Crítico!", 'log-crit'); hit = true; crit = true;
@@ -317,7 +324,22 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 logMessage(state, `${attacker.nome} acerta o Clinch! ${defender.nome} perde ${paToRemove} PA.`, 'log-hit');
             }
             if (isActuallyIllegal) illegalMoveLanded = true;
-        } else { soundToPlay = 'Esquiva.mp3'; }
+        } else { 
+            soundToPlay = 'Esquiva.mp3';
+            // <<< LÓGICA DEMPSEY ROLL: Penalidade no erro >>>
+            if (moveName === 'Dempsey Roll') {
+                logMessage(state, `${attacker.nome} erra o Dempsey Roll e se desequilibra!`, 'log-miss');
+                const selfDamage = move.damage;
+                logMessage(state, `${attacker.nome} recebe ${selfDamage} de dano do seu próprio movimento!`, 'log-crit');
+
+                const hpBeforeHit = attacker.hp;
+                attacker.hp = Math.max(0, attacker.hp - selfDamage);
+                attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
+
+                io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey }); // Animação de hit no próprio atacante
+                soundToPlay = 'Critical.mp3'; // Som de acerto crítico para o dano autoinfligido
+            }
+        }
     
         if (soundToPlay) { io.to(roomId).emit('playSound', soundToPlay); }
     }
@@ -526,7 +548,6 @@ function dispatchAction(room) {
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
 
-    // <<< CORREÇÃO: A fila de configuração é verificada aqui, garantindo que funcione em qualquer modo. >>>
     if (state.mode === 'lobby') {
         processNextPlayerInConfigQueue(room);
         return;
@@ -702,7 +723,6 @@ io.on('connection', (socket) => {
                 logMessage(lobbyState, `Jogador selecionou ${character.nome}.`);
                 
                 lobbyState.playerConfigQueue.push(socket.id);
-                // <<< CORREÇÃO: Chamar explicitamente a função da fila aqui. >>>
                 processNextPlayerInConfigQueue(room);
                 break;
             }
@@ -719,7 +739,6 @@ io.on('connection', (socket) => {
                 
                 logMessage(lobbyState, `GM configurou os atributos e golpes de ${playerInfo.selectedCharacter.nome}.`);
                 lobbyState.isConfiguringPlayer = null;
-                // <<< CORREÇÃO: Chamar explicitamente a função da fila para processar o próximo, se houver. >>>
                 processNextPlayerInConfigQueue(room);
                 break;
             }
