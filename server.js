@@ -493,17 +493,13 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null, isLastChance: false };
 }
 
-// <<< AJUSTE 2: Função auxiliar para encontrar o estado do lobby de forma consistente >>>
 function getLobbyState(room) {
     if (!room || !room.state) return null;
     const state = room.state;
-    // Se o modo atual for 'lobby', o estado principal é o do lobby.
-    // Caso contrário, o estado do lobby está guardado no 'lobbyCache'.
     return state.mode === 'lobby' ? state : state.lobbyCache;
 }
 
 function processNextPlayerInConfigQueue(room) {
-    // <<< AJUSTE 2: Lógica modificada para funcionar em qualquer modo de jogo >>>
     const lobbyState = getLobbyState(room);
     if (!lobbyState) return;
 
@@ -521,7 +517,6 @@ function processNextPlayerInConfigQueue(room) {
             availableMoves: SPECIAL_MOVES
         });
     } else {
-        // Se o jogador não for encontrado (ex: desconectou), tenta o próximo da fila.
         processNextPlayerInConfigQueue(room);
     }
 }
@@ -531,11 +526,9 @@ function dispatchAction(room) {
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
 
-    // <<< AJUSTE 2: A chamada para processar a fila agora é acionada por eventos, não mais pelo dispatchAction >>>
-    if (state.mode === 'lobby') {
-        // A lógica do lobby é principalmente reativa a eventos, mas podemos deixar isso como um fallback.
-        // A chamada principal agora está em 'playerSelectsCharacter' e 'gmSetsPlayerStats'.
-    }
+    // <<< AJUSTE 2 (CORRIGIDO): Chama a verificação da fila de configuração em todas as ações. >>>
+    // A função tem suas próprias checagens internas para não fazer nada se não for necessário.
+    processNextPlayerInConfigQueue(room);
 
     if (state.mode === 'theater') return;
 
@@ -694,7 +687,6 @@ io.on('connection', (socket) => {
         const playerKey = action.playerKey;
         switch (action.type) {
             case 'playerSelectsCharacter': {
-                // <<< AJUSTE 2: Lógica de seleção de personagem agora modifica o lobbyState, não o state atual >>>
                 const lobbyState = getLobbyState(room);
                 if (!lobbyState) return;
 
@@ -708,11 +700,10 @@ io.on('connection', (socket) => {
                 logMessage(lobbyState, `Jogador selecionou ${character.nome}.`);
                 
                 lobbyState.playerConfigQueue.push(socket.id);
-                processNextPlayerInConfigQueue(room);
+                // A chamada para processNextPlayerInConfigQueue agora é feita pelo dispatchAction
                 break;
             }
             case 'gmSetsPlayerStats': {
-                // <<< AJUSTE 2: Lógica de configuração agora modifica o lobbyState, não o state atual >>>
                 const lobbyState = getLobbyState(room);
                 if (!lobbyState || !lobbyState.connectedPlayers[action.playerId]) return;
 
@@ -725,7 +716,7 @@ io.on('connection', (socket) => {
                 
                 logMessage(lobbyState, `GM configurou os atributos e golpes de ${playerInfo.selectedCharacter.nome}.`);
                 lobbyState.isConfiguringPlayer = null;
-                processNextPlayerInConfigQueue(room);
+                // A chamada para processNextPlayerInConfigQueue agora é feita pelo dispatchAction
                 break;
             }
             case 'player_roll_theater_test': {
@@ -827,13 +818,10 @@ io.on('connection', (socket) => {
                     
                     io.to(newState.gmId).emit('assignRole', { role: 'gm', isGm: true });
                     
-                    // <<< CORREÇÃO FINAL: A lógica aqui estava errada.
-                    // Jogadores voltam a ser 'players' no lobby.
                     Object.values(newState.connectedPlayers).forEach(p => {
                         io.to(p.id).emit('assignRole', { role: 'player' });
                     });
                     
-                    // Espectadores continuam sendo 'spectators'. O client.js saberá o que fazer.
                     room.spectators.forEach(spectatorId => {
                         io.to(spectatorId).emit('assignRole', { role: 'spectator' });
                     });
@@ -1366,10 +1354,10 @@ io.on('connection', (socket) => {
         if (!roomId || !games[roomId]) return;
 
         const room = games[roomId];
-        let state = room.state;
+        const state = room.state;
         const lobbyState = getLobbyState(room);
 
-        if (socket.id === (lobbyState ? lobbyState.gmId : state.gmId)) {
+        if (socket.id === (lobbyState ? lobbyState.gmId : null)) {
             io.to(roomId).emit('error', { message: 'O Mestre da Sala encerrou a sessão.' });
             delete games[roomId];
             return;

@@ -518,7 +518,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('gameUpdate', (gameState) => {
-        // <<< AJUSTE 2: Não esconder o modal de configuração de player se ele estiver aberto >>>
         if (!modal.classList.contains('hidden') && !modal.querySelector('#player-config-agi')) {
             modal.classList.add('hidden');
         }
@@ -529,6 +528,9 @@ document.addEventListener('DOMContentLoaded', () => {
         scaleGame();
         
         const SETUP_PHASES = ['p1_special_moves_selection', 'opponent_selection', 'arena_opponent_selection'];
+        
+        // <<< AJUSTE 2 (CORRIGIDO): Lógica para determinar a tela correta para cada role >>>
+        const lobbyState = gameState.mode === 'lobby' ? gameState : gameState.lobbyCache;
 
         if (isGm) {
             if (gameState.mode === 'lobby') {
@@ -553,42 +555,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTheaterMode(gameState);
             }
         } 
-        else if (myRole === 'player' || myRole === 'spectator') {
-            if (gameState.mode === 'lobby') {
-                // <<< CORREÇÃO APLICADA AQUI
-                if (myRole === 'player') {
-                     const myPlayerData = gameState.connectedPlayers[socket.id];
-                     if (myPlayerData && !myPlayerData.selectedCharacter) {
-                        showScreen(selectionScreen);
-                        renderPlayerCharacterSelection(gameState.unavailableCharacters);
-                    } else {
-                        showScreen(playerWaitingScreen);
-                        let waitMessage = "Aguardando o Mestre iniciar o jogo...";
-                        if (myPlayerData) {
-                            if (!myPlayerData.configuredStats) {
-                                waitMessage = "Personagem enviado! Aguardando o Mestre configurar seus atributos...";
-                            } else {
-                                waitMessage = "Você está pronto! Aguardando o Mestre iniciar uma partida...";
-                            }
-                        }
-                        document.getElementById('player-waiting-message').innerText = waitMessage;
+        else if (myRole === 'player') {
+            const myPlayerData = lobbyState?.connectedPlayers[socket.id];
+            
+            if (myPlayerData && !myPlayerData.selectedCharacter) {
+                // Se eu sou um jogador e ainda não escolhi um personagem, vou para a tela de seleção.
+                showScreen(selectionScreen);
+                renderPlayerCharacterSelection(lobbyState.unavailableCharacters);
+            } else {
+                // Se já escolhi, a tela depende do estado GERAL do jogo.
+                if (gameState.mode === 'lobby') {
+                    showScreen(playerWaitingScreen);
+                    let waitMessage = "Aguardando o Mestre iniciar o jogo...";
+                    if (myPlayerData && !myPlayerData.configuredStats) {
+                        waitMessage = "Personagem enviado! Aguardando o Mestre configurar seus atributos...";
+                    } else if (myPlayerData && myPlayerData.configuredStats) {
+                        waitMessage = "Você está pronto! Aguardando o Mestre iniciar uma partida...";
                     }
-                } else if (myRole === 'spectator') {
-                     showScreen(playerWaitingScreen);
-                     document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
+                    document.getElementById('player-waiting-message').innerText = waitMessage;
+                } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
+                    if (SETUP_PHASES.includes(gameState.phase) || gameState.phase === 'gm_classic_setup') {
+                        showScreen(playerWaitingScreen);
+                        document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
+                    } else {
+                        showScreen(fightScreen);
+                    }
+                } else if (gameState.mode === 'theater') {
+                     showScreen(theaterScreen);
+                     renderTheaterMode(gameState);
                 }
-            } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
+            }
+        } else if (myRole === 'spectator') {
+             // Espectadores simplesmente veem o que o GM está fazendo.
+             if (gameState.mode === 'lobby') {
+                showScreen(playerWaitingScreen);
+                document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
+             } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
                 if (SETUP_PHASES.includes(gameState.phase) || gameState.phase === 'gm_classic_setup') {
                     showScreen(playerWaitingScreen);
                     document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                 } else {
                     showScreen(fightScreen);
                 }
-            } else if (gameState.mode === 'theater') {
+             } else if (gameState.mode === 'theater') {
                  showScreen(theaterScreen);
                  renderTheaterMode(gameState);
-            }
+             }
         }
+
 
         const oldPhase = oldState ? oldState.phase : null;
         const wasPaused = oldPhase === 'paused';
@@ -664,7 +678,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
         
-        // <<< AJUSTE 1: Lógica para mostrar o botão de copiar link >>>
         const showCopyLink = isGm && (state.mode === 'classic' || state.mode === 'arena' || state.mode === 'theater');
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !showCopyLink);
         
