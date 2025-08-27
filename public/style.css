@@ -71,10 +71,10 @@ body {
 
 /* <<< CORRIGIDO: Estilo ajustado para a imagem de título >>> */
 .main-title-image {
-    max-width: 600px; /* Define uma largura máxima fixa */
-    width: 80%; /* Garante que ela se ajuste em telas menores */
+    max-width: 450px; /* Define uma largura máxima fixa */
+    width: 70%; /* Garante que ela se ajuste em telas menores */
     height: auto;
-    margin-bottom: 30px;
+    margin-bottom: 25px; /* Margem ajustada */
 }
 
 
