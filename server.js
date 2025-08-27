@@ -493,24 +493,35 @@ function handleKnockdown(state, downedPlayerKey, io, roomId) {
     state.knockdownInfo = { downedPlayer: downedPlayerKey, attempts: 0, lastRoll: null, isLastChance: false };
 }
 
-function processNextPlayerInConfigQueue(room) {
-    if (!room || !room.state || room.state.mode !== 'lobby') return;
+// <<< AJUSTE 2: Função auxiliar para encontrar o estado do lobby de forma consistente >>>
+function getLobbyState(room) {
+    if (!room || !room.state) return null;
     const state = room.state;
+    // Se o modo atual for 'lobby', o estado principal é o do lobby.
+    // Caso contrário, o estado do lobby está guardado no 'lobbyCache'.
+    return state.mode === 'lobby' ? state : state.lobbyCache;
+}
 
-    if (state.isConfiguringPlayer || state.playerConfigQueue.length === 0) {
+function processNextPlayerInConfigQueue(room) {
+    // <<< AJUSTE 2: Lógica modificada para funcionar em qualquer modo de jogo >>>
+    const lobbyState = getLobbyState(room);
+    if (!lobbyState) return;
+
+    if (lobbyState.isConfiguringPlayer || lobbyState.playerConfigQueue.length === 0) {
         return;
     }
 
-    const nextPlayerId = state.playerConfigQueue.shift();
-    const playerData = state.connectedPlayers[nextPlayerId];
+    const nextPlayerId = lobbyState.playerConfigQueue.shift();
+    const playerData = lobbyState.connectedPlayers[nextPlayerId];
 
     if (playerData) {
-        state.isConfiguringPlayer = nextPlayerId;
-        io.to(state.gmId).emit('promptPlayerConfiguration', {
+        lobbyState.isConfiguringPlayer = nextPlayerId;
+        io.to(lobbyState.gmId).emit('promptPlayerConfiguration', {
             playerData: playerData,
             availableMoves: SPECIAL_MOVES
         });
     } else {
+        // Se o jogador não for encontrado (ex: desconectou), tenta o próximo da fila.
         processNextPlayerInConfigQueue(room);
     }
 }
@@ -520,9 +531,10 @@ function dispatchAction(room) {
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
 
+    // <<< AJUSTE 2: A chamada para processar a fila agora é acionada por eventos, não mais pelo dispatchAction >>>
     if (state.mode === 'lobby') {
-        processNextPlayerInConfigQueue(room);
-        return;
+        // A lógica do lobby é principalmente reativa a eventos, mas podemos deixar isso como um fallback.
+        // A chamada principal agora está em 'playerSelectsCharacter' e 'gmSetsPlayerStats'.
     }
 
     if (state.mode === 'theater') return;
@@ -648,6 +660,8 @@ io.on('connection', (socket) => {
         const roomId = socket.currentRoomId;
         if (!roomId || !games[roomId]) return;
         const room = games[roomId];
+        const lobbyState = getLobbyState(room);
+        if (!lobbyState) return;
 
         if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
 
@@ -655,14 +669,12 @@ io.on('connection', (socket) => {
             room.spectators.push(socket.id);
         } else {
              room.players.push({ id: socket.id, role: 'player' });
-             if (room.state.mode === 'lobby') {
-                room.state.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
-             }
+             lobbyState.connectedPlayers[socket.id] = { id: socket.id, role: 'player', selectedCharacter: null };
         }
        
         socket.emit('assignRole', { role });
         io.to(roomId).emit('gameUpdate', room.state);
-        logMessage(room.state, `Um ${role} entrou na sala.`);
+        logMessage(lobbyState, `Um ${role} entrou na sala.`);
     });
     
     socket.on('playerAction', (action) => {
@@ -671,7 +683,7 @@ io.on('connection', (socket) => {
         
         const room = games[roomId];
         const state = room.state;
-        const isGm = socket.id === state.gmId;
+        const isGm = socket.id === state.gmId || (state.lobbyCache && socket.id === state.lobbyCache.gmId);
         
         const moveName = action.move;
         const move = (state.moves && moveName) ? state.moves[moveName] : undefined;
@@ -682,32 +694,37 @@ io.on('connection', (socket) => {
         const playerKey = action.playerKey;
         switch (action.type) {
             case 'playerSelectsCharacter': {
-                if(state.mode !== 'lobby') return;
+                // <<< AJUSTE 2: Lógica de seleção de personagem agora modifica o lobbyState, não o state atual >>>
+                const lobbyState = getLobbyState(room);
+                if (!lobbyState) return;
+
                 const { character } = action;
-                if(state.unavailableCharacters.includes(character.nome)) {
+                if(lobbyState.unavailableCharacters.includes(character.nome)) {
                     socket.emit('characterUnavailable', character.nome);
                     return;
                 }
-                state.unavailableCharacters.push(character.nome);
-                state.connectedPlayers[socket.id].selectedCharacter = character;
-                logMessage(state, `Jogador selecionou ${character.nome}.`);
+                lobbyState.unavailableCharacters.push(character.nome);
+                lobbyState.connectedPlayers[socket.id].selectedCharacter = character;
+                logMessage(lobbyState, `Jogador selecionou ${character.nome}.`);
                 
-                state.playerConfigQueue.push(socket.id);
+                lobbyState.playerConfigQueue.push(socket.id);
                 processNextPlayerInConfigQueue(room);
                 break;
             }
             case 'gmSetsPlayerStats': {
-                if (state.mode !== 'lobby' || !state.connectedPlayers[action.playerId]) return;
+                // <<< AJUSTE 2: Lógica de configuração agora modifica o lobbyState, não o state atual >>>
+                const lobbyState = getLobbyState(room);
+                if (!lobbyState || !lobbyState.connectedPlayers[action.playerId]) return;
 
-                const playerInfo = state.connectedPlayers[action.playerId];
+                const playerInfo = lobbyState.connectedPlayers[action.playerId];
                 playerInfo.configuredStats = {
                     agi: parseInt(action.stats.agi, 10),
                     res: parseInt(action.stats.res, 10),
                     specialMoves: action.moves
                 };
                 
-                logMessage(state, `GM configurou os atributos e golpes de ${playerInfo.selectedCharacter.nome}.`);
-                state.isConfiguringPlayer = null;
+                logMessage(lobbyState, `GM configurou os atributos e golpes de ${playerInfo.selectedCharacter.nome}.`);
+                lobbyState.isConfiguringPlayer = null;
                 processNextPlayerInConfigQueue(room);
                 break;
             }
@@ -1350,8 +1367,9 @@ io.on('connection', (socket) => {
 
         const room = games[roomId];
         let state = room.state;
+        const lobbyState = getLobbyState(room);
 
-        if (socket.id === state.gmId) {
+        if (socket.id === (lobbyState ? lobbyState.gmId : state.gmId)) {
             io.to(roomId).emit('error', { message: 'O Mestre da Sala encerrou a sessão.' });
             delete games[roomId];
             return;
@@ -1360,9 +1378,7 @@ io.on('connection', (socket) => {
         const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex > -1) {
             const disconnectedPlayer = room.players.splice(playerIndex, 1)[0];
-
-            const lobbyState = state.mode === 'lobby' ? state : (state.lobbyCache || room.theaterState?.lobbyCache);
-
+            
             if (lobbyState) {
                  if (lobbyState.playerConfigQueue) {
                     lobbyState.playerConfigQueue = lobbyState.playerConfigQueue.filter(id => id !== socket.id);
@@ -1400,8 +1416,8 @@ io.on('connection', (socket) => {
         const spectatorIndex = room.spectators.indexOf(socket.id);
         if (spectatorIndex > -1) {
             room.spectators.splice(spectatorIndex, 1);
-            if (room.state && room.state.log) {
-                logMessage(room.state, 'Um espectador saiu.');
+            if (lobbyState && lobbyState.log) {
+                logMessage(lobbyState, 'Um espectador saiu.');
                 io.to(roomId).emit('gameUpdate', room.state);
             }
         }

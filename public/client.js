@@ -518,6 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('gameUpdate', (gameState) => {
+        // <<< AJUSTE 2: Não esconder o modal de configuração de player se ele estiver aberto >>>
         if (!modal.classList.contains('hidden') && !modal.querySelector('#player-config-agi')) {
             modal.classList.add('hidden');
         }
@@ -663,6 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gmModeSwitchBtn.classList.toggle('hidden', !isGm);
         
+        // <<< AJUSTE 1: Lógica para mostrar o botão de copiar link >>>
         const showCopyLink = isGm && (state.mode === 'classic' || state.mode === 'arena' || state.mode === 'theater');
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !showCopyLink);
         
