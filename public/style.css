@@ -69,6 +69,14 @@ body {
     color: #fff;
 }
 
+/* <<< NOVO: Estilo para a imagem de título >>> */
+.main-title-image {
+    max-width: 80%;
+    height: auto;
+    margin-bottom: 30px;
+}
+
+
 #password-input {
     padding: 15px;
     font-size: 1.5em;
@@ -125,12 +133,6 @@ body {
 
 
 /* --- TELA DE SELEÇÃO DE MODO --- */
-#mode-selection-screen {
-    background-color: rgba(0, 0, 0, 0.9);
-    gap: 30px;
-}
-#mode-selection-screen h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; }
-#mode-selection-screen h2 { font-size: 2em; color: #fff; }
 .mode-buttons-container { display: flex; gap: 40px; }
 .mode-btn {
     padding: 20px 40px;
@@ -143,6 +145,7 @@ body {
     transition: all 0.2s ease-in-out;
 }
 .mode-btn:hover { background-color: #ffeb3b; color: #000; transform: scale(1.05); }
+
 
 /* --- TELA DE SELEÇÃO DE CENÁRIO --- */
 #scenario-screen {
@@ -880,7 +883,8 @@ body {
     #player1-roll-btn, #player2-roll-btn { left: auto; right: auto; }
     #modal-content, #special-moves-content { width: 90vw; min-width: 90vw; box-sizing: border-box; }
     #special-moves-list { max-height: 50vh; }
-    #password-screen h1, #gm-initial-lobby h1, #selection-title, #role-selection-screen h1 { font-size: 2.5em; text-align: center; }
+    #password-screen .main-title-image, #role-selection-screen .main-title-image { max-width: 90%; } /* Ajuste para mobile */
+    #gm-initial-lobby h1, #role-selection-screen h1 { font-size: 2.5em; text-align: center; }
     #gm-initial-lobby h2, #role-selection-screen h2 { font-size: 1.5em; text-align: center; }
     #game-alert-content { font-size: 1.5em; padding: 20px; }
     .dk-result-overlay { top: 30%; width: 120px; }
