@@ -73,7 +73,7 @@ const MOVE_SOUNDS = {
     'Clinch': ['Esquiva.mp3'],
     'Esquiva': ['Esquiva.mp3'],
     // <<< NOVO GOLPE >>>
-    'Dempsey Roll': ['especialforte01.mp3', 'especialforte02.mp3', 'especialforte03.mp3']
+    'Dempsey Roll': 'Dempsey Roll.mp3'
 };
 
 function rollD(s, state) {
