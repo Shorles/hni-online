@@ -526,9 +526,11 @@ function dispatchAction(room) {
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
 
-    // <<< AJUSTE 2 (CORRIGIDO): Chama a verificação da fila de configuração em todas as ações. >>>
-    // A função tem suas próprias checagens internas para não fazer nada se não for necessário.
-    processNextPlayerInConfigQueue(room);
+    // <<< CORREÇÃO: A fila de configuração é verificada aqui, garantindo que funcione em qualquer modo. >>>
+    if (state.mode === 'lobby') {
+        processNextPlayerInConfigQueue(room);
+        return;
+    }
 
     if (state.mode === 'theater') return;
 
@@ -700,7 +702,8 @@ io.on('connection', (socket) => {
                 logMessage(lobbyState, `Jogador selecionou ${character.nome}.`);
                 
                 lobbyState.playerConfigQueue.push(socket.id);
-                // A chamada para processNextPlayerInConfigQueue agora é feita pelo dispatchAction
+                // <<< CORREÇÃO: Chamar explicitamente a função da fila aqui. >>>
+                processNextPlayerInConfigQueue(room);
                 break;
             }
             case 'gmSetsPlayerStats': {
@@ -716,7 +719,8 @@ io.on('connection', (socket) => {
                 
                 logMessage(lobbyState, `GM configurou os atributos e golpes de ${playerInfo.selectedCharacter.nome}.`);
                 lobbyState.isConfiguringPlayer = null;
-                // A chamada para processNextPlayerInConfigQueue agora é feita pelo dispatchAction
+                // <<< CORREÇÃO: Chamar explicitamente a função da fila para processar o próximo, se houver. >>>
+                processNextPlayerInConfigQueue(room);
                 break;
             }
             case 'player_roll_theater_test': {
