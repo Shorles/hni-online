@@ -649,7 +649,6 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
     });
 
-    // <<< CORREÇÃO 2: Tornando o join mais robusto para jogadores que entram tarde >>>
     socket.on('playerJoinsLobby', ({ roomId }) => {
         const room = games[roomId];
         if (!room || !room.state) {
@@ -658,20 +657,17 @@ io.on('connection', (socket) => {
         }
         socket.join(roomId);
         socket.currentRoomId = roomId;
-        // Envia imediatamente o estado atual para o novo jogador, para que ele possa sincronizar
         socket.emit('gameUpdate', room.state);
     });
 
-    // <<< CORREÇÃO 2: Tornando o setRole mais robusto >>>
     socket.on('playerSetsRole', ({ role }) => {
         const roomId = socket.currentRoomId;
-        if (!roomId || !games[roomId]) return; // Proteção caso o roomId não esteja definido
+        if (!roomId || !games[roomId]) return;
         
         const room = games[roomId];
         const lobbyState = getLobbyState(room);
 
         if (!lobbyState) {
-            // Se não houver estado de lobby (cache), o jogo pode estar em um estado inválido para novos jogadores.
             socket.emit('error', { message: 'A sessão não está aceitando novos jogadores no momento.' });
             return;
         }
@@ -700,8 +696,7 @@ io.on('connection', (socket) => {
         
         const moveName = action.move;
         const move = (state.moves && moveName) ? state.moves[moveName] : undefined;
-        if (move && move.reaction) {
-            // O servidor irá remapear a ação 'attack' com um golpe de reação para o tipo de ação correto
+        if (move && move.reaction && action.type === 'attack') {
             action.type = moveName;
         }
 
@@ -1090,10 +1085,12 @@ io.on('connection', (socket) => {
                     state.illegalCheat = 'normal';
                 }
                 break;
+            // <<< CORREÇÃO >>>
             case 'Fortalecer Defesa':
                  const user = state.fighters[playerKey];
-                 if(user && user.pa >= move.cost && user.fortalecerDefesaUses < 2) {
-                    user.pa -= move.cost;
+                 const moveData = state.moves['Fortalecer Defesa']; // Busca os dados do golpe diretamente
+                 if(user && moveData && user.pa >= moveData.cost && user.fortalecerDefesaUses < 2) {
+                    user.pa -= moveData.cost;
                     user.def++;
                     user.fortalecerDefesaUses++;
                     logMessage(state, `${user.nome} usa <span class="log-move-name">Fortalecer Defesa</span>! Sua defesa aumentou para <span class="highlight-total">${user.def}</span>.`, 'log-info');
