@@ -99,7 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
-        const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Fortalecer Defesa': '(Reação) Custa 2 PA e adiciona +1 à sua DEF permanentemente neste round. Pode ser usado até 2 vezes por round.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum', 'Dempsey Roll': 'Recebe +2 no acerto. Se errar, o usuário recebe o dano do golpe.'};
+        // <<< ALTERAÇÃO 1: Atualizando a descrição do golpe na ajuda >>>
+        const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Fortalecer Defesa': '(Reação) Custa 3 PA e adiciona +1 à sua DEF permanentemente neste round. Pode ser usado até 2 vezes por round.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum', 'Dempsey Roll': 'Recebe +2 no acerto. Se errar, o usuário recebe o dano do golpe.'};
         const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Fortalecer Defesa'];
         let playerSpecialMoves = [];
         if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
@@ -122,7 +123,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showScreen(screenToShow) { allScreens.forEach(screen => { screen.classList.toggle('active', screen.id === screenToShow.id); }); }
 
-    // <<< CORREÇÃO 1: Simplificando o handler de cliques para restaurar a funcionalidade >>>
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
         
@@ -130,28 +130,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!target || target.disabled) return;
         
         const move = target.dataset.move;
-        const isReaction = target.dataset.reaction === 'true';
-
-        // O servidor é inteligente o suficiente para saber quando um golpe é uma reação.
-        // Podemos simplificar aqui e enviar 'attack' para a maioria dos golpes, e o servidor fará a conversão.
-        // A exceção é o nosso novo 'Fortalecer Defesa', que tem sua própria lógica de ação.
 
         if (move === 'Fortalecer Defesa') {
-            // Emite uma ação específica para este golpe, que pode ser usado a qualquer momento.
             socket.emit('playerAction', { type: 'Fortalecer Defesa', playerKey: myPlayerKey });
         } else if (move === 'Golpe Ilegal') {
-            // Requer confirmação do usuário
             const fighter = currentGameState.fighters[myPlayerKey];
             const moveData = currentGameState.moves['Golpe Ilegal'];
             if (fighter && moveData && fighter.pa >= moveData.cost) {
                 showIllegalMoveConfirmation();
             }
         } else if (move) {
-            // Para TODOS os outros golpes (normais e de reação como Counter), enviamos como 'attack'.
-            // O servidor tem a lógica para remapear 'Counter' para sua própria ação.
             socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
         } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) {
-            // Lógica para encerrar o turno
             socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
@@ -226,6 +216,18 @@ document.addEventListener('DOMContentLoaded', () => {
         helpBtn.addEventListener('click', showHelpModal);
         gmModeSwitchBtn.addEventListener('click', showModeSwitchModal);
         
+        // <<< ALTERAÇÃO 2: Adicionando event listener para o botão "Jogar a Toalha" >>>
+        document.getElementById('forfeit-btn').addEventListener('click', () => {
+            if (!myPlayerKey || document.getElementById('forfeit-btn').disabled) return;
+            const modalContentHtml = `<p>Tem certeza de que deseja desistir da luta? Isso resultará em uma derrota imediata.</p><div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;"><button id="confirm-forfeit-btn" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Sim, Desistir</button><button id="cancel-forfeit-btn" style="background-color: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Não, Continuar</button></div>`;
+            showInfoModal("Jogar a Toalha", modalContentHtml);
+            document.getElementById('confirm-forfeit-btn').onclick = () => { 
+                socket.emit('playerAction', { type: 'forfeit', playerKey: myPlayerKey });
+                modal.classList.add('hidden'); 
+            };
+            document.getElementById('cancel-forfeit-btn').onclick = () => modal.classList.add('hidden');
+        });
+
         copySpectatorLinkInGameBtn.onclick = () => { 
             if (currentRoomId) copyToClipboard(`${window.location.origin}?room=${currentRoomId}`, copySpectatorLinkInGameBtn);
         };
@@ -529,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             socket.emit('playerAction', action);
             modal.classList.add('hidden');
-            modal.style.zIndex = "3000"; // Reset z-index
+            modal.style.zIndex = "3000";
         };
     });
 
@@ -796,7 +798,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (me) {
                 if (moveName === 'Fortalecer Defesa') {
-                    if (me.pa >= 2 && me.fortalecerDefesaUses < 2) {
+                    // <<< ALTERAÇÃO 1: Atualizando verificação do custo de PA >>>
+                    if (me.pa >= 3 && me.fortalecerDefesaUses < 2) {
                         isDisabled = false;
                     }
                 } else if (isActionPhase) {
@@ -840,7 +843,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modalButton.innerText = 'OK';
             modalButton.onclick = () => {
                 modal.classList.add('hidden');
-                modal.style.zIndex = "3000"; // Reset z-index
+                modal.style.zIndex = "3000";
             };
         }
         modal.classList.remove('hidden');
@@ -863,7 +866,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             modalButton.onclick = () => {
                 modal.classList.add('hidden');
-                modal.style.zIndex = "3000"; // Reset z-index
+                modal.style.zIndex = "3000";
             };
         }
         modal.classList.remove('hidden');

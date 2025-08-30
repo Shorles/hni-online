@@ -32,6 +32,7 @@ try {
 
 const games = {};
 
+// <<< ALTERAÇÃO 1: Custo do golpe "Fortalecer Defesa" alterado para 3 PA >>>
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
@@ -39,7 +40,7 @@ const MOVES = {
     'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
     'Clinch': { cost: 3, damage: 0, penalty: 0 },
     'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 },
-    'Fortalecer Defesa': { cost: 2, damage: 0, penalty: 0, reaction: true }
+    'Fortalecer Defesa': { cost: 3, damage: 0, penalty: 0, reaction: true }
 };
 
 const SPECIAL_MOVES = {
@@ -1085,10 +1086,9 @@ io.on('connection', (socket) => {
                     state.illegalCheat = 'normal';
                 }
                 break;
-            // <<< CORREÇÃO >>>
             case 'Fortalecer Defesa':
                  const user = state.fighters[playerKey];
-                 const moveData = state.moves['Fortalecer Defesa']; // Busca os dados do golpe diretamente
+                 const moveData = state.moves['Fortalecer Defesa'];
                  if(user && moveData && user.pa >= moveData.cost && user.fortalecerDefesaUses < 2) {
                     user.pa -= moveData.cost;
                     user.def++;
