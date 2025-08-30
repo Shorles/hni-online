@@ -99,7 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
-        // <<< ALTERAÇÃO 1: Atualizando a descrição do golpe na ajuda >>>
         const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Fortalecer Defesa': '(Reação) Custa 2 PA e adiciona +1 à sua DEF permanentemente neste round. Pode ser usado até 2 vezes por round.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum', 'Dempsey Roll': 'Recebe +2 no acerto. Se errar, o usuário recebe o dano do golpe.'};
         const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Fortalecer Defesa'];
         let playerSpecialMoves = [];
@@ -123,31 +122,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showScreen(screenToShow) { allScreens.forEach(screen => { screen.classList.toggle('active', screen.id === screenToShow.id); }); }
 
+    // <<< CORREÇÃO 1: Simplificando o handler de cliques para restaurar a funcionalidade >>>
     function handlePlayerControlClick(event) {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
-        const target = event.target.closest('button'); if (!target || target.disabled) return;
+        
+        const target = event.target.closest('button');
+        if (!target || target.disabled) return;
+        
         const move = target.dataset.move;
         const isReaction = target.dataset.reaction === 'true';
 
-        // <<< ALTERAÇÃO 1: Permitir usar "Fortalecer Defesa" a qualquer momento >>>
-        if (move === 'Fortalecer Defesa') {
-            socket.emit('playerAction', { type: 'Fortalecer Defesa', playerKey: myPlayerKey });
-            return;
-        }
+        // O servidor é inteligente o suficiente para saber quando um golpe é uma reação.
+        // Podemos simplificar aqui e enviar 'attack' para a maioria dos golpes, e o servidor fará a conversão.
+        // A exceção é o nosso novo 'Fortalecer Defesa', que tem sua própria lógica de ação.
 
-        if (move === 'Golpe Ilegal') {
-            const fighter = currentGameState.fighters[myPlayerKey]; const moveData = currentGameState.moves['Golpe Ilegal'];
-            if (fighter && moveData && fighter.pa >= moveData.cost) { showIllegalMoveConfirmation(); }
-        } else if (move) { 
-            // Para outros golpes de reação, como Counter, eles são tratados no servidor
-            if (isReaction && currentGameState.whoseTurn !== myPlayerKey) {
-                 socket.emit('playerAction', { type: move, playerKey: myPlayerKey });
-            } else {
-                // Ataques normais só no seu turno
-                socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+        if (move === 'Fortalecer Defesa') {
+            // Emite uma ação específica para este golpe, que pode ser usado a qualquer momento.
+            socket.emit('playerAction', { type: 'Fortalecer Defesa', playerKey: myPlayerKey });
+        } else if (move === 'Golpe Ilegal') {
+            // Requer confirmação do usuário
+            const fighter = currentGameState.fighters[myPlayerKey];
+            const moveData = currentGameState.moves['Golpe Ilegal'];
+            if (fighter && moveData && fighter.pa >= moveData.cost) {
+                showIllegalMoveConfirmation();
             }
-        } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) { 
-            socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey }); 
+        } else if (move) {
+            // Para TODOS os outros golpes (normais e de reação como Counter), enviamos como 'attack'.
+            // O servidor tem a lógica para remapear 'Counter' para sua própria ação.
+            socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+        } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) {
+            // Lógica para encerrar o turno
+            socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey });
         }
     }
     
@@ -180,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('join-as-spectator-btn').onclick = () => {
                 socket.emit('playerSetsRole', { role: 'spectator' });
                 showScreen(playerWaitingScreen);
-                // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
                 playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                 document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
             };
@@ -208,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         charSelectBackBtn.addEventListener('click', () => {
-            // Este botão não tem mais um lugar para "voltar" no fluxo do GM. Poderia ser escondido.
         });
         specialMovesBackBtn.addEventListener('click', () => { showScreen(selectionScreen); });
         
@@ -251,7 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
             socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
             showScreen(playerWaitingScreen);
-            // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
             playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
             document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre configurar seus atributos...";
             confirmBtn.disabled = true;
@@ -508,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showInteractiveModal(`Configurar Jogador: ${char.nome}`, modalContentHtml, "Confirmar Configuração", null);
         const movesContainer = document.getElementById('player-config-moves-list');
         renderSpecialMoveSelection(movesContainer, availableMoves);
-        // <<< ALTERAÇÃO 2: Adicionando z-index alto ao modal de configuração para sobrepor outras telas >>>
         modal.style.zIndex = "4000";
 
         modalButton.onclick = () => {
@@ -543,9 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('gameUpdate', (gameState) => {
-        // <<< ALTERAÇÃO 2: Garantir que o modal de configuração não seja fechado por um gameUpdate normal >>>
         if (!modal.classList.contains('hidden') && modal.querySelector('#player-config-agi')) {
-            // Se o modal de configuração estiver aberto, não faz nada
         } else if (!modal.classList.contains('hidden')) {
             modal.classList.add('hidden');
         }
@@ -572,7 +571,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderGmCharacterSelection(true);
                 } else if (SETUP_PHASES.includes(gameState.phase)) {
                     showScreen(playerWaitingScreen);
-                    // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
                     playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                     document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                 } else {
@@ -593,7 +591,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 if (gameState.mode === 'lobby') {
                     showScreen(playerWaitingScreen);
-                    // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
                     playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                     let waitMessage = "Aguardando o Mestre iniciar o jogo...";
                     if (myPlayerData && !myPlayerData.configuredStats) {
@@ -605,7 +602,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
                     if (SETUP_PHASES.includes(gameState.phase) || gameState.phase === 'gm_classic_setup') {
                         showScreen(playerWaitingScreen);
-                        // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
                         playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                         document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                     } else {
@@ -619,13 +615,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (myRole === 'spectator') {
              if (gameState.mode === 'lobby') {
                 showScreen(playerWaitingScreen);
-                // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
                 playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                 document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
              } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
                 if (SETUP_PHASES.includes(gameState.phase) || gameState.phase === 'gm_classic_setup') {
                     showScreen(playerWaitingScreen);
-                    // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
                     playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                     document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                 } else {
@@ -715,7 +709,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const showCopyLink = isGm && (state.mode === 'classic' || state.mode === 'arena' || state.mode === 'theater');
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !showCopyLink);
         
-        // <<< ALTERAÇÃO 4: Lógica para esconder o botão de ajuda do espectador >>>
         const showHelp = state.mode !== 'theater' && state.mode !== 'lobby' && myRole !== 'spectator';
         helpBtn.classList.toggle('hidden', !showHelp);
 
@@ -802,7 +795,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const me = state.fighters[myPlayerKey]; const isMyTurn = state.whoseTurn === myPlayerKey; const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
             
             if (me) {
-                // <<< ALTERAÇÃO 1: Lógica para habilitar/desabilitar "Fortalecer Defesa" >>>
                 if (moveName === 'Fortalecer Defesa') {
                     if (me.pa >= 2 && me.fortalecerDefesaUses < 2) {
                         isDisabled = false;
@@ -818,7 +810,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else { 
                         if (isReaction && moveName) {
                             const move = state.moves[moveName];
-                            if (move && moveName === 'Counter') isDisabled = false; // Counter pode ser ativado a qualquer momento. O servidor valida o PA.
+                            if (move && moveName === 'Counter') isDisabled = false; 
                         }
                     }
                 }
@@ -1628,7 +1620,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
     socket.on('hideModal', () => { 
-        if(modal.style.zIndex === "4000") return; // Don't hide config modal
+        if(modal.style.zIndex === "4000") return;
         modal.classList.add('hidden');
     });
     socket.on('diceRoll', showDiceRollAnimation);

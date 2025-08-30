@@ -32,7 +32,6 @@ try {
 
 const games = {};
 
-// <<< ALTERAÇÃO 1: Renomeando "Esquiva" para "Fortalecer Defesa" e ajustando custo >>>
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
@@ -56,7 +55,6 @@ const SPECIAL_MOVES = {
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
-// <<< ALTERAÇÃO 1: Atualizando a chave nos sons do golpe >>>
 const MOVE_SOUNDS = {
     'Jab': ['jab01.mp3', 'jab02.mp3', 'jab03.mp3'],
     'Direto': ['baseforte01.mp3', 'baseforte02.mp3'],
@@ -152,7 +150,6 @@ function createNewTheaterState(initialScenario) {
     return theaterState;
 }
 
-// <<< ALTERAÇÃO 1: Adicionando contador de uso para o novo golpe >>>
 function createNewFighterState(data) {
     const res = Math.max(1, parseInt(data.res, 10) || 1);
     const agi = parseInt(data.agi, 10) || 1;
@@ -165,7 +162,7 @@ function createNewFighterState(data) {
         specialMoves: data.specialMoves || [],
         pointDeductions: 0,
         illegalMoveUses: 0,
-        fortalecerDefesaUses: 0, // Novo contador
+        fortalecerDefesaUses: 0,
         defRoll: 0
     };
 }
@@ -427,7 +424,6 @@ function endTurn(state, io, roomId) {
     if (lastPlayerWentFirst) { 
         state.phase = 'turn'; 
     } else { 
-        // <<< ALTERAÇÃO 1: Removendo lógica antiga da Esquiva que terminava no final do turno >>>
         processEndRound(state, io, roomId); 
     }
 }
@@ -447,7 +443,6 @@ function processEndRound(state, io, roomId) {
         state.fighters.player2.pa = 3;
         logMessage(state, `Pontos de Ação de ambos os lutadores foram resetados para 3.`, 'log-info');
         
-        // <<< ALTERAÇÃO 1: Adicionando lógica de reset para "Fortalecer Defesa" >>>
         Object.values(state.fighters).forEach(f => {
             if (f.fortalecerDefesaUses > 0) {
                 logMessage(state, `O bônus de defesa de ${f.nome} (+${f.fortalecerDefesaUses}) terminou com o round.`, 'log-info');
@@ -539,7 +534,6 @@ function dispatchAction(room) {
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
 
-    // <<< ALTERAÇÃO 2: Movido para processar a fila de configuração em qualquer modo de jogo >>>
     processNextPlayerInConfigQueue(room);
 
     if (state.mode === 'lobby') {
@@ -655,22 +649,32 @@ io.on('connection', (socket) => {
         io.to(socket.id).emit('gameUpdate', newState);
     });
 
+    // <<< CORREÇÃO 2: Tornando o join mais robusto para jogadores que entram tarde >>>
     socket.on('playerJoinsLobby', ({ roomId }) => {
         const room = games[roomId];
-        if (!room) {
+        if (!room || !room.state) {
             socket.emit('error', { message: 'Sala não encontrada.' });
             return;
         }
         socket.join(roomId);
         socket.currentRoomId = roomId;
+        // Envia imediatamente o estado atual para o novo jogador, para que ele possa sincronizar
+        socket.emit('gameUpdate', room.state);
     });
 
+    // <<< CORREÇÃO 2: Tornando o setRole mais robusto >>>
     socket.on('playerSetsRole', ({ role }) => {
         const roomId = socket.currentRoomId;
-        if (!roomId || !games[roomId]) return;
+        if (!roomId || !games[roomId]) return; // Proteção caso o roomId não esteja definido
+        
         const room = games[roomId];
         const lobbyState = getLobbyState(room);
-        if (!lobbyState) return;
+
+        if (!lobbyState) {
+            // Se não houver estado de lobby (cache), o jogo pode estar em um estado inválido para novos jogadores.
+            socket.emit('error', { message: 'A sessão não está aceitando novos jogadores no momento.' });
+            return;
+        }
 
         if (room.players.find(p => p.id === socket.id) || room.spectators.includes(socket.id)) return;
 
@@ -697,6 +701,7 @@ io.on('connection', (socket) => {
         const moveName = action.move;
         const move = (state.moves && moveName) ? state.moves[moveName] : undefined;
         if (move && move.reaction) {
+            // O servidor irá remapear a ação 'attack' com um golpe de reação para o tipo de ação correto
             action.type = moveName;
         }
 
@@ -1085,7 +1090,6 @@ io.on('connection', (socket) => {
                     state.illegalCheat = 'normal';
                 }
                 break;
-            // <<< ALTERAÇÃO 1: Implementando a nova lógica para "Fortalecer Defesa" >>>
             case 'Fortalecer Defesa':
                  const user = state.fighters[playerKey];
                  if(user && user.pa >= move.cost && user.fortalecerDefesaUses < 2) {
@@ -1227,7 +1231,7 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const fighter = state.fighters[playerKey];
                 fighter.defRoll = defRoll;
-                fighter.def = defRoll + fighter.res; // A DEF base agora sempre usa RES
+                fighter.def = defRoll + fighter.res;
                 logMessage(state, `${fighter.nome} definiu defesa: D3(${defRoll}) + RES(${fighter.res}) = <span class="highlight-total">${fighter.def}</span>`, 'log-info');
                 if (playerKey === 'player1') { state.phase = 'defense_p2'; } 
                 else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
