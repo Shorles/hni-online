@@ -99,9 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showHelpModal() {
         if (!currentGameState || currentGameState.mode === 'theater') return;
-        // <<< NOVO GOLPE >>>
-        const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Esquiva': '(Reação) Sua DEF passa a ser calculada com AGI em vez de RES por 2 rodadas.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum', 'Dempsey Roll': 'Recebe +2 no acerto. Se errar, o usuário recebe o dano do golpe.'};
-        const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Esquiva'];
+        // <<< ALTERAÇÃO 1: Atualizando a descrição do golpe na ajuda >>>
+        const MOVE_EFFECTS = {'Liver Blow': '30% de chance de remover 1 PA do oponente.','Clinch': 'Se acertar, remove 2 PA do oponente. Crítico remove 4.','Golpe Ilegal': 'Chance de perder pontos ou ser desqualificado. A chance de DQ aumenta a cada uso.','Fortalecer Defesa': '(Reação) Custa 2 PA e adiciona +1 à sua DEF permanentemente neste round. Pode ser usado até 2 vezes por round.','Counter': '(Reação) Intercepta o golpe do oponente. O custo de PA é igual ao do golpe recebido. Ambos rolam ataque; o maior resultado vence e causa o dobro de dano no perdedor.','Flicker Jab': 'Repete o ataque continuamente até errar.','White Fang': 'Permite um segundo uso consecutivo sem custo de PA.','OraOraOra': 'Nenhum', 'Dempsey Roll': 'Recebe +2 no acerto. Se errar, o usuário recebe o dano do golpe.'};
+        const BASIC_MOVES_ORDER = ['Jab', 'Direto', 'Upper', 'Liver Blow', 'Clinch', 'Golpe Ilegal', 'Fortalecer Defesa'];
         let playerSpecialMoves = [];
         if (myPlayerKey === 'player1' || myPlayerKey === 'player2') {
             const fighter = currentGameState.fighters[myPlayerKey];
@@ -127,11 +127,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!myPlayerKey || (myPlayerKey !== 'player1' && myPlayerKey !== 'player2') || !currentGameState) return;
         const target = event.target.closest('button'); if (!target || target.disabled) return;
         const move = target.dataset.move;
+        const isReaction = target.dataset.reaction === 'true';
+
+        // <<< ALTERAÇÃO 1: Permitir usar "Fortalecer Defesa" a qualquer momento >>>
+        if (move === 'Fortalecer Defesa') {
+            socket.emit('playerAction', { type: 'Fortalecer Defesa', playerKey: myPlayerKey });
+            return;
+        }
+
         if (move === 'Golpe Ilegal') {
             const fighter = currentGameState.fighters[myPlayerKey]; const moveData = currentGameState.moves['Golpe Ilegal'];
             if (fighter && moveData && fighter.pa >= moveData.cost) { showIllegalMoveConfirmation(); }
-        } else if (move) { socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
-        } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) { socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey }); }
+        } else if (move) { 
+            // Para outros golpes de reação, como Counter, eles são tratados no servidor
+            if (isReaction && currentGameState.whoseTurn !== myPlayerKey) {
+                 socket.emit('playerAction', { type: move, playerKey: myPlayerKey });
+            } else {
+                // Ataques normais só no seu turno
+                socket.emit('playerAction', { type: 'attack', move: move, playerKey: myPlayerKey });
+            }
+        } else if (target.id === `p${myPlayerKey.slice(-1)}-end-turn-btn`) { 
+            socket.emit('playerAction', { type: 'end_turn', playerKey: myPlayerKey }); 
+        }
     }
     
     function showIllegalMoveConfirmation() {
@@ -163,6 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('join-as-spectator-btn').onclick = () => {
                 socket.emit('playerSetsRole', { role: 'spectator' });
                 showScreen(playerWaitingScreen);
+                // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
+                playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                 document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
             };
         } else {
@@ -232,6 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const playerData = { nome: selectedCard.dataset.name, img: selectedCard.dataset.img };
             socket.emit('playerAction', { type: 'playerSelectsCharacter', character: playerData });
             showScreen(playerWaitingScreen);
+            // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
+            playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
             document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre configurar seus atributos...";
             confirmBtn.disabled = true;
             return;
@@ -472,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isGm) return;
         const char = playerData.selectedCharacter;
         const modalContentHtml = `
-            <div style="display:flex; gap: 30px;">
+            <div style="display:flex; gap: 30px; position: relative;">
                 <div style="flex: 1; text-align: center;">
                     <h4>Definir Atributos de ${char.nome}</h4>
                     <img src="${char.img}" alt="${char.nome}" style="width: 80px; height: 80px; border-radius: 50%; background: #555; margin: 10px auto; display: block;">
@@ -487,6 +508,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showInteractiveModal(`Configurar Jogador: ${char.nome}`, modalContentHtml, "Confirmar Configuração", null);
         const movesContainer = document.getElementById('player-config-moves-list');
         renderSpecialMoveSelection(movesContainer, availableMoves);
+        // <<< ALTERAÇÃO 2: Adicionando z-index alto ao modal de configuração para sobrepor outras telas >>>
+        modal.style.zIndex = "4000";
 
         modalButton.onclick = () => {
             const agi = document.getElementById('player-config-agi').value;
@@ -505,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             socket.emit('playerAction', action);
             modal.classList.add('hidden');
+            modal.style.zIndex = "3000"; // Reset z-index
         };
     });
 
@@ -519,7 +543,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     socket.on('gameUpdate', (gameState) => {
-        if (!modal.classList.contains('hidden') && !modal.querySelector('#player-config-agi')) {
+        // <<< ALTERAÇÃO 2: Garantir que o modal de configuração não seja fechado por um gameUpdate normal >>>
+        if (!modal.classList.contains('hidden') && modal.querySelector('#player-config-agi')) {
+            // Se o modal de configuração estiver aberto, não faz nada
+        } else if (!modal.classList.contains('hidden')) {
             modal.classList.add('hidden');
         }
         specialMovesModal.classList.add('hidden');
@@ -545,6 +572,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderGmCharacterSelection(true);
                 } else if (SETUP_PHASES.includes(gameState.phase)) {
                     showScreen(playerWaitingScreen);
+                    // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
+                    playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                     document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                 } else {
                     showScreen(fightScreen);
@@ -564,6 +593,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 if (gameState.mode === 'lobby') {
                     showScreen(playerWaitingScreen);
+                    // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
+                    playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                     let waitMessage = "Aguardando o Mestre iniciar o jogo...";
                     if (myPlayerData && !myPlayerData.configuredStats) {
                         waitMessage = "Personagem enviado! Aguardando o Mestre configurar seus atributos...";
@@ -574,6 +605,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
                     if (SETUP_PHASES.includes(gameState.phase) || gameState.phase === 'gm_classic_setup') {
                         showScreen(playerWaitingScreen);
+                        // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
+                        playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                         document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                     } else {
                         showScreen(fightScreen);
@@ -586,10 +619,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (myRole === 'spectator') {
              if (gameState.mode === 'lobby') {
                 showScreen(playerWaitingScreen);
+                // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
+                playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                 document.getElementById('player-waiting-message').innerText = "Aguardando como espectador...";
              } else if (gameState.mode === 'classic' || gameState.mode === 'arena') {
                 if (SETUP_PHASES.includes(gameState.phase) || gameState.phase === 'gm_classic_setup') {
                     showScreen(playerWaitingScreen);
+                    // <<< ALTERAÇÃO 3: Alterando texto da tela de espera >>>
+                    playerWaitingScreen.querySelector('h1').innerText = "Arata na Ippo";
                     document.getElementById('player-waiting-message').innerText = "O Mestre está configurando a partida...";
                 } else {
                     showScreen(fightScreen);
@@ -678,7 +715,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const showCopyLink = isGm && (state.mode === 'classic' || state.mode === 'arena' || state.mode === 'theater');
         copySpectatorLinkInGameBtn.classList.toggle('hidden', !showCopyLink);
         
-        helpBtn.classList.toggle('hidden', state.mode === 'theater' || state.mode === 'lobby');
+        // <<< ALTERAÇÃO 4: Lógica para esconder o botão de ajuda do espectador >>>
+        const showHelp = state.mode !== 'theater' && state.mode !== 'lobby' && myRole !== 'spectator';
+        helpBtn.classList.toggle('hidden', !showHelp);
 
         if (state.scenario && state.mode !== 'theater') { gameWrapper.style.backgroundImage = `url('images/${state.scenario}')`; }
         
@@ -761,16 +800,28 @@ document.addEventListener('DOMContentLoaded', () => {
             let isDisabled = true;
             const moveName = btn.dataset.move; const isReaction = btn.dataset.reaction === 'true'; const isEndTurn = btn.classList.contains('end-turn-btn');
             const me = state.fighters[myPlayerKey]; const isMyTurn = state.whoseTurn === myPlayerKey; const isActionPhase = state.phase === 'turn' || state.phase === 'white_fang_follow_up';
-            const hasUsedReaction = state.reactionState && state.reactionState.playerKey === myPlayerKey;
-            if (isActionPhase && me) {
-                if (isMyTurn) {
-                    if (isEndTurn) { isDisabled = false; } 
-                    else if (!isReaction && moveName) {
-                        const move = state.moves[moveName]; let cost = move.cost;
-                        if (state.phase === 'white_fang_follow_up' && moveName === 'White Fang') { cost = 0; btn.classList.add('white-fang-ready'); if (!btn.querySelector('.white-fang-extra')) { btn.innerHTML += '<span class="white-fang-extra">Ataque Extra!</span>'; } }
-                        if (move && me.pa >= cost) isDisabled = false;
+            
+            if (me) {
+                // <<< ALTERAÇÃO 1: Lógica para habilitar/desabilitar "Fortalecer Defesa" >>>
+                if (moveName === 'Fortalecer Defesa') {
+                    if (me.pa >= 2 && me.fortalecerDefesaUses < 2) {
+                        isDisabled = false;
                     }
-                } else { if (isReaction && !hasUsedReaction && moveName) { const move = state.moves[moveName]; if (move && me.pa >= move.cost) isDisabled = false; } }
+                } else if (isActionPhase) {
+                    if (isMyTurn) {
+                        if (isEndTurn) { isDisabled = false; } 
+                        else if (!isReaction && moveName) {
+                            const move = state.moves[moveName]; let cost = move.cost;
+                            if (state.phase === 'white_fang_follow_up' && moveName === 'White Fang') { cost = 0; btn.classList.add('white-fang-ready'); if (!btn.querySelector('.white-fang-extra')) { btn.innerHTML += '<span class="white-fang-extra">Ataque Extra!</span>'; } }
+                            if (move && me.pa >= cost) isDisabled = false;
+                        }
+                    } else { 
+                        if (isReaction && moveName) {
+                            const move = state.moves[moveName];
+                            if (move && moveName === 'Counter') isDisabled = false; // Counter pode ser ativado a qualquer momento. O servidor valida o PA.
+                        }
+                    }
+                }
             }
             if (state.phase === 'paused' && !isGm) isDisabled = true;
             btn.disabled = isDisabled;
@@ -795,7 +846,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             modalButton.style.display = 'inline-block';
             modalButton.innerText = 'OK';
-            modalButton.onclick = () => modal.classList.add('hidden');
+            modalButton.onclick = () => {
+                modal.classList.add('hidden');
+                modal.style.zIndex = "3000"; // Reset z-index
+            };
         }
         modal.classList.remove('hidden');
     }
@@ -815,7 +869,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 socket.emit('playerAction', action);
             }; 
         } else {
-            modalButton.onclick = () => modal.classList.add('hidden');
+            modalButton.onclick = () => {
+                modal.classList.add('hidden');
+                modal.style.zIndex = "3000"; // Reset z-index
+            };
         }
         modal.classList.remove('hidden');
     }
@@ -1570,7 +1627,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('getUpSuccess', ({ downedPlayerName, rollValue }) => { modal.classList.add('hidden'); getUpSuccessOverlay.classList.remove('hidden'); getUpSuccessContent.innerHTML = `${rollValue} - ${downedPlayerName.toUpperCase()} CONSEGUIU SE LEVANTAR! <span>(precisava de 7 ou mais)</span>`; setTimeout(() => getUpSuccessOverlay.classList.add('hidden'), 3000); });
-    socket.on('hideModal', () => modal.classList.add('hidden'));
+    socket.on('hideModal', () => { 
+        if(modal.style.zIndex === "4000") return; // Don't hide config modal
+        modal.classList.add('hidden');
+    });
     socket.on('diceRoll', showDiceRollAnimation);
     socket.on('error', ({message}) => { showInfoModal("Erro", `${message}<br>Recarregue a página para tentar novamente.`); });
 

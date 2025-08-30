@@ -32,6 +32,7 @@ try {
 
 const games = {};
 
+// <<< ALTERAÇÃO 1: Renomeando "Esquiva" para "Fortalecer Defesa" e ajustando custo >>>
 const MOVES = {
     'Jab': { cost: 1, damage: 1, penalty: 0 },
     'Direto': { cost: 2, damage: 3, penalty: 1 },
@@ -39,7 +40,7 @@ const MOVES = {
     'Liver Blow': { cost: 3, damage: 3, penalty: 1 },
     'Clinch': { cost: 3, damage: 0, penalty: 0 },
     'Golpe Ilegal': { cost: 2, damage: 5, penalty: 0 },
-    'Esquiva': { cost: 1, damage: 0, penalty: 0, reaction: true }
+    'Fortalecer Defesa': { cost: 2, damage: 0, penalty: 0, reaction: true }
 };
 
 const SPECIAL_MOVES = {
@@ -51,11 +52,11 @@ const SPECIAL_MOVES = {
     'Frog Punch': { cost: 4, damage: 7, penalty: 1 },
     'White Fang': { cost: 4, damage: 4, penalty: 1 },
     'OraOraOra': { displayName: 'Ora ora ora...', cost: 3, damage: 10, penalty: -1 },
-    // <<< NOVO GOLPE >>>
     'Dempsey Roll': { cost: 7, damage: 10, penalty: 0, hitBonus: 2 } 
 };
 const ALL_MOVES = { ...MOVES, ...SPECIAL_MOVES };
 
+// <<< ALTERAÇÃO 1: Atualizando a chave nos sons do golpe >>>
 const MOVE_SOUNDS = {
     'Jab': ['jab01.mp3', 'jab02.mp3', 'jab03.mp3'],
     'Direto': ['baseforte01.mp3', 'baseforte02.mp3'],
@@ -71,8 +72,7 @@ const MOVE_SOUNDS = {
     'OraOraOra': 'OraOraOra.mp3',
     'Golpe Ilegal': ['especialforte01.mp3', 'especialforte02.mp3'],
     'Clinch': ['Esquiva.mp3'],
-    'Esquiva': ['Esquiva.mp3'],
-    // <<< NOVO GOLPE >>>
+    'Fortalecer Defesa': 'Esquiva.mp3',
     'Dempsey Roll': 'Dempsey Roll.mp3'
 };
 
@@ -152,6 +152,7 @@ function createNewTheaterState(initialScenario) {
     return theaterState;
 }
 
+// <<< ALTERAÇÃO 1: Adicionando contador de uso para o novo golpe >>>
 function createNewFighterState(data) {
     const res = Math.max(1, parseInt(data.res, 10) || 1);
     const agi = parseInt(data.agi, 10) || 1;
@@ -164,7 +165,7 @@ function createNewFighterState(data) {
         specialMoves: data.specialMoves || [],
         pointDeductions: 0,
         illegalMoveUses: 0,
-        activeEffects: {},
+        fortalecerDefesaUses: 0, // Novo contador
         defRoll: 0
     };
 }
@@ -290,7 +291,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
         let crit = false;
         let hit = false;
         let soundToPlay = null;
-        // <<< LÓGICA DEMPSEY ROLL: Bônus de acerto >>>
         const hitBonus = move.hitBonus || 0;
         const attackValue = roll + attacker.agi - move.penalty + hitBonus;
         const logBonus = hitBonus > 0 ? ` + ${hitBonus} Bônus` : '';
@@ -326,7 +326,6 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
             if (isActuallyIllegal) illegalMoveLanded = true;
         } else { 
             soundToPlay = 'Esquiva.mp3';
-            // <<< LÓGICA DEMPSEY ROLL: Penalidade no erro >>>
             if (moveName === 'Dempsey Roll') {
                 logMessage(state, `${attacker.nome} erra o Dempsey Roll e se desequilibra!`, 'log-miss');
                 const selfDamage = move.damage;
@@ -336,8 +335,8 @@ function executeAttack(state, attackerKey, defenderKey, moveName, io, roomId) {
                 attacker.hp = Math.max(0, attacker.hp - selfDamage);
                 attacker.totalDamageTaken += hpBeforeHit - attacker.hp;
 
-                io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey }); // Animação de hit no próprio atacante
-                soundToPlay = 'Critical.mp3'; // Som de acerto crítico para o dano autoinfligido
+                io.to(roomId).emit('triggerHitAnimation', { defenderKey: attackerKey }); 
+                soundToPlay = 'Critical.mp3'; 
             }
         }
     
@@ -428,17 +427,7 @@ function endTurn(state, io, roomId) {
     if (lastPlayerWentFirst) { 
         state.phase = 'turn'; 
     } else { 
-        Object.values(state.fighters).forEach(fighter => {
-            if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
-                fighter.activeEffects.esquiva.duration--;
-                if(fighter.activeEffects.esquiva.duration === 0) {
-                    logMessage(state, `O efeito da Esquiva de ${fighter.nome} terminou.`, 'log-info');
-                    delete fighter.activeEffects.esquiva;
-                    fighter.def = fighter.defRoll + fighter.res;
-                    logMessage(state, `Defesa de ${fighter.nome} voltou ao normal: ${fighter.def}.`, 'log-info');
-                }
-            }
-        });
+        // <<< ALTERAÇÃO 1: Removendo lógica antiga da Esquiva que terminava no final do turno >>>
         processEndRound(state, io, roomId); 
     }
 }
@@ -457,14 +446,16 @@ function processEndRound(state, io, roomId) {
         state.fighters.player1.pa = 3;
         state.fighters.player2.pa = 3;
         logMessage(state, `Pontos de Ação de ambos os lutadores foram resetados para 3.`, 'log-info');
-
+        
+        // <<< ALTERAÇÃO 1: Adicionando lógica de reset para "Fortalecer Defesa" >>>
         Object.values(state.fighters).forEach(f => {
-            if (f.activeEffects.esquiva) {
-                delete f.activeEffects.esquiva;
-                f.def = f.defRoll + f.res;
+            if (f.fortalecerDefesaUses > 0) {
+                logMessage(state, `O bônus de defesa de ${f.nome} (+${f.fortalecerDefesaUses}) terminou com o round.`, 'log-info');
+                f.def -= f.fortalecerDefesaUses;
+                f.fortalecerDefesaUses = 0;
             }
         });
-        logMessage(state, `Efeitos foram resetados para o novo round.`, 'log-info');
+        logMessage(state, `Bônus de round foram resetados.`, 'log-info');
         logMessage(state, `--- FIM DO ROUND ${state.currentRound - 1} ---`, 'log-info');
         state.phase = 'initiative_p1';
     } else {
@@ -548,8 +539,10 @@ function dispatchAction(room) {
     const { state, id: roomId } = room;
     io.to(roomId).emit('hideRollButtons');
 
+    // <<< ALTERAÇÃO 2: Movido para processar a fila de configuração em qualquer modo de jogo >>>
+    processNextPlayerInConfigQueue(room);
+
     if (state.mode === 'lobby') {
-        processNextPlayerInConfigQueue(room);
         return;
     }
 
@@ -1092,17 +1085,15 @@ io.on('connection', (socket) => {
                     state.illegalCheat = 'normal';
                 }
                 break;
-            case 'Esquiva':
-                 const esquivador = state.fighters[playerKey];
-                 if(esquivador.pa >= move.cost) {
-                    esquivador.pa -= move.cost;
-                    esquivador.activeEffects.esquiva = { duration: 2 };
-                    const currentDefRoll = esquivador.defRoll || 0;
-                    const newBaseStat = esquivador.agi;
-                    esquivador.def = currentDefRoll + newBaseStat;
-                    state.reactionState = { playerKey, move: 'Esquiva' };
-                    logMessage(state, `${esquivador.nome} usa <span class="log-move-name">Esquiva</span>! Sua defesa foi recalculada para <span class="highlight-total">${esquivador.def}</span>.`, 'log-info');
-                    io.to(roomId).emit('playSound', MOVE_SOUNDS['Esquiva']);
+            // <<< ALTERAÇÃO 1: Implementando a nova lógica para "Fortalecer Defesa" >>>
+            case 'Fortalecer Defesa':
+                 const user = state.fighters[playerKey];
+                 if(user && user.pa >= move.cost && user.fortalecerDefesaUses < 2) {
+                    user.pa -= move.cost;
+                    user.def++;
+                    user.fortalecerDefesaUses++;
+                    logMessage(state, `${user.nome} usa <span class="log-move-name">Fortalecer Defesa</span>! Sua defesa aumentou para <span class="highlight-total">${user.def}</span>.`, 'log-info');
+                    io.to(roomId).emit('playSound', MOVE_SOUNDS['Fortalecer Defesa']);
                  }
                  break;
             case 'Counter':
@@ -1236,15 +1227,8 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('diceRoll', { playerKey, rollValue: defRoll, diceType: 'd3' });
                 const fighter = state.fighters[playerKey];
                 fighter.defRoll = defRoll;
-                let baseStat = fighter.res;
-                let statName = 'RES';
-                if (fighter.activeEffects.esquiva && fighter.activeEffects.esquiva.duration > 0) {
-                    baseStat = fighter.agi;
-                    statName = 'AGI';
-                    logMessage(state, `Esquiva está ativa para ${fighter.nome}!`, 'log-info')
-                }
-                fighter.def = defRoll + baseStat;
-                logMessage(state, `${fighter.nome} definiu defesa: D3(${defRoll}) + ${statName}(${baseStat}) = <span class="highlight-total">${fighter.def}</span>`, 'log-info');
+                fighter.def = defRoll + fighter.res; // A DEF base agora sempre usa RES
+                logMessage(state, `${fighter.nome} definiu defesa: D3(${defRoll}) + RES(${fighter.res}) = <span class="highlight-total">${fighter.def}</span>`, 'log-info');
                 if (playerKey === 'player1') { state.phase = 'defense_p2'; } 
                 else { logMessage(state, `--- ROUND ${state.currentRound} COMEÇA! ---`, 'log-turn'); state.phase = 'turn'; }
                 break;

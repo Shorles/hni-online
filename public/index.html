@@ -12,7 +12,6 @@
 
     <button id="help-btn" class="help-btn hidden" title="Guia de Golpes">?</button>
     <button id="gm-mode-switch-btn" class="gm-mode-switch-btn hidden" title="Mudar Modo de Jogo">🔄</button>
-    <!-- <<< AJUSTE 1: Botão movido para fora da 'theater-screen' para ser visível em outros modos >>> -->
     <button id="copy-spectator-link-ingame" class="copy-link-button hidden" title="Copiar link de espectador">🔗</button>
 
 
@@ -25,7 +24,6 @@
 
     <!-- TELA DE SENHA -->
     <div id="password-screen" class="screen">
-        <!-- <<< ALTERADO: Título de texto substituído pela imagem >>> -->
         <img src="images/Arata na Ippo.png" alt="Título do Jogo" class="main-title-image">
         <input type="password" id="password-input" placeholder="Digite a senha">
         <button id="password-submit-btn" class="mode-btn">Entrar</button>
@@ -33,7 +31,6 @@
 
     <!-- TELA DE SELEÇÃO DE FUNÇÃO -->
     <div id="role-selection-screen" class="screen">
-        <!-- <<< ALTERADO: Título de texto substituído pela imagem >>> -->
         <img src="images/Arata na Ippo.png" alt="Título do Jogo" class="main-title-image">
         <h2>Como deseja entrar na sala?</h2>
         <div class="mode-buttons-container">
@@ -67,7 +64,8 @@
     </div>
 
     <div id="player-waiting-screen" class="screen">
-         <h1>HNI Battle Online</h1>
+         <!-- <<< ALTERAÇÃO 3: Alterando título da tela de espera >>> -->
+         <h1>Arata na Ippo</h1>
          <p id="player-waiting-message">Aguardando o Mestre iniciar o jogo...</p>
     </div>
     
@@ -188,7 +186,8 @@
                     <button class="action-btn p1-btn" data-move="Upper">Upper (3 PA)</button>
                     <button class="action-btn p1-btn" data-move="Liver Blow">Liver Blow (3 PA)</button>
                     <button class="action-btn p1-btn" data-move="Clinch">Clinch (3 PA)</button>
-                    <button class="action-btn p1-btn" data-move="Esquiva" data-reaction="true">Esquiva (1 PA)</button>
+                    <!-- <<< ALTERAÇÃO 1: Alterando o botão de Esquiva para Fortalecer Defesa >>> -->
+                    <button class="action-btn p1-btn" data-move="Fortalecer Defesa" data-reaction="true">Fortalecer Defesa (2 PA)</button>
                     <button class="action-btn p1-btn illegal-btn" data-move="Golpe Ilegal">Golpe Ilegal (2 PA)</button>
                     <div id="p1-special-moves" class="special-moves-container"></div>
                     <button id="p1-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
@@ -199,7 +198,8 @@
                     <button class="action-btn p2-btn" data-move="Upper">Upper (3 PA)</button>
                     <button class="action-btn p2-btn" data-move="Liver Blow">Liver Blow (3 PA)</button>
                     <button class="action-btn p2-btn" data-move="Clinch">Clinch (3 PA)</button>
-                    <button class="action-btn p2-btn" data-move="Esquiva" data-reaction="true">Esquiva (1 PA)</button>
+                    <!-- <<< ALTERAÇÃO 1: Alterando o botão de Esquiva para Fortalecer Defesa >>> -->
+                    <button class="action-btn p2-btn" data-move="Fortalecer Defesa" data-reaction="true">Fortalecer Defesa (2 PA)</button>
                     <button class="action-btn p2-btn illegal-btn" data-move="Golpe Ilegal">Golpe Ilegal (2 PA)</button>
                     <div id="p2-special-moves" class="special-moves-container"></div>
                     <button id="p2-end-turn-btn" class="end-turn-btn">ENCERRAR O TURNO</button>
