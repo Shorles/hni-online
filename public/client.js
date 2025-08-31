@@ -14,14 +14,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let myRoomId = null; 
     let coordsModeActive = false;
     let clientFlowState = 'initializing';
-    const gameStateQueue = [];
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
     let stagedNpcSlots = new Array(5).fill(null);
     let selectedSlotIndex = null;
     const MAX_NPCS = 5;
     let isTargeting = false;
-    let targetingAction = null; // NOVO: Armazena a ação (ataque, magia)
+    let targetingAction = null;
     let isFreeMoveModeActive = false;
     let customFighterPositions = {};
     let draggedFighter = { element: null, offsetX: 0, offsetY: 0 };
@@ -130,6 +129,86 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state || !state.fighters || !key) return null;
         return state.fighters.players[key] || state.fighters.npcs[key];
     }
+
+    // =================================================================
+    // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
+    // =================================================================
+    // *** MOVIDA PARA CIMA PARA CORRIGIR O BUG DE REFERÊNCIA ***
+    function renderGame(gameState) {
+        oldGameState = currentGameState;
+        currentGameState = gameState;
+
+        if (!gameState || !gameState.mode || !gameState.connectedPlayers) {
+            showScreen(document.getElementById('loading-screen'));
+            return;
+        }
+
+        scaleGame(); 
+
+        if (gameState.mode === 'adventure' && gameState.customPositions) customFighterPositions = gameState.customPositions;
+        
+        const myPlayerData = gameState.connectedPlayers?.[socket.id];
+        if (myRole === 'player' && myPlayerData && !myPlayerData.characterFinalized) {
+             // Não renderiza nada novo se o jogador ainda não finalizou a ficha,
+             // exceto a tela de espera ou criação.
+             const currentScreen = document.querySelector('.screen.active');
+             if (currentScreen.id !== 'character-sheet-screen' && currentScreen.id !== 'player-initial-choice-screen' && currentScreen.id !== 'selection-screen') {
+                 showScreen(document.getElementById('player-waiting-screen'));
+             }
+             return;
+        }
+        
+        if (gameState.mode === 'adventure' && gameState.scenario) gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
+        else if (gameState.mode === 'lobby') gameWrapper.style.backgroundImage = `url('images/mapas/cenarios externos/externo (1).png')`;
+        else gameWrapper.style.backgroundImage = 'none';
+
+        document.getElementById('turn-order-sidebar').classList.add('hidden');
+        floatingButtonsContainer.classList.add('hidden');
+        document.getElementById('waiting-players-sidebar').classList.add('hidden');
+        document.getElementById('back-to-lobby-btn').classList.add('hidden');
+
+        if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
+            floatingButtonsContainer.classList.remove('hidden');
+            document.getElementById('back-to-lobby-btn').classList.remove('hidden');
+            const switchBtn = document.getElementById('floating-switch-mode-btn');
+            if (gameState.mode === 'adventure') {
+                switchBtn.innerHTML = '🎭';
+                switchBtn.title = 'Mudar para Modo Cenário';
+            } else {
+                switchBtn.innerHTML = '⚔️';
+                switchBtn.title = 'Mudar para Modo Aventura';
+            }
+        }
+
+        switch(gameState.mode) {
+            case 'lobby':
+                defeatAnimationPlayed.clear();
+                stagedNpcSlots.fill(null);
+                selectedSlotIndex = null;
+                if (isGm) {
+                    showScreen(document.getElementById('gm-initial-lobby'));
+                    updateGmLobbyUI(gameState);
+                } else {
+                    // Se o jogador já finalizou o char, ele espera. Se não, continua na tela de criação.
+                    const myPlayer = gameState.connectedPlayers[socket.id];
+                    if (myPlayer && myPlayer.characterFinalized) {
+                        showScreen(document.getElementById('player-waiting-screen'));
+                        document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre iniciar o jogo...";
+                    }
+                }
+                break;
+            case 'adventure':
+                handleAdventureMode(gameState);
+                break;
+            case 'theater':
+                if (!oldGameState || oldGameState.mode !== 'theater') initializeTheaterMode();
+                showScreen(document.getElementById('theater-screen'));
+                renderTheaterMode(gameState);
+                break;
+            default:
+                showScreen(document.getElementById('loading-screen'));
+        }
+    }
     
     // --- LÓGICA DO MODO AVENTURA ---
     function handleAdventureMode(gameState) {
@@ -144,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         customFighterPositions = {};
                         renderNpcSelectionForGm(); 
                     } 
-                    renderNpcStagingArea(); // Sempre renderiza para refletir mudanças
+                    renderNpcStagingArea();
                     break;
                 case 'initiative_roll': 
                 case 'battle':
@@ -796,7 +875,6 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterTokenContainer.appendChild(fragment);
     }
     
-    // FUNÇÃO RESTAURADA
     function setupTheaterEventListeners() {
         const viewport = theaterBackgroundViewport;
         viewport.addEventListener('mousedown', (e) => {
@@ -1013,7 +1091,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function showScenarioSelectionModal(){let e='<div class="category-tabs">';const t=Object.keys(ALL_SCENARIOS);t.forEach((t,o)=>{e+=`<button class="category-tab-btn ${0===o?"active":""}" data-category="${t}">${t.replace(/_/g," ")}</button>`}),e+="</div>",t.forEach((t,o)=>{e+=`<div class="scenarios-grid ${0===o?"active":""}" id="grid-${t}">`,ALL_SCENARIOS[t].forEach(t=>{const o=t.split("/").pop().replace(".png","").replace(".jpg","");e+=`<div class="scenario-card" data-path="${t}"><img src="images/mapas/${t}" alt="${o}"><div class="scenario-name">${o}</div></div>`}),e+="</div>"}),showInfoModal("Mudar Cenário",e,!1),document.querySelectorAll(".category-tab-btn").forEach(e=>{e.addEventListener("click",()=>{document.querySelectorAll(".category-tab-btn, .scenarios-grid").forEach(e=>e.classList.remove("active")),e.classList.add("active"),document.getElementById(`grid-${e.dataset.category}`).classList.add("active")})}),document.querySelectorAll(".scenario-card").forEach(e=>{e.addEventListener("click",()=>{const t=e.dataset.path;socket.emit("playerAction",{type:"changeScenario",scenario:t}),modal.classList.add("hidden")})})}
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
-    // (O restante do código da ficha, renderGame, etc. permanece igual)
     function initializeCharacterSheet() {
         tempCharacterSheet.spells = []; 
 
@@ -1050,7 +1127,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateCharacterSheet(event = null) {
-        if (!GAME_RULES.races) return; // Guard clause
+        if (!GAME_RULES.races) return; 
         let isValid = true;
         let infoText = '';
         
@@ -1202,7 +1279,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleSaveCharacter() {
-        // Obter os atributos finais calculados pela updateCharacterSheet antes de salvar
         const finalAttributes = {};
         const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
         finalAttrElements.forEach(item => {
@@ -1346,7 +1422,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
     });
-    socket.on('gameUpdate', (gameState) => { if (clientFlowState !== 'choosing_role') renderGame(gameState); });
+    socket.on('gameUpdate', (gameState) => { 
+        if (clientFlowState !== 'choosing_role') {
+            renderGame(gameState); 
+        }
+    });
     socket.on('fighterMoved', ({ fighterId, position }) => {
         customFighterPositions[fighterId] = position;
         const fighterEl = document.getElementById(fighterId);
@@ -1386,7 +1466,6 @@ document.addEventListener('DOMContentLoaded', () => {
         clientFlowState = 'in_game';
         if (myRole === 'player') showScreen(document.getElementById('player-initial-choice-screen'));
     });
-    socket.on('gmPromptToAdmit', ({ playerId, character }) => { if (isGm) showCustomModal('Novo Jogador', `${character.nome} deseja entrar na batalha. Permitir?`, [{text: 'Sim', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted: true })}, {text: 'Não', closes: true, onClick: () => {}}]); });
     socket.on('promptForAdventureType', () => { if (isGm) showCustomModal('Retornar à Aventura', 'Deseja continuar a aventura anterior ou começar uma nova batalha?', [{text: 'Continuar Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'continue' })}, {text: 'Nova Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'new' })}]); });
     socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
         const attackerEl = document.getElementById(attackerKey);
