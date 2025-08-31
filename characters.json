@@ -1,0 +1,54 @@
+{
+  "players": [
+    "Humano Guerreiro",
+    "Elfa Arqueira",
+    "Anão Barbaro",
+    "Humana Maga",
+    "Orc Barbaro"
+  ],
+  "npcs": {
+    "Quimera": {
+      "scale": 1.8,
+      "isMultiPart": true,
+      "parts": [
+        { "key": "leao", "name": "Cabeça de Leão"},
+        { "key": "cabra", "name": "Cabeça de Cabra"},
+        { "key": "cobra", "name": "Cabeça de Cobra"}
+      ]
+    },
+    "Aranha": {},
+    "Bandido 1": {},
+    "Bandido 2": {},
+    "Bandido 3": {},
+    "Cavaleiro": {},
+    "Besteiro": {},
+    "Lanceiro": {"scale": 1.2},
+    "Cobra Boss": {"scale": 1.3},
+    "Cobra": {},
+    "Dragão Jovem": {},
+    "Dragão": {"scale": 2.0},
+    "Dríade": {},
+    "Elemental Agua": {},
+    "Elemental Ar": {},
+    "Elemental Escuridão": {},
+    "Elemental Fogo": {},
+    "Elemental Luz": {},
+    "Elemental Terra": {},
+    "Esqueleto Arqueiro": {},
+    "Esqueleto": {},
+    "Fantasma": {},
+    "Goblin F": {},
+    "Goblin Xamã": {},
+    "Harpia": {},
+    "Mumia F": {},
+    "Mumia M": {},
+    "Orc F": {},
+    "Orc M": {},
+    "Ratazana": {},
+    "Rato": {},
+    "Serpente Marinha": {"scale": 2.0},
+    "Zumbi F": {},
+    "Zumbi M": {},
+    "Goblin M": {}
+  }
+}
