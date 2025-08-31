@@ -1,0 +1,157 @@
+{
+  "grade1": [
+    {
+      "name": "Estalo de Fogo",
+      "element": "fogo",
+      "description": "Cria uma pequena chama na mão do usuário para acender objetos.",
+      "costMahou": 1,
+      "costPA": 0,
+      "targetType": "utility",
+      "effectType": "utility",
+      "inCombat": false
+    },
+    {
+      "name": "Baforada Dracônica",
+      "element": "fogo",
+      "description": "Dispara chamas pela boca, causando 1D4 + nível do usuário em dano.",
+      "costMahou": 3,
+      "costPA": 2,
+      "targetType": "single",
+      "effectType": "damage",
+      "effect": {
+        "damageFormula": "1D4",
+        "bonus": "level"
+      },
+      "inCombat": true
+    },
+    {
+      "name": "Afogamento",
+      "element": "agua",
+      "description": "Causa 2 de dano por turno durante 3 turnos (80% de chance por turno).",
+      "costMahou": 2,
+      "costPA": 2,
+      "targetType": "single",
+      "effectType": "dot",
+      "effect": {
+        "damage": 2,
+        "duration": 3,
+        "procChance": 0.8
+      },
+      "inCombat": true
+    },
+    {
+      "name": "Geração de Água",
+      "element": "agua",
+      "description": "Gera uma pequena quantidade de água potável.",
+      "costMahou": 1,
+      "costPA": 0,
+      "targetType": "utility",
+      "effectType": "utility",
+      "inCombat": false
+    },
+    {
+      "name": "Golpe Rochoso",
+      "element": "terra",
+      "description": "Recebe +3 em Força e -2 em Agilidade por 3 turnos.",
+      "costMahou": 1,
+      "costPA": 2,
+      "targetType": "self",
+      "effectType": "buff",
+      "effect": {
+        "duration": 3,
+        "modifiers": [
+          { "attribute": "forca", "value": 3 },
+          { "attribute": "agilidade", "value": -2 }
+        ]
+      },
+      "inCombat": true
+    },
+    {
+      "name": "Elevação",
+      "element": "terra",
+      "description": "Eleva um pedaço de terra ou rocha para alcançar lugares altos.",
+      "costMahou": 3,
+      "costPA": 0,
+      "targetType": "utility",
+      "effectType": "utility",
+      "inCombat": false
+    },
+    {
+      "name": "Aceleração",
+      "element": "vento",
+      "description": "Adiciona +3 no atributo Agilidade por 3 turnos.",
+      "costMahou": 2,
+      "costPA": 2,
+      "targetType": "self",
+      "effectType": "buff",
+      "effect": {
+        "duration": 3,
+        "modifiers": [
+          { "attribute": "agilidade", "value": 3 }
+        ]
+      },
+      "inCombat": true
+    },
+    {
+      "name": "Tubo de Aceleração",
+      "element": "vento",
+      "description": "Cria um tubo de vento para disparar pessoas ou objetos a distância.",
+      "costMahou": 3,
+      "costPA": 0,
+      "targetType": "utility",
+      "effectType": "utility",
+      "inCombat": false
+    },
+    {
+      "name": "Iluminar",
+      "element": "luz",
+      "description": "Cria um globo flutuante de luz que dura 1 hora.",
+      "costMahou": 1,
+      "costPA": 0,
+      "targetType": "utility",
+      "effectType": "utility",
+      "inCombat": false
+    },
+    {
+      "name": "Flash",
+      "element": "luz",
+      "description": "Cega o alvo, fazendo-o perder 1 turno (15% de chance de resistir).",
+      "costMahou": 2,
+      "costPA": 2,
+      "targetType": "single",
+      "effectType": "control",
+      "effect": {
+        "status": "stunned",
+        "duration": 1,
+        "resistChance": 0.15
+      },
+      "inCombat": true
+    },
+    {
+      "name": "Desfazer Ilusão Mínima",
+      "element": "escuridao",
+      "description": "Capaz de dissolver ilusões de grau 1.",
+      "costMahou": 2,
+      "costPA": 0,
+      "targetType": "utility",
+      "effectType": "utility",
+      "inCombat": false
+    },
+    {
+      "name": "Dano de Energia",
+      "element": "escuridao",
+      "description": "Causa 1D6+1 de dano diretamente no Mahou do adversário.",
+      "costMahou": 3,
+      "costPA": 2,
+      "targetType": "single",
+      "effectType": "resource_damage",
+      "effect": {
+        "resource": "mahou",
+        "damageFormula": "1D6+1"
+      },
+      "inCombat": true
+    }
+  ],
+  "grade2": [],
+  "grade3": []
+}

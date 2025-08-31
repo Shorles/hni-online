@@ -1,0 +1,46 @@
+{
+  "races": {
+    "Anjo": { "bon": {}, "pen": { "forca": -1 }, "text": "Não podem usar elemento Escuridão. Obrigatoriamente começam com 1 ponto em Luz. Recebem +1 em magias de cura." },
+    "Demônio": { "bon": {}, "pen": {}, "text": "Não podem usar elemento Luz. Obrigatoriamente começam com 1 ponto em Escuridão. Recebem +1 em dano de magias de Escuridão. Cura recebida é reduzida em 1." },
+    "Elfo": { "bon": { "agilidade": 2 }, "pen": { "forca": -1 }, "text": "Enxergam no escuro (exceto escuridão mágica)." },
+    "Anão": { "bon": { "constituicao": 1 }, "pen": {}, "text": "Enxergam no escuro (exceto escuridão mágica)." },
+    "Goblin": { "bon": { "mente": 1 }, "pen": { "constituicao": -1 }, "text": "Não podem utilizar armas do tipo Gigante e Colossal." },
+    "Orc": { "bon": { "forca": 2 }, "pen": { "inteligencia": -1 }, "text": "Podem comer quase qualquer coisa sem adoecerem." },
+    "Humano": { "bon": { "escolha": 1 }, "pen": {}, "text": "Recebem +1 ponto de atributo básico para distribuir." },
+    "Kairou": { "bon": {}, "pen": {}, "text": "Respiram debaixo d'água. Devem umedecer a pele a cada dia. +1 em todos os atributos se lutarem na água." },
+    "Centauro": { "bon": {}, "pen": { "agilidade": -1 }, "text": "Não podem entrar em locais apertados ou subir escadas de mão. +3 em testes de velocidade/salto." },
+    "Halfling": { "bon": { "agilidade": 1, "inteligencia": 1 }, "pen": { "forca": -1, "constituicao": -1 }, "text": "Não podem usar armas Gigante/Colossal. Enxergam no escuro." },
+    "Tritão": { "bon": { "forca": 2 }, "pen": { "inteligencia": -2 }, "text": "Respiram debaixo d'água. Devem umedecer a pele a cada 5 dias." },
+    "Meio-Elfo": { "bon": { "agilidade": 1 }, "pen": {}, "text": "Enxergam no escuro (exceto escuridão mágica)." },
+    "Meio-Orc": { "bon": { "forca": 1 }, "pen": {}, "text": "Nenhuma característica única." },
+    "Auslender": { "bon": { "inteligencia": 2, "agilidade": 1 }, "pen": { "forca": -1, "protecao": -1 }, "text": "Não precisam de testes para usar artefatos tecnológicos." },
+    "Tulku": { "bon": { "inteligencia": 1, "mente": 1 }, "pen": {}, "text": "Recebem -1 para usar magias de Luz. Enxergam no escuro." }
+  },
+  "weapons": {
+    "Desarmado": { "cost": 0, "damage": "1D4", "hand": 1, "bta": 0, "btd": 0, "ambi_bta_mod": 0, "ambi_btd_mod": 0 },
+    "1 Mão Mínima": { "cost": 60, "damage": "1D6", "hand": 1, "bta": 4, "btd": -1, "ambi_bta_mod": 0, "ambi_btd_mod": -1 },
+    "1 Mão Leve": { "cost": 80, "damage": "1D6", "hand": 1, "bta": 3, "btd": 0, "ambi_bta_mod": 0, "ambi_btd_mod": -1 },
+    "1 Mão Mediana": { "cost": 100, "damage": "1D6", "hand": 1, "bta": 1, "btd": 1, "ambi_bta_mod": 0, "ambi_btd_mod": -1 },
+    "Cetro": { "cost": 80, "damage": "1D4", "hand": 1, "bta": 1, "btd": 0, "btm": 1, "ambi_bta_mod": 0, "ambi_btd_mod": -1 },
+    "2 Mãos Pesada": { "cost": 120, "damage": "1D10", "hand": 2, "bta": 2, "btd": 0, "one_hand_bta_mod": -2, "ambi_btd_mod": -2 },
+    "2 Mãos Gigante": { "cost": 140, "damage": "1D10", "hand": 2, "bta": 1, "btd": 1, "one_hand_bta_mod": -2, "ambi_btd_mod": -2 },
+    "2 Mãos Colossal": { "cost": 160, "damage": "1D10", "hand": 2, "bta": -1, "btd": 2, "one_hand_bta_mod": -2, "ambi_btd_mod": -2 },
+    "Cajado": { "cost": 140, "damage": "1D6", "hand": 2, "bta": 1, "btd": 0, "btm": 2, "one_hand_bta_mod": -2 }
+  },
+  "armors": {
+    "Nenhuma": { "cost": 0, "protection": 0, "agility_pen": 0 },
+    "Leve": { "cost": 80, "protection": 1, "agility_pen": 0 },
+    "Mediana": { "cost": 100, "protection": 2, "agility_pen": -1 },
+    "Pesada": { "cost": 120, "protection": 3, "agility_pen": -2 }
+  },
+  "shields": {
+    "Nenhum": { "cost": 0, "defense": 0, "agility_pen": 0, "req_forca": 0 },
+    "Pequeno": { "cost": 80, "defense": 2, "agility_pen": -1, "req_forca": 1 },
+    "Médio": { "cost": 100, "defense": 4, "agility_pen": -2, "req_forca": 2 },
+    "Grande": { "cost": 120, "defense": 6, "agility_pen": -3, "req_forca": 3 }
+  },
+  "advancedElements": {
+    "fogo": "Chama Azul", "agua": "Gelo", "terra": "Metal",
+    "vento": "Raio", "luz": "Cura", "escuridao": "Gravidade"
+  }
+}
