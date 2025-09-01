@@ -145,9 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         scaleGame(); 
 
         const amIGM = socket.id === gameState.gmId;
-        if (amIGM) {
-            isGm = true; 
-        }
 
         if (gameState.mode === 'adventure' && gameState.customPositions) customFighterPositions = gameState.customPositions;
         
@@ -169,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('waiting-players-sidebar').classList.add('hidden');
         document.getElementById('back-to-lobby-btn').classList.add('hidden');
 
-        if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
+        if (amIGM && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
             floatingButtonsContainer.classList.remove('hidden');
             document.getElementById('back-to-lobby-btn').classList.remove('hidden');
             const switchBtn = document.getElementById('floating-switch-mode-btn');
@@ -187,7 +184,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 defeatAnimationPlayed.clear();
                 stagedNpcSlots.fill(null);
                 selectedSlotIndex = null;
-                if (isGm) {
+                // *** CORREÇÃO DEFINITIVA APLICADA AQUI ***
+                if (amIGM) {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
                 } else {
