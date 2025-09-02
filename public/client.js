@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isGroupSelectMode = false;
     let isSelectingBox = false;
     let selectionBoxStartPos = { x: 0, y: 0 };
+    let isGmDebugModeActive = false;
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -317,7 +318,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (targetSlot !== -1 && targetSlot !== null) {
-                    stagedNpcSlots[targetSlot] = { ...npcData, id: `npc-staged-${Date.now()}-${targetSlot}` };
+                    stagedNpcSlots[targetSlot] = { 
+                        ...npcData, 
+                        id: `npc-staged-${Date.now()}-${targetSlot}`,
+                        customStats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
+                        equipment: { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
+                        elements: { fogo: 0, agua: 0, terra: 0, vento: 0, luz: 0, escuridao: 0 },
+                        spells: []
+                    };
                     selectedSlotIndex = null;
                     renderNpcStagingArea();
                 } else if (stagedNpcSlots.every(slot => slot !== null)) {
@@ -332,14 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderNpcStagingArea();
 
         document.getElementById('gm-start-battle-btn').onclick = () => {
-            const finalNpcs = stagedNpcSlots
-                .map((npc, index) => {
-                    if (npc && !npc.customStats) { // Adiciona stats padrão se não houver customizados
-                        npc.customStats = { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 };
-                    }
-                    return npc ? { ...npc, slotIndex: index } : null
-                })
-                .filter(npc => npc !== null);
+            const finalNpcs = stagedNpcSlots.filter(npc => npc !== null);
 
             if (finalNpcs.length === 0) {
                 showInfoModal("Aviso", "Adicione pelo menos um inimigo para a batalha.");
@@ -391,21 +392,59 @@ document.addEventListener('DOMContentLoaded', () => {
         const npcData = stagedNpcSlots[slotIndex];
         if (!npcData) return;
 
-        const currentStats = npcData.customStats || { 
-            hp: 10, mahou: 10, 
-            forca: 1, agilidade: 1, protecao: 1, 
-            constituicao: 1, inteligencia: 1, mente: 1 
-        };
+        const weaponOptions = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join('');
+        const armorOptions = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
+        const shieldOptions = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
+        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
 
-        let content = `<div class="npc-config-grid">
-            <label>HP:</label><input type="number" id="npc-cfg-hp" value="${currentStats.hp}">
-            <label>Mahou:</label><input type="number" id="npc-cfg-mahou" value="${currentStats.mahou}">
-            <label>Força:</label><input type="number" id="npc-cfg-forca" value="${currentStats.forca}">
-            <label>Agilidade:</label><input type="number" id="npc-cfg-agilidade" value="${currentStats.agilidade}">
-            <label>Proteção:</label><input type="number" id="npc-cfg-protecao" value="${currentStats.protecao}">
-            <label>Constituição:</label><input type="number" id="npc-cfg-constituicao" value="${currentStats.constituicao}">
-            <label>Inteligência:</label><input type="number" id="npc-cfg-inteligencia" value="${currentStats.inteligencia}">
-            <label>Mente:</label><input type="number" id="npc-cfg-mente" value="${currentStats.mente}">
+        const current = {
+            stats: npcData.customStats || { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
+            equip: npcData.equipment || { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' },
+            elements: npcData.elements || { fogo: 0, agua: 0, terra: 0, vento: 0, luz: 0, escuridao: 0 },
+            spells: npcData.spells || []
+        };
+        
+        let content = `<div class="npc-config-container">
+            <div class="npc-config-col">
+                <h4>Atributos Principais</h4>
+                <div class="npc-config-grid">
+                    <label>HP:</label><input type="number" id="npc-cfg-hp" value="${current.stats.hp}">
+                    <label>Mahou:</label><input type="number" id="npc-cfg-mahou" value="${current.stats.mahou}">
+                    <label>Força:</label><input type="number" id="npc-cfg-forca" value="${current.stats.forca}">
+                    <label>Agilidade:</label><input type="number" id="npc-cfg-agilidade" value="${current.stats.agilidade}">
+                    <label>Proteção:</label><input type="number" id="npc-cfg-protecao" value="${current.stats.protecao}">
+                    <label>Constituição:</label><input type="number" id="npc-cfg-constituicao" value="${current.stats.constituicao}">
+                    <label>Inteligência:</label><input type="number" id="npc-cfg-inteligencia" value="${current.stats.inteligencia}">
+                    <label>Mente:</label><input type="number" id="npc-cfg-mente" value="${current.stats.mente}">
+                </div>
+                <h4>Elementos</h4>
+                 <div class="npc-config-grid elements">
+                    <label>Fogo:</label><input type="number" id="npc-cfg-fogo" value="${current.elements.fogo}">
+                    <label>Água:</label><input type="number" id="npc-cfg-agua" value="${current.elements.agua}">
+                    <label>Terra:</label><input type="number" id="npc-cfg-terra" value="${current.elements.terra}">
+                    <label>Vento:</label><input type="number" id="npc-cfg-vento" value="${current.elements.vento}">
+                    <label>Luz:</label><input type="number" id="npc-cfg-luz" value="${current.elements.luz}">
+                    <label>Escuridão:</label><input type="number" id="npc-cfg-escuridao" value="${current.elements.escuridao}">
+                </div>
+            </div>
+            <div class="npc-config-col">
+                <h4>Equipamentos</h4>
+                <div class="npc-config-equip">
+                    <label>Arma 1:</label><select id="npc-cfg-weapon1">${weaponOptions}</select>
+                    <label>Arma 2:</label><select id="npc-cfg-weapon2">${weaponOptions}</select>
+                    <label>Armadura:</label><select id="npc-cfg-armor">${armorOptions}</select>
+                    <label>Escudo:</label><select id="npc-cfg-shield">${shieldOptions}</select>
+                </div>
+                <h4>Magias</h4>
+                <div class="npc-config-spells">
+                    ${allSpells.map(spell => `
+                        <div class="spell-checkbox">
+                           <input type="checkbox" id="npc-spell-${spell.name.replace(/\s+/g, '-')}" value="${spell.name}" ${current.spells.includes(spell.name) ? 'checked' : ''}>
+                           <label for="npc-spell-${spell.name.replace(/\s+/g, '-')}">${spell.name}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
         </div>`;
         
         showCustomModal(`Configurar ${npcData.name}`, content, [
@@ -420,9 +459,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     inteligencia: parseInt(document.getElementById('npc-cfg-inteligencia').value, 10),
                     mente: parseInt(document.getElementById('npc-cfg-mente').value, 10),
                 };
+                 stagedNpcSlots[slotIndex].equipment = {
+                    weapon1: { type: document.getElementById('npc-cfg-weapon1').value },
+                    weapon2: { type: document.getElementById('npc-cfg-weapon2').value },
+                    armor: document.getElementById('npc-cfg-armor').value,
+                    shield: document.getElementById('npc-cfg-shield').value,
+                };
+                stagedNpcSlots[slotIndex].elements = {
+                    fogo: parseInt(document.getElementById('npc-cfg-fogo').value, 10),
+                    agua: parseInt(document.getElementById('npc-cfg-agua').value, 10),
+                    terra: parseInt(document.getElementById('npc-cfg-terra').value, 10),
+                    vento: parseInt(document.getElementById('npc-cfg-vento').value, 10),
+                    luz: parseInt(document.getElementById('npc-cfg-luz').value, 10),
+                    escuridao: parseInt(document.getElementById('npc-cfg-escuridao').value, 10),
+                };
+                const selectedSpells = [];
+                document.querySelectorAll('.npc-config-spells input[type="checkbox"]:checked').forEach(cb => {
+                    selectedSpells.push(cb.value);
+                });
+                stagedNpcSlots[slotIndex].spells = selectedSpells;
             }},
             { text: 'Cancelar', closes: true, className: 'btn-danger' }
         ]);
+
+        // Set current equipment values
+        document.getElementById('npc-cfg-weapon1').value = current.equip.weapon1.type;
+        document.getElementById('npc-cfg-weapon2').value = current.equip.weapon2.type;
+        document.getElementById('npc-cfg-armor').value = current.equip.armor;
+        document.getElementById('npc-cfg-shield').value = current.equip.shield;
     }
 
     function updateAdventureUI(state) {
@@ -495,6 +559,12 @@ document.addEventListener('DOMContentLoaded', () => {
             container.addEventListener('click', handleTargetClick);
         }
     
+        let paHtml = '<div class="pa-dots-container">';
+        for (let i = 0; i < (fighter.pa || 0); i++) {
+            paHtml += '<div class="pa-dot"></div>';
+        }
+        paHtml += '</div>';
+
         let healthBarHtml = '';
         if (fighter.isMultiPart && fighter.parts) {
             healthBarHtml = '<div class="multi-health-bar-container">';
@@ -523,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
     
-        container.innerHTML = `${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
+        container.innerHTML = `${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
     
@@ -547,8 +617,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         actionButtonsWrapper.appendChild(createButton('Atacar', startAttackSequence, !canControl));
 
-        if (myRole === 'player' && state.activeCharacterKey === myPlayerKey && activeFighter.sheet && activeFighter.sheet.spells) {
-            activeFighter.sheet.spells.forEach(spellName => {
+        const fighterSpells = activeFighter.sheet?.spells || [];
+        if (fighterSpells.length > 0) {
+            fighterSpells.forEach(spellName => {
                 const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
@@ -565,7 +636,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function startAttackSequence() {
         const attacker = getFighter(currentGameState, currentGameState.activeCharacterKey);
-        if (!attacker || !attacker.isPlayer) {
+        if (!attacker) return;
+
+        if (!attacker.isPlayer) { // Logic for NPCs
              targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: 'weapon1' };
              isTargeting = true;
              document.getElementById('targeting-indicator').classList.remove('hidden');
@@ -804,7 +877,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.removeEventListener('mouseup', onFighterMouseUp);
     }
     function showHelpModal() {
-        const content = `<div style="text-align: left; font-size: 1.2em; line-height: 1.8;"><p><b>C:</b> Abrir menu de Cheats (GM).</p><p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p><p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p></div>`;
+        const content = `<div style="text-align: left; font-size: 1.2em; line-height: 1.8;"><p><b>C:</b> Abrir menu de Cheats (GM).</p><p><b>M:</b> Ativar/Desativar modo de depuração de combate (GM).</p><p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p><p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p></div>`;
         showInfoModal("Atalhos do Teclado", content);
     }
     
@@ -1030,6 +1103,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key.toLowerCase() === 'c' && isGm && currentGameState.mode === 'adventure') {
                 e.preventDefault();
                 showCheatModal();
+            }
+
+            if (e.key.toLowerCase() === 'm' && isGm) {
+                e.preventDefault();
+                isGmDebugModeActive = !isGmDebugModeActive;
+                showInfoModal("Modo Depuração", `Modo de depuração de combate ${isGmDebugModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
             }
 
             if (e.key.toLowerCase() === 't') {
@@ -1482,7 +1561,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     socket.on('promptForAdventureType', () => { if (isGm) showCustomModal('Retornar à Aventura', 'Deseja continuar a aventura anterior ou começar uma nova batalha?', [{text: 'Continuar Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'continue' })}, {text: 'Nova Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'new' })}]); });
-    socket.on('attackResolved', ({ attackerKey, targetKey, hit }) => {
+    socket.on('attackResolved', (data) => {
+        const { attackerKey, targetKey, hit, debugInfo } = data;
         const attackerEl = document.getElementById(attackerKey);
         if (attackerEl) {
             const isPlayer = attackerEl.classList.contains('player-char-container');
@@ -1497,6 +1577,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 img.classList.add('is-hit-flash');
                 setTimeout(() => img.classList.remove('is-hit-flash'), 400);
             }
+        }
+        
+        if (isGm && isGmDebugModeActive && debugInfo) {
+            let contentHtml = `<div class="debug-info-grid">
+                <h4>Cálculo de Acerto</h4>
+                <div><span>Rolagem D20:</span> <span>${debugInfo.hitRoll}</span></div>
+                <div><span>BTA do Atacante:</span> <span>${debugInfo.bta >= 0 ? '+' : ''}${debugInfo.bta}</span></div>
+                <div><span>Resultado Final:</span> <span class="debug-result">${debugInfo.attackRoll}</span></div>
+                <div><span>vs Defesa do Alvo:</span> <span>${debugInfo.targetDefense}</span></div>
+                <hr>
+                <h4>Cálculo de Dano</h4>
+                <div><span>Resultado do Ataque:</span> <span class="debug-result">${debugInfo.hit ? 'ACERTOU' : 'ERROU'}</span></div>`;
+
+            if (debugInfo.hit) {
+                contentHtml += `
+                    <div><span>Rolagem de Dano (${debugInfo.damageFormula}):</span> <span>${debugInfo.damageRoll}</span></div>
+                    ${debugInfo.isCrit ? `<div><span>Dano Crítico (Dobro dos Dados):</span> <span>+${debugInfo.critDamage}</span></div>` : ''}
+                    <div><span>BTD do Atacante:</span> <span>${debugInfo.btd >= 0 ? '+' : ''}${debugInfo.btd}</span></div>
+                    <div><span>Dano Bruto Total:</span> <span>${debugInfo.totalDamage}</span></div>
+                    <div><span>vs Proteção do Alvo:</span> <span>-${debugInfo.targetProtection}</span></div>
+                    <hr>
+                    <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${debugInfo.finalDamage}</span></div>`;
+            }
+
+            contentHtml += `</div>`;
+
+            showCustomModal(`Relatório de Combate: ${debugInfo.attackerName} vs ${debugInfo.targetName}`, contentHtml, [
+                { text: 'Fechar', closes: true }
+            ]);
         }
     });
     socket.on('fleeResolved', ({ actorKey }) => {

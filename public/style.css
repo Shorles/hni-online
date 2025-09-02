@@ -181,20 +181,37 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     background-color: #5a32a3;
 }
 
+.npc-config-container {
+    display: flex;
+    gap: 20px;
+}
+.npc-config-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.npc-config-col h4 {
+    margin: 0;
+    color: #ffc107;
+    border-bottom: 1px solid #555;
+    padding-bottom: 5px;
+}
 .npc-config-grid {
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 10px 15px;
     align-items: center;
-    margin-top: 15px;
+}
+.npc-config-grid.elements {
+    grid-template-columns: auto 1fr auto 1fr;
 }
 
 .npc-config-grid label {
     text-align: right;
     font-weight: bold;
-    color: #ffc107;
+    color: #ccc;
 }
-
 .npc-config-grid input[type="number"] {
     width: 80px;
     padding: 5px;
@@ -205,10 +222,100 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     font-size: 1.1em;
 }
 
+.npc-config-equip {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px 15px;
+    align-items: center;
+}
+.npc-config-equip label { color: #ccc; }
+.npc-config-equip select {
+    background-color: #333;
+    color: #fff;
+    border: 1px solid #777;
+    padding: 5px;
+    border-radius: 4px;
+    width: 100%;
+}
+.npc-config-spells {
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: rgba(0,0,0,0.3);
+    padding: 10px;
+    border-radius: 4px;
+}
+.spell-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+
 .modal-button-container button.btn-danger {
     background-color: #dc3545;
     color: #fff;
 }
 .modal-button-container button.btn-danger:hover {
     background-color: #c82333;
+}
+
+/* Estilos para Pontos de Ação (PA) */
+.pa-dots-container {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-bottom: 5px;
+    height: 10px;
+}
+.pa-dot {
+    width: 10px;
+    height: 10px;
+    background-color: #ffeb3b;
+    border-radius: 50%;
+    border: 1px solid #000;
+    box-shadow: 0 0 5px #ffeb3b;
+}
+
+/* Estilos para o Modal de Debug do GM */
+.debug-info-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 15px;
+    align-items: center;
+    font-family: monospace;
+    font-size: 1.1em;
+}
+.debug-info-grid h4 {
+    grid-column: 1 / -1;
+    color: #ffc107;
+    margin: 10px 0 5px 0;
+    border-bottom: 1px solid #555;
+    padding-bottom: 4px;
+}
+.debug-info-grid hr {
+    grid-column: 1 / -1;
+    border: 0;
+    border-top: 1px solid #444;
+    margin: 5px 0;
+}
+.debug-info-grid span:first-child {
+    font-weight: bold;
+    color: #ccc;
+    text-align: right;
+}
+.debug-result {
+    font-weight: bold;
+    color: #ffeb3b;
+}
+.final-damage-row {
+    grid-column: 1 / -1;
+    display: contents;
+}
+.final-damage-row > span {
+    font-size: 1.3em;
+}
+.debug-final-damage {
+    font-weight: bold;
+    color: #dc3545;
+    font-size: 1.4em;
 }

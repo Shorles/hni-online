@@ -142,12 +142,18 @@ function createNewFighterState(data) {
         fighter.sheet = data;
 
     } else { // NPC
+        fighter.sheet = {
+            finalAttributes: {},
+            equipment: data.equipment || { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
+            spells: data.spells || []
+        };
+        
         if (data.customStats) {
             fighter.hpMax = data.customStats.hp;
             fighter.hp = data.customStats.hp;
             fighter.mahouMax = data.customStats.mahou;
             fighter.mahou = data.customStats.mahou;
-            fighter.attributes = {
+            fighter.sheet.finalAttributes = {
                 forca: data.customStats.forca,
                 agilidade: data.customStats.agilidade,
                 protecao: data.customStats.protecao,
@@ -158,7 +164,7 @@ function createNewFighterState(data) {
         } else { // Fallback
             fighter.hpMax = 15; fighter.hp = 15;
             fighter.mahouMax = 10; fighter.mahou = 10;
-            fighter.attributes = { forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 };
+            fighter.sheet.finalAttributes = { forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 };
         }
 
         fighter.isMultiPart = !!data.isMultiPart;
@@ -206,34 +212,64 @@ function getFighter(state, key) {
 }
 
 function getFighterAttribute(fighter, attr) {
-    let baseValue = 0;
-    if (fighter.isPlayer) {
-        baseValue = fighter.sheet.finalAttributes[attr] || 0;
-    } else {
-        baseValue = fighter.attributes[attr] || 0; 
+    if (!fighter || !fighter.sheet || !fighter.sheet.finalAttributes) return 0;
+    
+    let baseValue = fighter.sheet.finalAttributes[attr] || 0;
+    
+    // Aplica penalidades de armadura/escudo para NPCs também
+    if (!fighter.isPlayer) {
+        const armorType = fighter.sheet.equipment.armor || 'Nenhuma';
+        const shieldType = fighter.sheet.equipment.shield || 'Nenhum';
+        const armorData = GAME_RULES.armors[armorType] || { agility_pen: 0 };
+        const shieldData = GAME_RULES.shields[shieldType] || { agility_pen: 0 };
+        if (attr === 'agilidade') {
+            baseValue -= (armorData.agility_pen || 0);
+            baseValue -= (shieldData.agility_pen || 0);
+        }
+        if (attr === 'protecao') {
+            baseValue += (armorData.protection || 0);
+        }
     }
+    
     // TODO: Adicionar lógica para buffs/debuffs
     return baseValue;
 }
 
+
 function calculateBTA(fighter, weaponKey = 'weapon1') {
     const agilidade = getFighterAttribute(fighter, 'agilidade');
-    if (!fighter.isPlayer) return agilidade;
+    if (!fighter.sheet || !fighter.sheet.equipment) return agilidade;
 
     const weaponType = fighter.sheet.equipment[weaponKey].type;
     const weaponData = GAME_RULES.weapons[weaponType];
+    if (!weaponData) return agilidade;
+
     let bta = agilidade + (weaponData.bta || 0);
-    // TODO: Adicionar penalidades
+    // TODO: Adicionar outras penalidades (2 mãos com 1, etc.)
     return bta;
 }
 
 function calculateBTD(fighter, weaponKey = 'weapon1') {
     const forca = getFighterAttribute(fighter, 'forca');
-    if (!fighter.isPlayer) return forca;
+    if (!fighter.sheet || !fighter.sheet.equipment) return forca;
 
     const weaponType = fighter.sheet.equipment[weaponKey].type;
     const weaponData = GAME_RULES.weapons[weaponType];
+    if (!weaponData) return forca;
+
     let btd = forca + (weaponData.btd || 0);
+    
+    // Penalidade de dano para ambidestria
+    if (weaponKey === 'dual') {
+        btd -= 1;
+    } else if(fighter.isPlayer) {
+        const weapon1Type = fighter.sheet.equipment.weapon1.type;
+        const weapon2Type = fighter.sheet.equipment.weapon2.type;
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+            btd -= 1;
+        }
+    }
+
     return btd;
 }
 
@@ -261,10 +297,15 @@ function advanceTurn(state) {
     let currentIndex = activeTurnOrder.indexOf(state.activeCharacterKey);
     let nextIndex = (currentIndex + 1) % activeTurnOrder.length;
 
+    if (nextIndex === 0 && currentIndex !== -1) {
+        state.currentRound++;
+        logMessage(state, `--- Começando o Round ${state.currentRound} ---`, 'round');
+    }
+
     state.activeCharacterKey = activeTurnOrder[nextIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
     
-    activeFighter.pa = 3;
+    activeFighter.pa += 3;
 
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
 }
@@ -274,7 +315,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     const target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
 
-    const paCost = (weaponChoice === 'dual') ? 2 : 2;
+    const paCost = (weaponChoice === 'dual') ? 2 : 2; // Ataque normal custa 2 PA
     if (attacker.pa < paCost) {
         logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes!`, 'miss');
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
@@ -282,15 +323,17 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     }
     attacker.pa -= paCost;
 
-    const performSingleAttack = (weaponKey, isDualAttack) => {
+    const performSingleAttack = (weaponKey, isDualAttackPart) => {
         const hitRoll = rollD20();
         const bta = calculateBTA(attacker, weaponKey);
         const attackRoll = hitRoll + bta;
-        const weaponType = attacker.isPlayer ? attacker.sheet.equipment[weaponKey].type : 'Desarmado';
+        const weaponType = attacker.sheet.equipment[weaponKey].type;
         const weaponData = GAME_RULES.weapons[weaponType];
-        
-        logMessage(state, `${attacker.nome} ataca ${target.nome} com ${weaponType}. Rolagem: ${hitRoll} + ${bta} (BTA) = ${attackRoll} vs Defesa ${target.defesa}.`, 'info');
+        let debugInfo = { attackerName: attacker.nome, targetName: target.nome };
 
+        logMessage(state, `${attacker.nome} ataca ${target.nome} com ${weaponType}. Rolagem: ${hitRoll} + ${bta} (BTA) = ${attackRoll} vs Defesa ${target.defesa}.`, 'info');
+        Object.assign(debugInfo, { hitRoll, bta, attackRoll, targetDefense: target.defesa });
+        
         let hit = false;
         if (hitRoll === 1) {
             logMessage(state, `Erro Crítico! ${attacker.nome} erra o ataque.`, 'miss');
@@ -299,13 +342,11 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const isCrit = hitRoll === 20;
             if(isCrit) logMessage(state, `Acerto Crítico!`, 'crit');
 
-            const btd = calculateBTD(attacker, weaponKey);
+            const btd = calculateBTD(attacker, isDualAttackPart ? 'dual' : weaponKey);
             const damageRoll = rollDice(weaponData.damage);
             const critDamage = isCrit ? damageRoll : 0;
             let totalDamage = damageRoll + critDamage + btd;
             
-            if (isDualAttack) totalDamage -= 1;
-
             const targetProtection = getFighterAttribute(target, 'protecao');
             const finalDamage = Math.max(1, totalDamage - targetProtection);
             
@@ -317,10 +358,12 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 target.status = 'down';
                 logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
+            Object.assign(debugInfo, { hit: true, isCrit, damageFormula: weaponData.damage, damageRoll, critDamage, btd, totalDamage, targetProtection, finalDamage });
         } else {
             logMessage(state, `${attacker.nome} erra o ataque!`, 'miss');
+             Object.assign(debugInfo, { hit: false });
         }
-        io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit });
+        io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit, debugInfo });
     };
     
     if (weaponChoice === 'dual') {
@@ -348,12 +391,20 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     const spell = allSpells.find(s => s.name === spellName);
 
     if (!attacker || !target || !spell || attacker.status !== 'active' || target.status !== 'active') return;
-
+    
+    const paCost = spell.costPA || 2;
+    if (attacker.pa < paCost) {
+        logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes para ${spellName}!`, 'miss');
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+        return;
+    }
+    
     if (attacker.mahou < spell.costMahou) {
         logMessage(state, `${attacker.nome} não tem Mahou suficiente para usar ${spellName}!`, 'miss');
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
         return;
     }
+    attacker.pa -= paCost;
     attacker.mahou -= spell.costMahou;
     logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
     io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: true }); // Para animação
@@ -538,15 +589,17 @@ io.on('connection', (socket) => {
                             adventureState.fighters.npcs = {};
                             adventureState.npcSlots.fill(null);
                             adventureState.customPositions = {};
-                            action.npcs.forEach(npcWithSlot => {
-                                const { slotIndex, ...npcData } = npcWithSlot;
-                                if (slotIndex >= 0 && slotIndex < MAX_NPCS) {
+                            action.npcs.forEach((npcData, index) => {
+                                if (index < MAX_NPCS) {
                                     const npcObj = ALL_NPCS[npcData.name] || {};
                                     const newNpc = createNewFighterState({ 
-                                        ...npcData, scale: npcObj.scale || 1.0, isMultiPart: npcObj.isMultiPart, parts: npcObj.parts
+                                        ...npcData, 
+                                        scale: npcObj.scale || 1.0, 
+                                        isMultiPart: npcObj.isMultiPart, 
+                                        parts: npcObj.parts
                                     });
                                     adventureState.fighters.npcs[newNpc.id] = newNpc;
-                                    adventureState.npcSlots[slotIndex] = newNpc.id;
+                                    adventureState.npcSlots[index] = newNpc.id;
                                 }
                             });
                             adventureState.phase = 'initiative_roll';
