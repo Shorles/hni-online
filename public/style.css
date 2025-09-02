@@ -278,41 +278,58 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 /* Estilos para o Modal de Debug do GM */
 .debug-info-grid {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 8px 15px;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     font-family: monospace;
     font-size: 1.1em;
 }
 .debug-info-grid h4 {
-    grid-column: 1 / -1;
     color: #ffc107;
     margin: 10px 0 5px 0;
     border-bottom: 1px solid #555;
     padding-bottom: 4px;
+    text-align: left;
 }
 .debug-info-grid hr {
-    grid-column: 1 / -1;
+    width: 100%;
     border: 0;
     border-top: 1px solid #444;
     margin: 5px 0;
 }
-.debug-info-grid span:first-child {
+.debug-info-grid .grid-row {
+    display: flex;
+    justify-content: space-between;
+}
+.grid-row span:first-child {
     font-weight: bold;
     color: #ccc;
-    text-align: right;
+    padding-right: 15px;
+}
+.debug-breakdown {
+    padding-left: 20px;
+    font-size: 0.9em;
+    color: #aaa;
+    border-left: 2px solid #444;
+    margin: 5px 0 5px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.breakdown-item {
+    display: flex;
+    justify-content: space-between;
 }
 .debug-result {
     font-weight: bold;
     color: #ffeb3b;
 }
 .final-damage-row {
-    grid-column: 1 / -1;
-    display: contents;
-}
-.final-damage-row > span {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     font-size: 1.3em;
+    margin-top: 5px;
 }
 .debug-final-damage {
     font-weight: bold;

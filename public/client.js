@@ -1580,23 +1580,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (isGm && isGmDebugModeActive && debugInfo) {
+            const formatBreakdown = (breakdown) => {
+                if (!breakdown) return '';
+                return Object.entries(breakdown)
+                    .map(([key, value]) => `<div class="breakdown-item"><span>${key}:</span> <span>${value >= 0 ? '+' : ''}${value}</span></div>`)
+                    .join('');
+            };
+
             let contentHtml = `<div class="debug-info-grid">
-                <h4>Cálculo de Acerto</h4>
-                <div><span>Rolagem D20:</span> <span>${debugInfo.hitRoll}</span></div>
-                <div><span>BTA do Atacante:</span> <span>${debugInfo.bta >= 0 ? '+' : ''}${debugInfo.bta}</span></div>
-                <div><span>Resultado Final:</span> <span class="debug-result">${debugInfo.attackRoll}</span></div>
-                <div><span>vs Defesa do Alvo:</span> <span>${debugInfo.targetDefense}</span></div>
+                <h4>Cálculo de Acerto (Atacante: ${debugInfo.attackerName})</h4>
+                <div class="grid-row"><span>Rolagem D20:</span> <span>${debugInfo.hitRoll}</span></div>
+                <div class="grid-row"><span>BTA do Atacante:</span> <span>${debugInfo.bta >= 0 ? '+' : ''}${debugInfo.bta}</span></div>
+                <div class="debug-breakdown">${formatBreakdown(debugInfo.btaBreakdown)}</div>
+                <div class="grid-row result"><span>Resultado Final:</span> <span class="debug-result">${debugInfo.attackRoll}</span></div>
+                <div class="grid-row"><span>vs Defesa do Alvo (${debugInfo.targetName}):</span> <span>${debugInfo.targetDefense}</span></div>
                 <hr>
                 <h4>Cálculo de Dano</h4>
-                <div><span>Resultado do Ataque:</span> <span class="debug-result">${debugInfo.hit ? 'ACERTOU' : 'ERROU'}</span></div>`;
+                <div class="grid-row"><span>Resultado do Ataque:</span> <span class="debug-result">${debugInfo.hit ? 'ACERTOU' : 'ERROU'}</span></div>`;
 
             if (debugInfo.hit) {
                 contentHtml += `
-                    <div><span>Rolagem de Dano (${debugInfo.damageFormula}):</span> <span>${debugInfo.damageRoll}</span></div>
-                    ${debugInfo.isCrit ? `<div><span>Dano Crítico (Dobro dos Dados):</span> <span>+${debugInfo.critDamage}</span></div>` : ''}
-                    <div><span>BTD do Atacante:</span> <span>${debugInfo.btd >= 0 ? '+' : ''}${debugInfo.btd}</span></div>
-                    <div><span>Dano Bruto Total:</span> <span>${debugInfo.totalDamage}</span></div>
-                    <div><span>vs Proteção do Alvo:</span> <span>-${debugInfo.targetProtection}</span></div>
+                    <div class="grid-row"><span>Rolagem de Dano (${debugInfo.damageFormula}):</span> <span>${debugInfo.damageRoll}</span></div>
+                    ${debugInfo.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${debugInfo.critDamage}</span></div>` : ''}
+                    <div class="grid-row"><span>BTD do Atacante:</span> <span>${debugInfo.btd >= 0 ? '+' : ''}${debugInfo.btd}</span></div>
+                    <div class="debug-breakdown">${formatBreakdown(debugInfo.btdBreakdown)}</div>
+                    <div class="grid-row"><span>Dano Bruto Total:</span> <span>${debugInfo.totalDamage}</span></div>
+                    <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${debugInfo.targetProtection}</span></div>
+                    <div class="debug-breakdown">${formatBreakdown(debugInfo.protectionBreakdown)}</div>
                     <hr>
                     <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${debugInfo.finalDamage}</span></div>`;
             }
