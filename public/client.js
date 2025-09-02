@@ -881,7 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showInfoModal("Atalhos do Teclado", content);
     }
     
-    // --- LÓGICA DO MODO CENÁRIO (RESTAURADA À VERSÃO ORIGINAL) ---
+    // --- LÓGICA DO MODO CENÁRIO ---
     function initializeTheaterMode() {
         localWorldScale = 1.0;
         theaterWorldContainer.style.transform = "scale(1)";
@@ -1194,12 +1194,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-armor-type').innerHTML = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
         document.getElementById('sheet-shield-type').innerHTML = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
 
+        document.querySelectorAll('.number-input-wrapper input').forEach(input => input.readOnly = true);
+        
         document.querySelectorAll('.arrow-btn').forEach(button => {
             button.addEventListener('click', (e) => {
                 const wrapper = e.target.closest('.number-input-wrapper');
                 const input = wrapper.querySelector('input');
                 let value = parseInt(input.value, 10);
                 if (e.target.classList.contains('up-arrow')) {
+                    if (e.target.disabled) return;
                     value++;
                 } else {
                     value--;
@@ -1216,8 +1219,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateCharacterSheet(event = null) {
         if (!GAME_RULES.races) return; 
-        let isValid = true;
-        let infoText = '';
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
         
@@ -1243,12 +1244,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
         const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
         document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
-        if (attrPointsRemaining < 0) { document.getElementById('attr-error-message').textContent = `Pontos excedidos!`; isValid = false; }
-        
+        document.querySelectorAll('#attribute-points-header ~ .attributes-grid .up-arrow').forEach(btn => btn.disabled = attrPointsRemaining <= 0);
+
+        const maxElemPoints = 2;
         const totalElemPoints = Object.values(elements).reduce((sum, val) => sum + val, 0);
-        const elemPointsRemaining = 2 - totalElemPoints;
+        const elemPointsRemaining = maxElemPoints - totalElemPoints;
         document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
-        if (elemPointsRemaining < 0) { document.getElementById('elem-error-message').textContent = `Pontos excedidos!`; isValid = false; }
+        document.querySelectorAll('.elements-grid .up-arrow').forEach(btn => btn.disabled = elemPointsRemaining <= 0);
 
         let finalAttributes = { ...baseAttributes };
         if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
@@ -1269,51 +1271,24 @@ document.addEventListener('DOMContentLoaded', () => {
             return updateCharacterSheet();
         }
         
-        const weapon1Is2H = weapon1Data.hand === 2;
-        
-        if (weapon1Is2H) {
-            if (finalAttributes.forca < 4) {
-                infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
-                if (weapon2Type !== 'Desarmado') { document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet(); }
-                if (shieldType !== 'Nenhum') { document.getElementById('sheet-shield-type').value = 'Nenhum'; return updateCharacterSheet(); }
-            } else {
-                infoText += 'Você usa uma arma de 2 mãos com uma mão (-2 no acerto). ';
-            }
-        }
-        
-        if (weapon2Type !== 'Desarmado' && shieldType !== 'Nenhum') {
-             infoText += 'Não é possível usar uma segunda arma com um escudo. ';
-             document.getElementById('sheet-shield-type').value = 'Nenhum';
-             return updateCharacterSheet();
-        }
-        
-        document.getElementById('sheet-weapon2-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || shieldType !== 'Nenhum';
-        document.getElementById('sheet-shield-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || weapon2Type !== 'Desarmado';
-
-        finalAttributes.protecao += armorData.protection;
-        finalAttributes.agilidade -= armorData.agility_pen;
-        finalAttributes.agilidade -= shieldData.agility_pen;
-        
-        if (shieldData.req_forca > finalAttributes.forca) { infoText += `Força insuficiente para ${shieldType}. `; isValid = false; }
-        if ((selectedRace === 'Goblin' || selectedRace === 'Halfling') && (weapon1Type.includes('Gigante') || weapon1Type.includes('Colossal'))) {
-             infoText += `${selectedRace} não pode usar armas Gigantes/Colossais. `; isValid = false;
-        }
-
-        let bta = finalAttributes.agilidade;
-        let btd = finalAttributes.forca;
-        let btm = finalAttributes.inteligencia;
-
-        bta += weapon1Data.bta || 0;
-        btd += weapon1Data.btd || 0;
-        btm += weapon1Data.btm || 0;
-
-        if(weapon1Is2H && finalAttributes.forca >= 4) bta += weapon1Data.one_hand_bta_mod || 0;
-        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
-        
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
-        document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
+        
+        let btd = finalAttributes.forca + (weapon1Data.btd || 0);
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
         document.getElementById('sheet-btd').textContent = btd >= 0 ? `+${btd}` : btd;
+
+        let btm = finalAttributes.inteligencia + (weapon1Data.btm || 0);
         document.getElementById('sheet-btm').textContent = btm >= 0 ? `+${btm}` : btm;
+
+        let esq = 10 + finalAttributes.agilidade;
+        let weaponEsqMod = weapon1Data.esq_mod;
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+            weaponEsqMod = Math.min(weapon1Data.esq_mod, weapon2Data.esq_mod);
+        }
+        esq += weaponEsqMod;
+        esq += armorData.esq_mod;
+        esq += shieldData.esq_mod;
+        document.getElementById('sheet-esq').textContent = esq;
         
         const hpMax = 20 + (finalAttributes.constituicao * 5);
         const mahouMax = 10 + (finalAttributes.mente * 5);
@@ -1324,7 +1299,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         Object.keys(finalAttributes).forEach(attr => { document.getElementById(`sheet-final-attr-${attr}`).textContent = finalAttributes[attr]; });
         document.getElementById('race-info-box').textContent = raceData.text;
-        document.getElementById('equipment-info-text').textContent = infoText;
         
         Object.keys(elements).forEach(elem => {
             const display = document.getElementById(`advanced-${elem}`);
@@ -1350,9 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tempCharacterSheet.spells.includes(spell.name)) {
                     tempCharacterSheet.spells = tempCharacterSheet.spells.filter(s => s !== spell.name);
                 } else {
-                    if (tempCharacterSheet.spells.length < 2) {
-                        tempCharacterSheet.spells.push(spell.name);
-                    }
+                    tempCharacterSheet.spells.push(spell.name);
                 }
                 updateCharacterSheet();
             });
@@ -1360,12 +1332,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         document.getElementById('sheet-spells-selected-count').textContent = tempCharacterSheet.spells.length;
-        if(tempCharacterSheet.spells.length !== 2) {
-            document.getElementById('spell-error-message').textContent = 'Selecione 2 magias.';
-            isValid = false;
-        }
-
-        document.getElementById('sheet-confirm-btn').disabled = !isValid;
     }
 
     function handleSaveCharacter() {
@@ -1463,48 +1429,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleConfirmCharacter() {
-        const finalAttributes = {};
-        const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
-        finalAttrElements.forEach(item => {
-            const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const value = parseInt(item.querySelector('span').textContent, 10);
-            finalAttributes[label] = value;
-        });
+        const attrPointsRemaining = parseInt(document.getElementById('sheet-points-attr-remaining').textContent, 10);
+        const elemPointsRemaining = parseInt(document.getElementById('sheet-points-elem-remaining').textContent, 10);
+        const spellsSelectedCount = tempCharacterSheet.spells.length;
 
-        const finalSheet = {
-             name: document.getElementById('sheet-name').value,
-             class: document.getElementById('sheet-class').value,
-             race: document.getElementById('sheet-race-select').value,
-             tokenName: tempCharacterSheet.tokenName,
-             tokenImg: tempCharacterSheet.tokenImg,
-             baseAttributes: {
-                forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
-                agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
-                protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
-                constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
-                inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
-                mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
-             },
-             finalAttributes: finalAttributes,
-             elements: {
-                fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
-                agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
-                terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
-                vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
-                luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
-                escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
-             },
-             equipment: {
-                weapon1: { name: document.getElementById('sheet-weapon1-name').value, type: document.getElementById('sheet-weapon1-type').value },
-                weapon2: { name: document.getElementById('sheet-weapon2-name').value, type: document.getElementById('sheet-weapon2-type').value },
-                armor: document.getElementById('sheet-armor-type').value,
-                shield: document.getElementById('sheet-shield-type').value
-             },
-             spells: tempCharacterSheet.spells,
+        let warnings = [];
+        if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
+        if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
+        if(spellsSelectedCount === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
+
+        const sendData = () => {
+            const finalAttributes = {};
+            const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
+            finalAttrElements.forEach(item => {
+                const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const value = parseInt(item.querySelector('span').textContent, 10);
+                finalAttributes[label] = value;
+            });
+
+            const finalSheet = {
+                 name: document.getElementById('sheet-name').value,
+                 class: document.getElementById('sheet-class').value,
+                 race: document.getElementById('sheet-race-select').value,
+                 tokenName: tempCharacterSheet.tokenName,
+                 tokenImg: tempCharacterSheet.tokenImg,
+                 baseAttributes: {
+                    forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
+                    agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+                    protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
+                    constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+                    inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
+                    mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+                 },
+                 finalAttributes: finalAttributes,
+                 elements: {
+                    fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
+                    agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+                    terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
+                    vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+                    luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
+                    escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+                 },
+                 equipment: {
+                    weapon1: { name: document.getElementById('sheet-weapon1-name').value, type: document.getElementById('sheet-weapon1-type').value },
+                    weapon2: { name: document.getElementById('sheet-weapon2-name').value, type: document.getElementById('sheet-weapon2-type').value },
+                    armor: document.getElementById('sheet-armor-type').value,
+                    shield: document.getElementById('sheet-shield-type').value
+                 },
+                 spells: tempCharacterSheet.spells,
+            };
+            socket.emit('playerAction', { type: 'playerFinalizesCharacter', characterData: finalSheet });
+            showScreen(document.getElementById('player-waiting-screen'));
+            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
         };
-        socket.emit('playerAction', { type: 'playerFinalizesCharacter', characterData: finalSheet });
-        showScreen(document.getElementById('player-waiting-screen'));
-        document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+
+        if(warnings.length > 0) {
+            let warningText = "Os seguintes itens não foram completados:<br><ul>" + warnings.map(w => `<li>${w}</li>`).join('') + "</ul>Deseja continuar mesmo assim?";
+            showCustomModal("Aviso", warningText, [
+                { text: 'Sim, continuar', closes: true, onClick: sendData },
+                { text: 'Não, voltar', closes: true, className: 'btn-danger' }
+            ]);
+        } else {
+            sendData();
+        }
     }
     
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
@@ -1555,7 +1542,6 @@ document.addEventListener('DOMContentLoaded', () => {
         clientFlowState = 'in_game'; // BUGFIX: Libera o processamento de 'gameUpdate'
         if (myRole === 'player') showScreen(document.getElementById('player-initial-choice-screen'));
 
-        // Se houver um estado de jogo em cache, renderiza agora
         if (currentGameState) {
             renderGame(currentGameState);
         }
@@ -1589,11 +1575,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let contentHtml = `<div class="debug-info-grid">
                 <h4>Cálculo de Acerto (Atacante: ${debugInfo.attackerName})</h4>
-                <div class="grid-row"><span>Rolagem D20:</span> <span>${debugInfo.hitRoll}</span></div>
-                <div class="grid-row"><span>BTA do Atacante:</span> <span>${debugInfo.bta >= 0 ? '+' : ''}${debugInfo.bta}</span></div>
-                <div class="debug-breakdown">${formatBreakdown(debugInfo.btaBreakdown)}</div>
-                <div class="grid-row result"><span>Resultado Final:</span> <span class="debug-result">${debugInfo.attackRoll}</span></div>
-                <div class="grid-row"><span>vs Defesa do Alvo (${debugInfo.targetName}):</span> <span>${debugInfo.targetDefense}</span></div>
+                <div class="grid-row"><span>Rolagem D20:</span> <span class="debug-result">${debugInfo.hitRoll}</span></div>
+                <div class="grid-row"><span>vs Esquiva do Alvo (${debugInfo.targetName}):</span> <span class="debug-result">${debugInfo.targetEsquiva}</span></div>
+                <div class="debug-breakdown">${formatBreakdown(debugInfo.esqBreakdown)}</div>
                 <hr>
                 <h4>Cálculo de Dano</h4>
                 <div class="grid-row"><span>Resultado do Ataque:</span> <span class="debug-result">${debugInfo.hit ? 'ACERTOU' : 'ERROU'}</span></div>`;
@@ -1613,7 +1597,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             contentHtml += `</div>`;
 
-            showCustomModal(`Relatório de Combate: ${debugInfo.attackerName} vs ${debugInfo.targetName}`, contentHtml, [
+            showCustomModal(`Relatório de Combate`, contentHtml, [
                 { text: 'Fechar', closes: true }
             ]);
         }

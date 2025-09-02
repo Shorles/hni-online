@@ -17,27 +17,27 @@
     "Tulku": { "bon": { "inteligencia": 1, "mente": 1 }, "pen": {}, "text": "Recebem -1 para usar magias de Luz. Enxergam no escuro." }
   },
   "weapons": {
-    "Desarmado": { "cost": 0, "damage": "1D4", "hand": 1, "bta": 0, "btd": 0, "ambi_bta_mod": 0, "ambi_btd_mod": 0 },
-    "1 Mão Mínima": { "cost": 60, "damage": "1D6", "hand": 1, "bta": 4, "btd": -1, "ambi_bta_mod": 0, "ambi_btd_mod": -1 },
-    "1 Mão Leve": { "cost": 80, "damage": "1D6", "hand": 1, "bta": 3, "btd": 0, "ambi_bta_mod": 0, "ambi_btd_mod": -1 },
-    "1 Mão Mediana": { "cost": 100, "damage": "1D6", "hand": 1, "bta": 1, "btd": 1, "ambi_bta_mod": 0, "ambi_btd_mod": -1 },
-    "Cetro": { "cost": 80, "damage": "1D4", "hand": 1, "bta": 1, "btd": 0, "btm": 1, "ambi_bta_mod": 0, "ambi_btd_mod": -1 },
-    "2 Mãos Pesada": { "cost": 120, "damage": "1D10", "hand": 2, "bta": 2, "btd": 0, "one_hand_bta_mod": -2, "ambi_btd_mod": -2 },
-    "2 Mãos Gigante": { "cost": 140, "damage": "1D10", "hand": 2, "bta": 1, "btd": 1, "one_hand_bta_mod": -2, "ambi_btd_mod": -2 },
-    "2 Mãos Colossal": { "cost": 160, "damage": "1D10", "hand": 2, "bta": -1, "btd": 2, "one_hand_bta_mod": -2, "ambi_btd_mod": -2 },
-    "Cajado": { "cost": 140, "damage": "1D6", "hand": 2, "bta": 1, "btd": 0, "btm": 2, "one_hand_bta_mod": -2 }
+    "Desarmado": { "cost": 0, "damage": "1D4", "hand": 1, "btd": 0, "esq_mod": 0, "btm": 0 },
+    "1 Mão Mínima": { "cost": 60, "damage": "1D6", "hand": 1, "btd": -1, "esq_mod": 3 },
+    "1 Mão Leve": { "cost": 80, "damage": "1D6", "hand": 1, "btd": 0, "esq_mod": 2 },
+    "1 Mão Mediana": { "cost": 100, "damage": "1D6", "hand": 1, "btd": 1, "esq_mod": 1 },
+    "Cetro": { "cost": 80, "damage": "1D4", "hand": 1, "btd": 0, "esq_mod": 1, "btm": 1 },
+    "2 Mãos Pesada": { "cost": 120, "damage": "1D10", "hand": 2, "btd": 0, "esq_mod": 0 },
+    "2 Mãos Gigante": { "cost": 140, "damage": "1D10", "hand": 2, "btd": 1, "esq_mod": -1 },
+    "2 Mãos Colossal": { "cost": 160, "damage": "1D10", "hand": 2, "btd": 2, "esq_mod": -2 },
+    "Cajado": { "cost": 140, "damage": "1D6", "hand": 2, "btd": 0, "esq_mod": -1, "btm": 2 }
   },
   "armors": {
-    "Nenhuma": { "cost": 0, "protection": 0, "agility_pen": 0 },
-    "Leve": { "cost": 80, "protection": 1, "agility_pen": 0 },
-    "Mediana": { "cost": 100, "protection": 2, "agility_pen": -1 },
-    "Pesada": { "cost": 120, "protection": 3, "agility_pen": -2 }
+    "Nenhuma": { "cost": 0, "protection": 0, "esq_mod": 0 },
+    "Leve": { "cost": 80, "protection": 1, "esq_mod": -1 },
+    "Mediana": { "cost": 100, "protection": 2, "esq_mod": -2 },
+    "Pesada": { "cost": 120, "protection": 3, "esq_mod": -3 }
   },
   "shields": {
-    "Nenhum": { "cost": 0, "defense": 0, "agility_pen": 0, "req_forca": 0 },
-    "Pequeno": { "cost": 80, "defense": 2, "agility_pen": -1, "req_forca": 1 },
-    "Médio": { "cost": 100, "defense": 4, "agility_pen": -2, "req_forca": 2 },
-    "Grande": { "cost": 120, "defense": 6, "agility_pen": -3, "req_forca": 3 }
+    "Nenhum": { "cost": 0, "defense": 0, "esq_mod": 0, "req_forca": 0 },
+    "Pequeno": { "cost": 80, "defense": 2, "esq_mod": -1, "req_forca": 1 },
+    "Médio": { "cost": 100, "defense": 4, "esq_mod": -2, "req_forca": 2 },
+    "Grande": { "cost": 120, "defense": 6, "esq_mod": -3, "req_forca": 3 }
   },
   "advancedElements": {
     "fogo": "Chama Azul", "agua": "Gelo", "terra": "Metal",

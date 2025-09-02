@@ -125,9 +125,8 @@ function createNewFighterState(data) {
         status: 'active',
         scale: data.scale !== undefined ? parseFloat(data.scale) : 1.0,
         isPlayer: !!data.isPlayer,
-        defesa: 10,
         pa: 3,
-        hasTakenFirstTurn: false, // Flag para controle de PA
+        hasTakenFirstTurn: false,
         activeEffects: [],
     };
 
@@ -175,6 +174,11 @@ function createNewFighterState(data) {
             fighter.hp = fighter.hpMax;
         }
     }
+    
+    const esqBreakdown = calculateESQ(fighter);
+    fighter.esquiva = esqBreakdown.value;
+    fighter.esqBreakdown = esqBreakdown.details;
+
      if (fighter.hp <= 0) {
         fighter.status = 'down';
      }
@@ -214,47 +218,58 @@ function getFighter(state, key) {
 
 function getFighterAttribute(fighter, attr) {
     if (!fighter || !fighter.sheet || !fighter.sheet.finalAttributes) return 0;
-    
-    let baseValue = fighter.sheet.finalAttributes[attr] || 0;
-    
-    // Aplica bônus/penalidades de equipamento para TODOS os fighters (players já têm isso pré-calculado na ficha, mas aqui garantimos consistência)
-    const armorType = fighter.sheet.equipment?.armor || 'Nenhuma';
-    const shieldType = fighter.sheet.equipment?.shield || 'Nenhum';
-    const armorData = GAME_RULES.armors[armorType] || { agility_pen: 0, protection: 0 };
-    const shieldData = GAME_RULES.shields[shieldType] || { agility_pen: 0 };
-
-    if (attr === 'agilidade') {
-        baseValue += (armorData.agility_pen || 0); // Note: pen é negativa
-        baseValue += (shieldData.agility_pen || 0);
-    }
-    if (attr === 'protecao') {
-        baseValue += (armorData.protection || 0);
-    }
-    
-    return baseValue;
+    return fighter.sheet.finalAttributes[attr] || 0;
 }
 
-// --- FUNÇÕES DE DETALHAMENTO PARA O RELATÓRIO DE COMBATE ---
+// --- FUNÇÕES DE DETALHAMENTO E CÁLCULO PARA O COMBATE ---
 
-function getBtaBreakdown(fighter, weaponKey) {
-    const details = {};
+function calculateESQ(fighter) {
+    const details = { 'Base': 10 };
+    let total = 10;
+
     const agilidade = getFighterAttribute(fighter, 'agilidade');
-    details[`Agilidade`] = agilidade;
-    let total = agilidade;
-    
-    const weaponType = fighter.sheet.equipment[weaponKey].type;
-    const weaponData = GAME_RULES.weapons[weaponType];
-    if (weaponData && weaponData.bta) {
-        details[`Arma (${weaponType})`] = weaponData.bta;
-        total += weaponData.bta;
+    if (agilidade !== 0) {
+        details['Agilidade'] = agilidade;
+        total += agilidade;
     }
+
+    const { equipment } = fighter.sheet;
+    const weapon1Type = equipment.weapon1.type;
+    const weapon2Type = equipment.weapon2.type;
+    const armorType = equipment.armor;
+    const shieldType = equipment.shield;
+
+    const weapon1Data = GAME_RULES.weapons[weapon1Type];
+    const weapon2Data = GAME_RULES.weapons[weapon2Type];
+    const armorData = GAME_RULES.armors[armorType];
+    const shieldData = GAME_RULES.shields[shieldType];
+
+    let weaponEsqMod = 0;
+    if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+        weaponEsqMod = Math.min(weapon1Data.esq_mod, weapon2Data.esq_mod);
+        details[`Armas (menor valor)`] = weaponEsqMod;
+    } else if (weapon1Type !== 'Desarmado') {
+        weaponEsqMod = weapon1Data.esq_mod;
+        if (weaponEsqMod !== 0) details[`Arma (${weapon1Type})`] = weaponEsqMod;
+    } else {
+        if (weapon1Data.esq_mod !== 0) details[`Arma (Desarmado)`] = weapon1Data.esq_mod;
+    }
+    total += weaponEsqMod;
     
-    // TODO: Adicionar outras fontes de bônus/penalidades (ex: magia, 2 mãos com 1, etc.)
+    if (armorData && armorData.esq_mod !== 0) {
+        details[`Armadura (${armorType})`] = armorData.esq_mod;
+        total += armorData.esq_mod;
+    }
+    if (shieldData && shieldData.esq_mod !== 0) {
+        details[`Escudo (${shieldType})`] = shieldData.esq_mod;
+        total += shieldData.esq_mod;
+    }
 
     return { value: total, details };
 }
 
-function getBtdBreakdown(fighter, weaponKey, isDualAttackPart) {
+
+function getBtdBreakdown(fighter, weaponKey) {
     const details = {};
     const forca = getFighterAttribute(fighter, 'forca');
     details['Força'] = forca;
@@ -268,7 +283,7 @@ function getBtdBreakdown(fighter, weaponKey, isDualAttackPart) {
     }
     
     const isDualWielding = fighter.sheet.equipment.weapon1.type !== 'Desarmado' && fighter.sheet.equipment.weapon2.type !== 'Desarmado';
-    if (isDualWielding && fighter.isPlayer && !isDualAttackPart) {
+    if (isDualWielding && fighter.isPlayer) {
         details['Ambidestria'] = -1;
         total -= 1;
     }
@@ -278,8 +293,7 @@ function getBtdBreakdown(fighter, weaponKey, isDualAttackPart) {
 
 function getProtectionBreakdown(fighter) {
     const details = {};
-    // Pega o valor base do atributo, ANTES de somar a armadura
-    const baseProtection = fighter.sheet.finalAttributes.protecao || 0;
+    const baseProtection = getFighterAttribute(fighter, 'protecao');
     details['Atributo Proteção'] = baseProtection;
     let total = baseProtection;
 
@@ -290,7 +304,6 @@ function getProtectionBreakdown(fighter) {
         total += armorData.protection;
     }
     
-    // Escudos não dão proteção, dão defesa ativa
     return { value: total, details };
 }
 
@@ -341,7 +354,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     const target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
 
-    const paCost = (weaponChoice === 'dual') ? 2 : 2; // Ataque normal custa 2 PA
+    const paCost = 2;
     if (attacker.pa < paCost) {
         logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes!`, 'miss');
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
@@ -349,28 +362,26 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     }
     attacker.pa -= paCost;
 
-    const performSingleAttack = (weaponKey, isDualAttackPart) => {
+    const performSingleAttack = (weaponKey) => {
         const hitRoll = rollD20();
-        const btaBreakdown = getBtaBreakdown(attacker, weaponKey);
-        const bta = btaBreakdown.value;
-        const attackRoll = hitRoll + bta;
+        const attackRoll = hitRoll; // No novo sistema, o D20 é rolado puro.
         const weaponType = attacker.sheet.equipment[weaponKey].type;
         const weaponData = GAME_RULES.weapons[weaponType];
         
         let debugInfo = { attackerName: attacker.nome, targetName: target.nome };
 
-        logMessage(state, `${attacker.nome} ataca ${target.nome} com ${weaponType}. Rolagem: ${hitRoll} + ${bta} (BTA) = ${attackRoll} vs Defesa ${target.defesa}.`, 'info');
-        Object.assign(debugInfo, { hitRoll, bta, btaBreakdown: btaBreakdown.details, attackRoll, targetDefense: target.defesa });
+        logMessage(state, `${attacker.nome} ataca ${target.nome} com ${weaponType}. Rolagem: ${attackRoll} vs Esquiva ${target.esquiva}.`, 'info');
+        Object.assign(debugInfo, { hitRoll, attackRoll, targetEsquiva: target.esquiva, esqBreakdown: target.esqBreakdown });
         
         let hit = false;
         if (hitRoll === 1) {
             logMessage(state, `Erro Crítico! ${attacker.nome} erra o ataque.`, 'miss');
-        } else if (hitRoll === 20 || attackRoll >= target.defesa) {
+        } else if (hitRoll === 20 || attackRoll >= target.esquiva) {
             hit = true;
             const isCrit = hitRoll === 20;
             if(isCrit) logMessage(state, `Acerto Crítico!`, 'crit');
 
-            const btdBreakdown = getBtdBreakdown(attacker, weaponKey, isDualAttackPart);
+            const btdBreakdown = getBtdBreakdown(attacker, weaponKey);
             const btd = btdBreakdown.value;
             const damageRoll = rollDice(weaponData.damage);
             const critDamage = isCrit ? damageRoll : 0;
@@ -380,7 +391,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const targetProtection = protectionBreakdown.value;
             const finalDamage = Math.max(1, totalDamage - targetProtection);
             
-            let logText = `${attacker.nome} acerta ${target.nome} e causa ${finalDamage} de dano! (Dano: ${damageRoll}${isCrit ? `+${critDamage}(C)` : ''} + ${btd}(BTD) - ${targetProtection}(Prot))`;
+            let logText = `${attacker.nome} acerta ${target.nome} e causa ${finalDamage} de dano!`;
             
             target.hp = Math.max(0, target.hp - finalDamage);
             logMessage(state, logText, 'hit');
@@ -397,10 +408,10 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     };
     
     if (weaponChoice === 'dual') {
-        performSingleAttack('weapon1', true);
-        performSingleAttack('weapon2', true);
+        performSingleAttack('weapon1');
+        performSingleAttack('weapon2');
     } else {
-        performSingleAttack(weaponChoice, false);
+        performSingleAttack(weaponChoice);
     }
 
     checkGameOver(state);
@@ -442,7 +453,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     switch(spell.effectType) {
         case 'damage':
             const damage = rollDice(spell.effect.damageFormula);
-            const finalDamage = Math.max(1, damage - getFighterAttribute(target, 'protecao'));
+            const finalDamage = Math.max(1, damage - getProtectionBreakdown(target).value);
             target.hp = Math.max(0, target.hp - finalDamage);
             logMessage(state, `${spellName} causa ${finalDamage} de dano!`, 'hit');
             if(target.hp === 0) {
@@ -466,6 +477,14 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
 function startBattle(state) {
     Object.values(state.fighters.players).forEach(p => {
         if (p.status !== 'down') p.status = 'active';
+    });
+    
+    Object.values(state.fighters).forEach(team => {
+        Object.values(team).forEach(fighter => {
+            const esqBreakdown = calculateESQ(fighter);
+            fighter.esquiva = esqBreakdown.value;
+            fighter.esqBreakdown = esqBreakdown.details;
+        });
     });
 
     state.turnOrder = Object.values(state.fighters.players).concat(Object.values(state.fighters.npcs))
@@ -577,10 +596,27 @@ io.on('connection', (socket) => {
                 return;
             }
             if (action.type === 'gmSwitchesMode') {
-                // ... (código sem alterações)
+                 if (room.activeMode === 'adventure') room.activeMode = 'theater';
+                 else if (room.activeMode === 'theater') room.activeMode = 'adventure';
+
+                 if(room.activeMode === 'adventure' && !room.gameModes.adventure) {
+                     if (room.adventureCache) {
+                         socket.emit('promptForAdventureType');
+                         shouldUpdate = false;
+                     } else {
+                        room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                     }
+                 } else if (room.activeMode === 'theater' && !room.gameModes.theater) {
+                    room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
+                 }
             }
             if (action.type === 'gmChoosesAdventureType') {
-                // ... (código sem alterações)
+                if (action.choice === 'continue' && room.adventureCache) {
+                    room.gameModes.adventure = room.adventureCache;
+                    room.adventureCache = null;
+                } else { // new
+                    room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                }
             }
         }
         
@@ -644,7 +680,6 @@ io.on('connection', (socket) => {
                                     const agilidade = getFighterAttribute(fighter, 'agilidade');
                                     const initiative = roll + agilidade;
                                     adventureState.initiativeRolls[fighter.id] = initiative;
-                                    fighter.defesa = initiative;
                                     logMessage(adventureState, `${fighter.nome} rolou ${initiative} para iniciativa (Dado: ${roll} + Agi: ${agilidade}).`, 'info');
                                 }
                             };
