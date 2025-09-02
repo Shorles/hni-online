@@ -144,6 +144,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         scaleGame(); 
 
+        const amIGM = socket.id === gameState.gmId;
+        if (amIGM) {
+            isGm = true; 
+        }
+
         if (gameState.mode === 'adventure' && gameState.customPositions) customFighterPositions = gameState.customPositions;
         
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
@@ -1425,6 +1430,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.addEventListener('input', (e) => updateCharacterSheet(e));
         });
         document.getElementById('sheet-save-btn').addEventListener('click', handleSaveCharacter);
+        // *** LINHA CORRIGIDA/REINSERIDA AQUI ***
         document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
 
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
