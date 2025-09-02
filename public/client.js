@@ -144,6 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         scaleGame(); 
 
+        const amIGM = socket.id === gameState.gmId;
+
         if (gameState.mode === 'adventure' && gameState.customPositions) customFighterPositions = gameState.customPositions;
         
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
@@ -164,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('waiting-players-sidebar').classList.add('hidden');
         document.getElementById('back-to-lobby-btn').classList.add('hidden');
 
-        if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
+        if (amIGM && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
             floatingButtonsContainer.classList.remove('hidden');
             document.getElementById('back-to-lobby-btn').classList.remove('hidden');
             const switchBtn = document.getElementById('floating-switch-mode-btn');
@@ -182,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 defeatAnimationPlayed.clear();
                 stagedNpcSlots.fill(null);
                 selectedSlotIndex = null;
-                if (isGm) {
+                if (amIGM) {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
                 } else {
@@ -209,7 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DO MODO AVENTURA ---
     function handleAdventureMode(gameState) {
         const fightScreen = document.getElementById('fight-screen');
-        if (isGm) {
+        const amIGM = socket.id === gameState.gmId;
+
+        if (amIGM) {
             switch (gameState.phase) {
                 case 'npc_setup': 
                     showScreen(document.getElementById('gm-npc-setup-screen')); 
