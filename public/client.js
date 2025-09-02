@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     let myRoomId = null; 
     let coordsModeActive = false;
-    let clientFlowState = 'initializing';
+    let clientFlowState = 'initializing'; // CONTROLA O FLUXO PARA EVITAR BUGS
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
     let stagedNpcSlots = new Array(5).fill(null);
@@ -209,7 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DO MODO AVENTURA ---
     function handleAdventureMode(gameState) {
         const fightScreen = document.getElementById('fight-screen');
-
         if (isGm) {
             switch (gameState.phase) {
                 case 'npc_setup': 
@@ -335,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('gm-start-battle-btn').onclick = () => {
             const finalNpcs = stagedNpcSlots
                 .map((npc, index) => {
-                    if (npc && !npc.customStats) {
+                    if (npc && !npc.customStats) { // Adiciona stats padrão se não houver customizados
                         npc.customStats = { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 };
                     }
                     return npc ? { ...npc, slotIndex: index } : null
@@ -433,8 +432,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('round-info').textContent = `ROUND ${state.currentRound}`;
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
-        const PLAYER_POSITIONS = [ { left: '150px', top: '450px' }, { left: '250px', top: '350px' }, { left: '350px', top: '250px' }, { left: '450px', top: '150px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '950px', top: '300px' } ];
+        const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '950px', top: '350px' } ];
         
         Object.keys(state.fighters.players).forEach((key, index) => {
             const player = state.fighters.players[key];
@@ -496,26 +495,23 @@ document.addEventListener('DOMContentLoaded', () => {
             container.addEventListener('click', handleTargetClick);
         }
     
-        let paHtml = '<div class="pa-container">';
-        for (let i = 0; i < 3; i++) {
-            paHtml += `<div class="pa-dot ${i < fighter.pa ? 'active' : ''}"></div>`;
-        }
-        paHtml += '</div>';
-
         let healthBarHtml = '';
         if (fighter.isMultiPart && fighter.parts) {
             healthBarHtml = '<div class="multi-health-bar-container">';
             fighter.parts.forEach(part => {
                 const partHealthPercentage = (part.hp / part.hpMax) * 100;
                 const isDefeated = part.status === 'down' ? 'defeated' : '';
-                healthBarHtml += `<div class="health-bar-ingame-part ${isDefeated}" title="${part.name}: ${part.hp}/${part.hpMax}"><div class="health-bar-ingame-part-fill" style="width: ${partHealthPercentage}%"></div></div>`;
+                healthBarHtml += `
+                    <div class="health-bar-ingame-part ${isDefeated}" title="${part.name}: ${part.hp}/${part.hpMax}">
+                        <div class="health-bar-ingame-part-fill" style="width: ${partHealthPercentage}%"></div>
+                    </div>
+                `;
             });
             healthBarHtml += '</div>';
         } else {
             const healthPercentage = fighter.hpMax > 0 ? (fighter.hp / fighter.hpMax) * 100 : 0;
             const mahouPercentage = fighter.mahouMax > 0 ? (fighter.mahou / fighter.mahouMax) * 100 : 0;
             healthBarHtml = `
-                ${paHtml}
                 <div class="health-bar-ingame" title="HP: ${fighter.hp}/${fighter.hpMax}">
                     <div class="health-bar-ingame-fill" style="width: ${healthPercentage}%"></div>
                     <span class="health-bar-ingame-text">${fighter.hp}/${fighter.hpMax}</span>
@@ -540,30 +536,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
         
-        const createButton = (text, onClick, disabled = false, className = 'action-btn', paCost = 0) => {
+        const createButton = (text, onClick, disabled = false, className = 'action-btn') => {
             const btn = document.createElement('button');
             btn.className = className;
             btn.textContent = text;
-            btn.disabled = disabled || (activeFighter.pa < paCost);
+            btn.disabled = disabled;
             btn.onclick = onClick;
             return btn;
         };
         
-        actionButtonsWrapper.appendChild(createButton('Atacar', startAttackSequence, !canControl, 'action-btn', 2));
+        actionButtonsWrapper.appendChild(createButton('Atacar', startAttackSequence, !canControl));
 
         if (myRole === 'player' && state.activeCharacterKey === myPlayerKey && activeFighter.sheet && activeFighter.sheet.spells) {
             activeFighter.sheet.spells.forEach(spellName => {
                 const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
-                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !canControl, 'action-btn spell-btn', spell.costPA);
-                    spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou, ${spell.costPA} PA)`;
+                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !canControl, 'action-btn spell-btn');
+                    spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
                     actionButtonsWrapper.appendChild(spellBtn);
                 }
             });
         }
         
-        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !canControl, 'action-btn flee-btn', 3));
+        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !canControl, 'action-btn flee-btn'));
         actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !canControl, 'end-turn-btn'));
     }
 
@@ -1294,15 +1290,142 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleSaveCharacter() {
-        // ... (código sem alterações)
+        const finalAttributes = {};
+        const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
+        finalAttrElements.forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const value = parseInt(item.querySelector('span').textContent, 10);
+            finalAttributes[label] = value;
+        });
+
+        const sheetData = {
+            name: document.getElementById('sheet-name').value,
+            class: document.getElementById('sheet-class').value,
+            race: document.getElementById('sheet-race-select').value,
+            tokenName: tempCharacterSheet.tokenName,
+            tokenImg: tempCharacterSheet.tokenImg,
+            baseAttributes: {
+                forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
+                agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+                protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
+                constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+                inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
+                mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+            },
+            finalAttributes: finalAttributes,
+            elements: {
+                fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
+                agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+                terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
+                vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+                luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
+                escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+            },
+            equipment: {
+                weapon1: { name: document.getElementById('sheet-weapon1-name').value, type: document.getElementById('sheet-weapon1-type').value },
+                weapon2: { name: document.getElementById('sheet-weapon2-name').value, type: document.getElementById('sheet-weapon2-type').value },
+                armor: document.getElementById('sheet-armor-type').value,
+                shield: document.getElementById('sheet-shield-type').value
+            },
+            spells: tempCharacterSheet.spells,
+        };
+
+        const dataStr = JSON.stringify(sheetData, null, 2);
+        const dataBase64 = btoa(dataStr);
+        const a = document.createElement("a");
+        a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(dataBase64);
+        a.download = `${sheetData.name || 'personagem'}_almara.txt`;
+        a.click();
     }
     
     function handleLoadCharacter(event) {
-        // ... (código sem alterações)
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const decodedData = atob(e.target.result);
+                const sheetData = JSON.parse(decodedData);
+                
+                tempCharacterSheet.tokenName = sheetData.tokenName;
+                tempCharacterSheet.tokenImg = sheetData.tokenImg;
+                tempCharacterSheet.spells = sheetData.spells || [];
+                
+                initializeCharacterSheet();
+
+                document.getElementById('sheet-name').value = sheetData.name || '';
+                document.getElementById('sheet-class').value = sheetData.class || '';
+                document.getElementById('sheet-race-select').value = sheetData.race || 'Humano';
+
+                Object.keys(sheetData.baseAttributes).forEach(attr => {
+                    document.getElementById(`sheet-base-attr-${attr}`).value = sheetData.baseAttributes[attr] || 0;
+                });
+                Object.keys(sheetData.elements).forEach(elem => {
+                    document.getElementById(`sheet-elem-${elem}`).value = sheetData.elements[elem] || 0;
+                });
+                
+                document.getElementById('sheet-weapon1-name').value = sheetData.equipment.weapon1.name || '';
+                document.getElementById('sheet-weapon1-type').value = sheetData.equipment.weapon1.type || 'Desarmado';
+                document.getElementById('sheet-weapon2-name').value = sheetData.equipment.weapon2.name || '';
+                document.getElementById('sheet-weapon2-type').value = sheetData.equipment.weapon2.type || 'Desarmado';
+                document.getElementById('sheet-armor-type').value = sheetData.equipment.armor || 'Nenhuma';
+                document.getElementById('sheet-shield-type').value = sheetData.equipment.shield || 'Nenhum';
+                
+                updateCharacterSheet();
+                showScreen(document.getElementById('character-sheet-screen'));
+
+            } catch (error) {
+                showInfoModal('Erro', 'Não foi possível carregar o arquivo. Formato inválido.');
+                console.error('Erro ao carregar personagem:', error);
+            }
+        };
+        reader.readAsText(file);
     }
 
     function handleConfirmCharacter() {
-        // ... (código sem alterações)
+        const finalAttributes = {};
+        const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
+        finalAttrElements.forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const value = parseInt(item.querySelector('span').textContent, 10);
+            finalAttributes[label] = value;
+        });
+
+        const finalSheet = {
+             name: document.getElementById('sheet-name').value,
+             class: document.getElementById('sheet-class').value,
+             race: document.getElementById('sheet-race-select').value,
+             tokenName: tempCharacterSheet.tokenName,
+             tokenImg: tempCharacterSheet.tokenImg,
+             baseAttributes: {
+                forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
+                agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+                protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
+                constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+                inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
+                mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+             },
+             finalAttributes: finalAttributes,
+             elements: {
+                fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
+                agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+                terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
+                vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+                luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
+                escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+             },
+             equipment: {
+                weapon1: { name: document.getElementById('sheet-weapon1-name').value, type: document.getElementById('sheet-weapon1-type').value },
+                weapon2: { name: document.getElementById('sheet-weapon2-name').value, type: document.getElementById('sheet-weapon2-type').value },
+                armor: document.getElementById('sheet-armor-type').value,
+                shield: document.getElementById('sheet-shield-type').value
+             },
+             spells: tempCharacterSheet.spells,
+        };
+        socket.emit('playerAction', { type: 'playerFinalizesCharacter', characterData: finalSheet });
+        showScreen(document.getElementById('player-waiting-screen'));
+        document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
     }
     
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
@@ -1312,10 +1435,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => { 
-        if (clientFlowState === 'initializing') {
-            currentGameState = gameState;
-            return; 
-        }
+        if (clientFlowState === 'initializing') return; // BUGFIX: Ignora updates até o papel ser definido
         renderGame(gameState); 
     });
 
@@ -1352,10 +1472,11 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen(roleSelectionScreen);
     });
     socket.on('assignRole', (data) => {
-        myRole = data.role; myPlayerKey = data.playerKey || socket.id; isGm = !!data.isGm;
-        clientFlowState = 'in_game';
+        myRole = data.role; myPlayerKey = data.playerKey || socket.id; isGm = !!data.isGm; myRoomId = data.roomId;
+        clientFlowState = 'in_game'; // BUGFIX: Libera o processamento de 'gameUpdate'
         if (myRole === 'player') showScreen(document.getElementById('player-initial-choice-screen'));
 
+        // Se houver um estado de jogo em cache, renderiza agora
         if (currentGameState) {
             renderGame(currentGameState);
         }

@@ -173,6 +173,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     text-shadow: 1px 1px 1px #000;
 }
 
+
 .action-btn.spell-btn {
     background-color: #6f42c1;
 }
@@ -210,24 +211,4 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 .modal-button-container button.btn-danger:hover {
     background-color: #c82333;
-}
-
-.pa-container {
-    display: flex;
-    justify-content: center;
-    gap: 5px;
-    margin-bottom: 5px;
-    height: 12px;
-}
-.pa-dot {
-    width: 12px;
-    height: 12px;
-    background-color: #555;
-    border-radius: 50%;
-    border: 1px solid #222;
-    transition: background-color 0.3s;
-}
-.pa-dot.active {
-    background-color: #ffeb3b;
-    box-shadow: 0 0 5px #ffeb3b;
 }
