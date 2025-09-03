@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalButton.onclick = () => modal.classList.add('hidden');
     }
     function showCustomModal(title, contentHtml, buttons) {
-        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-title').innerHTML = title; // Changed to innerHTML
         document.getElementById('modal-text').innerHTML = contentHtml;
         document.getElementById('modal-button').classList.add('hidden');
         
@@ -1258,6 +1258,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
         
+        let bta = finalAttributes.agilidade;
+        let weaponBtaMod = weapon1Data.bta;
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+             weaponBtaMod = Math.min(weapon1Data.bta, weapon2Data.bta);
+        }
+        bta += weaponBtaMod;
+        bta += armorData.esq_mod; // usa o mesmo mod de esquiva como penalidade
+        bta += shieldData.esq_mod;
+        document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
+
+
         let btd = finalAttributes.forca + (weapon1Data.btd || 0);
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
         document.getElementById('sheet-btd').textContent = btd >= 0 ? `+${btd}` : btd;
@@ -1547,7 +1558,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
             }
             const targetEl = document.getElementById(targetKey);
-            const currentHit = isDual ? (isSecondAttack ? debugInfo.attack2.hit : debugInfo.attack1.hit) : hit;
+            const currentHit = isDual ? (isSecondAttack ? debugInfo.attack2?.hit : debugInfo.attack1?.hit) : hit;
             if (targetEl && currentHit) {
                 const img = targetEl.querySelector('.fighter-img-ingame');
                 if (img) {
@@ -1598,6 +1609,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             let contentHtml = '<div class="debug-info-grid">';
+            let modalTitle = `Relatório: <span class="attacker-name">${debugInfo.attackerName}</span> ataca <span class="defender-name">${debugInfo.targetName}</span>`;
+
             if (isDual) {
                 contentHtml += '<h3>Ataque 1</h3>' + buildAttackReport(debugInfo.attack1);
                 contentHtml += '<hr style="border-width: 2px; margin: 15px 0;">';
@@ -1607,7 +1620,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             contentHtml += '</div>';
 
-            showCustomModal(`Relatório: ${debugInfo.attackerName} ataca ${debugInfo.targetName}`, contentHtml, [
+            showCustomModal(modalTitle, contentHtml, [
                 { text: 'Fechar', closes: true }
             ]);
         }
