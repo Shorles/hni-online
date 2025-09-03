@@ -1249,6 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
         
+        // BTA is no longer displayed, but calculated for the sheet object
         let bta = finalAttributes.agilidade;
         let weaponBtaMod = weapon1Data.bta;
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
@@ -1257,8 +1258,6 @@ document.addEventListener('DOMContentLoaded', () => {
         bta += weaponBtaMod;
         bta += armorData.esq_mod; // usa o mesmo mod de esquiva como penalidade
         bta += shieldData.esq_mod;
-        document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
-
 
         let btd = finalAttributes.forca + (weapon1Data.btd || 0);
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
