@@ -1563,7 +1563,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let contentHtml = `<div class="debug-info-grid">
                 <h4>Cálculo de Acerto (Atacante: ${debugInfo.attackerName})</h4>
-                <div class="grid-row"><span>Rolagem D20:</span> <span class="debug-result">${debugInfo.hitRoll}</span></div>
+                <div class="grid-row"><span>Rolagem D20:</span> <span>${debugInfo.hitRoll}</span></div>
+                <div class="grid-row"><span>BTA (Agilidade):</span> <span>${debugInfo.bta >= 0 ? '+' : ''}${debugInfo.bta}</span></div>
+                <div class="grid-row result"><span>Resultado Final:</span> <span class="debug-result">${debugInfo.attackRoll}</span></div>
                 <div class="grid-row"><span>vs Esquiva do Alvo (${debugInfo.targetName}):</span> <span class="debug-result">${debugInfo.targetEsquiva}</span></div>
                 <div class="debug-breakdown">${formatBreakdown(debugInfo.esqBreakdown)}</div>
                 <hr>
@@ -1585,7 +1587,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             contentHtml += `</div>`;
 
-            showCustomModal(`Relatório de Combate`, contentHtml, [
+            showCustomModal(`Relatório de Combate (${debugInfo.weaponUsed})`, contentHtml, [
                 { text: 'Fechar', closes: true }
             ]);
         }

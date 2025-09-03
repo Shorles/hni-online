@@ -251,7 +251,7 @@ function calculateESQ(fighter) {
     } else if (weapon1Type !== 'Desarmado') {
         weaponEsqMod = weapon1Data.esq_mod;
         if (weaponEsqMod !== 0) details[`Arma (${weapon1Type})`] = weaponEsqMod;
-    } else {
+    } else { // Desarmado
         if (weapon1Data.esq_mod !== 0) details[`Arma (Desarmado)`] = weapon1Data.esq_mod;
     }
     total += weaponEsqMod;
@@ -268,8 +268,17 @@ function calculateESQ(fighter) {
     return { value: total, details };
 }
 
+function getBtaBreakdown(fighter) {
+    const details = {};
+    const agilidade = getFighterAttribute(fighter, 'agilidade');
+    details[`Agilidade`] = agilidade;
+    let total = agilidade;
+    // BTA não é mais usado para o acerto, mas poderia ser usado para outras coisas no futuro.
+    // Por enquanto, é apenas a Agilidade.
+    return { value: total, details };
+}
 
-function getBtdBreakdown(fighter, weaponKey) {
+function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
     const details = {};
     const forca = getFighterAttribute(fighter, 'forca');
     details['Força'] = forca;
@@ -282,9 +291,8 @@ function getBtdBreakdown(fighter, weaponKey) {
         total += weaponData.btd;
     }
     
-    const isDualWielding = fighter.sheet.equipment.weapon1.type !== 'Desarmado' && fighter.sheet.equipment.weapon2.type !== 'Desarmado';
-    if (isDualWielding && fighter.isPlayer) {
-        details['Ambidestria'] = -1;
+    if (isDualAttackPart) {
+        details['Ataque Duplo'] = -1;
         total -= 1;
     }
 
@@ -361,7 +369,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     const target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
 
-    const paCost = 2;
+    const paCost = (weaponChoice === 'dual') ? 2 : 2;
     if (attacker.pa < paCost) {
         logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes!`, 'miss');
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
@@ -369,16 +377,18 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     }
     attacker.pa -= paCost;
 
-    const performSingleAttack = (weaponKey) => {
+    const performSingleAttack = (weaponKey, isDualAttackPart = false) => {
         const hitRoll = rollD20();
-        const attackRoll = hitRoll; // No novo sistema, o D20 é rolado puro.
+        const btaBreakdown = getBtaBreakdown(attacker);
+        const bta = btaBreakdown.value;
+        const attackRoll = hitRoll + bta;
         const weaponType = attacker.sheet.equipment[weaponKey].type;
         const weaponData = GAME_RULES.weapons[weaponType];
         
-        let debugInfo = { attackerName: attacker.nome, targetName: target.nome };
+        let debugInfo = { attackerName: attacker.nome, targetName: target.nome, weaponUsed: weaponType };
 
-        logMessage(state, `${attacker.nome} ataca ${target.nome} com ${weaponType}. Rolagem: ${attackRoll} vs Esquiva ${target.esquiva}.`, 'info');
-        Object.assign(debugInfo, { hitRoll, attackRoll, targetEsquiva: target.esquiva, esqBreakdown: target.esqBreakdown });
+        logMessage(state, `${attacker.nome} ataca ${target.nome} com ${weaponType}. Rolagem: ${hitRoll} + ${bta} (BTA) = ${attackRoll} vs Esquiva ${target.esquiva}.`, 'info');
+        Object.assign(debugInfo, { hitRoll, bta, btaBreakdown: btaBreakdown.details, attackRoll, targetEsquiva: target.esquiva, esqBreakdown: target.esqBreakdown });
         
         let hit = false;
         if (hitRoll === 1) {
@@ -388,7 +398,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const isCrit = hitRoll === 20;
             if(isCrit) logMessage(state, `Acerto Crítico!`, 'crit');
 
-            const btdBreakdown = getBtdBreakdown(attacker, weaponKey);
+            const btdBreakdown = getBtdBreakdown(attacker, weaponKey, isDualAttackPart);
             const btd = btdBreakdown.value;
             const damageRoll = rollDice(weaponData.damage);
             const critDamage = isCrit ? damageRoll : 0;
@@ -398,7 +408,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const targetProtection = protectionBreakdown.value;
             const finalDamage = Math.max(1, totalDamage - targetProtection);
             
-            let logText = `${attacker.nome} acerta ${target.nome} e causa ${finalDamage} de dano!`;
+            let logText = `${attacker.nome} acerta ${target.nome} com ${weaponType} e causa ${finalDamage} de dano!`;
             
             target.hp = Math.max(0, target.hp - finalDamage);
             logMessage(state, logText, 'hit');
@@ -415,20 +425,22 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     };
     
     if (weaponChoice === 'dual') {
-        performSingleAttack('weapon1');
-        performSingleAttack('weapon2');
+        performSingleAttack('weapon1', true);
+        setTimeout(() => {
+            if(attacker.status === 'active' && target.status === 'active') {
+                performSingleAttack('weapon2', true);
+                 setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 800);
+            }
+        }, 800);
     } else {
-        performSingleAttack(weaponChoice);
+        performSingleAttack(weaponChoice, false);
+        setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 800);
     }
 
     checkGameOver(state);
     if (state.winner) {
         cachePlayerStats(games[roomId]);
     }
-    
-    setTimeout(() => {
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-    }, 1500);
 }
 
 function useSpell(state, roomId, attackerKey, targetKey, spellName) {
@@ -455,7 +467,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     attacker.pa -= paCost;
     attacker.mahou -= spell.costMahou;
     logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
-    io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: true }); // Para animação
+    io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: true });
 
     switch(spell.effectType) {
         case 'damage':
@@ -474,10 +486,8 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     if (state.winner) {
         cachePlayerStats(games[roomId]);
     }
-
-    setTimeout(() => {
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-    }, 1000);
+    
+    setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
 }
 
 
