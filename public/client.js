@@ -1249,15 +1249,21 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
         
-        // BTA is no longer displayed, but calculated for the sheet object
-        let bta = finalAttributes.agilidade;
-        let weaponBtaMod = weapon1Data.bta;
-        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-             weaponBtaMod = Math.min(weapon1Data.bta, weapon2Data.bta);
+        let infoText = '';
+        const weapon1Is2H = weapon1Data.hand === 2;
+        if (weapon1Is2H && finalAttributes.forca < 4) {
+            infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
+            if (weapon2Type !== 'Desarmado') { document.getElementById('sheet-weapon2-type').value = 'Desarmado'; return updateCharacterSheet(); }
+            if (shieldType !== 'Nenhum') { document.getElementById('sheet-shield-type').value = 'Nenhum'; return updateCharacterSheet(); }
         }
-        bta += weaponBtaMod;
-        bta += armorData.esq_mod; // usa o mesmo mod de esquiva como penalidade
-        bta += shieldData.esq_mod;
+        
+        if (weapon2Type !== 'Desarmado' && shieldType !== 'Nenhum') {
+             infoText += 'Não é possível usar uma segunda arma com um escudo. ';
+             document.getElementById('sheet-shield-type').value = 'Nenhum';
+             return updateCharacterSheet();
+        }
+        document.getElementById('sheet-weapon2-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || shieldType !== 'Nenhum';
+        document.getElementById('sheet-shield-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || weapon2Type !== 'Desarmado';
 
         let btd = finalAttributes.forca + (weapon1Data.btd || 0);
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
@@ -1288,6 +1294,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         Object.keys(finalAttributes).forEach(attr => { document.getElementById(`sheet-final-attr-${attr}`).textContent = finalAttributes[attr]; });
         document.getElementById('race-info-box').textContent = raceData.text;
+        document.getElementById('equipment-info-text').textContent = infoText;
         
         Object.keys(elements).forEach(elem => {
             const display = document.getElementById(`advanced-${elem}`);

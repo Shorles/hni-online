@@ -272,28 +272,35 @@ function getBtaBreakdown(fighter, weaponKey) {
     const details = {};
     let total = 0;
     
-    // 1. Agilidade
     const agilidade = getFighterAttribute(fighter, 'agilidade');
     if (agilidade !== 0) {
         details['Agilidade'] = agilidade;
         total += agilidade;
     }
 
-    // 2. Modificador da Arma Principal
-    const weaponType = fighter.sheet.equipment[weaponKey].type;
-    const weaponData = GAME_RULES.weapons[weaponType];
-    
-    if (weaponData && weaponData.bta) {
-        details[`Arma (${weaponType})`] = weaponData.bta;
-        total += weaponData.bta;
-    }
-    
-    // 3. Penalidades de Equipamento (Escudo/Armadura)
-    // Usamos os mesmos modificadores ESQ para penalizar o BTA
-    const armorType = fighter.sheet.equipment?.armor || 'Nenhuma';
-    const shieldType = fighter.sheet.equipment?.shield || 'Nenhum';
+    const { equipment } = fighter.sheet;
+    const weapon1Type = equipment.weapon1.type;
+    const weapon2Type = equipment.weapon2.type;
+    const armorType = equipment.armor;
+    const shieldType = equipment.shield;
+
+    const weapon1Data = GAME_RULES.weapons[weapon1Type];
+    const weapon2Data = GAME_RULES.weapons[weapon2Type];
     const armorData = GAME_RULES.armors[armorType];
     const shieldData = GAME_RULES.shields[shieldType];
+    
+    let weaponBtaMod = 0;
+    if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+        weaponBtaMod = Math.min(weapon1Data.bta, weapon2Data.bta);
+        details[`Armas (menor valor)`] = weaponBtaMod;
+    } else {
+        const usedWeaponData = GAME_RULES.weapons[equipment[weaponKey].type];
+        if (usedWeaponData && usedWeaponData.bta !== 0) {
+            details[`Arma (${equipment[weaponKey].type})`] = usedWeaponData.bta;
+            weaponBtaMod = usedWeaponData.bta;
+        }
+    }
+    total += weaponBtaMod;
 
     if (armorData && armorData.esq_mod < 0) {
         details[`Armadura (${armorType})`] = armorData.esq_mod;
@@ -303,9 +310,6 @@ function getBtaBreakdown(fighter, weaponKey) {
         details[`Escudo (${shieldType})`] = shieldData.esq_mod;
         total += shieldData.esq_mod;
     }
-
-    // 4. Penalidade de 2 Mãos com 1 (se aplicável, mas não alteraremos o BTA diretamente aqui, já que o BTA já deveria refletir a arma)
-    // Por enquanto, confiamos no valor bta do rules.json, que deve ser ajustado pelo GM.
     
     return { value: total, details };
 }
@@ -398,7 +402,7 @@ function advanceTurn(state) {
 
 function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targetPartKey) {
     const attacker = getFighter(state, attackerKey);
-    let target = getFighter(state, targetKey); // Use let to allow re-fetching
+    let target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
 
     const paCost = 2;
@@ -410,7 +414,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     attacker.pa -= paCost;
 
     const performSingleAttack = (weaponKey, isDual = false) => {
-        target = getFighter(state, targetKey); // Re-fetch target state
+        target = getFighter(state, targetKey);
         if (!target || target.status !== 'active') return null;
 
         const hitRoll = rollD20();
@@ -485,7 +489,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         cachePlayerStats(games[roomId]);
     }
     
-    setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), weaponChoice === 'dual' ? 1500 : 800);
+    setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1500);
 }
 
 function useSpell(state, roomId, attackerKey, targetKey, spellName) {
@@ -769,6 +773,22 @@ io.on('connection', (socket) => {
                             useSpell(adventureState, roomId, action.attackerKey, action.targetKey, action.spellName);
                             shouldUpdate = false;
                         }
+                        break;
+                    case 'flee':
+                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
+                             const actor = getFighter(adventureState, action.actorKey);
+                             if(actor) {
+                                 actor.status = 'fled';
+                                 logMessage(adventureState, `${actor.nome} fugiu da batalha!`, 'info');
+                                 io.to(roomId).emit('fleeResolved', { actorKey: action.actorKey });
+                                 checkGameOver(adventureState);
+                                 setTimeout(() => {
+                                     advanceTurn(adventureState);
+                                     io.to(roomId).emit('gameUpdate', getFullState(room));
+                                 }, 1200);
+                                 shouldUpdate = false;
+                             }
+                         }
                         break;
                     case 'end_turn':
                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
