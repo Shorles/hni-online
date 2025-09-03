@@ -293,15 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             charListContainer.appendChild(card);
         });
-        confirmBtn.onclick = () => {
-            const selectedCard = document.querySelector('.char-card.selected');
-            if (selectedCard) {
-                tempCharacterSheet.tokenName = selectedCard.dataset.name;
-                tempCharacterSheet.tokenImg = selectedCard.dataset.img;
-                initializeCharacterSheet();
-                showScreen(document.getElementById('character-sheet-screen'));
-            }
-        };
     }
     
     function renderNpcSelectionForGm() {
@@ -1660,12 +1651,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
         document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
+        
         document.getElementById('new-char-btn').addEventListener('click', () => {
             showScreen(document.getElementById('selection-screen'));
             renderPlayerTokenSelection();
         });
         document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
         document.getElementById('load-char-input').addEventListener('change', handleLoadCharacter);
+
+        document.getElementById('confirm-selection-btn').onclick = () => {
+            const selectedCard = document.querySelector('.char-card.selected');
+            if (selectedCard) {
+                tempCharacterSheet.tokenName = selectedCard.dataset.name;
+                tempCharacterSheet.tokenImg = selectedCard.dataset.img;
+                initializeCharacterSheet();
+                showScreen(document.getElementById('character-sheet-screen'));
+            }
+        };
 
         document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
             el.addEventListener('change', (e) => updateCharacterSheet(e));
