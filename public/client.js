@@ -493,16 +493,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function createFighterElement(fighter, type, state, position) {
+        const positioner = document.createElement('div');
+        positioner.className = 'char-positioner';
+        positioner.id = fighter.id; // ID for targeting now on the positioner
+        
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
-        container.id = fighter.id;
         container.dataset.key = fighter.id;
     
+        positioner.appendChild(container);
+
         const characterScale = fighter.scale || 1.0;
         
         if (position) {
-            Object.assign(container.style, position);
-            container.style.zIndex = parseInt(position.top, 10);
+            Object.assign(positioner.style, position);
+            positioner.style.zIndex = parseInt(position.top, 10);
         }
         container.style.setProperty('--character-scale', characterScale);
         
@@ -565,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         container.innerHTML = `${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
-        return container;
+        return positioner;
     }
     
     function renderActionButtons(state) {
@@ -815,7 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function makeFightersDraggable(isDraggable) {
-        document.querySelectorAll('#fight-screen .char-container').forEach(fighter => {
+        document.querySelectorAll('#fight-screen .char-positioner').forEach(fighter => {
             if (isDraggable) fighter.addEventListener('mousedown', onFighterMouseDown);
             else fighter.removeEventListener('mousedown', onFighterMouseDown);
         });
@@ -1549,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playAttackAnimation = (isSecondAttack = false) => {
             const attackerEl = document.getElementById(attackerKey);
             if (attackerEl) {
-                const isPlayer = attackerEl.classList.contains('player-char-container');
+                const isPlayer = attackerEl.querySelector('.player-char-container');
                 const originalLeft = attackerEl.style.left;
                 attackerEl.style.left = `${parseFloat(originalLeft) + (isPlayer ? 200 : -200)}px`;
                 setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
