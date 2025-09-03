@@ -468,7 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '450px' }, { left: '250px', top: '350px' }, { left: '350px', top: '250px' }, { left: '450px', top: '150px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '950px', top: '300px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '1150px', top: '800px' } ];
         
         Object.keys(state.fighters.players).forEach((key, index) => {
             const player = state.fighters.players[key];
@@ -493,21 +493,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function createFighterElement(fighter, type, state, position) {
-        const positioner = document.createElement('div');
-        positioner.className = 'char-positioner';
-        positioner.id = fighter.id;
-        
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
+        container.id = fighter.id;
         container.dataset.key = fighter.id;
     
-        positioner.appendChild(container);
-
         const characterScale = fighter.scale || 1.0;
         
         if (position) {
-            Object.assign(positioner.style, position);
-            positioner.style.zIndex = parseInt(position.top, 10);
+            const finalPosition = { ...position };
+            // Compensate for scaling to keep feet aligned
+            if (characterScale > 1.0) {
+                const baseHeight = 150; // The base height of the fighter image
+                const scaledHeight = baseHeight * characterScale;
+                const offset = scaledHeight - baseHeight;
+                finalPosition.top = `${parseInt(position.top, 10) - offset}px`;
+            }
+            Object.assign(container.style, finalPosition);
+            container.style.zIndex = parseInt(position.top, 10);
         }
         container.style.setProperty('--character-scale', characterScale);
         
@@ -532,7 +535,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         if(container.classList.contains('targetable')) {
-            positioner.addEventListener('click', handleTargetClick);
+            container.addEventListener('click', handleTargetClick);
         }
     
         let paHtml = '<div class="pa-dots-container">';
@@ -570,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         container.innerHTML = `${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
-        return positioner;
+        return container;
     }
     
     function renderActionButtons(state) {
@@ -754,11 +757,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleTargetClick(event) {
         if (isFreeMoveModeActive || !isTargeting || !targetingAction) return;
-        const targetPositioner = event.target.closest('.char-positioner');
-        if (!targetPositioner) return;
-        const targetContainer = targetPositioner.querySelector('.char-container.targetable');
+        const targetContainer = event.target.closest('.char-container.targetable');
         if (!targetContainer) return;
-
         const targetKey = targetContainer.dataset.key;
         const targetFighter = getFighter(currentGameState, targetKey);
         
@@ -823,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function makeFightersDraggable(isDraggable) {
-        document.querySelectorAll('#fight-screen .char-positioner').forEach(fighter => {
+        document.querySelectorAll('#fight-screen .char-container').forEach(fighter => {
             if (isDraggable) fighter.addEventListener('mousedown', onFighterMouseDown);
             else fighter.removeEventListener('mousedown', onFighterMouseDown);
         });
@@ -1272,17 +1272,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         document.getElementById('sheet-weapon2-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || shieldType !== 'Nenhum';
         document.getElementById('sheet-shield-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || weapon2Type !== 'Desarmado';
-
-        let bta = finalAttributes.agilidade;
-        let weaponBtaMod = weapon1Data.bta;
-        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-             weaponBtaMod = Math.min(weapon1Data.bta, weapon2Data.bta);
-        }
-        bta += weaponBtaMod;
-        bta += armorData.esq_mod; // usa o mesmo mod de esquiva como penalidade
-        bta += shieldData.esq_mod;
-        document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
-
 
         let btd = finalAttributes.forca + (weapon1Data.btd || 0);
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
