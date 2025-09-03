@@ -493,21 +493,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function createFighterElement(fighter, type, state, position) {
-        const positioner = document.createElement('div');
-        positioner.className = 'char-positioner';
-        positioner.id = fighter.id; // ID for targeting now on the positioner
-        
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
+        container.id = fighter.id;
         container.dataset.key = fighter.id;
     
-        positioner.appendChild(container);
-
         const characterScale = fighter.scale || 1.0;
         
         if (position) {
-            Object.assign(positioner.style, position);
-            positioner.style.zIndex = parseInt(position.top, 10);
+            Object.assign(container.style, position);
+            // Compensate for scaling
+            if (characterScale > 1.0) {
+                const baseHeight = 150; // A altura base da imagem do lutador
+                const scaledHeight = baseHeight * characterScale;
+                const offset = scaledHeight - baseHeight;
+                container.style.top = `${parseInt(position.top, 10) - offset}px`;
+            }
+            container.style.zIndex = parseInt(position.top, 10);
         }
         container.style.setProperty('--character-scale', characterScale);
         
@@ -570,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         container.innerHTML = `${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
-        return positioner;
+        return container;
     }
     
     function renderActionButtons(state) {
@@ -820,7 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function makeFightersDraggable(isDraggable) {
-        document.querySelectorAll('#fight-screen .char-positioner').forEach(fighter => {
+        document.querySelectorAll('#fight-screen .char-container').forEach(fighter => {
             if (isDraggable) fighter.addEventListener('mousedown', onFighterMouseDown);
             else fighter.removeEventListener('mousedown', onFighterMouseDown);
         });
@@ -1270,6 +1272,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-weapon2-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || shieldType !== 'Nenhum';
         document.getElementById('sheet-shield-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || weapon2Type !== 'Desarmado';
 
+        // O BTA não é mais exibido, mas pode ser útil manter o cálculo se necessário em outro lugar.
+        let bta = finalAttributes.agilidade;
+        let weaponBtaMod = weapon1Data.bta;
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+             weaponBtaMod = Math.min(weapon1Data.bta, weapon2Data.bta);
+        }
+        bta += weaponBtaMod;
+        bta += armorData.esq_mod; // usa o mesmo mod de esquiva como penalidade
+        bta += shieldData.esq_mod;
+
+
         let btd = finalAttributes.forca + (weapon1Data.btd || 0);
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
         document.getElementById('sheet-btd').textContent = btd >= 0 ? `+${btd}` : btd;
@@ -1554,7 +1567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playAttackAnimation = (isSecondAttack = false) => {
             const attackerEl = document.getElementById(attackerKey);
             if (attackerEl) {
-                const isPlayer = attackerEl.querySelector('.player-char-container');
+                const isPlayer = attackerEl.classList.contains('player-char-container');
                 const originalLeft = attackerEl.style.left;
                 attackerEl.style.left = `${parseFloat(originalLeft) + (isPlayer ? 200 : -200)}px`;
                 setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
