@@ -527,11 +527,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
                 const isThisFighterPlayer = type === 'player';
                 if (isActiveFighterPlayer !== isThisFighterPlayer) {
-                    container.classList.add('targetable');
+                    positioner.classList.add('targetable');
                 }
             }
         }
-        if(container.classList.contains('targetable')) {
+        if(positioner.classList.contains('targetable')) {
             positioner.addEventListener('click', handleTargetClick);
         }
     
@@ -754,8 +754,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleTargetClick(event) {
         if (isFreeMoveModeActive || !isTargeting || !targetingAction) return;
-        const targetPositioner = event.target.closest('.char-positioner.targetable');
-        if (!targetPositioner) return;
+        const targetPositioner = event.target.closest('.char-positioner');
+        if (!targetPositioner || !targetPositioner.classList.contains('targetable')) return;
+        
         const targetContainer = targetPositioner.querySelector('.char-container');
         if (!targetContainer) return;
 
