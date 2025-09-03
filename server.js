@@ -303,6 +303,13 @@ function getProtectionBreakdown(fighter) {
         details[`Armadura (${armorType})`] = armorData.protection;
         total += armorData.protection;
     }
+
+    const shieldType = fighter.sheet.equipment?.shield || 'Nenhum';
+    const shieldData = GAME_RULES.shields[shieldType];
+    if (shieldData && shieldData.protection_bonus) {
+        details[`Escudo (${shieldType})`] = shieldData.protection_bonus;
+        total += shieldData.protection_bonus;
+    }
     
     return { value: total, details };
 }

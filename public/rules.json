@@ -34,10 +34,10 @@
     "Pesada": { "cost": 120, "protection": 3, "esq_mod": -3 }
   },
   "shields": {
-    "Nenhum": { "cost": 0, "defense": 0, "esq_mod": 0, "req_forca": 0 },
-    "Pequeno": { "cost": 80, "defense": 2, "esq_mod": -1, "req_forca": 1 },
-    "Médio": { "cost": 100, "defense": 4, "esq_mod": -2, "req_forca": 2 },
-    "Grande": { "cost": 120, "defense": 6, "esq_mod": -3, "req_forca": 3 }
+    "Nenhum": { "cost": 0, "defense": 0, "esq_mod": 0, "req_forca": 0, "protection_bonus": 0 },
+    "Pequeno": { "cost": 80, "defense": 2, "esq_mod": -1, "req_forca": 1, "protection_bonus": 1 },
+    "Médio": { "cost": 100, "defense": 4, "esq_mod": -2, "req_forca": 2, "protection_bonus": 2 },
+    "Grande": { "cost": 120, "defense": 6, "esq_mod": -3, "req_forca": 3, "protection_bonus": 3 }
   },
   "advancedElements": {
     "fogo": "Chama Azul", "agua": "Gelo", "terra": "Metal",

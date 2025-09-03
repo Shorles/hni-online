@@ -323,7 +323,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         id: `npc-staged-${Date.now()}-${targetSlot}`,
                         customStats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
                         equipment: { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
-                        elements: { fogo: 0, agua: 0, terra: 0, vento: 0, luz: 0, escuridao: 0 },
                         spells: []
                     };
                     selectedSlotIndex = null;
@@ -400,7 +399,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const current = {
             stats: npcData.customStats || { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
             equip: npcData.equipment || { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' },
-            elements: npcData.elements || { fogo: 0, agua: 0, terra: 0, vento: 0, luz: 0, escuridao: 0 },
             spells: npcData.spells || []
         };
         
@@ -417,17 +415,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label>Inteligência:</label><input type="number" id="npc-cfg-inteligencia" value="${current.stats.inteligencia}">
                     <label>Mente:</label><input type="number" id="npc-cfg-mente" value="${current.stats.mente}">
                 </div>
-                <h4>Elementos</h4>
-                 <div class="npc-config-grid elements">
-                    <label>Fogo:</label><input type="number" id="npc-cfg-fogo" value="${current.elements.fogo}">
-                    <label>Água:</label><input type="number" id="npc-cfg-agua" value="${current.elements.agua}">
-                    <label>Terra:</label><input type="number" id="npc-cfg-terra" value="${current.elements.terra}">
-                    <label>Vento:</label><input type="number" id="npc-cfg-vento" value="${current.elements.vento}">
-                    <label>Luz:</label><input type="number" id="npc-cfg-luz" value="${current.elements.luz}">
-                    <label>Escuridão:</label><input type="number" id="npc-cfg-escuridao" value="${current.elements.escuridao}">
-                </div>
-            </div>
-            <div class="npc-config-col">
                 <h4>Equipamentos</h4>
                 <div class="npc-config-equip">
                     <label>Arma 1:</label><select id="npc-cfg-weapon1">${weaponOptions}</select>
@@ -435,6 +422,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label>Armadura:</label><select id="npc-cfg-armor">${armorOptions}</select>
                     <label>Escudo:</label><select id="npc-cfg-shield">${shieldOptions}</select>
                 </div>
+            </div>
+            <div class="npc-config-col">
                 <h4>Magias</h4>
                 <div class="npc-config-spells">
                     ${allSpells.map(spell => `
@@ -465,14 +454,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     armor: document.getElementById('npc-cfg-armor').value,
                     shield: document.getElementById('npc-cfg-shield').value,
                 };
-                stagedNpcSlots[slotIndex].elements = {
-                    fogo: parseInt(document.getElementById('npc-cfg-fogo').value, 10),
-                    agua: parseInt(document.getElementById('npc-cfg-agua').value, 10),
-                    terra: parseInt(document.getElementById('npc-cfg-terra').value, 10),
-                    vento: parseInt(document.getElementById('npc-cfg-vento').value, 10),
-                    luz: parseInt(document.getElementById('npc-cfg-luz').value, 10),
-                    escuridao: parseInt(document.getElementById('npc-cfg-escuridao').value, 10),
-                };
                 const selectedSpells = [];
                 document.querySelectorAll('.npc-config-spells input[type="checkbox"]:checked').forEach(cb => {
                     selectedSpells.push(cb.value);
@@ -482,7 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
             { text: 'Cancelar', closes: true, className: 'btn-danger' }
         ]);
 
-        // Set current equipment values
         document.getElementById('npc-cfg-weapon1').value = current.equip.weapon1.type;
         document.getElementById('npc-cfg-weapon2').value = current.equip.weapon2.type;
         document.getElementById('npc-cfg-armor').value = current.equip.armor;
@@ -496,8 +476,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('round-info').textContent = `ROUND ${state.currentRound}`;
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
-        const PLAYER_POSITIONS = [ { left: '150px', top: '500px' }, { left: '250px', top: '400px' }, { left: '350px', top: '300px' }, { left: '450px', top: '200px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '500px' }, { left: '900px',  top: '400px' }, { left: '800px',  top: '300px' }, { left: '700px',  top: '200px' }, { left: '950px', top: '350px' } ];
+        const PLAYER_POSITIONS = [ { left: '150px', top: '450px' }, { left: '250px', top: '350px' }, { left: '350px', top: '250px' }, { left: '450px', top: '150px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '950px', top: '300px' } ];
         
         Object.keys(state.fighters.players).forEach((key, index) => {
             const player = state.fighters.players[key];
@@ -1185,14 +1165,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const raceSelect = document.getElementById('sheet-race-select');
         raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(race => `<option value="${race}">${race}</option>`).join('');
 
+        const createEquipmentOptions = (type) => {
+            return Object.entries(GAME_RULES[type])
+                .map(([name, data]) => `<option value="${name}">${name} (${data.cost} moedas)</option>`)
+                .join('');
+        };
+
         const weapon1Select = document.getElementById('sheet-weapon1-type');
         const weapon2Select = document.getElementById('sheet-weapon2-type');
-        const weaponOptions = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join('');
-        weapon1Select.innerHTML = weaponOptions;
-        weapon2Select.innerHTML = weaponOptions;
+        weapon1Select.innerHTML = createEquipmentOptions('weapons');
+        weapon2Select.innerHTML = createEquipmentOptions('weapons');
 
-        document.getElementById('sheet-armor-type').innerHTML = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
-        document.getElementById('sheet-shield-type').innerHTML = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
+        document.getElementById('sheet-armor-type').innerHTML = createEquipmentOptions('armors');
+        document.getElementById('sheet-shield-type').innerHTML = createEquipmentOptions('shields');
 
         document.querySelectorAll('.number-input-wrapper input').forEach(input => input.readOnly = true);
         
@@ -1289,6 +1274,9 @@ document.addEventListener('DOMContentLoaded', () => {
         esq += armorData.esq_mod;
         esq += shieldData.esq_mod;
         document.getElementById('sheet-esq').textContent = esq;
+        
+        finalAttributes.protecao += (armorData.protection || 0);
+        finalAttributes.protecao += (shieldData.protection_bonus || 0);
         
         const hpMax = 20 + (finalAttributes.constituicao * 5);
         const mahouMax = 10 + (finalAttributes.mente * 5);
@@ -1501,7 +1489,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('gameUpdate', (gameState) => { 
-        if (clientFlowState === 'initializing') return; // BUGFIX: Ignora updates até o papel ser definido
+        if (clientFlowState === 'initializing') return;
         renderGame(gameState); 
     });
 
@@ -1539,7 +1527,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('assignRole', (data) => {
         myRole = data.role; myPlayerKey = data.playerKey || socket.id; isGm = !!data.isGm; myRoomId = data.roomId;
-        clientFlowState = 'in_game'; // BUGFIX: Libera o processamento de 'gameUpdate'
+        clientFlowState = 'in_game';
         if (myRole === 'player') showScreen(document.getElementById('player-initial-choice-screen'));
 
         if (currentGameState) {
