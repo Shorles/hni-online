@@ -273,8 +273,14 @@ function getBtaBreakdown(fighter) {
     const agilidade = getFighterAttribute(fighter, 'agilidade');
     details[`Agilidade`] = agilidade;
     let total = agilidade;
-    // BTA não é mais usado para o acerto, mas poderia ser usado para outras coisas no futuro.
-    // Por enquanto, é apenas a Agilidade.
+    
+    const weaponType = fighter.sheet.equipment.weapon1.type;
+    const weaponData = GAME_RULES.weapons[weaponType];
+    if (weaponData && weaponData.bta) {
+        details[`Arma (${weaponType})`] = weaponData.bta;
+        total += weaponData.bta;
+    }
+    
     return { value: total, details };
 }
 
@@ -366,10 +372,10 @@ function advanceTurn(state) {
 
 function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targetPartKey) {
     const attacker = getFighter(state, attackerKey);
-    const target = getFighter(state, targetKey);
+    let target = getFighter(state, targetKey); // Use let to allow re-fetching
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
 
-    const paCost = (weaponChoice === 'dual') ? 2 : 2;
+    const paCost = 2;
     if (attacker.pa < paCost) {
         logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes!`, 'miss');
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
@@ -377,7 +383,10 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     }
     attacker.pa -= paCost;
 
-    const performSingleAttack = (weaponKey, isDualAttackPart = false) => {
+    const performSingleAttack = (weaponKey, isDual = false) => {
+        target = getFighter(state, targetKey); // Re-fetch target state
+        if (!target || target.status !== 'active') return null;
+
         const hitRoll = rollD20();
         const btaBreakdown = getBtaBreakdown(attacker);
         const bta = btaBreakdown.value;
@@ -398,7 +407,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const isCrit = hitRoll === 20;
             if(isCrit) logMessage(state, `Acerto Crítico!`, 'crit');
 
-            const btdBreakdown = getBtdBreakdown(attacker, weaponKey, isDualAttackPart);
+            const btdBreakdown = getBtdBreakdown(attacker, weaponKey, isDual);
             const btd = btdBreakdown.value;
             const damageRoll = rollDice(weaponData.damage);
             const critDamage = isCrit ? damageRoll : 0;
@@ -421,26 +430,36 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             logMessage(state, `${attacker.nome} erra o ataque!`, 'miss');
              Object.assign(debugInfo, { hit: false });
         }
-        io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit, debugInfo });
+        return { hit, debugInfo };
     };
     
     if (weaponChoice === 'dual') {
-        performSingleAttack('weapon1', true);
-        setTimeout(() => {
-            if(attacker.status === 'active' && target.status === 'active') {
-                performSingleAttack('weapon2', true);
-                 setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 800);
-            }
-        }, 800);
+        const result1 = performSingleAttack('weapon1', true);
+        const result2 = performSingleAttack('weapon2', true);
+
+        const combinedDebugInfo = {
+            attackerName: attacker.nome,
+            targetName: target.nome,
+            isDual: true,
+            attack1: result1 ? result1.debugInfo : null,
+            attack2: result2 ? result2.debugInfo : null,
+        };
+        const anyHit = (result1 && result1.hit) || (result2 && result2.hit);
+        io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: anyHit, debugInfo: combinedDebugInfo, isDual: true });
+
     } else {
-        performSingleAttack(weaponChoice, false);
-        setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 800);
+        const result = performSingleAttack(weaponChoice);
+        if (result) {
+            io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: result.hit, debugInfo: result.debugInfo });
+        }
     }
 
     checkGameOver(state);
     if (state.winner) {
         cachePlayerStats(games[roomId]);
     }
+    
+    setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1500);
 }
 
 function useSpell(state, roomId, attackerKey, targetKey, spellName) {

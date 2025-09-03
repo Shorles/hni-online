@@ -17,15 +17,15 @@
     "Tulku": { "bon": { "inteligencia": 1, "mente": 1 }, "pen": {}, "text": "Recebem -1 para usar magias de Luz. Enxergam no escuro." }
   },
   "weapons": {
-    "Desarmado": { "cost": 0, "damage": "1D4", "hand": 1, "btd": 0, "esq_mod": 0, "btm": 0 },
-    "1 Mão Mínima": { "cost": 60, "damage": "1D6", "hand": 1, "btd": -1, "esq_mod": 3 },
-    "1 Mão Leve": { "cost": 80, "damage": "1D6", "hand": 1, "btd": 0, "esq_mod": 2 },
-    "1 Mão Mediana": { "cost": 100, "damage": "1D6", "hand": 1, "btd": 1, "esq_mod": 1 },
-    "Cetro": { "cost": 80, "damage": "1D4", "hand": 1, "btd": 0, "esq_mod": 1, "btm": 1 },
-    "2 Mãos Pesada": { "cost": 120, "damage": "1D10", "hand": 2, "btd": 0, "esq_mod": 0 },
-    "2 Mãos Gigante": { "cost": 140, "damage": "1D10", "hand": 2, "btd": 1, "esq_mod": -1 },
-    "2 Mãos Colossal": { "cost": 160, "damage": "1D10", "hand": 2, "btd": 2, "esq_mod": -2 },
-    "Cajado": { "cost": 140, "damage": "1D6", "hand": 2, "btd": 0, "esq_mod": -1, "btm": 2 }
+    "Desarmado": { "cost": 0, "damage": "1D4", "hand": 1, "bta": 0, "btd": 0, "esq_mod": 0, "btm": 0 },
+    "1 Mão Mínima": { "cost": 60, "damage": "1D6", "hand": 1, "bta": 4, "btd": -1, "esq_mod": 3 },
+    "1 Mão Leve": { "cost": 80, "damage": "1D6", "hand": 1, "bta": 3, "btd": 0, "esq_mod": 2 },
+    "1 Mão Mediana": { "cost": 100, "damage": "1D6", "hand": 1, "bta": 1, "btd": 1, "esq_mod": 1 },
+    "Cetro": { "cost": 80, "damage": "1D4", "hand": 1, "bta": 1, "btd": 0, "esq_mod": 1, "btm": 1 },
+    "2 Mãos Pesada": { "cost": 120, "damage": "1D10", "hand": 2, "bta": 2, "btd": 0, "esq_mod": 0 },
+    "2 Mãos Gigante": { "cost": 140, "damage": "1D10", "hand": 2, "bta": 1, "btd": 1, "esq_mod": -1 },
+    "2 Mãos Colossal": { "cost": 160, "damage": "1D10", "hand": 2, "bta": -1, "btd": 2, "esq_mod": -2 },
+    "Cajado": { "cost": 140, "damage": "1D6", "hand": 2, "bta": 1, "btd": 0, "esq_mod": -1, "btm": 2 }
   },
   "armors": {
     "Nenhuma": { "cost": 0, "protection": 0, "esq_mod": 0 },

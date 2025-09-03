@@ -1536,21 +1536,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('promptForAdventureType', () => { if (isGm) showCustomModal('Retornar à Aventura', 'Deseja continuar a aventura anterior ou começar uma nova batalha?', [{text: 'Continuar Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'continue' })}, {text: 'Nova Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'new' })}]); });
     socket.on('attackResolved', (data) => {
-        const { attackerKey, targetKey, hit, debugInfo } = data;
-        const attackerEl = document.getElementById(attackerKey);
-        if (attackerEl) {
-            const isPlayer = attackerEl.classList.contains('player-char-container');
-            const originalLeft = attackerEl.style.left;
-            attackerEl.style.left = `${parseFloat(originalLeft) + (isPlayer ? 200 : -200)}px`;
-            setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
-        }
-        const targetEl = document.getElementById(targetKey);
-        if (targetEl && hit) {
-            const img = targetEl.querySelector('.fighter-img-ingame');
-            if (img) {
-                img.classList.add('is-hit-flash');
-                setTimeout(() => img.classList.remove('is-hit-flash'), 400);
+        const { attackerKey, targetKey, hit, debugInfo, isDual } = data;
+
+        const playAttackAnimation = (isSecondAttack = false) => {
+            const attackerEl = document.getElementById(attackerKey);
+            if (attackerEl) {
+                const isPlayer = attackerEl.classList.contains('player-char-container');
+                const originalLeft = attackerEl.style.left;
+                attackerEl.style.left = `${parseFloat(originalLeft) + (isPlayer ? 200 : -200)}px`;
+                setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
             }
+            const targetEl = document.getElementById(targetKey);
+            const currentHit = isDual ? (isSecondAttack ? debugInfo.attack2.hit : debugInfo.attack1.hit) : hit;
+            if (targetEl && currentHit) {
+                const img = targetEl.querySelector('.fighter-img-ingame');
+                if (img) {
+                    img.classList.add('is-hit-flash');
+                    setTimeout(() => img.classList.remove('is-hit-flash'), 400);
+                }
+            }
+        };
+
+        playAttackAnimation(false);
+        if (isDual) {
+            setTimeout(() => playAttackAnimation(true), 800);
         }
         
         if (isGm && isGmDebugModeActive && debugInfo) {
@@ -1561,33 +1570,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     .join('');
             };
 
-            let contentHtml = `<div class="debug-info-grid">
-                <h4>Cálculo de Acerto (Atacante: ${debugInfo.attackerName})</h4>
-                <div class="grid-row"><span>Rolagem D20:</span> <span>${debugInfo.hitRoll}</span></div>
-                <div class="grid-row"><span>BTA (Agilidade):</span> <span>${debugInfo.bta >= 0 ? '+' : ''}${debugInfo.bta}</span></div>
-                <div class="grid-row result"><span>Resultado Final:</span> <span class="debug-result">${debugInfo.attackRoll}</span></div>
-                <div class="grid-row"><span>vs Esquiva do Alvo (${debugInfo.targetName}):</span> <span class="debug-result">${debugInfo.targetEsquiva}</span></div>
-                <div class="debug-breakdown">${formatBreakdown(debugInfo.esqBreakdown)}</div>
-                <hr>
-                <h4>Cálculo de Dano</h4>
-                <div class="grid-row"><span>Resultado do Ataque:</span> <span class="debug-result">${debugInfo.hit ? 'ACERTOU' : 'ERROU'}</span></div>`;
-
-            if (debugInfo.hit) {
-                contentHtml += `
-                    <div class="grid-row"><span>Rolagem de Dano (${debugInfo.damageFormula}):</span> <span>${debugInfo.damageRoll}</span></div>
-                    ${debugInfo.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${debugInfo.critDamage}</span></div>` : ''}
-                    <div class="grid-row"><span>BTD do Atacante:</span> <span>${debugInfo.btd >= 0 ? '+' : ''}${debugInfo.btd}</span></div>
-                    <div class="debug-breakdown">${formatBreakdown(debugInfo.btdBreakdown)}</div>
-                    <div class="grid-row"><span>Dano Bruto Total:</span> <span>${debugInfo.totalDamage}</span></div>
-                    <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${debugInfo.targetProtection}</span></div>
-                    <div class="debug-breakdown">${formatBreakdown(debugInfo.protectionBreakdown)}</div>
+            const buildAttackReport = (attackData) => {
+                if (!attackData) return '<p>Ataque não ocorreu (alvo derrotado).</p>';
+                let report = `<h4>Cálculo de Acerto (Arma: ${attackData.weaponUsed})</h4>
+                    <div class="grid-row"><span>Rolagem D20:</span> <span>${attackData.hitRoll}</span></div>
+                    <div class="grid-row"><span>BTA do Atacante:</span> <span>${attackData.bta >= 0 ? '+' : ''}${attackData.bta}</span></div>
+                    <div class="debug-breakdown">${formatBreakdown(attackData.btaBreakdown)}</div>
+                    <div class="grid-row result"><span>Resultado Final:</span> <span class="debug-result">${attackData.attackRoll}</span></div>
+                    <div class="grid-row"><span>vs Esquiva do Alvo (${attackData.targetName}):</span> <span class="debug-result">${attackData.targetEsquiva}</span></div>
+                    <div class="debug-breakdown">${formatBreakdown(attackData.esqBreakdown)}</div>
                     <hr>
-                    <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${debugInfo.finalDamage}</span></div>`;
+                    <h4>Cálculo de Dano</h4>
+                    <div class="grid-row"><span>Resultado do Ataque:</span> <span class="debug-result">${attackData.hit ? 'ACERTOU' : 'ERROU'}</span></div>`;
+                if (attackData.hit) {
+                    report += `
+                        <div class="grid-row"><span>Rolagem de Dano (${attackData.damageFormula}):</span> <span>${attackData.damageRoll}</span></div>
+                        ${attackData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${attackData.critDamage}</span></div>` : ''}
+                        <div class="grid-row"><span>BTD do Atacante:</span> <span>${attackData.btd >= 0 ? '+' : ''}${attackData.btd}</span></div>
+                        <div class="debug-breakdown">${formatBreakdown(attackData.btdBreakdown)}</div>
+                        <div class="grid-row"><span>Dano Bruto Total:</span> <span>${attackData.totalDamage}</span></div>
+                        <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${attackData.targetProtection}</span></div>
+                        <div class="debug-breakdown">${formatBreakdown(attackData.protectionBreakdown)}</div>
+                        <hr>
+                        <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${attackData.finalDamage}</span></div>`;
+                }
+                return report;
+            };
+
+            let contentHtml = '<div class="debug-info-grid">';
+            if (isDual) {
+                contentHtml += '<h3>Ataque 1</h3>' + buildAttackReport(debugInfo.attack1);
+                contentHtml += '<hr style="border-width: 2px; margin: 15px 0;">';
+                contentHtml += '<h3>Ataque 2</h3>' + buildAttackReport(debugInfo.attack2);
+            } else {
+                contentHtml += buildAttackReport(debugInfo);
             }
+            contentHtml += '</div>';
 
-            contentHtml += `</div>`;
-
-            showCustomModal(`Relatório de Combate (${debugInfo.weaponUsed})`, contentHtml, [
+            showCustomModal(`Relatório de Combate`, contentHtml, [
                 { text: 'Fechar', closes: true }
             ]);
         }
