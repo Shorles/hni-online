@@ -1577,7 +1577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="grid-row"><span>BTA do Atacante:</span> <span>${attackData.bta >= 0 ? '+' : ''}${attackData.bta}</span></div>
                     <div class="debug-breakdown">${formatBreakdown(attackData.btaBreakdown)}</div>
                     <div class="grid-row result"><span>Resultado Final:</span> <span class="debug-result">${attackData.attackRoll}</span></div>
-                    <div class="grid-row"><span>vs Esquiva do Alvo (${attackData.targetName}):</span> <span class="debug-result">${attackData.targetEsquiva}</span></div>
+                    <div class="grid-row"><span>vs Esquiva do Alvo:</span> <span class="debug-result">${attackData.targetEsquiva}</span></div>
                     <div class="debug-breakdown">${formatBreakdown(attackData.esqBreakdown)}</div>
                     <hr>
                     <h4>Cálculo de Dano</h4>
@@ -1607,7 +1607,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             contentHtml += '</div>';
 
-            showCustomModal(`Relatório de Combate`, contentHtml, [
+            showCustomModal(`Relatório: ${debugInfo.attackerName} ataca ${debugInfo.targetName}`, contentHtml, [
                 { text: 'Fechar', closes: true }
             ]);
         }

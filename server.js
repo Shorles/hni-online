@@ -268,18 +268,44 @@ function calculateESQ(fighter) {
     return { value: total, details };
 }
 
-function getBtaBreakdown(fighter) {
+function getBtaBreakdown(fighter, weaponKey) {
     const details = {};
-    const agilidade = getFighterAttribute(fighter, 'agilidade');
-    details[`Agilidade`] = agilidade;
-    let total = agilidade;
+    let total = 0;
     
-    const weaponType = fighter.sheet.equipment.weapon1.type;
+    // 1. Agilidade
+    const agilidade = getFighterAttribute(fighter, 'agilidade');
+    if (agilidade !== 0) {
+        details['Agilidade'] = agilidade;
+        total += agilidade;
+    }
+
+    // 2. Modificador da Arma Principal
+    const weaponType = fighter.sheet.equipment[weaponKey].type;
     const weaponData = GAME_RULES.weapons[weaponType];
+    
     if (weaponData && weaponData.bta) {
         details[`Arma (${weaponType})`] = weaponData.bta;
         total += weaponData.bta;
     }
+    
+    // 3. Penalidades de Equipamento (Escudo/Armadura)
+    // Usamos os mesmos modificadores ESQ para penalizar o BTA
+    const armorType = fighter.sheet.equipment?.armor || 'Nenhuma';
+    const shieldType = fighter.sheet.equipment?.shield || 'Nenhum';
+    const armorData = GAME_RULES.armors[armorType];
+    const shieldData = GAME_RULES.shields[shieldType];
+
+    if (armorData && armorData.esq_mod < 0) {
+        details[`Armadura (${armorType})`] = armorData.esq_mod;
+        total += armorData.esq_mod;
+    }
+    if (shieldData && shieldData.esq_mod < 0) {
+        details[`Escudo (${shieldType})`] = shieldData.esq_mod;
+        total += shieldData.esq_mod;
+    }
+
+    // 4. Penalidade de 2 Mãos com 1 (se aplicável, mas não alteraremos o BTA diretamente aqui, já que o BTA já deveria refletir a arma)
+    // Por enquanto, confiamos no valor bta do rules.json, que deve ser ajustado pelo GM.
     
     return { value: total, details };
 }
@@ -388,7 +414,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         if (!target || target.status !== 'active') return null;
 
         const hitRoll = rollD20();
-        const btaBreakdown = getBtaBreakdown(attacker);
+        const btaBreakdown = getBtaBreakdown(attacker, weaponKey);
         const bta = btaBreakdown.value;
         const attackRoll = hitRoll + bta;
         const weaponType = attacker.sheet.equipment[weaponKey].type;
@@ -459,7 +485,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         cachePlayerStats(games[roomId]);
     }
     
-    setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1500);
+    setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), weaponChoice === 'dual' ? 1500 : 800);
 }
 
 function useSpell(state, roomId, attackerKey, targetKey, spellName) {
