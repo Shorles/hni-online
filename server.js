@@ -126,7 +126,7 @@ function createNewFighterState(data) {
         scale: data.scale !== undefined ? parseFloat(data.scale) : 1.0,
         isPlayer: !!data.isPlayer,
         pa: 3,
-        level: 1, // Nível do personagem, fixo em 1 por enquanto
+        level: 1, 
         hasTakenFirstTurn: false,
         activeEffects: [],
         cooldowns: {}
@@ -358,6 +358,21 @@ function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
     return { value: total, details };
 }
 
+function getBtmBreakdown(fighter) {
+    const details = {};
+    const inteligencia = getFighterAttribute(fighter, 'inteligencia');
+    details['Inteligência'] = inteligencia;
+    let total = inteligencia;
+
+    const weapon1Type = fighter.sheet.equipment.weapon1.type;
+    const weaponData = GAME_RULES.weapons[weapon1Type];
+    if (weaponData && weaponData.btm) {
+        details[`Arma (${weapon1Type})`] = weaponData.btm;
+        total += weaponData.btm;
+    }
+    return { value: total, details };
+}
+
 function getProtectionBreakdown(fighter) {
     const details = {};
     const baseProtection = getFighterAttribute(fighter, 'protecao');
@@ -472,7 +487,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const targetProtection = protectionBreakdown.value;
             const finalDamage = Math.max(1, totalDamage - targetProtection);
             
-            let logText = `${attacker.nome} acerta ${target.nome} com ${weaponType} e causa ${finalDamage} de dano!`;
+            io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${finalDamage}`, type: 'damage-hp' });
             
             if (target.isMultiPart && targetPartKey) {
                 const part = target.parts.find(p => p.key === targetPartKey);
@@ -487,7 +502,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 }
             } else {
                 target.hp = Math.max(0, target.hp - finalDamage);
-                logMessage(state, logText, 'hit');
+                logMessage(state, `${attacker.nome} acerta ${target.nome} e causa ${finalDamage} de dano!`, 'hit');
             }
 
             if (target.hp === 0) {
@@ -544,61 +559,118 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     const paCost = spell.costPA || 2;
     if (attacker.pa < paCost) {
         logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes para ${spellName}!`, 'miss');
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-        return;
+        return io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     }
     
     if (attacker.mahou < spell.costMahou) {
         logMessage(state, `${attacker.nome} não tem Mahou suficiente para usar ${spellName}!`, 'miss');
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-        return;
+        return io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     }
+
+    if (attacker.cooldowns[spellName] > 0) {
+        logMessage(state, `${spellName} está em resfriamento por mais ${attacker.cooldowns[spellName]} turno(s).`, 'miss');
+        return io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+    }
+
     attacker.pa -= paCost;
     attacker.mahou -= spell.costMahou;
-    logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
-    io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: true });
+    if (spell.cooldown > 0) {
+        attacker.cooldowns[spellName] = spell.cooldown + 1; // +1 porque vai decrementar neste turno
+    }
 
+    logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
+    io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: spell.effect.animation });
+    
+    // Lógica para magias que não precisam de rolagem de acerto
+    if(spell.requiresHitRoll === false){
+        applySpellEffect(state, roomId, attacker, target, spell);
+        setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
+        return;
+    }
+
+    // Lógica para magias que precisam de rolagem de acerto
+    const hitRoll = rollD20();
+    const bta = getBtmBreakdown(attacker).value; // Usa BTM para acerto de magia
+    const attackRoll = hitRoll + bta;
+
+    if (hitRoll === 1 || attackRoll < target.esquiva) {
+        logMessage(state, `${attacker.nome} erra a magia ${spellName}!`, 'miss');
+    } else {
+        logMessage(state, `${attacker.nome} acerta a magia ${spellName}!`, 'hit');
+        applySpellEffect(state, roomId, attacker, target, spell);
+    }
+    
+    setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
+}
+
+function applySpellEffect(state, roomId, attacker, target, spell) {
     let effectModifier = 0;
     if (attacker.sheet.race === 'Tulku' && spell.element === 'luz') {
-        effectModifier -= 1;
-        logMessage(state, `A natureza Tulku de ${attacker.nome} enfraquece a magia de Luz!`, 'info');
+        effectModifier -= 1; logMessage(state, `A natureza Tulku de ${attacker.nome} enfraquece a magia de Luz!`, 'info');
     }
     if (attacker.sheet.race === 'Anjo' && spell.effectType === 'healing') {
-        effectModifier += 1;
-        logMessage(state, `A natureza angelical de ${attacker.nome} fortalece a magia de cura!`, 'info');
+        effectModifier += 1; logMessage(state, `A natureza angelical de ${attacker.nome} fortalece a magia de cura!`, 'info');
     }
     if (attacker.sheet.race === 'Demônio' && spell.element === 'escuridao') {
-        effectModifier += 1;
-        logMessage(state, `O poder demoníaco de ${attacker.nome} fortalece a magia de Escuridão!`, 'info');
+        effectModifier += 1; logMessage(state, `O poder demoníaco de ${attacker.nome} fortalece a magia de Escuridão!`, 'info');
     }
 
-    switch(spell.effectType) {
-        case 'damage':
-            const damage = rollDice(spell.effect.damageFormula);
-            const btm = getFighterAttribute(attacker, 'inteligencia');
+    switch(spell.effect.type) {
+        case 'direct_damage':
+            let damage = rollDice(spell.effect.damageFormula);
+            if (spell.effect.damageBonus === 'level') damage += attacker.level;
+            const btm = getBtmBreakdown(attacker).value;
             const targetProtection = getProtectionBreakdown(target).value;
             const finalDamage = Math.max(1, damage + btm + effectModifier - targetProtection);
             
             target.hp = Math.max(0, target.hp - finalDamage);
-            logMessage(state, `${spellName} causa ${finalDamage} de dano!`, 'hit');
+            io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${finalDamage}`, type: 'damage-hp' });
+            logMessage(state, `${spell.name} causa ${finalDamage} de dano!`, 'hit');
             if(target.hp === 0) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
             break;
         
-        case 'healing':
-            const baseHeal = rollDice(spell.effect.healFormula || '1d6');
-            let finalHeal = baseHeal + effectModifier;
-
-            if(target.sheet.race === 'Demônio'){
-                finalHeal = Math.max(0, finalHeal - 1);
-                logMessage(state, `A natureza demoníaca de ${target.nome} resiste à cura!`, 'info');
+        case 'resource_damage':
+            if (Math.random() > spell.effect.resistChance) {
+                let resourceDamage = rollDice(spell.effect.damageFormula);
+                target.mahou = Math.max(0, target.mahou - resourceDamage);
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${resourceDamage}`, type: 'damage-mahou' });
+                logMessage(state, `${spell.name} drena ${resourceDamage} de Mahou!`, 'hit');
+            } else {
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Resistiu`, type: 'status-resist' });
+                logMessage(state, `${target.nome} resistiu ao Dano de Energia!`, 'info');
             }
+            break;
+        
+        case 'buff':
+        case 'debuff':
+            spell.effect.modifiers.forEach(mod => {
+                target.activeEffects.push({
+                    name: spell.name,
+                    type: spell.effect.type,
+                    duration: spell.effect.duration + 1,
+                    attribute: mod.attribute,
+                    value: mod.value
+                });
+            });
+            recalculateFighterStats(target);
+            break;
 
-            finalHeal = Math.max(0, finalHeal);
-            target.hp = Math.min(target.hpMax, target.hp + finalHeal);
-            logMessage(state, `${attacker.nome} cura ${finalHeal} de vida de ${target.nome}!`, 'heal');
+        case 'dot':
+        case 'status_effect':
+            if (Math.random() < spell.effect.procChance) {
+                 target.activeEffects.push({
+                    name: spell.name,
+                    type: spell.effect.type,
+                    duration: spell.effect.duration + 1,
+                    ...spell.effect // Passa o resto dos dados do efeito
+                });
+            } else {
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Resistiu`, type: 'status-resist' });
+                logMessage(state, `${target.nome} resistiu a ${spell.name}!`, 'info');
+            }
             break;
     }
 
@@ -606,8 +678,6 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     if (state.winner) {
         cachePlayerStats(games[roomId]);
     }
-    
-    setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
 }
 
 
@@ -846,7 +916,7 @@ io.on('connection', (socket) => {
                              if (fighter && action.attribute && action.value !== undefined) {
                                  fighter.activeEffects = fighter.activeEffects.filter(effect => effect.attribute !== action.attribute);
                                  if (action.value !== 0) {
-                                     fighter.activeEffects.push({ attribute: action.attribute, value: action.value });
+                                     fighter.activeEffects.push({ type:'buff', attribute: action.attribute, value: action.value });
                                  }
                                  recalculateFighterStats(fighter);
                                  logMessage(adventureState, `GM aplicou um buff de ${action.value > 0 ? '+' : ''}${action.value} em ${action.attribute} de ${fighter.nome}.`);
@@ -864,7 +934,7 @@ io.on('connection', (socket) => {
                             action.npcs.forEach((npcData, index) => {
                                 if (index < MAX_NPCS) {
                                     const npcObj = ALL_NPCS[npcData.name] || {};
-                                    const newNpc = createNewFighterState({ ...npcData, scale: npcObj.scale || 1.0, isMultiPart: npcObj.isMultiPart, parts: npcObj.parts });
+                                    const newNpc = createNewFighterState({ ...npcData, scale: npcObj.scale || 1.0, isMultiPart: npcObj.isMultiPart, parts: npcObj.parts, customStats: npcData.customStats });
                                     adventureState.fighters.npcs[newNpc.id] = newNpc;
                                     adventureState.npcSlots[index] = newNpc.id;
                                 }
