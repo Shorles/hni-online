@@ -127,7 +127,7 @@ function createNewFighterState(data) {
         isPlayer: !!data.isPlayer,
         pa: 3,
         hasTakenFirstTurn: false,
-        activeEffects: [], // Array para armazenar buffs/debuffs manuais
+        activeEffects: [],
     };
 
     if (fighter.isPlayer && data.finalAttributes) {
@@ -148,9 +148,25 @@ function createNewFighterState(data) {
             spells: data.spells || []
         };
         
-        if (data.customStats) {
+        fighter.isMultiPart = !!data.isMultiPart;
+
+        if (fighter.isMultiPart && data.parts) {
+            // FIX 2: Correctly assign part HP from GM's config
+            fighter.parts = data.parts.map(partData => {
+                const customPart = data.customStats?.parts?.find(p => p.key === partData.key);
+                const partHp = customPart ? customPart.hp : 10;
+                return { key: partData.key, name: partData.name, hpMax: partHp, hp: partHp, status: 'active' };
+            });
+            fighter.hpMax = fighter.parts.reduce((sum, part) => sum + part.hpMax, 0);
+            fighter.hp = fighter.hpMax;
+        } else if (data.customStats) {
             fighter.hpMax = data.customStats.hp;
             fighter.hp = data.customStats.hp;
+        } else {
+             fighter.hpMax = 15; fighter.hp = 15;
+        }
+
+        if (data.customStats) {
             fighter.mahouMax = data.customStats.mahou;
             fighter.mahou = data.customStats.mahou;
             fighter.sheet.finalAttributes = {
@@ -161,17 +177,9 @@ function createNewFighterState(data) {
                 inteligencia: data.customStats.inteligencia,
                 mente: data.customStats.mente,
             };
-        } else { // Fallback
-            fighter.hpMax = 15; fighter.hp = 15;
-            fighter.mahouMax = 10; fighter.mahou = 10;
-            fighter.sheet.finalAttributes = { forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 };
-        }
-
-        fighter.isMultiPart = !!data.isMultiPart;
-        if (fighter.isMultiPart && data.parts) {
-            fighter.parts = data.parts.map(partData => ({ key: partData.key, name: partData.name, hpMax: 10, hp: 10, status: 'active' }));
-            fighter.hpMax = fighter.parts.reduce((sum, part) => sum + part.hpMax, 0);
-            fighter.hp = fighter.hpMax;
+        } else {
+             fighter.mahouMax = 10; fighter.mahou = 10;
+             fighter.sheet.finalAttributes = { forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 };
         }
     }
     
@@ -184,7 +192,6 @@ function createNewFighterState(data) {
     return fighter;
 }
 
-// Nova função para recalcular stats derivados, útil após aplicar buffs
 function recalculateFighterStats(fighter) {
     const esqBreakdown = calculateESQ(fighter);
     fighter.esquiva = esqBreakdown.value;
@@ -221,13 +228,11 @@ function getFighter(state, key) {
     return state.fighters.players[key] || state.fighters.npcs[key];
 }
 
-// MODIFICADO: Esta função agora aplica buffs/debuffs ao valor do atributo
 function getFighterAttribute(fighter, attr) {
     if (!fighter || !fighter.sheet || !fighter.sheet.finalAttributes) return 0;
     
     let baseValue = fighter.sheet.finalAttributes[attr] || 0;
     
-    // Aplica buffs/debuffs de 'activeEffects'
     if (fighter.activeEffects && fighter.activeEffects.length > 0) {
         const bonus = fighter.activeEffects
             .filter(effect => effect.attribute === attr)
@@ -468,12 +473,28 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             
             let logText = `${attacker.nome} acerta ${target.nome} com ${weaponType} e causa ${finalDamage} de dano!`;
             
-            target.hp = Math.max(0, target.hp - finalDamage);
-            logMessage(state, logText, 'hit');
+            // FIX 3: Apply damage to the correct part or whole body
+            if (target.isMultiPart && targetPartKey) {
+                const part = target.parts.find(p => p.key === targetPartKey);
+                if (part && part.status === 'active') {
+                    part.hp = Math.max(0, part.hp - finalDamage);
+                    logMessage(state, `A parte "${part.name}" de ${target.nome} recebe ${finalDamage} de dano!`, 'hit');
+                    if (part.hp === 0) {
+                        part.status = 'down';
+                        logMessage(state, `A parte "${part.name}" foi destruída!`, 'defeat');
+                    }
+                    target.hp = target.parts.reduce((sum, p) => sum + p.hp, 0); // Recalculate main HP
+                }
+            } else {
+                target.hp = Math.max(0, target.hp - finalDamage);
+                logMessage(state, logText, 'hit');
+            }
+
             if (target.hp === 0) {
                 target.status = 'down';
                 logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
+
             Object.assign(debugInfo, { hit: true, isCrit, damageFormula: weaponData.damage, damageRoll, critDamage, btd, btdBreakdown: btdBreakdown.details, totalDamage, targetProtection, protectionBreakdown: protectionBreakdown.details, finalDamage });
         } else {
             logMessage(state, `${attacker.nome} erra o ataque!`, 'miss');
@@ -511,7 +532,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1500);
 }
 
-// MODIFICADO: Função agora inclui lógicas raciais
 function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     const attacker = getFighter(state, attackerKey);
     const target = getFighter(state, targetKey);
@@ -538,13 +558,12 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
     io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: true });
 
-    // Lógica para modificadores de efeito baseados na raça do CONJURADOR
     let effectModifier = 0;
     if (attacker.sheet.race === 'Tulku' && spell.element === 'luz') {
         effectModifier -= 1;
         logMessage(state, `A natureza Tulku de ${attacker.nome} enfraquece a magia de Luz!`, 'info');
     }
-    if (attacker.sheet.race === 'Anjo' && spell.effectType === 'healing') { // Supondo que magias de cura terão esse effectType
+    if (attacker.sheet.race === 'Anjo' && spell.effectType === 'healing') {
         effectModifier += 1;
         logMessage(state, `A natureza angelical de ${attacker.nome} fortalece a magia de cura!`, 'info');
     }
@@ -556,7 +575,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     switch(spell.effectType) {
         case 'damage':
             const damage = rollDice(spell.effect.damageFormula);
-            const btm = getFighterAttribute(attacker, 'inteligencia'); // Bônus de Inteligência
+            const btm = getFighterAttribute(attacker, 'inteligencia');
             const targetProtection = getProtectionBreakdown(target).value;
             const finalDamage = Math.max(1, damage + btm + effectModifier - targetProtection);
             
@@ -568,18 +587,16 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             }
             break;
         
-        // Exemplo de como a cura funcionaria
         case 'healing':
             const baseHeal = rollDice(spell.effect.healFormula || '1d6');
             let finalHeal = baseHeal + effectModifier;
 
-            // Lógica para penalidade de cura baseada na raça do ALVO
             if(target.sheet.race === 'Demônio'){
                 finalHeal = Math.max(0, finalHeal - 1);
                 logMessage(state, `A natureza demoníaca de ${target.nome} resiste à cura!`, 'info');
             }
 
-            finalHeal = Math.max(0, finalHeal); // Garante que a cura não seja negativa
+            finalHeal = Math.max(0, finalHeal);
             target.hp = Math.min(target.hpMax, target.hp + finalHeal);
             logMessage(state, `${attacker.nome} cura ${finalHeal} de vida de ${target.nome}!`, 'heal');
             break;
@@ -799,8 +816,21 @@ io.on('connection', (socket) => {
                         case 'gmConfiguresLiveNpc':
                             const npc = adventureState.fighters.npcs[action.fighterId];
                             if (npc && action.stats && action.equipment) {
-                                npc.hpMax = action.stats.hp;
-                                npc.hp = action.stats.hp;
+                                if(npc.isMultiPart) {
+                                    npc.parts.forEach(part => {
+                                        const updatedPart = action.stats.parts.find(p => p.key === part.key);
+                                        if(updatedPart) {
+                                            part.hpMax = updatedPart.hp;
+                                            part.hp = updatedPart.hp;
+                                        }
+                                    });
+                                    npc.hpMax = npc.parts.reduce((sum, p) => sum + p.hpMax, 0);
+                                    npc.hp = npc.hpMax;
+                                } else {
+                                    npc.hpMax = action.stats.hp;
+                                    npc.hp = action.stats.hp;
+                                }
+                                
                                 npc.mahouMax = action.stats.mahou;
                                 npc.mahou = action.stats.mahou;
                                 npc.sheet.finalAttributes = { forca: action.stats.forca, agilidade: action.stats.agilidade, protecao: action.stats.protecao, constituicao: action.stats.constituicao, inteligencia: action.stats.inteligencia, mente: action.stats.mente };
@@ -811,13 +841,10 @@ io.on('connection', (socket) => {
                             }
                             break;
 
-                        // NOVA AÇÃO: para aplicar buffs manuais
                         case 'gmAppliesBuff':
                              const fighter = getFighter(adventureState, action.fighterId);
                              if (fighter && action.attribute && action.value !== undefined) {
-                                 // Remove any existing buff on the same attribute to prevent stacking
                                  fighter.activeEffects = fighter.activeEffects.filter(effect => effect.attribute !== action.attribute);
-                                 // Add the new buff if the value is not zero
                                  if (action.value !== 0) {
                                      fighter.activeEffects.push({ attribute: action.attribute, value: action.value });
                                  }
