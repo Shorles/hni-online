@@ -119,7 +119,7 @@ function createNewTheaterState(gmId, initialScenario) {
 
 function createNewFighterState(data) {
     const fighter = {
-        id: data.id,
+        id: data.id || `npc-${uuidv4()}`,
         nome: data.name || data.tokenName,
         img: data.tokenImg || data.img,
         status: 'active',
@@ -717,6 +717,70 @@ io.on('connection', (socket) => {
             case 'adventure':
                 const adventureState = activeState;
                 if (!adventureState) break;
+
+                // --- Ações exclusivas do GM no modo Aventura ---
+                if (isGm) {
+                    switch (action.type) {
+                        // FIX 1: Handle fighter movement
+                        case 'gmMovesFighter':
+                            if (action.fighterId && action.position) {
+                                adventureState.customPositions[action.fighterId] = action.position;
+                                // Emit a specific event for movement instead of a full update for smoothness
+                                io.to(roomId).emit('fighterMoved', { fighterId: action.fighterId, position: action.position });
+                                shouldUpdate = false; // Prevent full update
+                            }
+                            break;
+                        
+                        // FIX 2 PART A: Handle adding a new NPC mid-battle
+                        case 'gmSetsNpcInSlot':
+                            if (action.slotIndex !== undefined && action.npcData) {
+                                const fullNpcData = ALL_NPCS[action.npcData.name] || {};
+                                const newNpc = createNewFighterState({ ...action.npcData, ...fullNpcData });
+
+                                // Remove old NPC from the slot if it exists
+                                const oldNpcId = adventureState.npcSlots[action.slotIndex];
+                                if (oldNpcId) {
+                                    delete adventureState.fighters.npcs[oldNpcId];
+                                }
+                                
+                                adventureState.fighters.npcs[newNpc.id] = newNpc;
+                                adventureState.npcSlots[action.slotIndex] = newNpc.id;
+
+                                logMessage(adventureState, `${newNpc.nome} foi adicionado à batalha!`);
+                            }
+                            break;
+                        
+                        // FIX 2 PART B: Handle configuring the newly added (or any existing) NPC
+                        case 'gmConfiguresLiveNpc':
+                            const npc = adventureState.fighters.npcs[action.fighterId];
+                            if (npc && action.stats && action.equipment) {
+                                npc.hpMax = action.stats.hp;
+                                npc.hp = action.stats.hp;
+                                npc.mahouMax = action.stats.mahou;
+                                npc.mahou = action.stats.mahou;
+                                npc.sheet.finalAttributes = {
+                                    forca: action.stats.forca,
+                                    agilidade: action.stats.agilidade,
+                                    protecao: action.stats.protecao,
+                                    constituicao: action.stats.constituicao,
+                                    inteligencia: action.stats.inteligencia,
+                                    mente: action.stats.mente
+                                };
+                                npc.sheet.equipment = action.equipment;
+                                npc.sheet.spells = action.spells || [];
+
+                                // Recalculate derived stats
+                                const esqBreakdown = calculateESQ(npc);
+                                npc.esquiva = esqBreakdown.value;
+                                npc.esqBreakdown = esqBreakdown.details;
+
+                                logMessage(adventureState, `${npc.nome} foi reconfigurado pelo Mestre.`);
+                            }
+                            break;
+                    }
+                }
+
+                // --- Ações de combate (ambos GM e Jogadores) ---
                 switch (action.type) {
                     case 'gmStartBattle':
                         if (isGm && adventureState.phase === 'npc_setup' && action.npcs) {

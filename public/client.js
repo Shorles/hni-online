@@ -378,8 +378,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showNpcConfigModal(slotIndex) {
-        const npcData = stagedNpcSlots[slotIndex];
+    function showNpcConfigModal(slotIndexOrFighter) {
+        // This function now accepts either a slot index (for pre-battle setup)
+        // or a full fighter object (for mid-battle configuration)
+        const isLiveConfig = typeof slotIndexOrFighter === 'object';
+        const npcData = isLiveConfig ? slotIndexOrFighter : stagedNpcSlots[slotIndexOrFighter];
+
         if (!npcData) return;
 
         const weaponOptions = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join('');
@@ -387,11 +391,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const shieldOptions = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
         const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
 
-        const current = {
-            stats: npcData.customStats || { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
-            equip: npcData.equipment || { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' },
-            spells: npcData.spells || []
-        };
+        let current;
+        if (isLiveConfig) {
+            current = {
+                stats: {
+                    hp: npcData.hpMax,
+                    mahou: npcData.mahouMax,
+                    forca: npcData.sheet.finalAttributes.forca,
+                    agilidade: npcData.sheet.finalAttributes.agilidade,
+                    protecao: npcData.sheet.finalAttributes.protecao,
+                    constituicao: npcData.sheet.finalAttributes.constituicao,
+                    inteligencia: npcData.sheet.finalAttributes.inteligencia,
+                    mente: npcData.sheet.finalAttributes.mente
+                },
+                equip: npcData.sheet.equipment,
+                spells: npcData.sheet.spells
+            }
+        } else {
+             current = {
+                stats: npcData.customStats,
+                equip: npcData.equipment,
+                spells: npcData.spells
+            };
+        }
         
         let content = `<div class="npc-config-container">
             <div class="npc-config-col">
@@ -427,9 +449,9 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>`;
         
-        showCustomModal(`Configurar ${npcData.name}`, content, [
+        showCustomModal(`Configurar ${npcData.nome || npcData.name}`, content, [
             { text: 'Confirmar', closes: true, onClick: () => {
-                stagedNpcSlots[slotIndex].customStats = {
+                const updatedStats = {
                     hp: parseInt(document.getElementById('npc-cfg-hp').value, 10),
                     mahou: parseInt(document.getElementById('npc-cfg-mahou').value, 10),
                     forca: parseInt(document.getElementById('npc-cfg-forca').value, 10),
@@ -439,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     inteligencia: parseInt(document.getElementById('npc-cfg-inteligencia').value, 10),
                     mente: parseInt(document.getElementById('npc-cfg-mente').value, 10),
                 };
-                 stagedNpcSlots[slotIndex].equipment = {
+                const updatedEquipment = {
                     weapon1: { type: document.getElementById('npc-cfg-weapon1').value },
                     weapon2: { type: document.getElementById('npc-cfg-weapon2').value },
                     armor: document.getElementById('npc-cfg-armor').value,
@@ -449,7 +471,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.npc-config-spells input[type="checkbox"]:checked').forEach(cb => {
                     selectedSpells.push(cb.value);
                 });
-                stagedNpcSlots[slotIndex].spells = selectedSpells;
+
+                if (isLiveConfig) {
+                    socket.emit('playerAction', {
+                        type: 'gmConfiguresLiveNpc',
+                        fighterId: npcData.id,
+                        stats: updatedStats,
+                        equipment: updatedEquipment,
+                        spells: selectedSpells
+                    });
+                } else {
+                    stagedNpcSlots[slotIndexOrFighter].customStats = updatedStats;
+                    stagedNpcSlots[slotIndexOrFighter].equipment = updatedEquipment;
+                    stagedNpcSlots[slotIndexOrFighter].spells = selectedSpells;
+                }
             }},
             { text: 'Cancelar', closes: true, className: 'btn-danger' }
         ]);
@@ -501,9 +536,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const characterScale = fighter.scale || 1.0;
         
         if (position) {
-            // BUG FIX 1: The manual vertical adjustment for scaled characters was incorrect.
-            // The CSS 'transform-origin: bottom center' already handles scaling from the base correctly.
-            // Simply applying the position is enough.
             Object.assign(container.style, position);
             container.style.zIndex = parseInt(position.top, 10);
         }
@@ -531,6 +563,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(container.classList.contains('targetable')) {
             container.addEventListener('click', handleTargetClick);
+        }
+        
+        // ADDED: Right-click context menu for GM to configure NPCs mid-battle
+        if (isGm && type === 'npc') {
+            container.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const fighterData = getFighter(currentGameState, fighter.id);
+                if (fighterData) {
+                    showNpcConfigModal(fighterData);
+                }
+            });
         }
     
         let paHtml = '<div class="pa-dots-container">';
@@ -1563,9 +1606,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const playAttackAnimation = (isSecondAttack = false) => {
             const attackerEl = document.getElementById(attackerKey);
             if (attackerEl) {
-                // BUG FIX 2: The original check was `!!attackerEl.querySelector('.player-char-container')`
-                // which was always false because the class is on the element itself, not a child.
-                // This corrected check looks at the element's own class list.
                 const isPlayer = attackerEl.classList.contains('player-char-container');
                 const originalLeft = attackerEl.style.left;
                 attackerEl.style.left = `${parseFloat(originalLeft) + (isPlayer ? 200 : -200)}px`;
