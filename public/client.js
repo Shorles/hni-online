@@ -405,11 +405,21 @@ document.addEventListener('DOMContentLoaded', () => {
              current = { stats: npcData.customStats, equip: npcData.equipment, spells: npcData.spells };
         }
         
+        let hpInputHtml = '';
+        if (npcData.isMultiPart) {
+            hpInputHtml = npcData.parts.map(part => {
+                const currentHp = (isLiveConfig && part.hpMax) ? part.hpMax : 10;
+                return `<label>${part.name} HP:</label><input type="number" data-part-key="${part.key}" id="npc-cfg-hp-${part.key}" value="${currentHp}">`;
+            }).join('');
+        } else {
+            hpInputHtml = `<label>HP:</label><input type="number" id="npc-cfg-hp" value="${current.stats.hp}">`;
+        }
+
         let content = `<div class="npc-config-container">
             <div class="npc-config-col">
                 <h4>Atributos Principais</h4>
                 <div class="npc-config-grid">
-                    <label>HP:</label><input type="number" id="npc-cfg-hp" value="${current.stats.hp}">
+                    ${hpInputHtml}
                     <label>Mahou:</label><input type="number" id="npc-cfg-mahou" value="${current.stats.mahou}">
                     <label>Força:</label><input type="number" id="npc-cfg-forca" value="${current.stats.forca}">
                     <label>Agilidade:</label><input type="number" id="npc-cfg-agilidade" value="${current.stats.agilidade}">
@@ -442,7 +452,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showCustomModal(`Configurar ${npcData.nome || npcData.name}`, content, [
             { text: 'Confirmar', closes: true, onClick: () => {
                 const updatedStats = {
-                    hp: parseInt(document.getElementById('npc-cfg-hp').value, 10),
                     mahou: parseInt(document.getElementById('npc-cfg-mahou').value, 10),
                     forca: parseInt(document.getElementById('npc-cfg-forca').value, 10),
                     agilidade: parseInt(document.getElementById('npc-cfg-agilidade').value, 10),
@@ -451,6 +460,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     inteligencia: parseInt(document.getElementById('npc-cfg-inteligencia').value, 10),
                     mente: parseInt(document.getElementById('npc-cfg-mente').value, 10),
                 };
+
+                if (npcData.isMultiPart) {
+                    updatedStats.parts = npcData.parts.map(part => ({
+                        key: part.key,
+                        name: part.name,
+                        hp: parseInt(document.getElementById(`npc-cfg-hp-${part.key}`).value, 10)
+                    }));
+                } else {
+                    updatedStats.hp = parseInt(document.getElementById('npc-cfg-hp').value, 10);
+                }
+
                 const updatedEquipment = {
                     weapon1: { type: document.getElementById('npc-cfg-weapon1').value },
                     weapon2: { type: document.getElementById('npc-cfg-weapon2').value },
@@ -871,8 +891,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.cheat-npc-card').forEach(card => {
             card.addEventListener('click', () => {
                 modal.classList.add('hidden');
-                const newNpcData = { name: card.dataset.name, img: card.dataset.img, scale: parseFloat(card.dataset.scale) };
-                showNpcConfigModal({ baseData: newNpcData, slotIndex: parseInt(slotIndex, 10) });
+                // Find full NPC data to pass to config modal, especially for multi-part info
+                const fullNpcData = ALL_CHARACTERS.npcs.find(npc => npc.name === card.dataset.name) || {};
+                showNpcConfigModal({ baseData: fullNpcData, slotIndex: parseInt(slotIndex, 10) });
             });
         });
     }
