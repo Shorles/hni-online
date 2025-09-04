@@ -1273,6 +1273,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-weapon2-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || shieldType !== 'Nenhum';
         document.getElementById('sheet-shield-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || weapon2Type !== 'Desarmado';
 
+        // O BTA não é mais exibido, mas pode ser útil manter o cálculo se necessário em outro lugar.
+        let bta = finalAttributes.agilidade;
+        let weaponBtaMod = weapon1Data.bta;
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+             weaponBtaMod = Math.min(weapon1Data.bta, weapon2Data.bta);
+        }
+        bta += weaponBtaMod;
+        bta += armorData.esq_mod; // usa o mesmo mod de esquiva como penalidade
+        bta += shieldData.esq_mod;
+
+
         let btd = finalAttributes.forca + (weapon1Data.btd || 0);
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
         document.getElementById('sheet-btd').textContent = btd >= 0 ? `+${btd}` : btd;
@@ -1557,7 +1568,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playAttackAnimation = (isSecondAttack = false) => {
             const attackerEl = document.getElementById(attackerKey);
             if (attackerEl) {
-                const isPlayer = attackerEl.querySelector('.player-char-container');
+                const isPlayer = !!attackerEl.querySelector('.player-char-container');
                 const originalLeft = attackerEl.style.left;
                 attackerEl.style.left = `${parseFloat(originalLeft) + (isPlayer ? 200 : -200)}px`;
                 setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
@@ -1632,7 +1643,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('fleeResolved', ({ actorKey }) => {
         const actorEl = document.getElementById(actorKey);
-        if (actorEl) actorEl.classList.add(actorEl.classList.contains('player-char-container') ? 'is-fleeing-player' : 'is-fleeing-npc');
+        if (actorEl) {
+            actorEl.classList.add(actorEl.querySelector('.player-char-container') ? 'is-fleeing-player' : 'is-fleeing-npc');
+        }
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     

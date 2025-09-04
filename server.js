@@ -373,7 +373,9 @@ function checkGameOver(state) {
 
 function advanceTurn(state) {
     if (state.winner) return;
-    const activeTurnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
+    
+    state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
+    const activeTurnOrder = state.turnOrder;
 
     if (activeTurnOrder.length === 0) {
         checkGameOver(state);
