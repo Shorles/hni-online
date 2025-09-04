@@ -379,27 +379,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showNpcConfigModal(config) {
-        // config can be { fighter: object } for live config,
-        // { slotIndex: number } for pre-battle setup,
-        // or { baseData: object, slotIndex: number } for mid-battle addition
-        
         let npcData, isLiveConfig, isMidBattleAdd;
 
         if (config.fighter) {
-            npcData = config.fighter;
-            isLiveConfig = true;
-            isMidBattleAdd = false;
+            npcData = config.fighter; isLiveConfig = true; isMidBattleAdd = false;
         } else if (config.slotIndex !== undefined && !config.baseData) {
-            npcData = stagedNpcSlots[config.slotIndex];
-            isLiveConfig = false;
-            isMidBattleAdd = false;
+            npcData = stagedNpcSlots[config.slotIndex]; isLiveConfig = false; isMidBattleAdd = false;
         } else if (config.baseData && config.slotIndex !== undefined) {
-            npcData = config.baseData;
-            isLiveConfig = false;
-            isMidBattleAdd = true;
-        } else {
-            return; // Invalid config
-        }
+            npcData = config.baseData; isLiveConfig = false; isMidBattleAdd = true;
+        } else { return; }
     
         if (!npcData) return;
 
@@ -409,19 +397,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
 
         let current;
-        if (isLiveConfig) { // Editing an existing NPC in battle
-            current = {
-                stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes },
-                equip: npcData.sheet.equipment,
-                spells: npcData.sheet.spells
-            };
-        } else if(isMidBattleAdd) { // Adding a new NPC mid-battle
-             current = {
-                stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
-                equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' },
-                spells: []
-            };
-        } else { // Pre-battle setup
+        if (isLiveConfig) {
+            current = { stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes }, equip: npcData.sheet.equipment, spells: npcData.sheet.spells };
+        } else if(isMidBattleAdd) {
+             current = { stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 }, equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' }, spells: [] };
+        } else {
              current = { stats: npcData.customStats, equip: npcData.equipment, spells: npcData.spells };
         }
         
@@ -501,6 +481,37 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('npc-cfg-shield').value = current.equip.shield;
     }
 
+    function showGMBuffModal(fighter) {
+        if (!fighter) return;
+        const attributes = ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente'];
+        let content = `<div class="npc-config-grid" style="grid-template-columns: auto 1fr; max-width: 300px; margin: auto;">`;
+        attributes.forEach(attr => {
+            const currentEffect = (fighter.activeEffects || []).find(e => e.attribute === attr);
+            const currentValue = currentEffect ? currentEffect.value : 0;
+            content += `
+                <label style="text-transform: capitalize;">${attr}:</label>
+                <input type="number" id="buff-${attr}" value="${currentValue}" style="width: 60px;">
+            `;
+        });
+        content += '</div>';
+
+        showCustomModal(`Aplicar Buff/Debuff em ${fighter.nome}`, content, [
+            { text: 'Confirmar', closes: true, onClick: () => {
+                attributes.forEach(attr => {
+                    const input = document.getElementById(`buff-${attr}`);
+                    const value = parseInt(input.value, 10) || 0;
+                    socket.emit('playerAction', {
+                        type: 'gmAppliesBuff',
+                        fighterId: fighter.id,
+                        attribute: attr,
+                        value: value
+                    });
+                });
+            }},
+            { text: 'Cancelar', closes: true }
+        ]);
+    }
+
     function updateAdventureUI(state) {
         if (!state || !state.fighters) return;
         
@@ -571,13 +582,13 @@ document.addEventListener('DOMContentLoaded', () => {
             container.addEventListener('click', handleTargetClick);
         }
         
-        if (isGm && type === 'npc') {
-            container.title = 'Clique direito para configurar este NPC';
+        if (isGm) {
+            container.title = 'Clique direito para aplicar buff/debuff';
             container.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const fighterData = getFighter(currentGameState, fighter.id);
                 if (fighterData) {
-                    showNpcConfigModal({ fighter: fighterData });
+                    showGMBuffModal(fighterData);
                 }
             });
         }
@@ -861,7 +872,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.addEventListener('click', () => {
                 modal.classList.add('hidden');
                 const newNpcData = { name: card.dataset.name, img: card.dataset.img, scale: parseFloat(card.dataset.scale) };
-                // FIX 1: Open config modal BEFORE sending to server
                 showNpcConfigModal({ baseData: newNpcData, slotIndex: parseInt(slotIndex, 10) });
             });
         });
