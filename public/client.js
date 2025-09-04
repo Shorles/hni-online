@@ -493,21 +493,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function createFighterElement(fighter, type, state, position) {
-        const positioner = document.createElement('div');
-        positioner.className = 'char-positioner';
-        positioner.id = fighter.id;
-        
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
+        container.id = fighter.id;
         container.dataset.key = fighter.id;
     
-        positioner.appendChild(container);
-
         const characterScale = fighter.scale || 1.0;
         
         if (position) {
-            Object.assign(positioner.style, position);
-            positioner.style.zIndex = parseInt(position.top, 10);
+            const finalPosition = { ...position };
+            // Compensate for scaling to keep feet aligned
+            if (characterScale > 1.0) {
+                const baseHeight = 150; // The base height of the fighter image
+                const scaledHeight = baseHeight * characterScale;
+                const offset = scaledHeight - baseHeight;
+                finalPosition.top = `${parseInt(position.top, 10) - offset}px`;
+            }
+            Object.assign(container.style, finalPosition);
+            container.style.zIndex = parseInt(position.top, 10);
         }
         container.style.setProperty('--character-scale', characterScale);
         
@@ -527,12 +530,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
                 const isThisFighterPlayer = type === 'player';
                 if (isActiveFighterPlayer !== isThisFighterPlayer) {
-                    positioner.classList.add('targetable');
+                    container.classList.add('targetable');
                 }
             }
         }
-        if(positioner.classList.contains('targetable')) {
-            positioner.addEventListener('click', handleTargetClick);
+        if(container.classList.contains('targetable')) {
+            container.addEventListener('click', handleTargetClick);
         }
     
         let paHtml = '<div class="pa-dots-container">';
@@ -570,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         container.innerHTML = `${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
-        return positioner;
+        return container;
     }
     
     function renderActionButtons(state) {
@@ -754,12 +757,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleTargetClick(event) {
         if (isFreeMoveModeActive || !isTargeting || !targetingAction) return;
-        const targetPositioner = event.target.closest('.char-positioner');
-        if (!targetPositioner || !targetPositioner.classList.contains('targetable')) return;
-        
-        const targetContainer = targetPositioner.querySelector('.char-container');
+        const targetContainer = event.target.closest('.char-container.targetable');
         if (!targetContainer) return;
-
         const targetKey = targetContainer.dataset.key;
         const targetFighter = getFighter(currentGameState, targetKey);
         
@@ -824,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function makeFightersDraggable(isDraggable) {
-        document.querySelectorAll('#fight-screen .char-positioner').forEach(fighter => {
+        document.querySelectorAll('#fight-screen .char-container').forEach(fighter => {
             if (isDraggable) fighter.addEventListener('mousedown', onFighterMouseDown);
             else fighter.removeEventListener('mousedown', onFighterMouseDown);
         });
