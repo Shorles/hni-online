@@ -468,7 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '450px' }, { left: '250px', top: '350px' }, { left: '350px', top: '250px' }, { left: '450px', top: '150px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '1150px', top: '800px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '1150px', top: '300px' } ];
         
         Object.keys(state.fighters.players).forEach((key, index) => {
             const player = state.fighters.players[key];
@@ -502,9 +502,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (position) {
             const finalPosition = { ...position };
-            // Compensate for scaling to keep feet aligned
             if (characterScale > 1.0) {
-                const baseHeight = 150; // The base height of the fighter image
+                const baseHeight = 150;
                 const scaledHeight = baseHeight * characterScale;
                 const offset = scaledHeight - baseHeight;
                 finalPosition.top = `${parseInt(position.top, 10) - offset}px`;
