@@ -351,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (npc) {
                 slot.innerHTML = `<img src="${npc.img}" alt="${npc.name}"><button class="remove-staged-npc" data-index="${i}">X</button>`;
                 slot.title = `Clique para configurar ${npc.name}`;
-                slot.addEventListener('click', () => showNpcConfigModal(i));
+                slot.addEventListener('click', () => showNpcConfigModal({ slotIndex: i }));
                 
                 slot.querySelector('.remove-staged-npc').addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -378,12 +378,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showNpcConfigModal(slotIndexOrFighter) {
-        // This function now accepts either a slot index (for pre-battle setup)
-        // or a full fighter object (for mid-battle configuration)
-        const isLiveConfig = typeof slotIndexOrFighter === 'object';
-        const npcData = isLiveConfig ? slotIndexOrFighter : stagedNpcSlots[slotIndexOrFighter];
+    function showNpcConfigModal(config) {
+        // config can be { fighter: object } for live config,
+        // { slotIndex: number } for pre-battle setup,
+        // or { baseData: object, slotIndex: number } for mid-battle addition
+        
+        let npcData, isLiveConfig, isMidBattleAdd;
 
+        if (config.fighter) {
+            npcData = config.fighter;
+            isLiveConfig = true;
+            isMidBattleAdd = false;
+        } else if (config.slotIndex !== undefined && !config.baseData) {
+            npcData = stagedNpcSlots[config.slotIndex];
+            isLiveConfig = false;
+            isMidBattleAdd = false;
+        } else if (config.baseData && config.slotIndex !== undefined) {
+            npcData = config.baseData;
+            isLiveConfig = false;
+            isMidBattleAdd = true;
+        } else {
+            return; // Invalid config
+        }
+    
         if (!npcData) return;
 
         const weaponOptions = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join('');
@@ -392,27 +409,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
 
         let current;
-        if (isLiveConfig) {
+        if (isLiveConfig) { // Editing an existing NPC in battle
             current = {
-                stats: {
-                    hp: npcData.hpMax,
-                    mahou: npcData.mahouMax,
-                    forca: npcData.sheet.finalAttributes.forca,
-                    agilidade: npcData.sheet.finalAttributes.agilidade,
-                    protecao: npcData.sheet.finalAttributes.protecao,
-                    constituicao: npcData.sheet.finalAttributes.constituicao,
-                    inteligencia: npcData.sheet.finalAttributes.inteligencia,
-                    mente: npcData.sheet.finalAttributes.mente
-                },
+                stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes },
                 equip: npcData.sheet.equipment,
                 spells: npcData.sheet.spells
-            }
-        } else {
-             current = {
-                stats: npcData.customStats,
-                equip: npcData.equipment,
-                spells: npcData.spells
             };
+        } else if(isMidBattleAdd) { // Adding a new NPC mid-battle
+             current = {
+                stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
+                equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' },
+                spells: []
+            };
+        } else { // Pre-battle setup
+             current = { stats: npcData.customStats, equip: npcData.equipment, spells: npcData.spells };
         }
         
         let content = `<div class="npc-config-container">
@@ -473,17 +483,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (isLiveConfig) {
-                    socket.emit('playerAction', {
-                        type: 'gmConfiguresLiveNpc',
-                        fighterId: npcData.id,
-                        stats: updatedStats,
-                        equipment: updatedEquipment,
-                        spells: selectedSpells
-                    });
+                    socket.emit('playerAction', { type: 'gmConfiguresLiveNpc', fighterId: npcData.id, stats: updatedStats, equipment: updatedEquipment, spells: selectedSpells });
+                } else if (isMidBattleAdd) {
+                    socket.emit('playerAction', { type: 'gmSetsNpcInSlot', slotIndex: config.slotIndex, npcData: npcData, customStats: updatedStats, equipment: updatedEquipment, spells: selectedSpells });
                 } else {
-                    stagedNpcSlots[slotIndexOrFighter].customStats = updatedStats;
-                    stagedNpcSlots[slotIndexOrFighter].equipment = updatedEquipment;
-                    stagedNpcSlots[slotIndexOrFighter].spells = selectedSpells;
+                    stagedNpcSlots[config.slotIndex].customStats = updatedStats;
+                    stagedNpcSlots[config.slotIndex].equipment = updatedEquipment;
+                    stagedNpcSlots[config.slotIndex].spells = selectedSpells;
                 }
             }},
             { text: 'Cancelar', closes: true, className: 'btn-danger' }
@@ -565,13 +571,13 @@ document.addEventListener('DOMContentLoaded', () => {
             container.addEventListener('click', handleTargetClick);
         }
         
-        // ADDED: Right-click context menu for GM to configure NPCs mid-battle
         if (isGm && type === 'npc') {
+            container.title = 'Clique direito para configurar este NPC';
             container.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const fighterData = getFighter(currentGameState, fighter.id);
                 if (fighterData) {
-                    showNpcConfigModal(fighterData);
+                    showNpcConfigModal({ fighter: fighterData });
                 }
             });
         }
@@ -853,9 +859,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showInfoModal('Selecionar Novo Inimigo', content, false);
         document.querySelectorAll('.cheat-npc-card').forEach(card => {
             card.addEventListener('click', () => {
-                const newNpcData = { name: card.dataset.name, img: card.dataset.img, scale: parseFloat(card.dataset.scale) };
-                socket.emit('playerAction', { type: 'gmSetsNpcInSlot', slotIndex, npcData: newNpcData });
                 modal.classList.add('hidden');
+                const newNpcData = { name: card.dataset.name, img: card.dataset.img, scale: parseFloat(card.dataset.scale) };
+                // FIX 1: Open config modal BEFORE sending to server
+                showNpcConfigModal({ baseData: newNpcData, slotIndex: parseInt(slotIndex, 10) });
             });
         });
     }

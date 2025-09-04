@@ -721,23 +721,26 @@ io.on('connection', (socket) => {
                 // --- Ações exclusivas do GM no modo Aventura ---
                 if (isGm) {
                     switch (action.type) {
-                        // FIX 1: Handle fighter movement
                         case 'gmMovesFighter':
                             if (action.fighterId && action.position) {
                                 adventureState.customPositions[action.fighterId] = action.position;
-                                // Emit a specific event for movement instead of a full update for smoothness
                                 io.to(roomId).emit('fighterMoved', { fighterId: action.fighterId, position: action.position });
-                                shouldUpdate = false; // Prevent full update
+                                shouldUpdate = false;
                             }
                             break;
                         
-                        // FIX 2 PART A: Handle adding a new NPC mid-battle
                         case 'gmSetsNpcInSlot':
                             if (action.slotIndex !== undefined && action.npcData) {
                                 const fullNpcData = ALL_NPCS[action.npcData.name] || {};
-                                const newNpc = createNewFighterState({ ...action.npcData, ...fullNpcData });
+                                // The action now includes the full configuration from the client modal
+                                const newNpc = createNewFighterState({
+                                    ...action.npcData,
+                                    ...fullNpcData,
+                                    customStats: action.customStats,
+                                    equipment: action.equipment,
+                                    spells: action.spells
+                                });
 
-                                // Remove old NPC from the slot if it exists
                                 const oldNpcId = adventureState.npcSlots[action.slotIndex];
                                 if (oldNpcId) {
                                     delete adventureState.fighters.npcs[oldNpcId];
@@ -746,11 +749,15 @@ io.on('connection', (socket) => {
                                 adventureState.fighters.npcs[newNpc.id] = newNpc;
                                 adventureState.npcSlots[action.slotIndex] = newNpc.id;
 
+                                // FIX 2: Add the new NPC to the turn order
+                                if (adventureState.phase === 'battle') {
+                                    adventureState.turnOrder.push(newNpc.id);
+                                }
+
                                 logMessage(adventureState, `${newNpc.nome} foi adicionado à batalha!`);
                             }
                             break;
                         
-                        // FIX 2 PART B: Handle configuring the newly added (or any existing) NPC
                         case 'gmConfiguresLiveNpc':
                             const npc = adventureState.fighters.npcs[action.fighterId];
                             if (npc && action.stats && action.equipment) {
@@ -769,7 +776,6 @@ io.on('connection', (socket) => {
                                 npc.sheet.equipment = action.equipment;
                                 npc.sheet.spells = action.spells || [];
 
-                                // Recalculate derived stats
                                 const esqBreakdown = calculateESQ(npc);
                                 npc.esquiva = esqBreakdown.value;
                                 npc.esqBreakdown = esqBreakdown.details;
