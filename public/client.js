@@ -623,11 +623,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fighter.isMultiPart && fighter.parts) {
             healthBarHtml = '<div class="multi-health-bar-container">';
             fighter.parts.forEach(part => {
-                const partHealthPercentage = (part.hp / part.hpMax) * 100;
+                const partHealthPercentage = (part.hpMax > 0) ? (part.hp / part.hpMax) * 100 : 0;
                 const isDefeated = part.status === 'down' ? 'defeated' : '';
+                // FIX 1: Added a span to display the part's HP text
                 healthBarHtml += `
                     <div class="health-bar-ingame-part ${isDefeated}" title="${part.name}: ${part.hp}/${part.hpMax}">
                         <div class="health-bar-ingame-part-fill" style="width: ${partHealthPercentage}%"></div>
+                        <span class="health-bar-ingame-part-text">${part.hp}/${part.hpMax}</span>
                     </div>
                 `;
             });
@@ -891,7 +893,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.cheat-npc-card').forEach(card => {
             card.addEventListener('click', () => {
                 modal.classList.add('hidden');
-                // Find full NPC data to pass to config modal, especially for multi-part info
                 const fullNpcData = ALL_CHARACTERS.npcs.find(npc => npc.name === card.dataset.name) || {};
                 showNpcConfigModal({ baseData: fullNpcData, slotIndex: parseInt(slotIndex, 10) });
             });
