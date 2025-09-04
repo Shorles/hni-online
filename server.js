@@ -437,6 +437,13 @@ function advanceTurn(state) {
         activeFighter.hasTakenFirstTurn = true;
     }
 
+    // Cooldown reduction
+    Object.keys(activeFighter.cooldowns).forEach(spellName => {
+        if (activeFighter.cooldowns[spellName] > 0) {
+            activeFighter.cooldowns[spellName]--;
+        }
+    });
+
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
 }
 
@@ -582,7 +589,9 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: spell.effect.animation });
     
     if(spell.requiresHitRoll === false){
-        applySpellEffect(state, roomId, attacker, target, spell, {});
+        const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hit: true };
+        applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
+        io.to(roomId).emit('spellResolved', debugInfo);
         setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
         return;
     }
@@ -591,7 +600,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     const bta = (spell.effect.damageAttribute === 'inteligencia') ? getBtmBreakdown(attacker).value : getBtaBreakdown(attacker, 'weapon1').value;
     const attackRoll = hitRoll + bta;
     
-    const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hitRoll, bta, attackRoll, targetEsquiva: target.esquiva };
+    const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hitRoll, bta, btaBreakdown: getBtmBreakdown(attacker).details, attackRoll, targetEsquiva: target.esquiva, esqBreakdown: target.esqBreakdown };
 
     if (hitRoll === 1 || attackRoll < target.esquiva) {
         logMessage(state, `${attacker.nome} erra a magia ${spellName}!`, 'miss');
@@ -620,8 +629,10 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         case 'direct_damage':
             let damage = rollDice(spell.effect.damageFormula);
             if (spell.effect.damageBonus === 'level') damage += attacker.level;
-            const btm = getBtmBreakdown(attacker).value;
-            const targetProtection = getProtectionBreakdown(target).value;
+            const btmBreakdown = getBtmBreakdown(attacker);
+            const btm = btmBreakdown.value;
+            const targetProtectionBreakdown = getProtectionBreakdown(target);
+            const targetProtection = targetProtectionBreakdown.value;
             const finalDamage = Math.max(1, damage + btm + effectModifier - targetProtection);
             
             target.hp = Math.max(0, target.hp - finalDamage);
@@ -631,6 +642,8 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
+            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll: damage, btm, btmBreakdown: btmBreakdown.details, totalDamage: damage + btm, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
+            io.to(roomId).emit('spellResolved', debugInfo);
             break;
         
         case 'resource_damage':
