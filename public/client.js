@@ -625,7 +625,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fighter.parts.forEach(part => {
                 const partHealthPercentage = (part.hpMax > 0) ? (part.hp / part.hpMax) * 100 : 0;
                 const isDefeated = part.status === 'down' ? 'defeated' : '';
-                // FIX 1: Added a span to display the part's HP text
                 healthBarHtml += `
                     <div class="health-bar-ingame-part ${isDefeated}" title="${part.name}: ${part.hp}/${part.hpMax}">
                         <div class="health-bar-ingame-part-fill" style="width: ${partHealthPercentage}%"></div>

@@ -177,6 +177,20 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     text-shadow: 1px 1px 1px #000;
 }
 
+.health-bar-ingame-part-text {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.7em;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 1px 1px 1px #000;
+    pointer-events: none;
+}
+
 
 .action-btn.spell-btn {
     background-color: #6f42c1;
@@ -351,19 +365,4 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .defender-name {
     color: #dc3545;
     font-weight: bold;
-}
-
-/* --- ADICIONADO: Estilo para o texto do HP nas barras de vida das partes --- */
-.health-bar-ingame-part-text {
-    position: absolute;
-    width: 100%;
-    text-align: center;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 0.7em;
-    font-weight: 700;
-    color: #fff;
-    text-shadow: 1px 1px 1px #000;
-    pointer-events: none; /* Impede que o texto bloqueie cliques na barra */
 }

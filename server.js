@@ -126,8 +126,10 @@ function createNewFighterState(data) {
         scale: data.scale !== undefined ? parseFloat(data.scale) : 1.0,
         isPlayer: !!data.isPlayer,
         pa: 3,
+        level: 1, // Nível do personagem, fixo em 1 por enquanto
         hasTakenFirstTurn: false,
         activeEffects: [],
+        cooldowns: {}
     };
 
     if (fighter.isPlayer && data.finalAttributes) {
@@ -151,7 +153,6 @@ function createNewFighterState(data) {
         fighter.isMultiPart = !!data.isMultiPart;
 
         if (fighter.isMultiPart && data.parts) {
-            // FIX 2: Correctly assign part HP from GM's config
             fighter.parts = data.parts.map(partData => {
                 const customPart = data.customStats?.parts?.find(p => p.key === partData.key);
                 const partHp = customPart ? customPart.hp : 10;
@@ -235,7 +236,7 @@ function getFighterAttribute(fighter, attr) {
     
     if (fighter.activeEffects && fighter.activeEffects.length > 0) {
         const bonus = fighter.activeEffects
-            .filter(effect => effect.attribute === attr)
+            .filter(effect => effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff'))
             .reduce((sum, effect) => sum + effect.value, 0);
         baseValue += bonus;
     }
@@ -473,7 +474,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             
             let logText = `${attacker.nome} acerta ${target.nome} com ${weaponType} e causa ${finalDamage} de dano!`;
             
-            // FIX 3: Apply damage to the correct part or whole body
             if (target.isMultiPart && targetPartKey) {
                 const part = target.parts.find(p => p.key === targetPartKey);
                 if (part && part.status === 'active') {
@@ -483,7 +483,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                         part.status = 'down';
                         logMessage(state, `A parte "${part.name}" foi destruída!`, 'defeat');
                     }
-                    target.hp = target.parts.reduce((sum, p) => sum + p.hp, 0); // Recalculate main HP
+                    target.hp = target.parts.reduce((sum, p) => sum + p.hp, 0);
                 }
             } else {
                 target.hp = Math.max(0, target.hp - finalDamage);
