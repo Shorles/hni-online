@@ -501,14 +501,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const characterScale = fighter.scale || 1.0;
         
         if (position) {
-            const finalPosition = { ...position };
-            if (characterScale > 1.0) {
-                const baseHeight = 150;
-                const scaledHeight = baseHeight * characterScale;
-                const offset = scaledHeight - baseHeight;
-                finalPosition.top = `${parseInt(position.top, 10) - offset}px`;
-            }
-            Object.assign(container.style, finalPosition);
+            // BUG FIX 1: The manual vertical adjustment for scaled characters was incorrect.
+            // The CSS 'transform-origin: bottom center' already handles scaling from the base correctly.
+            // Simply applying the position is enough.
+            Object.assign(container.style, position);
             container.style.zIndex = parseInt(position.top, 10);
         }
         container.style.setProperty('--character-scale', characterScale);
@@ -1567,7 +1563,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const playAttackAnimation = (isSecondAttack = false) => {
             const attackerEl = document.getElementById(attackerKey);
             if (attackerEl) {
-                const isPlayer = !!attackerEl.querySelector('.player-char-container');
+                // BUG FIX 2: The original check was `!!attackerEl.querySelector('.player-char-container')`
+                // which was always false because the class is on the element itself, not a child.
+                // This corrected check looks at the element's own class list.
+                const isPlayer = attackerEl.classList.contains('player-char-container');
                 const originalLeft = attackerEl.style.left;
                 attackerEl.style.left = `${parseFloat(originalLeft) + (isPlayer ? 200 : -200)}px`;
                 setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
