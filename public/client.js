@@ -1273,7 +1273,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-weapon2-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || shieldType !== 'Nenhum';
         document.getElementById('sheet-shield-type').disabled = (weapon1Is2H && finalAttributes.forca < 4) || weapon2Type !== 'Desarmado';
 
-        // O BTA não é mais exibido, mas pode ser útil manter o cálculo se necessário em outro lugar.
         let bta = finalAttributes.agilidade;
         let weaponBtaMod = weapon1Data.bta;
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
@@ -1282,6 +1281,7 @@ document.addEventListener('DOMContentLoaded', () => {
         bta += weaponBtaMod;
         bta += armorData.esq_mod; // usa o mesmo mod de esquiva como penalidade
         bta += shieldData.esq_mod;
+        document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
 
 
         let btd = finalAttributes.forca + (weapon1Data.btd || 0);
