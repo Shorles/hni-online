@@ -549,7 +549,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
 
 function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     const attacker = getFighter(state, attackerKey);
-    const target = getFighter(state, targetKey);
+    let target = getFighter(state, targetKey);
 
     const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
     const spell = allSpells.find(s => s.name === spellName);
@@ -575,40 +575,41 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     attacker.pa -= paCost;
     attacker.mahou -= spell.costMahou;
     if (spell.cooldown > 0) {
-        attacker.cooldowns[spellName] = spell.cooldown + 1; // +1 porque vai decrementar neste turno
+        attacker.cooldowns[spellName] = spell.cooldown + 1;
     }
 
     logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
     io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: spell.effect.animation });
     
-    // Lógica para magias que não precisam de rolagem de acerto
     if(spell.requiresHitRoll === false){
-        applySpellEffect(state, roomId, attacker, target, spell);
+        applySpellEffect(state, roomId, attacker, target, spell, {});
         setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
         return;
     }
 
-    // Lógica para magias que precisam de rolagem de acerto
     const hitRoll = rollD20();
-    const bta = getBtmBreakdown(attacker).value; // Usa BTM para acerto de magia
+    const bta = (spell.effect.damageAttribute === 'inteligencia') ? getBtmBreakdown(attacker).value : getBtaBreakdown(attacker, 'weapon1').value;
     const attackRoll = hitRoll + bta;
+    
+    const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hitRoll, bta, attackRoll, targetEsquiva: target.esquiva };
 
     if (hitRoll === 1 || attackRoll < target.esquiva) {
         logMessage(state, `${attacker.nome} erra a magia ${spellName}!`, 'miss');
+        io.to(roomId).emit('spellResolved', { ...debugInfo, hit: false });
     } else {
         logMessage(state, `${attacker.nome} acerta a magia ${spellName}!`, 'hit');
-        applySpellEffect(state, roomId, attacker, target, spell);
+        applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
     }
     
     setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
 }
 
-function applySpellEffect(state, roomId, attacker, target, spell) {
+function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
     let effectModifier = 0;
     if (attacker.sheet.race === 'Tulku' && spell.element === 'luz') {
         effectModifier -= 1; logMessage(state, `A natureza Tulku de ${attacker.nome} enfraquece a magia de Luz!`, 'info');
     }
-    if (attacker.sheet.race === 'Anjo' && spell.effectType === 'healing') {
+    if (attacker.sheet.race === 'Anjo' && spell.effect.type === 'healing') {
         effectModifier += 1; logMessage(state, `A natureza angelical de ${attacker.nome} fortalece a magia de cura!`, 'info');
     }
     if (attacker.sheet.race === 'Demônio' && spell.element === 'escuridao') {
@@ -660,12 +661,12 @@ function applySpellEffect(state, roomId, attacker, target, spell) {
 
         case 'dot':
         case 'status_effect':
-            if (Math.random() < spell.effect.procChance) {
+             if (Math.random() < spell.effect.procChance) {
                  target.activeEffects.push({
                     name: spell.name,
                     type: spell.effect.type,
                     duration: spell.effect.duration + 1,
-                    ...spell.effect // Passa o resto dos dados do efeito
+                    ...spell.effect
                 });
             } else {
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Resistiu`, type: 'status-resist' });
