@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
+    const fightScreen = document.getElementById('fight-screen'); // Adicionado para referência
     const fightSceneCharacters = document.getElementById('fight-scene-characters');
     const actionButtonsWrapper = document.getElementById('action-buttons-wrapper');
     const theaterBackgroundViewport = document.getElementById('theater-background-viewport');
@@ -209,7 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DO MODO AVENTURA ---
     function handleAdventureMode(gameState) {
-        const fightScreen = document.getElementById('fight-screen');
         if (isGm) {
             switch (gameState.phase) {
                 case 'npc_setup': 
@@ -1646,7 +1646,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const effectEl = document.createElement('div');
         effectEl.className = `visual-effect ${animation}`;
-        fightSceneCharacters.appendChild(effectEl);
+        fightScreen.appendChild(effectEl); // CORRIGIDO: Adiciona à tela de luta, não à área de personagens
 
         const casterRect = casterEl.getBoundingClientRect();
         const targetRect = targetEl.getBoundingClientRect();
@@ -1662,7 +1662,7 @@ document.addEventListener('DOMContentLoaded', () => {
             effectEl.style.left = `${startX}px`;
             effectEl.style.top = `${startY}px`;
             
-            setTimeout(() => {
+            setTimeout(() => { // Pequeno delay para garantir que o elemento foi renderizado antes de aplicar a transição
                 effectEl.style.transform = `translate(${endX - startX}px, ${endY - startY}px)`;
             }, 50);
 

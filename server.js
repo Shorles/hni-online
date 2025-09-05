@@ -424,7 +424,50 @@ function checkGameOver(state) {
     }
 }
 
-function advanceTurn(state) {
+// NOVO: Função para processar efeitos no início do turno
+function processActiveEffects(state, fighter, roomId) {
+    if (!fighter.activeEffects || fighter.activeEffects.length === 0) {
+        return;
+    }
+
+    const effectsToKeep = [];
+    for (const effect of fighter.activeEffects) {
+        switch (effect.type) {
+            case 'dot':
+                if (Math.random() < (effect.procChance || 1.0)) {
+                    const damage = effect.damage || 0;
+                    fighter.hp = Math.max(0, fighter.hp - damage);
+                    logMessage(state, `${fighter.nome} sofre ${damage} de dano de ${effect.name}!`, 'hit');
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `-${damage}`, type: 'damage-hp' });
+                    if(effect.animation) {
+                        io.to(roomId).emit('visualEffectTriggered', { casterId: fighter.id, targetId: fighter.id, animation: effect.animation });
+                    }
+                } else {
+                    logMessage(state, `${fighter.nome} resistiu ao efeito de ${effect.name} neste turno.`, 'info');
+                }
+                break;
+            // Adicionar outros tipos de efeito (stun, etc) aqui se necessário
+        }
+
+        effect.duration--;
+        if (effect.duration > 0) {
+            effectsToKeep.push(effect);
+        } else {
+            logMessage(state, `O efeito de ${effect.name} em ${fighter.nome} acabou.`, 'info');
+        }
+    }
+    
+    fighter.activeEffects = effectsToKeep;
+    recalculateFighterStats(fighter); // Recalcula stats caso algum buff/debuff tenha expirado
+
+    if (fighter.hp === 0 && fighter.status === 'active') {
+        fighter.status = 'down';
+        logMessage(state, `${fighter.nome} foi derrotado pelo dano contínuo!`, 'defeat');
+    }
+}
+
+
+function advanceTurn(state, roomId) { // ALTERADO: Adicionado roomId como parâmetro
     if (state.winner) return;
     
     state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
@@ -446,6 +489,19 @@ function advanceTurn(state) {
     state.activeCharacterKey = activeTurnOrder[nextIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
     
+    // NOVO: Processa efeitos no início do turno do personagem
+    processActiveEffects(state, activeFighter, roomId);
+    checkGameOver(state); // Verifica se o DoT derrotou o último inimigo/jogador
+    if (state.winner) {
+         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+         return;
+    }
+     if (activeFighter.status !== 'active') { // Se o DoT derrotou o personagem do turno
+        advanceTurn(state, roomId); // Avança para o próximo
+        return;
+    }
+
+
     if (activeFighter.hasTakenFirstTurn) {
         activeFighter.pa += 3;
     } else {
@@ -743,7 +799,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
 }
 
 
-function startBattle(state) {
+function startBattle(state, roomId) { // ALTERADO: Adicionado roomId
     Object.values(state.fighters.players).forEach(p => {
         if (p.status !== 'down') p.status = 'active';
     });
@@ -767,7 +823,7 @@ function startBattle(state) {
     state.activeCharacterKey = null;
     state.currentRound = 1;
     logMessage(state, `--- A Batalha Começou! (Round ${state.currentRound}) ---`, 'round');
-    advanceTurn(state);
+    advanceTurn(state, roomId);
 }
 
 function getFullState(room) {
@@ -1025,7 +1081,7 @@ io.on('connection', (socket) => {
                             
                             const allFighters = [...Object.values(adventureState.fighters.players), ...Object.values(adventureState.fighters.npcs)];
                             if (allFighters.filter(f => f.status === 'active').every(f => adventureState.initiativeRolls[f.id])) {
-                                startBattle(adventureState);
+                                startBattle(adventureState, roomId);
                             }
                         }
                         break;
@@ -1050,7 +1106,7 @@ io.on('connection', (socket) => {
                                  io.to(roomId).emit('fleeResolved', { actorKey: action.actorKey });
                                  checkGameOver(adventureState);
                                  setTimeout(() => {
-                                     advanceTurn(adventureState);
+                                     advanceTurn(adventureState, roomId);
                                      io.to(roomId).emit('gameUpdate', getFullState(room));
                                  }, 1200);
                                  shouldUpdate = false;
@@ -1059,7 +1115,7 @@ io.on('connection', (socket) => {
                         break;
                     case 'end_turn':
                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
-                            advanceTurn(adventureState);
+                            advanceTurn(adventureState, roomId);
                         }
                         break;
                 }
