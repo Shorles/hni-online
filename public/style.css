@@ -384,10 +384,14 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 @keyframes projectile-move {
     from {
-        transform: translate(var(--start-x), var(--start-y));
+        left: var(--start-x);
+        top: var(--start-y);
+        transform: translate(-50%, -50%);
     }
     to {
-        transform: translate(var(--end-x), var(--end-y));
+        left: var(--end-x);
+        top: var(--end-y);
+        transform: translate(-50%, -50%);
     }
 }
 
@@ -395,12 +399,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     width: 60px;
     height: 60px;
     background-image: url('images/effects/fireball.png');
-    /* CORREÇÃO: Usa a animação keyframe em vez de transition */
     animation: projectile-move 0.5s linear forwards;
-    /* Ajusta a posição inicial para o keyframe */
-    top: 0;
-    left: 0;
-    transform: translate(var(--start-x), var(--start-y));
 }
 
 .visual-effect.target_bubble {
