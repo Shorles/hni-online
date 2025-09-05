@@ -445,6 +445,7 @@ function processActiveEffects(state, fighter, roomId) {
                     }
                 } else {
                     logMessage(state, `${fighter.nome} resistiu ao efeito de ${effect.name} neste turno.`, 'info');
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `Resistiu`, type: 'status-resist' });
                 }
                 break;
             
@@ -505,12 +506,15 @@ function advanceTurn(state, roomId) {
          io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
          return;
     }
-     if (activeFighter.status !== 'active') { // Se o DoT derrotou o personagem do turno
+     if (activeFighter.status !== 'active') {
         advanceTurn(state, roomId);
         return;
     }
     if(isStunned){
-        setTimeout(() => advanceTurn(state, roomId), 1000); // Dá um tempo para o texto "Perdeu o turno" ser visto
+        setTimeout(() => {
+            advanceTurn(state, roomId);
+            io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+        }, 1500);
         return;
     }
 
@@ -783,11 +787,12 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                     attribute: mod.attribute,
                     value: mod.value
                 });
+                const sign = mod.value > 0 ? '+' : '';
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${mod.attribute.toUpperCase()} ${sign}${mod.value}`, type: 'buff' });
             });
             recalculateFighterStats(target);
             break;
 
-        case 'dot':
         case 'status_effect':
              if (Math.random() >= (spell.effect.resistChance || 0)) {
                  target.activeEffects.push({

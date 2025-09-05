@@ -654,13 +654,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function renderActionButtons(state) {
         actionButtonsWrapper.innerHTML = '';
-        if(state.phase !== 'battle' || !!state.winner) return;
+        if (state.phase !== 'battle' || !!state.winner) return;
         const activeFighter = getFighter(state, state.activeCharacterKey);
         if (!activeFighter) return;
 
         const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
         
+        // CORREÇÃO: Verifica se o jogador está atordoado
+        const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
+        const finalCanControl = canControl && !isStunned;
+
         const createButton = (text, onClick, disabled = false, className = 'action-btn') => {
             const btn = document.createElement('button');
             btn.className = className;
@@ -670,7 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return btn;
         };
         
-        actionButtonsWrapper.appendChild(createButton('Atacar', startAttackSequence, !canControl));
+        actionButtonsWrapper.appendChild(createButton('Atacar', startAttackSequence, !finalCanControl));
 
         const fighterSpells = activeFighter.sheet?.spells || [];
         if (fighterSpells.length > 0) {
@@ -678,15 +682,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
-                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !canControl, 'action-btn spell-btn');
+                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
                     spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
                     actionButtonsWrapper.appendChild(spellBtn);
                 }
             });
         }
         
-        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !canControl, 'action-btn flee-btn'));
-        actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !canControl, 'end-turn-btn'));
+        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !finalCanControl, 'action-btn flee-btn'));
+        actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !finalCanControl, 'end-turn-btn'));
     }
 
     function startAttackSequence() {
@@ -735,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
                 spellName: spell.name,
-                targetKey: currentGameState.activeCharacterKey
+                targetKey: currentGameState.activeCharacterKey 
             });
         } else {
             targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
@@ -1649,12 +1653,9 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptForAdventureType', () => { if (isGm) showCustomModal('Retornar à Aventura', 'Deseja continuar a aventura anterior ou começar uma nova batalha?', [{text: 'Continuar Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'continue' })}, {text: 'Nova Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'new' })}]); });
     
     socket.on('visualEffectTriggered', ({ casterId, targetId, animation }) => {
-        console.log(`[DEBUG] Animação recebida: ${animation} de ${casterId} para ${targetId}`);
-
         const casterEl = document.getElementById(casterId);
         const targetEl = document.getElementById(targetId);
         if (!casterEl || !targetEl) {
-            console.error('[DEBUG] Não foi possível encontrar o conjurador ou o alvo da animação.');
             return;
         }
     
@@ -1671,30 +1672,49 @@ document.addEventListener('DOMContentLoaded', () => {
         const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
         const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale;
         
-        console.log(`[DEBUG] Tipo de animação: ${animation.split('_')[0]}`);
-    
         if (animation.startsWith('projectile')) {
-            console.log(`[DEBUG] Projétil. Coords: Início(${startX.toFixed(2)}, ${startY.toFixed(2)}) -> Fim(${endX.toFixed(2)}, ${endY.toFixed(2)})`);
             effectEl.style.setProperty('--start-x', `${startX}px`);
             effectEl.style.setProperty('--start-y', `${startY}px`);
             effectEl.style.setProperty('--end-x', `${endX}px`);
             effectEl.style.setProperty('--end-y', `${endY}px`);
-            effectEl.setAttribute('data-coords', `(${Math.round(startX)}, ${Math.round(startY)}) -> (${Math.round(endX)}, ${Math.round(endY)})`);
         } else {
             const effectX = (animation.startsWith('self')) ? startX : endX;
             const effectY = (animation.startsWith('self')) ? startY : endY;
-            console.log(`[DEBUG] Efeito Fixo. Coords: (${effectX.toFixed(2)}, ${effectY.toFixed(2)})`);
             effectEl.style.left = `${effectX}px`;
             effectEl.style.top = `${effectY}px`;
-            effectEl.setAttribute('data-coords', `(${Math.round(effectX)}, ${Math.round(effectY)})`);
         }
     
-        effectEl.className = `visual-effect ${animation} debug-animation`;
+        effectEl.className = `visual-effect ${animation}`;
         fightScreen.appendChild(effectEl);
     
         setTimeout(() => {
             effectEl.remove();
-        }, 1000); 
+        }, 1200); // Aumentado para 1.2s para dar tempo para animações mais longas
+    });
+
+    socket.on('floatingTextTriggered', ({ targetId, text, type }) => {
+        const targetEl = document.getElementById(targetId);
+        if (!targetEl) return;
+
+        const textEl = document.createElement('div');
+        textEl.className = `floating-text ${type}`;
+        textEl.textContent = text;
+        
+        fightScreen.appendChild(textEl);
+        
+        const rect = targetEl.getBoundingClientRect();
+        const gameWrapperRect = gameWrapper.getBoundingClientRect();
+        const gameScale = getGameScale();
+        
+        const x = (rect.left + rect.width / 2 - gameWrapperRect.left) / gameScale;
+        const y = (rect.top - gameWrapperRect.top) / gameScale;
+
+        textEl.style.left = `${x}px`;
+        textEl.style.top = `${y}px`;
+
+        setTimeout(() => {
+            textEl.remove();
+        }, 2000); // Remove após 2 segundos
     });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual }) => {
