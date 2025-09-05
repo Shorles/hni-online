@@ -932,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.removeEventListener('mouseup', onFighterMouseUp);
     }
     function showHelpModal() {
-        const content = `<div style="text-align: left; font-size: 1.2em; line-height: 1.8;"><p><b>C:</b> Abrir menu de Cheats (GM).</p><p><b>M:</b> Ativar/Desativar modo de depuração de combate (GM).</p><p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p><p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p></div>`;
+        const content = `<div style="text-align: left; font-size: 1.2em; line-height: 1.8;"><p><b>P:</b> Abrir menu de Cheats (GM).</p><p><b>M:</b> Ativar/Desativar modo de depuração de combate (GM).</p><p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p><p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p></div>`;
         showInfoModal("Atalhos do Teclado", content);
     }
     
@@ -1155,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            if (e.key.toLowerCase() === 'c' && isGm && currentGameState.mode === 'adventure') {
+            if (e.key.toLowerCase() === 'p' && isGm && currentGameState.mode === 'adventure') {
                 e.preventDefault();
                 showCheatModal();
             }
@@ -1638,8 +1638,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     socket.on('promptForAdventureType', () => { if (isGm) showCustomModal('Retornar à Aventura', 'Deseja continuar a aventura anterior ou começar uma nova batalha?', [{text: 'Continuar Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'continue' })}, {text: 'Nova Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'new' })}]); });
-    socket.on('attackResolved', (data) => {
-        const { attackerKey, targetKey, hit, debugInfo, isDual } = data;
+    
+    socket.on('visualEffectTriggered', ({ casterId, targetId, animation }) => {
+        const casterEl = document.getElementById(casterId);
+        const targetEl = document.getElementById(targetId);
+        if (!casterEl || !targetEl) return;
+
+        const effectEl = document.createElement('div');
+        effectEl.className = `visual-effect ${animation}`;
+        fightSceneCharacters.appendChild(effectEl);
+
+        const casterRect = casterEl.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+        const gameWrapperRect = gameWrapper.getBoundingClientRect();
+        const gameScale = getGameScale();
+
+        const startX = (casterRect.left + casterRect.width / 2 - gameWrapperRect.left) / gameScale;
+        const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale;
+        const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
+        const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale;
+
+        if (animation.startsWith('projectile')) {
+            effectEl.style.left = `${startX}px`;
+            effectEl.style.top = `${startY}px`;
+            
+            setTimeout(() => {
+                effectEl.style.transform = `translate(${endX - startX}px, ${endY - startY}px)`;
+            }, 50);
+
+        } else if (animation.startsWith('target')) {
+            effectEl.style.left = `${endX}px`;
+            effectEl.style.top = `${endY}px`;
+        } else if (animation.startsWith('self')) {
+             effectEl.style.left = `${startX}px`;
+             effectEl.style.top = `${startY}px`;
+        }
+
+        setTimeout(() => {
+            effectEl.remove();
+        }, 1000); 
+    });
+
+    socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual }) => {
 
         const playAttackAnimation = (isSecondAttack = false) => {
             const attackerEl = document.getElementById(attackerKey);
@@ -1715,6 +1755,54 @@ document.addEventListener('DOMContentLoaded', () => {
             showCustomModal(modalTitle, contentHtml, [
                 { text: 'Fechar', closes: true }
             ]);
+        }
+    });
+     socket.on('spellResolved', ({ debugInfo }) => {
+        if (isGm && isGmDebugModeActive && debugInfo) {
+            const formatBreakdown = (breakdown) => {
+                if (!breakdown) return '';
+                return Object.entries(breakdown)
+                    .map(([key, value]) => `<div class="breakdown-item"><span>${key}:</span> <span>${value >= 0 ? '+' : ''}${value}</span></div>`)
+                    .join('');
+            };
+
+            const buildSpellReport = (spellData) => {
+                if (!spellData) return '<p>Falha ao resolver magia.</p>';
+                 const defenseType = spellData.isPureMagic ? 'Defesa Mágica' : 'Esquiva';
+                let report = `<h4>Cálculo de Acerto (Magia: ${spellData.spellName})</h4>`;
+                if (spellData.autoHit) {
+                     report += `<div class="grid-row result"><span>Resultado do Ataque:</span> <span class="debug-result">ACERTO AUTOMÁTICO</span></div>`;
+                } else {
+                     report +=`<div class="grid-row"><span>Rolagem D20:</span> <span>${spellData.hitRoll}</span></div>
+                    <div class="grid-row"><span>Bônus de Acerto:</span> <span>${spellData.attackBonus >= 0 ? '+' : ''}${spellData.attackBonus}</span></div>
+                    <div class="debug-breakdown">${formatBreakdown(spellData.attackBonusBreakdown)}</div>
+                    <div class="grid-row result"><span>Resultado Final:</span> <span class="debug-result">${spellData.attackRoll}</span></div>
+                    <div class="grid-row"><span>vs ${defenseType} do Alvo:</span> <span class="debug-result">${spellData.targetDefense}</span></div>
+                    <div class="debug-breakdown">${formatBreakdown(spellData.targetDefenseBreakdown)}</div>
+                    <hr>
+                    <h4>Cálculo de Efeito</h4>
+                    <div class="grid-row"><span>Resultado do Ataque:</span> <span class="debug-result">${spellData.hit ? 'ACERTOU' : 'ERROU'}</span></div>`;
+                }
+
+                if (spellData.hit && spellData.finalDamage !== undefined) {
+                    report += `
+                        <div class="grid-row"><span>Rolagem de Dano (${spellData.damageFormula}):</span> <span>${spellData.damageRoll}</span></div>
+                        ${spellData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${spellData.critDamage}</span></div>` : ''}
+                        <div class="grid-row"><span>BTM do Atacante:</span> <span>${spellData.btm >= 0 ? '+' : ''}${spellData.btm}</span></div>
+                        <div class="debug-breakdown">${formatBreakdown(spellData.btmBreakdown)}</div>
+                        <div class="grid-row"><span>Dano Bruto Total:</span> <span>${spellData.totalDamage}</span></div>
+                        <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${spellData.targetProtection}</span></div>
+                        <div class="debug-breakdown">${formatBreakdown(spellData.protectionBreakdown)}</div>
+                        <hr>
+                        <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${spellData.finalDamage}</span></div>`;
+                }
+                return report;
+            };
+
+            const contentHtml = `<div class="debug-info-grid">${buildSpellReport(debugInfo)}</div>`;
+            const modalTitle = `Relatório de Magia: <span class="attacker-name">${debugInfo.attackerName}</span> usa ${debugInfo.spellName} em <span class="defender-name">${debugInfo.targetName}</span>`;
+
+            showCustomModal(modalTitle, contentHtml, [{ text: 'Fechar', closes: true }]);
         }
     });
     socket.on('fleeResolved', ({ actorKey }) => {

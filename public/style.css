@@ -366,3 +366,80 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     color: #dc3545;
     font-weight: bold;
 }
+
+/* --- EFEITOS VISUAIS PARA MAGIAS --- */
+.visual-effect {
+    position: absolute;
+    z-index: 100;
+    pointer-events: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.visual-effect.projectile_fire {
+    width: 60px;
+    height: 60px;
+    background-image: url('images/effects/fireball.png');
+    transition: transform 0.5s linear;
+}
+
+.visual-effect.target_bubble {
+    width: 150px;
+    height: 150px;
+    background-image: url('images/effects/bubble.png');
+    transform: translate(-50%, -50%);
+    animation: bubble-effect 1s ease-out forwards;
+}
+
+.visual-effect.self_rock {
+    width: 180px;
+    height: 180px;
+    background-image: url('images/effects/rock_shield.png');
+    transform: translate(-50%, -50%);
+    animation: self-buff-effect 1s ease-out forwards;
+}
+
+.visual-effect.self_swirl {
+    width: 200px;
+    height: 200px;
+    background-image: url('images/effects/wind_swirl.png');
+    transform: translate(-50%, -50%);
+    animation: self-buff-effect 1s ease-out forwards;
+}
+
+.visual-effect.target_flash {
+    width: 250px;
+    height: 250px;
+    background-image: url('images/effects/flash.png');
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: flash-effect 0.8s ease-out forwards;
+}
+
+.visual-effect.target_purple_aura {
+    width: 160px;
+    height: 160px;
+    background-image: url('images/effects/purple_aura.png');
+    transform: translate(-50%, -50%);
+    animation: bubble-effect 1s ease-out forwards;
+}
+
+
+@keyframes bubble-effect {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1.2); opacity: 0; }
+}
+
+@keyframes self-buff-effect {
+    0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+@keyframes flash-effect {
+    0% { transform: translate(-50%, -50%) scale(0.1); opacity: 0.5; }
+    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
+    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+}

@@ -197,6 +197,10 @@ function recalculateFighterStats(fighter) {
     const esqBreakdown = calculateESQ(fighter);
     fighter.esquiva = esqBreakdown.value;
     fighter.esqBreakdown = esqBreakdown.details;
+
+    const magicDefBreakdown = calculateMagicDefense(fighter);
+    fighter.magicDefense = magicDefBreakdown.value;
+    fighter.magicDefenseBreakdown = magicDefBreakdown.details;
 }
 
 function cachePlayerStats(room) {
@@ -290,6 +294,17 @@ function calculateESQ(fighter) {
 
     return { value: total, details };
 }
+
+function calculateMagicDefense(fighter) {
+    const details = { 'Base': 10 };
+    let total = 10;
+    const inteligencia = getFighterAttribute(fighter, 'inteligencia');
+    details['Inteligência'] = inteligencia;
+    total += inteligencia;
+    // Futuramente, pode-se adicionar bônus de itens ou efeitos aqui
+    return { value: total, details };
+}
+
 
 function getBtaBreakdown(fighter, weaponKey) {
     const details = {};
@@ -586,28 +601,58 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     }
 
     logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
-    io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: spell.effect.animation });
+    // --- EMISSÃO DA ANIMAÇÃO ---
+    if(spell.effect?.animation) {
+        io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: spell.effect.animation });
+    }
     
-    if(spell.requiresHitRoll === false){
-        const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hit: true };
+    const isPureMagic = spell.effect?.damageAttribute === 'inteligencia';
+
+    if (spell.requiresHitRoll === false) {
+        const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hit: true, autoHit: true };
         applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
-        io.to(roomId).emit('spellResolved', debugInfo);
+        io.to(roomId).emit('spellResolved', { debugInfo });
         setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
         return;
     }
 
     const hitRoll = rollD20();
-    const bta = (spell.effect.damageAttribute === 'inteligencia') ? getBtmBreakdown(attacker).value : getBtaBreakdown(attacker, 'weapon1').value;
-    const attackRoll = hitRoll + bta;
-    
-    const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hitRoll, bta, btaBreakdown: getBtmBreakdown(attacker).details, attackRoll, targetEsquiva: target.esquiva, esqBreakdown: target.esqBreakdown };
+    let attackBonus, attackBonusBreakdown, targetDefense, targetDefenseBreakdown;
 
-    if (hitRoll === 1 || attackRoll < target.esquiva) {
-        logMessage(state, `${attacker.nome} erra a magia ${spellName}!`, 'miss');
-        io.to(roomId).emit('spellResolved', { ...debugInfo, hit: false });
+    if (isPureMagic) {
+        const btmData = getBtmBreakdown(attacker);
+        attackBonus = btmData.value;
+        attackBonusBreakdown = btmData.details;
+        targetDefense = target.magicDefense;
+        targetDefenseBreakdown = target.magicDefenseBreakdown;
     } else {
-        logMessage(state, `${attacker.nome} acerta a magia ${spellName}!`, 'hit');
+        const btaData = getBtaBreakdown(attacker, 'weapon1');
+        attackBonus = btaData.value;
+        attackBonusBreakdown = btaData.details;
+        targetDefense = target.esquiva;
+        targetDefenseBreakdown = target.esqBreakdown;
+    }
+    
+    const attackRoll = hitRoll + attackBonus;
+    
+    let debugInfo = { 
+        attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, 
+        hitRoll, attackBonus, attackBonusBreakdown, attackRoll, targetDefense, targetDefenseBreakdown, isPureMagic
+    };
+
+    if (hitRoll === 1) {
+        logMessage(state, `${attacker.nome} erra a magia ${spellName} (Erro Crítico)!`, 'miss');
+        io.to(roomId).emit('spellResolved', { debugInfo: { ...debugInfo, hit: false, isCritFail: true } });
+    } else if (hitRoll === 20 || attackRoll >= targetDefense) {
+        const isCrit = hitRoll === 20;
+        if(isCrit) logMessage(state, `Acerto Crítico com ${spellName}!`, 'crit');
+        else logMessage(state, `${attacker.nome} acerta a magia ${spellName}!`, 'hit');
+        
+        debugInfo.isCrit = isCrit;
         applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
+    } else {
+        logMessage(state, `${attacker.nome} erra a magia ${spellName}!`, 'miss');
+        io.to(roomId).emit('spellResolved', { debugInfo: { ...debugInfo, hit: false } });
     }
     
     setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
@@ -627,13 +672,16 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
 
     switch(spell.effect.type) {
         case 'direct_damage':
-            let damage = rollDice(spell.effect.damageFormula);
-            if (spell.effect.damageBonus === 'level') damage += attacker.level;
+            let damageRoll = rollDice(spell.effect.damageFormula);
+            if (spell.effect.damageBonus === 'level') damageRoll += attacker.level;
+            
+            const critDamage = debugInfo.isCrit ? damageRoll : 0;
             const btmBreakdown = getBtmBreakdown(attacker);
             const btm = btmBreakdown.value;
             const targetProtectionBreakdown = getProtectionBreakdown(target);
             const targetProtection = targetProtectionBreakdown.value;
-            const finalDamage = Math.max(1, damage + btm + effectModifier - targetProtection);
+            const totalDamage = damageRoll + critDamage + btm + effectModifier;
+            const finalDamage = Math.max(1, totalDamage - targetProtection);
             
             target.hp = Math.max(0, target.hp - finalDamage);
             io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${finalDamage}`, type: 'damage-hp' });
@@ -642,12 +690,12 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
-            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll: damage, btm, btmBreakdown: btmBreakdown.details, totalDamage: damage + btm, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
-            io.to(roomId).emit('spellResolved', debugInfo);
+            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, critDamage, btm, btmBreakdown: btmBreakdown.details, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
+            io.to(roomId).emit('spellResolved', { debugInfo });
             break;
         
         case 'resource_damage':
-            if (Math.random() > spell.effect.resistChance) {
+            if (Math.random() > (spell.effect.resistChance || 0)) {
                 let resourceDamage = rollDice(spell.effect.damageFormula);
                 target.mahou = Math.max(0, target.mahou - resourceDamage);
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${resourceDamage}`, type: 'damage-mahou' });
@@ -674,7 +722,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
 
         case 'dot':
         case 'status_effect':
-             if (Math.random() < spell.effect.procChance) {
+             if (Math.random() >= (spell.effect.resistChance || 0) && Math.random() < (spell.effect.procChance || 1)) {
                  target.activeEffects.push({
                     name: spell.name,
                     type: spell.effect.type,
