@@ -276,7 +276,6 @@ function calculateESQ(fighter) {
     Object.assign(details, agiBreakdown.details);
     details['Base'] = 10;
     
-    // Lógica de equipamento omitida para brevidade, mas funciona da mesma forma
     return { value: total, details };
 }
 
@@ -293,7 +292,6 @@ function getBtaBreakdown(fighter, weaponKey) {
     const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
     let total = agiBreakdown.value;
     const details = agiBreakdown.details;
-    // Lógica de equipamento omitida para brevidade
     return { value: total, details };
 }
 
@@ -301,7 +299,6 @@ function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
     const forcaBreakdown = getAttributeBreakdown(fighter, 'forca');
     let total = forcaBreakdown.value;
     const details = forcaBreakdown.details;
-    // Lógica de equipamento omitida para brevidade
     if (isDualAttackPart) {
         details['Ataque Duplo'] = -1;
         total -= 1;
@@ -327,7 +324,6 @@ function getProtectionBreakdown(fighter) {
     const protBreakdown = getAttributeBreakdown(fighter, 'protecao');
     let total = protBreakdown.value;
     const details = protBreakdown.details;
-    // Lógica de equipamento omitida para brevidade
     return { value: total, details };
 }
 
@@ -345,25 +341,32 @@ function checkGameOver(state) {
 }
 
 function processActiveEffects(state, fighter, roomId) {
+    console.log(`[DEBUG] Processando efeitos para ${fighter.nome}`);
     let isStunned = false;
     if (!fighter || !fighter.activeEffects || fighter.activeEffects.length === 0) {
+        console.log(`[DEBUG] Nenhum efeito ativo encontrado.`);
         return { isStunned };
     }
+    console.log(`[DEBUG] Efeitos ativos encontrados:`, fighter.activeEffects.map(e => e.name));
 
     const effectsToKeep = [];
     for (const effect of fighter.activeEffects) {
         
         switch (effect.type) {
             case 'dot':
-                if (Math.random() < (effect.procChance || 1.0)) {
+                console.log(`[DEBUG] Processando efeito DoT: ${effect.name}`);
+                const procRoll = Math.random();
+                if (procRoll < (effect.procChance || 1.0)) {
                     const damage = effect.damage || 0;
                     fighter.hp = Math.max(0, fighter.hp - damage);
+                    console.log(`[DEBUG] DoT acertou! Dano: ${damage}. HP restante: ${fighter.hp}`);
                     logMessage(state, `${fighter.nome} sofre ${damage} de dano de ${effect.name}!`, 'hit');
                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `-${damage}`, type: 'damage-hp' });
                     if(effect.animation) {
                         io.to(roomId).emit('visualEffectTriggered', { casterId: fighter.id, targetId: fighter.id, animation: effect.animation });
                     }
                 } else {
+                    console.log(`[DEBUG] DoT resistido! (Rolagem: ${procRoll.toFixed(2)})`);
                     logMessage(state, `${fighter.nome} resistiu ao efeito de ${effect.name} neste turno.`, 'info');
                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `Resistiu`, type: 'status-resist' });
                 }
