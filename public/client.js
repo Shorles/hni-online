@@ -551,7 +551,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         fightSceneCharacters.innerHTML = '';
         document.getElementById('round-info').textContent = `ROUND ${state.currentRound}`;
-        document.getElementById('fight-log').innerHTML = (state.log || []).map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
+        document.getElementById('fight-log').innerHTML = (state.log || [])
+            .filter(entry => entry.type !== 'debug' || isGm)
+            .map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
         const PLAYER_POSITIONS = [ { left: '150px', top: '450px' }, { left: '250px', top: '350px' }, { left: '350px', top: '250px' }, { left: '450px', top: '150px' } ];
         const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '1050px', top: '300px' } ];
