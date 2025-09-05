@@ -467,7 +467,7 @@ function processActiveEffects(state, fighter, roomId) {
 }
 
 
-function advanceTurn(state, roomId) { // ALTERADO: Adicionado roomId como parâmetro
+function advanceTurn(state, roomId) {
     if (state.winner) return;
     
     state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
@@ -489,15 +489,14 @@ function advanceTurn(state, roomId) { // ALTERADO: Adicionado roomId como parâm
     state.activeCharacterKey = activeTurnOrder[nextIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
     
-    // NOVO: Processa efeitos no início do turno do personagem
     processActiveEffects(state, activeFighter, roomId);
-    checkGameOver(state); // Verifica se o DoT derrotou o último inimigo/jogador
+    checkGameOver(state);
     if (state.winner) {
          io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
          return;
     }
-     if (activeFighter.status !== 'active') { // Se o DoT derrotou o personagem do turno
-        advanceTurn(state, roomId); // Avança para o próximo
+     if (activeFighter.status !== 'active') {
+        advanceTurn(state, roomId);
         return;
     }
 
@@ -508,7 +507,6 @@ function advanceTurn(state, roomId) { // ALTERADO: Adicionado roomId como parâm
         activeFighter.hasTakenFirstTurn = true;
     }
 
-    // Cooldown reduction
     Object.keys(activeFighter.cooldowns).forEach(spellName => {
         if (activeFighter.cooldowns[spellName] > 0) {
             activeFighter.cooldowns[spellName]--;
@@ -657,7 +655,6 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     }
 
     logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
-    // --- EMISSÃO DA ANIMAÇÃO ---
     if(spell.effect?.animation) {
         io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: spell.effect.animation });
     }
@@ -799,7 +796,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
 }
 
 
-function startBattle(state, roomId) { // ALTERADO: Adicionado roomId
+function startBattle(state, roomId) {
     Object.values(state.fighters.players).forEach(p => {
         if (p.status !== 'down') p.status = 'active';
     });
