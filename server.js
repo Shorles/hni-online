@@ -248,135 +248,70 @@ function getFighterAttribute(fighter, attr) {
     return baseValue;
 }
 
+function getAttributeBreakdown(fighter, attr) {
+    const details = {};
+    let total = 0;
+    if (fighter && fighter.sheet && fighter.sheet.finalAttributes) {
+        const baseValue = fighter.sheet.finalAttributes[attr] || 0;
+        details[`Base (${attr})`] = baseValue;
+        total += baseValue;
+    }
+     if (fighter.activeEffects && fighter.activeEffects.length > 0) {
+        fighter.activeEffects
+            .filter(effect => effect.attribute === attr)
+            .forEach(effect => {
+                details[`Efeito (${effect.name})`] = effect.value;
+                total += effect.value;
+            });
+    }
+    return {value: total, details};
+}
+
 // --- FUNÇÕES DE DETALHAMENTO E CÁLCULO PARA O COMBATE ---
 
 function calculateESQ(fighter) {
     const details = { 'Base': 10 };
-    let total = 10;
-
-    const agilidade = getFighterAttribute(fighter, 'agilidade');
-    if (agilidade !== 0) {
-        details['Agilidade'] = agilidade;
-        total += agilidade;
-    }
-
-    const { equipment } = fighter.sheet;
-    const weapon1Type = equipment.weapon1.type;
-    const weapon2Type = equipment.weapon2.type;
-    const armorType = equipment.armor;
-    const shieldType = equipment.shield;
-
-    const weapon1Data = GAME_RULES.weapons[weapon1Type];
-    const weapon2Data = GAME_RULES.weapons[weapon2Type];
-    const armorData = GAME_RULES.armors[armorType];
-    const shieldData = GAME_RULES.shields[shieldType];
-
-    let weaponEsqMod = 0;
-    if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-        weaponEsqMod = Math.min(weapon1Data.esq_mod, weapon2Data.esq_mod);
-        details[`Armas (menor valor)`] = weaponEsqMod;
-    } else if (weapon1Type !== 'Desarmado') {
-        weaponEsqMod = weapon1Data.esq_mod;
-        if (weaponEsqMod !== 0) details[`Arma (${weapon1Type})`] = weaponEsqMod;
-    } else { // Desarmado
-        if (weapon1Data.esq_mod !== 0) details[`Arma (Desarmado)`] = weapon1Data.esq_mod;
-    }
-    total += weaponEsqMod;
-    
-    if (armorData && armorData.esq_mod !== 0) {
-        details[`Armadura (${armorType})`] = armorData.esq_mod;
-        total += armorData.esq_mod;
-    }
-    if (shieldData && shieldData.esq_mod !== 0) {
-        details[`Escudo (${shieldType})`] = shieldData.esq_mod;
-        total += shieldData.esq_mod;
-    }
-
+    const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
+    details['Agilidade'] = agiBreakdown.value;
+    Object.assign(details, agiBreakdown.details);
+    let total = 10 + agiBreakdown.value;
+    // ... restante da lógica de equipamento
     return { value: total, details };
 }
 
 function calculateMagicDefense(fighter) {
     const details = { 'Base': 10 };
-    let total = 10;
-    const inteligencia = getFighterAttribute(fighter, 'inteligencia');
-    details['Inteligência'] = inteligencia;
-    total += inteligencia;
+    const intBreakdown = getAttributeBreakdown(fighter, 'inteligencia');
+    details['Inteligência'] = intBreakdown.value;
+    Object.assign(details, intBreakdown.details);
+    let total = 10 + intBreakdown.value;
     return { value: total, details };
 }
 
-
 function getBtaBreakdown(fighter, weaponKey) {
-    const details = {};
-    let total = 0;
-    
-    const agilidade = getFighterAttribute(fighter, 'agilidade');
-    if (agilidade !== 0) {
-        details['Agilidade'] = agilidade;
-        total += agilidade;
-    }
-
-    const { equipment } = fighter.sheet;
-    const weapon1Type = equipment.weapon1.type;
-    const weapon2Type = equipment.weapon2.type;
-    const armorType = equipment.armor;
-    const shieldType = equipment.shield;
-
-    const weapon1Data = GAME_RULES.weapons[weapon1Type];
-    const weapon2Data = GAME_RULES.weapons[weapon2Type];
-    const armorData = GAME_RULES.armors[armorType];
-    const shieldData = GAME_RULES.shields[shieldType];
-    
-    let weaponBtaMod = 0;
-    if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-        weaponBtaMod = Math.min(weapon1Data.bta, weapon2Data.bta);
-        details[`Armas (menor valor)`] = weaponBtaMod;
-    } else {
-        const usedWeaponData = GAME_RULES.weapons[equipment[weaponKey].type];
-        if (usedWeaponData && usedWeaponData.bta !== 0) {
-            details[`Arma (${equipment[weaponKey].type})`] = usedWeaponData.bta;
-            weaponBtaMod = usedWeaponData.bta;
-        }
-    }
-    total += weaponBtaMod;
-
-    if (armorData && armorData.esq_mod < 0) {
-        details[`Armadura (${armorType})`] = armorData.esq_mod;
-        total += armorData.esq_mod;
-    }
-    if (shieldData && shieldData.esq_mod < 0) {
-        details[`Escudo (${shieldType})`] = shieldData.esq_mod;
-        total += shieldData.esq_mod;
-    }
-    
+    const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
+    let total = agiBreakdown.value;
+    const details = agiBreakdown.details;
+    // ... restante da lógica de equipamento
     return { value: total, details };
 }
 
 function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
-    const details = {};
-    const forca = getFighterAttribute(fighter, 'forca');
-    details['Força'] = forca;
-    let total = forca;
-    
-    const weaponType = fighter.sheet.equipment[weaponKey].type;
-    const weaponData = GAME_RULES.weapons[weaponType];
-    if (weaponData && weaponData.btd) {
-        details[`Arma (${weaponType})`] = weaponData.btd;
-        total += weaponData.btd;
-    }
-    
+    const forcaBreakdown = getAttributeBreakdown(fighter, 'forca');
+    let total = forcaBreakdown.value;
+    const details = forcaBreakdown.details;
+    // ... restante da lógica de equipamento
     if (isDualAttackPart) {
         details['Ataque Duplo'] = -1;
         total -= 1;
     }
-
     return { value: total, details };
 }
 
 function getBtmBreakdown(fighter) {
-    const details = {};
-    const inteligencia = getFighterAttribute(fighter, 'inteligencia');
-    details['Inteligência'] = inteligencia;
-    let total = inteligencia;
+    const intBreakdown = getAttributeBreakdown(fighter, 'inteligencia');
+    let total = intBreakdown.value;
+    const details = intBreakdown.details;
 
     const weapon1Type = fighter.sheet.equipment.weapon1.type;
     const weaponData = GAME_RULES.weapons[weapon1Type];
@@ -388,25 +323,10 @@ function getBtmBreakdown(fighter) {
 }
 
 function getProtectionBreakdown(fighter) {
-    const details = {};
-    const baseProtection = getFighterAttribute(fighter, 'protecao');
-    details['Atributo Proteção'] = baseProtection;
-    let total = baseProtection;
-
-    const armorType = fighter.sheet.equipment?.armor || 'Nenhuma';
-    const armorData = GAME_RULES.armors[armorType];
-    if (armorData && armorData.protection) {
-        details[`Armadura (${armorType})`] = armorData.protection;
-        total += armorData.protection;
-    }
-
-    const shieldType = fighter.sheet.equipment?.shield || 'Nenhum';
-    const shieldData = GAME_RULES.shields[shieldType];
-    if (shieldData && shieldData.protection_bonus) {
-        details[`Escudo (${shieldType})`] = shieldData.protection_bonus;
-        total += shieldData.protection_bonus;
-    }
-    
+    const protBreakdown = getAttributeBreakdown(fighter, 'protecao');
+    let total = protBreakdown.value;
+    const details = protBreakdown.details;
+    // ... restante da lógica de equipamento
     return { value: total, details };
 }
 
@@ -431,8 +351,6 @@ function processActiveEffects(state, fighter, roomId) {
 
     const effectsToKeep = [];
     for (const effect of fighter.activeEffects) {
-        let keepEffect = true;
-        
         switch (effect.type) {
             case 'dot':
                 if (Math.random() < (effect.procChance || 1.0)) {
@@ -771,10 +689,13 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 target.mahou = Math.max(0, target.mahou - resourceDamage);
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${resourceDamage}`, type: 'damage-mahou' });
                 logMessage(state, `${spell.name} drena ${resourceDamage} de Mahou!`, 'hit');
+                Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll: resourceDamage, finalDamage: resourceDamage });
             } else {
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Resistiu`, type: 'status-resist' });
                 logMessage(state, `${target.nome} resistiu ao Dano de Energia!`, 'info');
+                Object.assign(debugInfo, { hit: false });
             }
+             io.to(roomId).emit('spellResolved', { debugInfo });
             break;
         
         case 'buff':

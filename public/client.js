@@ -394,7 +394,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const weaponOptions = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join('');
         const armorOptions = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
         const shieldOptions = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
-        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+        
+        const spellsByElement = {};
+        [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])].forEach(spell => {
+            if (!spellsByElement[spell.element]) {
+                spellsByElement[spell.element] = [];
+            }
+            spellsByElement[spell.element].push(spell);
+        });
 
         let current;
         if (isLiveConfig) {
@@ -414,6 +421,20 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             hpInputHtml = `<label>HP:</label><input type="number" id="npc-cfg-hp" value="${current.stats.hp}">`;
         }
+
+        let spellsHtml = '<div class="npc-config-spells">';
+        for (const element in spellsByElement) {
+            spellsHtml += `<h5 class="spell-element-title">${element.charAt(0).toUpperCase() + element.slice(1)}</h5>`;
+            spellsByElement[element].forEach(spell => {
+                spellsHtml += `
+                    <div class="spell-checkbox">
+                       <input type="checkbox" id="npc-spell-${spell.name.replace(/\s+/g, '-')}" value="${spell.name}" ${current.spells.includes(spell.name) ? 'checked' : ''}>
+                       <label for="npc-spell-${spell.name.replace(/\s+/g, '-')}">${spell.name}</label>
+                    </div>
+                `;
+            });
+        }
+        spellsHtml += '</div>';
 
         let content = `<div class="npc-config-container">
             <div class="npc-config-col">
@@ -438,14 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="npc-config-col">
                 <h4>Magias</h4>
-                <div class="npc-config-spells">
-                    ${allSpells.map(spell => `
-                        <div class="spell-checkbox">
-                           <input type="checkbox" id="npc-spell-${spell.name.replace(/\s+/g, '-')}" value="${spell.name}" ${current.spells.includes(spell.name) ? 'checked' : ''}>
-                           <label for="npc-spell-${spell.name.replace(/\s+/g, '-')}">${spell.name}</label>
-                        </div>
-                    `).join('')}
-                </div>
+                ${spellsHtml}
             </div>
         </div>`;
         
@@ -661,7 +675,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
         
-        // CORREÇÃO: Verifica se o jogador está atordoado
         const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
         const finalCanControl = canControl && !isStunned;
 
@@ -739,7 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
                 spellName: spell.name,
-                targetKey: currentGameState.activeCharacterKey 
+                targetKey: currentGameState.activeCharacterKey
             });
         } else {
             targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
@@ -1655,12 +1668,9 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('visualEffectTriggered', ({ casterId, targetId, animation }) => {
         const casterEl = document.getElementById(casterId);
         const targetEl = document.getElementById(targetId);
-        if (!casterEl || !targetEl) {
-            return;
-        }
+        if (!casterEl || !targetEl) return;
     
         const effectEl = document.createElement('div');
-        
         const gameWrapperRect = gameWrapper.getBoundingClientRect();
         const gameScale = getGameScale();
     
@@ -1671,7 +1681,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale;
         const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
         const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale;
-        
+    
         if (animation.startsWith('projectile')) {
             effectEl.style.setProperty('--start-x', `${startX}px`);
             effectEl.style.setProperty('--start-y', `${startY}px`);
@@ -1680,8 +1690,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             const effectX = (animation.startsWith('self')) ? startX : endX;
             const effectY = (animation.startsWith('self')) ? startY : endY;
-            effectEl.style.left = `${effectX}px`;
-            effectEl.style.top = `${effectY}px`;
+            // CORREÇÃO: Usar setProperty para efeitos fixos também
+            effectEl.style.setProperty('--start-x', `${effectX}px`);
+            effectEl.style.setProperty('--start-y', `${effectY}px`);
         }
     
         effectEl.className = `visual-effect ${animation}`;
@@ -1689,16 +1700,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
         setTimeout(() => {
             effectEl.remove();
-        }, 1200); // Aumentado para 1.2s para dar tempo para animações mais longas
+        }, 1200);
     });
 
     socket.on('floatingTextTriggered', ({ targetId, text, type }) => {
         const targetEl = document.getElementById(targetId);
         if (!targetEl) return;
-
+    
+        // Conta quantos textos já existem para o mesmo alvo para empilhá-los
+        const existingTexts = fightScreen.querySelectorAll(`.floating-text[data-target-id="${targetId}"]`).length;
+    
         const textEl = document.createElement('div');
         textEl.className = `floating-text ${type}`;
         textEl.textContent = text;
+        textEl.dataset.targetId = targetId; // Marca o alvo
         
         fightScreen.appendChild(textEl);
         
@@ -1708,13 +1723,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const x = (rect.left + rect.width / 2 - gameWrapperRect.left) / gameScale;
         const y = (rect.top - gameWrapperRect.top) / gameScale;
-
+    
+        // Desloca verticalmente com base nos textos existentes
+        const yOffset = existingTexts * -25; // Sobe 25px para cada texto extra
         textEl.style.left = `${x}px`;
         textEl.style.top = `${y}px`;
+        textEl.style.setProperty('--y-offset', `${yOffset}px`);
 
         setTimeout(() => {
             textEl.remove();
-        }, 2000); // Remove após 2 segundos
+        }, 2000);
     });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual }) => {
@@ -1822,17 +1840,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="grid-row"><span>Resultado do Ataque:</span> <span class="debug-result">${spellData.hit ? 'ACERTOU' : 'ERROU'}</span></div>`;
                 }
 
-                if (spellData.hit && spellData.finalDamage !== undefined) {
-                    report += `
-                        <div class="grid-row"><span>Rolagem de Dano (${spellData.damageFormula}):</span> <span>${spellData.damageRoll}</span></div>
-                        ${spellData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${spellData.critDamage}</span></div>` : ''}
-                        <div class="grid-row"><span>BTM do Atacante:</span> <span>${spellData.btm >= 0 ? '+' : ''}${spellData.btm}</span></div>
-                        <div class="debug-breakdown">${formatBreakdown(spellData.btmBreakdown)}</div>
-                        <div class="grid-row"><span>Dano Bruto Total:</span> <span>${spellData.totalDamage}</span></div>
-                        <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${spellData.targetProtection}</span></div>
-                        <div class="debug-breakdown">${formatBreakdown(spellData.protectionBreakdown)}</div>
-                        <hr>
-                        <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${spellData.finalDamage}</span></div>`;
+                if (spellData.hit) {
+                    if (spellData.finalDamage !== undefined) { // Dano de HP
+                        report += `
+                            <div class="grid-row"><span>Rolagem de Dano (${spellData.damageFormula}):</span> <span>${spellData.damageRoll}</span></div>
+                            ${spellData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${spellData.critDamage}</span></div>` : ''}
+                            <div class="grid-row"><span>BTM do Atacante:</span> <span>${spellData.btm >= 0 ? '+' : ''}${spellData.btm}</span></div>
+                            <div class="debug-breakdown">${formatBreakdown(spellData.btmBreakdown)}</div>
+                            <div class="grid-row"><span>Dano Bruto Total:</span> <span>${spellData.totalDamage}</span></div>
+                            <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${spellData.targetProtection}</span></div>
+                            <div class="debug-breakdown">${formatBreakdown(spellData.protectionBreakdown)}</div>
+                            <hr>
+                            <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${spellData.finalDamage}</span></div>`;
+                    } else if (spellData.resourceDamage !== undefined) { // Dano de Mahou
+                         report += `
+                            <div class="grid-row"><span>Rolagem de Dano de Mahou (${spellData.damageFormula}):</span> <span>${spellData.damageRoll}</span></div>
+                            <hr>
+                            <div class="final-damage-row"><span>DANO DE MAHOU:</span> <span class="debug-final-damage" style="color: #007bff">${spellData.resourceDamage}</span></div>`;
+                    }
                 }
                 return report;
             };

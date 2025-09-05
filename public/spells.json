@@ -17,6 +17,7 @@
       "cooldown": 1,
       "targetType": "single_enemy",
       "inCombat": true,
+      "requiresHitRoll": true,
       "effect": {
         "type": "direct_damage",
         "damageFormula": "1D6",
@@ -60,6 +61,7 @@
       "cooldown": 2,
       "targetType": "self",
       "inCombat": true,
+      "requiresHitRoll": false,
       "effect": {
         "type": "buff",
         "duration": 3,
@@ -87,6 +89,7 @@
       "cooldown": 2,
       "targetType": "self",
       "inCombat": true,
+      "requiresHitRoll": false,
       "effect": {
         "type": "buff",
         "duration": 3,
