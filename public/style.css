@@ -487,11 +487,11 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 /* --- ESTILOS PARA TEXTO FLUTUANTE --- */
 @keyframes float-up {
     0% {
-        transform: translate(-50%, 0);
+        transform: translate(-50%, var(--y-offset, 0px));
         opacity: 1;
     }
     100% {
-        transform: translate(-50%, -50px);
+        transform: translate(-50%, calc(var(--y-offset, 0px) - 50px));
         opacity: 0;
     }
 }
@@ -504,6 +504,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     text-shadow: 2px 2px 3px rgba(0,0,0,0.8);
     pointer-events: none;
     animation: float-up 2s ease-out forwards;
+    --y-offset: 0px; /* Variável para o deslocamento vertical inicial */
 }
 
 .floating-text.damage-hp { color: #dc3545; } /* Vermelho */

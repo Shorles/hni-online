@@ -1708,30 +1708,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetEl = document.getElementById(targetId);
         if (!targetEl) return;
     
-        const existingTexts = fightScreen.querySelectorAll(`.floating-text[data-target-id="${targetId}"]`).length;
+        // Contamos os textos existentes para escalonar o tempo de criação
+        const textsForDelay = fightScreen.querySelectorAll(`.floating-text[data-target-id="${targetId}"]`).length;
     
         const textEl = document.createElement('div');
         textEl.className = `floating-text ${type}`;
         textEl.textContent = text;
         textEl.dataset.targetId = targetId;
         
-        fightScreen.appendChild(textEl);
-        
-        const rect = targetEl.getBoundingClientRect();
-        const gameWrapperRect = gameWrapper.getBoundingClientRect();
-        const gameScale = getGameScale();
-        
-        const x = (rect.left + rect.width / 2 - gameWrapperRect.left) / gameScale;
-        const y = (rect.top - gameWrapperRect.top) / gameScale;
-    
-        const yOffset = existingTexts * -25;
-        textEl.style.left = `${x}px`;
-        textEl.style.top = `${y}px`;
-        textEl.style.setProperty('--y-offset', `${yOffset}px`);
-
+        // Atraso escalonado para evitar que múltiplos eventos se sobreponham no cálculo
         setTimeout(() => {
-            textEl.remove();
-        }, 2000);
+            // Recalculamos a contagem NO MOMENTO da criação para obter a posição Y correta
+            const currentExistingTexts = fightScreen.querySelectorAll(`.floating-text[data-target-id="${targetId}"]`).length;
+            
+            fightScreen.appendChild(textEl);
+            
+            const rect = targetEl.getBoundingClientRect();
+            const gameWrapperRect = gameWrapper.getBoundingClientRect();
+            const gameScale = getGameScale();
+            
+            const x = (rect.left + rect.width / 2 - gameWrapperRect.left) / gameScale;
+            const y = (rect.top - gameWrapperRect.top) / gameScale;
+        
+            // O deslocamento Y é baseado na contagem no momento da criação
+            const yOffset = currentExistingTexts * -30; // Sobe 30px para cada texto extra
+            textEl.style.left = `${x}px`;
+            textEl.style.top = `${y}px`;
+            textEl.style.setProperty('--y-offset', `${yOffset}px`);
+
+            setTimeout(() => {
+                textEl.remove();
+            }, 2000);
+        }, textsForDelay * 100); // Atraso de 100ms por cada texto existente no momento do evento
     });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual }) => {
