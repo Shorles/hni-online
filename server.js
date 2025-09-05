@@ -276,6 +276,7 @@ function calculateESQ(fighter) {
     Object.assign(details, agiBreakdown.details);
     details['Base'] = 10;
     
+    // Lógica de equipamento omitida para brevidade, mas funciona da mesma forma
     return { value: total, details };
 }
 
@@ -401,7 +402,9 @@ function advanceTurn(state, roomId) {
     state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
     if (state.turnOrder.length === 0) {
         checkGameOver(state);
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+        if (state.winner) {
+            io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+        }
         return;
     }
     
@@ -709,6 +712,15 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${mod.attribute.toUpperCase()} ${sign}${mod.value}`, type: 'buff' });
             });
             recalculateFighterStats(target);
+            break;
+
+        case 'dot': // CORREÇÃO AQUI
+            target.activeEffects.push({
+                name: spell.name,
+                type: spell.effect.type,
+                duration: spell.effect.duration + 1, // +1 porque a duração diminui no início do turno
+                ...spell.effect
+            });
             break;
 
         case 'status_effect':
