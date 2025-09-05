@@ -396,9 +396,12 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 
 .visual-effect.projectile_fire {
-    width: 60px;
-    height: 60px;
-    background-image: url('images/effects/fireball.png');
+    width: 50px;
+    height: 50px;
+    /* Efeito de bola de fogo criado com CSS puro */
+    background: radial-gradient(circle, white 5%, yellow 25%, orange 60%, red 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 15px 5px orange, 0 0 25px 10px red;
     animation: projectile-move 0.5s linear forwards;
 }
 
@@ -462,15 +465,15 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
 }
 
-/* --- ESTILOS DE DEBUG PARA ANIMAÇÃO --- */
+/* --- ESTILOS DE DEBUG PARA ANIMAÇÃO (PODE REMOVER DEPOIS) --- */
 .debug-animation {
-    border: 3px dashed red;
-    background-color: rgba(255, 0, 0, 0.2);
-    box-sizing: border-box; /* Garante que a borda não aumente o tamanho */
+    /* border: 3px dashed red; */
+    /* background-color: rgba(255, 0, 0, 0.2); */
+    box-sizing: border-box; 
 }
 
 .debug-animation::after {
-    content: attr(data-coords);
+    /* content: attr(data-coords); */
     position: absolute;
     bottom: -20px;
     left: 50%;
