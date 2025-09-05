@@ -752,7 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
                 spellName: spell.name,
-                targetKey: currentGameState.activeCharacterKey
+                targetKey: currentGameState.activeCharacterKey 
             });
         } else {
             targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
@@ -1690,7 +1690,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             const effectX = (animation.startsWith('self')) ? startX : endX;
             const effectY = (animation.startsWith('self')) ? startY : endY;
-            // CORREÇÃO: Usar setProperty para efeitos fixos também
             effectEl.style.setProperty('--start-x', `${effectX}px`);
             effectEl.style.setProperty('--start-y', `${effectY}px`);
         }
@@ -1707,13 +1706,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetEl = document.getElementById(targetId);
         if (!targetEl) return;
     
-        // Conta quantos textos já existem para o mesmo alvo para empilhá-los
         const existingTexts = fightScreen.querySelectorAll(`.floating-text[data-target-id="${targetId}"]`).length;
     
         const textEl = document.createElement('div');
         textEl.className = `floating-text ${type}`;
         textEl.textContent = text;
-        textEl.dataset.targetId = targetId; // Marca o alvo
+        textEl.dataset.targetId = targetId;
         
         fightScreen.appendChild(textEl);
         
@@ -1724,8 +1722,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const x = (rect.left + rect.width / 2 - gameWrapperRect.left) / gameScale;
         const y = (rect.top - gameWrapperRect.top) / gameScale;
     
-        // Desloca verticalmente com base nos textos existentes
-        const yOffset = existingTexts * -25; // Sobe 25px para cada texto extra
+        const yOffset = existingTexts * -25;
         textEl.style.left = `${x}px`;
         textEl.style.top = `${y}px`;
         textEl.style.setProperty('--y-offset', `${yOffset}px`);
@@ -1841,7 +1838,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (spellData.hit) {
-                    if (spellData.finalDamage !== undefined) { // Dano de HP
+                    if (spellData.finalDamage !== undefined) {
                         report += `
                             <div class="grid-row"><span>Rolagem de Dano (${spellData.damageFormula}):</span> <span>${spellData.damageRoll}</span></div>
                             ${spellData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${spellData.critDamage}</span></div>` : ''}
@@ -1852,12 +1849,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="debug-breakdown">${formatBreakdown(spellData.protectionBreakdown)}</div>
                             <hr>
                             <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${spellData.finalDamage}</span></div>`;
-                    } else if (spellData.resourceDamage !== undefined) { // Dano de Mahou
-                         report += `
+                    }
+                    if (spellData.resourceDamage !== undefined) {
+                        report += `
+                            <hr>
+                            <h4>Cálculo de Dano de Mahou</h4>
                             <div class="grid-row"><span>Rolagem de Dano de Mahou (${spellData.damageFormula}):</span> <span>${spellData.damageRoll}</span></div>
                             <hr>
                             <div class="final-damage-row"><span>DANO DE MAHOU:</span> <span class="debug-final-damage" style="color: #007bff">${spellData.resourceDamage}</span></div>`;
-                    }
+                   }
                 }
                 return report;
             };
