@@ -401,7 +401,6 @@ function processActiveEffects(state, fighter, roomId) {
 function advanceTurn(state, roomId) {
     if (state.winner) return;
 
-    // 1. Determina o próximo jogador
     state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
     if (state.turnOrder.length === 0) {
         checkGameOver(state);
@@ -420,42 +419,36 @@ function advanceTurn(state, roomId) {
     state.activeCharacterKey = state.turnOrder[nextIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
 
-    // 2. Regenera PA para o novo jogador
     if (activeFighter.hasTakenFirstTurn) {
         activeFighter.pa += 3;
     } else {
         activeFighter.hasTakenFirstTurn = true;
     }
     
-    // 3. Processa efeitos de início de turno (DoTs, Stuns)
-    const { isStunned } = processActiveEffects(state, activeFighter, roomId);
-
-    // 4. Verifica se o jogo acabou ou se o jogador foi derrotado pelos efeitos
-    checkGameOver(state);
-    if (state.winner || activeFighter.status !== 'active') {
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-        if (activeFighter.status !== 'active' && !state.winner) {
-            advanceTurn(state, roomId); // Se o jogador atual foi derrotado, avança para o próximo
-        }
-        return;
-    }
-
-    // 5. Reduz cooldowns
     Object.keys(activeFighter.cooldowns).forEach(spellName => {
         if (activeFighter.cooldowns[spellName] > 0) {
             activeFighter.cooldowns[spellName]--;
         }
     });
 
-    // 6. Envia a atualização para os clientes, mostrando o resultado dos efeitos de turno
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
+    
+    const { isStunned } = processActiveEffects(state, activeFighter, roomId);
+    checkGameOver(state);
+
     io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
 
-    // 7. Se o jogador estiver atordoado, agenda o próximo turno
+    if (state.winner) return;
+
+    if (activeFighter.status !== 'active') {
+        setTimeout(() => advanceTurn(state, roomId), 500);
+        return;
+    }
+    
     if (isStunned) {
         setTimeout(() => {
             advanceTurn(state, roomId);
-        }, 1500); // Espera 1.5s antes de pular o turno
+        }, 1500);
     }
 }
 
