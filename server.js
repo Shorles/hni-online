@@ -267,21 +267,25 @@ function getAttributeBreakdown(fighter, attr) {
     return {value: total, details};
 }
 
+// --- FUNÇÕES DE DETALHAMENTO E CÁLCULO PARA O COMBATE ---
+
 function calculateESQ(fighter) {
-    const details = { 'Base': 10 };
+    const details = {};
     const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
     let total = 10 + agiBreakdown.value;
     Object.assign(details, agiBreakdown.details);
+    details['Base'] = 10;
     
     // Lógica de equipamento omitida para brevidade, mas funciona da mesma forma
     return { value: total, details };
 }
 
 function calculateMagicDefense(fighter) {
-    const details = { 'Base': 10 };
+    const details = {};
     const intBreakdown = getAttributeBreakdown(fighter, 'inteligencia');
     let total = 10 + intBreakdown.value;
     Object.assign(details, intBreakdown.details);
+    details['Base'] = 10;
     return { value: total, details };
 }
 
@@ -342,7 +346,7 @@ function checkGameOver(state) {
 
 function processActiveEffects(state, fighter, roomId) {
     let isStunned = false;
-    if (!fighter.activeEffects || fighter.activeEffects.length === 0) {
+    if (!fighter || !fighter.activeEffects || fighter.activeEffects.length === 0) {
         return { isStunned };
     }
 
@@ -396,59 +400,63 @@ function processActiveEffects(state, fighter, roomId) {
 
 function advanceTurn(state, roomId) {
     if (state.winner) return;
-    
-    state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
-    const activeTurnOrder = state.turnOrder;
 
-    if (activeTurnOrder.length === 0) {
+    // 1. Determina o próximo jogador
+    state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
+    if (state.turnOrder.length === 0) {
         checkGameOver(state);
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
         return;
     }
     
-    let currentIndex = activeTurnOrder.indexOf(state.activeCharacterKey);
-    let nextIndex = (currentIndex + 1) % activeTurnOrder.length;
+    let currentIndex = state.turnOrder.indexOf(state.activeCharacterKey);
+    let nextIndex = (currentIndex + 1) % state.turnOrder.length;
 
     if (nextIndex === 0 && currentIndex !== -1) {
         state.currentRound++;
         logMessage(state, `--- Começando o Round ${state.currentRound} ---`, 'round');
     }
 
-    state.activeCharacterKey = activeTurnOrder[nextIndex];
+    state.activeCharacterKey = state.turnOrder[nextIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
-    
-    const { isStunned } = processActiveEffects(state, activeFighter, roomId);
-    checkGameOver(state);
 
-    if (state.winner || activeFighter.status !== 'active') {
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-        if (activeFighter.status !== 'active' && !state.winner) {
-            advanceTurn(state, roomId);
-        }
-        return;
-    }
-
-    if(isStunned){
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-        setTimeout(() => {
-            advanceTurn(state, roomId);
-            io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-        }, 1500);
-        return;
-    }
-
+    // 2. Regenera PA para o novo jogador
     if (activeFighter.hasTakenFirstTurn) {
         activeFighter.pa += 3;
     } else {
         activeFighter.hasTakenFirstTurn = true;
     }
+    
+    // 3. Processa efeitos de início de turno (DoTs, Stuns)
+    const { isStunned } = processActiveEffects(state, activeFighter, roomId);
 
+    // 4. Verifica se o jogo acabou ou se o jogador foi derrotado pelos efeitos
+    checkGameOver(state);
+    if (state.winner || activeFighter.status !== 'active') {
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+        if (activeFighter.status !== 'active' && !state.winner) {
+            advanceTurn(state, roomId); // Se o jogador atual foi derrotado, avança para o próximo
+        }
+        return;
+    }
+
+    // 5. Reduz cooldowns
     Object.keys(activeFighter.cooldowns).forEach(spellName => {
         if (activeFighter.cooldowns[spellName] > 0) {
             activeFighter.cooldowns[spellName]--;
         }
     });
 
+    // 6. Envia a atualização para os clientes, mostrando o resultado dos efeitos de turno
     logMessage(state, `É a vez de ${activeFighter.nome}.`, 'turn');
+    io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+
+    // 7. Se o jogador estiver atordoado, agenda o próximo turno
+    if (isStunned) {
+        setTimeout(() => {
+            advanceTurn(state, roomId);
+        }, 1500); // Espera 1.5s antes de pular o turno
+    }
 }
 
 function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targetPartKey) {
