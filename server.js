@@ -301,7 +301,6 @@ function calculateMagicDefense(fighter) {
     const inteligencia = getFighterAttribute(fighter, 'inteligencia');
     details['Inteligência'] = inteligencia;
     total += inteligencia;
-    // Futuramente, pode-se adicionar bônus de itens ou efeitos aqui
     return { value: total, details };
 }
 
@@ -424,14 +423,16 @@ function checkGameOver(state) {
     }
 }
 
-// NOVO: Função para processar efeitos no início do turno
 function processActiveEffects(state, fighter, roomId) {
+    let isStunned = false;
     if (!fighter.activeEffects || fighter.activeEffects.length === 0) {
-        return;
+        return { isStunned };
     }
 
     const effectsToKeep = [];
     for (const effect of fighter.activeEffects) {
+        let keepEffect = true;
+        
         switch (effect.type) {
             case 'dot':
                 if (Math.random() < (effect.procChance || 1.0)) {
@@ -446,7 +447,14 @@ function processActiveEffects(state, fighter, roomId) {
                     logMessage(state, `${fighter.nome} resistiu ao efeito de ${effect.name} neste turno.`, 'info');
                 }
                 break;
-            // Adicionar outros tipos de efeito (stun, etc) aqui se necessário
+            
+            case 'status_effect':
+                if(effect.status === 'stunned') {
+                    isStunned = true;
+                    logMessage(state, `${fighter.nome} está atordoado e perde o turno!`, 'miss');
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: 'Perdeu o Turno', type: 'status-fail' });
+                }
+                break;
         }
 
         effect.duration--;
@@ -458,12 +466,14 @@ function processActiveEffects(state, fighter, roomId) {
     }
     
     fighter.activeEffects = effectsToKeep;
-    recalculateFighterStats(fighter); // Recalcula stats caso algum buff/debuff tenha expirado
+    recalculateFighterStats(fighter);
 
     if (fighter.hp === 0 && fighter.status === 'active') {
         fighter.status = 'down';
         logMessage(state, `${fighter.nome} foi derrotado pelo dano contínuo!`, 'defeat');
     }
+    
+    return { isStunned };
 }
 
 
@@ -489,14 +499,18 @@ function advanceTurn(state, roomId) {
     state.activeCharacterKey = activeTurnOrder[nextIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
     
-    processActiveEffects(state, activeFighter, roomId);
+    const { isStunned } = processActiveEffects(state, activeFighter, roomId);
     checkGameOver(state);
     if (state.winner) {
          io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
          return;
     }
-     if (activeFighter.status !== 'active') {
+     if (activeFighter.status !== 'active') { // Se o DoT derrotou o personagem do turno
         advanceTurn(state, roomId);
+        return;
+    }
+    if(isStunned){
+        setTimeout(() => advanceTurn(state, roomId), 1000); // Dá um tempo para o texto "Perdeu o turno" ser visto
         return;
     }
 
@@ -775,7 +789,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
 
         case 'dot':
         case 'status_effect':
-             if (Math.random() >= (spell.effect.resistChance || 0) && Math.random() < (spell.effect.procChance || 1)) {
+             if (Math.random() >= (spell.effect.resistChance || 0)) {
                  target.activeEffects.push({
                     name: spell.name,
                     type: spell.effect.type,

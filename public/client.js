@@ -730,9 +730,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
-        isTargeting = true;
-        document.getElementById('targeting-indicator').classList.remove('hidden');
+        // CORREÇÃO: Verifica se a magia tem alvo em si mesmo
+        if (spell.targetType === 'self') {
+            socket.emit('playerAction', {
+                type: 'use_spell',
+                attackerKey: currentGameState.activeCharacterKey,
+                spellName: spell.name,
+                targetKey: currentGameState.activeCharacterKey // O alvo é o próprio conjurador
+            });
+        } else {
+            targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
+            isTargeting = true;
+            document.getElementById('targeting-indicator').classList.remove('hidden');
+        }
     }
 
     function renderInitiativeUI(state) {
@@ -1640,13 +1650,9 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptForAdventureType', () => { if (isGm) showCustomModal('Retornar à Aventura', 'Deseja continuar a aventura anterior ou começar uma nova batalha?', [{text: 'Continuar Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'continue' })}, {text: 'Nova Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'new' })}]); });
     
     socket.on('visualEffectTriggered', ({ casterId, targetId, animation }) => {
-        // DEBUG: Adiciona um log no console do navegador (F12) para confirmar o recebimento
-        console.log(`[DEBUG] Animação recebida: ${animation} de ${casterId} para ${targetId}`);
-
         const casterEl = document.getElementById(casterId);
         const targetEl = document.getElementById(targetId);
         if (!casterEl || !targetEl) {
-            console.error('[DEBUG] Não foi possível encontrar o conjurador ou o alvo da animação.');
             return;
         }
     
@@ -1662,13 +1668,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale;
         const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
         const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale;
-        
-        // DEBUG: Log das coordenadas calculadas
-        console.log(`[DEBUG] Coordenadas: Início(${startX.toFixed(2)}, ${startY.toFixed(2)}) -> Fim(${endX.toFixed(2)}, ${endY.toFixed(2)})`);
-
-        // Adiciona a classe de debug para tornar a animação visível
-        effectEl.classList.add('debug-animation');
-        effectEl.setAttribute('data-coords', `(${Math.round(startX)}, ${Math.round(startY)}) -> (${Math.round(endX)}, ${Math.round(endY)})`);
     
         if (animation.startsWith('projectile')) {
             effectEl.style.setProperty('--start-x', `${startX}px`);
@@ -1682,7 +1681,7 @@ document.addEventListener('DOMContentLoaded', () => {
             effectEl.style.top = `${effectY}px`;
         }
     
-        effectEl.className = `visual-effect ${animation} debug-animation`; // Adiciona a classe de debug
+        effectEl.className = `visual-effect ${animation}`;
         fightScreen.appendChild(effectEl);
     
         setTimeout(() => {
