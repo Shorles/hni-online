@@ -730,13 +730,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        // CORREÇÃO: Verifica se a magia tem alvo em si mesmo
         if (spell.targetType === 'self') {
             socket.emit('playerAction', {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
                 spellName: spell.name,
-                targetKey: currentGameState.activeCharacterKey // O alvo é o próprio conjurador
+                targetKey: currentGameState.activeCharacterKey
             });
         } else {
             targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
@@ -1650,9 +1649,12 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('promptForAdventureType', () => { if (isGm) showCustomModal('Retornar à Aventura', 'Deseja continuar a aventura anterior ou começar uma nova batalha?', [{text: 'Continuar Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'continue' })}, {text: 'Nova Batalha', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'new' })}]); });
     
     socket.on('visualEffectTriggered', ({ casterId, targetId, animation }) => {
+        console.log(`[DEBUG] Animação recebida: ${animation} de ${casterId} para ${targetId}`);
+
         const casterEl = document.getElementById(casterId);
         const targetEl = document.getElementById(targetId);
         if (!casterEl || !targetEl) {
+            console.error('[DEBUG] Não foi possível encontrar o conjurador ou o alvo da animação.');
             return;
         }
     
@@ -1668,20 +1670,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale;
         const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
         const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale;
+        
+        console.log(`[DEBUG] Tipo de animação: ${animation.split('_')[0]}`);
     
         if (animation.startsWith('projectile')) {
+            console.log(`[DEBUG] Projétil. Coords: Início(${startX.toFixed(2)}, ${startY.toFixed(2)}) -> Fim(${endX.toFixed(2)}, ${endY.toFixed(2)})`);
             effectEl.style.setProperty('--start-x', `${startX}px`);
             effectEl.style.setProperty('--start-y', `${startY}px`);
             effectEl.style.setProperty('--end-x', `${endX}px`);
             effectEl.style.setProperty('--end-y', `${endY}px`);
+            effectEl.setAttribute('data-coords', `(${Math.round(startX)}, ${Math.round(startY)}) -> (${Math.round(endX)}, ${Math.round(endY)})`);
         } else {
             const effectX = (animation.startsWith('self')) ? startX : endX;
             const effectY = (animation.startsWith('self')) ? startY : endY;
+            console.log(`[DEBUG] Efeito Fixo. Coords: (${effectX.toFixed(2)}, ${effectY.toFixed(2)})`);
             effectEl.style.left = `${effectX}px`;
             effectEl.style.top = `${effectY}px`;
+            effectEl.setAttribute('data-coords', `(${Math.round(effectX)}, ${Math.round(effectY)})`);
         }
     
-        effectEl.className = `visual-effect ${animation}`;
+        effectEl.className = `visual-effect ${animation} debug-animation`;
         fightScreen.appendChild(effectEl);
     
         setTimeout(() => {

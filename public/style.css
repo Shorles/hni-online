@@ -375,7 +375,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
-    /* Variáveis para keyframes, preenchidas via JS */
     --start-x: 0px;
     --start-y: 0px;
     --end-x: 0px;
@@ -387,61 +386,76 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
         left: var(--start-x);
         top: var(--start-y);
         transform: translate(-50%, -50%);
+        opacity: 1;
     }
     to {
         left: var(--end-x);
         top: var(--end-y);
         transform: translate(-50%, -50%);
+        opacity: 1;
     }
 }
 
 .visual-effect.projectile_fire {
     width: 50px;
     height: 50px;
-    /* Efeito de bola de fogo criado com CSS puro */
     background: radial-gradient(circle, white 5%, yellow 25%, orange 60%, red 100%);
     border-radius: 50%;
-    box-shadow: 0 0 15px 5px orange, 0 0 25px 10px red;
+    box-shadow: 0 0 15px 5px orange, 0 0 25px 10px rgba(255,0,0,0.5);
     animation: projectile-move 0.5s linear forwards;
 }
 
 .visual-effect.target_bubble {
-    width: 150px;
-    height: 150px;
-    background-image: url('images/effects/bubble.png');
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(200, 225, 255, 0.5) 30%, rgba(100, 150, 255, 0.7) 100%);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
     transform: translate(-50%, -50%);
     animation: bubble-effect 1s ease-out forwards;
 }
 
 .visual-effect.self_rock {
-    width: 180px;
-    height: 180px;
-    background-image: url('images/effects/rock_shield.png');
+    width: 120px;
+    height: 120px;
+    background-color: #8B4513;
+    border: 5px solid #4a2a0a;
+    border-radius: 50%;
     transform: translate(-50%, -50%);
-    animation: self-buff-effect 1s ease-out forwards;
+    animation: self-buff-effect 0.8s ease-out forwards;
+}
+
+@keyframes rotate-and-fade {
+    0% { transform: translate(-50%, -50%) rotate(0deg) scale(0.5); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translate(-50%, -50%) rotate(720deg) scale(1.2); opacity: 0; }
 }
 
 .visual-effect.self_swirl {
-    width: 200px;
-    height: 200px;
-    background-image: url('images/effects/wind_swirl.png');
-    transform: translate(-50%, -50%);
-    animation: self-buff-effect 1s ease-out forwards;
+    width: 150px;
+    height: 150px;
+    border: 5px dashed #c0c0c0;
+    border-radius: 50%;
+    animation: rotate-and-fade 1s linear forwards;
 }
 
 .visual-effect.target_flash {
-    width: 250px;
-    height: 250px;
-    background-image: url('images/effects/flash.png');
+    width: 10px;
+    height: 10px;
+    background-color: white;
     border-radius: 50%;
     transform: translate(-50%, -50%);
-    animation: flash-effect 0.8s ease-out forwards;
+    box-shadow: 0 0 30px 20px white, 0 0 50px 40px rgba(255, 255, 150, 0.7);
+    animation: flash-effect 0.6s ease-out forwards;
 }
 
 .visual-effect.target_purple_aura {
-    width: 160px;
-    height: 160px;
-    background-image: url('images/effects/purple_aura.png');
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(circle, rgba(238, 130, 238, 0.3), rgba(148, 0, 211, 0.6));
+    border: 2px solid darkviolet;
+    border-radius: 50%;
+    box-shadow: 0 0 20px 10px darkviolet;
     transform: translate(-50%, -50%);
     animation: bubble-effect 1s ease-out forwards;
 }
@@ -460,20 +474,19 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 
 @keyframes flash-effect {
-    0% { transform: translate(-50%, -50%) scale(0.1); opacity: 0.5; }
-    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
-    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+    0% { transform: translate(-50%, -50%) scale(0.1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(30); opacity: 0; }
 }
 
-/* --- ESTILOS DE DEBUG PARA ANIMAÇÃO (PODE REMOVER DEPOIS) --- */
+/* --- ESTILOS DE DEBUG PARA ANIMAÇÃO --- */
 .debug-animation {
-    /* border: 3px dashed red; */
-    /* background-color: rgba(255, 0, 0, 0.2); */
-    box-sizing: border-box; 
+    border: 3px dashed red !important;
+    background-color: rgba(255, 0, 0, 0.2) !important;
+    box-sizing: border-box !important;
 }
 
 .debug-animation::after {
-    /* content: attr(data-coords); */
+    content: attr(data-coords);
     position: absolute;
     bottom: -20px;
     left: 50%;
