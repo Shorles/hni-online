@@ -341,31 +341,26 @@ function checkGameOver(state) {
 }
 
 function processActiveEffects(state, fighter, roomId) {
-    logMessage(state, `[DEBUG] Processando efeitos para ${fighter.nome}`, 'debug');
     let isStunned = false;
     if (!fighter || !fighter.activeEffects || fighter.activeEffects.length === 0) {
-        logMessage(state, `[DEBUG] Nenhum efeito ativo encontrado.`, 'debug');
         return { isStunned };
     }
-    logMessage(state, `[DEBUG] Efeitos ativos: ${fighter.activeEffects.map(e => e.name).join(', ')}`, 'debug');
 
     const effectsToKeep = [];
     for (const effect of fighter.activeEffects) {
+        
         switch (effect.type) {
             case 'dot':
-                logMessage(state, `[DEBUG] Processando DoT: ${effect.name}`, 'debug');
                 const procRoll = Math.random();
                 if (procRoll < (effect.procChance || 1.0)) {
                     const damage = effect.damage || 0;
                     fighter.hp = Math.max(0, fighter.hp - damage);
-                    logMessage(state, `[DEBUG] DoT acertou! Dano: ${damage}. HP: ${fighter.hp}`, 'debug');
                     logMessage(state, `${fighter.nome} sofre ${damage} de dano de ${effect.name}!`, 'hit');
                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `-${damage}`, type: 'damage-hp' });
                     if (effect.animation) {
                         io.to(roomId).emit('visualEffectTriggered', { casterId: fighter.id, targetId: fighter.id, animation: effect.animation });
                     }
                 } else {
-                    logMessage(state, `[DEBUG] DoT resistido! (Rolagem: ${procRoll.toFixed(2)})`, 'debug');
                     logMessage(state, `${fighter.nome} resistiu ao efeito de ${effect.name} neste turno.`, 'info');
                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `Resistiu`, type: 'status-resist' });
                 }
