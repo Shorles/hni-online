@@ -1643,40 +1643,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const casterEl = document.getElementById(casterId);
         const targetEl = document.getElementById(targetId);
         if (!casterEl || !targetEl) return;
-
+    
         const effectEl = document.createElement('div');
-        effectEl.className = `visual-effect ${animation}`;
-        fightScreen.appendChild(effectEl);
-
-        const casterRect = casterEl.getBoundingClientRect();
-        const targetRect = targetEl.getBoundingClientRect();
+        
         const gameWrapperRect = gameWrapper.getBoundingClientRect();
         const gameScale = getGameScale();
-
+    
+        const casterRect = casterEl.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+    
         const startX = (casterRect.left + casterRect.width / 2 - gameWrapperRect.left) / gameScale;
         const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale;
         const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
         const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale;
-
+    
         if (animation.startsWith('projectile')) {
-            effectEl.style.left = `${startX}px`;
-            effectEl.style.top = `${startY}px`;
-            
-            setTimeout(() => {
-                effectEl.style.transform = `translate(${endX - startX}px, ${endY - startY}px)`;
-            }, 50);
-
-        } else if (animation.startsWith('target')) {
-            effectEl.style.left = `${endX}px`;
-            effectEl.style.top = `${endY}px`;
-        } else if (animation.startsWith('self')) {
-             effectEl.style.left = `${startX}px`;
-             effectEl.style.top = `${startY}px`;
+            // Para projéteis, definimos as variáveis CSS que os keyframes usarão
+            effectEl.style.setProperty('--start-x', `${startX}px`);
+            effectEl.style.setProperty('--start-y', `${startY}px`);
+            effectEl.style.setProperty('--end-x', `${endX}px`);
+            effectEl.style.setProperty('--end-y', `${endY}px`);
+        } else {
+            // Para efeitos no alvo ou em si mesmo, posicionamos diretamente
+            const effectX = (animation.startsWith('self')) ? startX : endX;
+            const effectY = (animation.startsWith('self')) ? startY : endY;
+            effectEl.style.left = `${effectX}px`;
+            effectEl.style.top = `${effectY}px`;
         }
-
+    
+        effectEl.className = `visual-effect ${animation}`;
+        fightScreen.appendChild(effectEl);
+    
         setTimeout(() => {
             effectEl.remove();
-        }, 1000); 
+        }, 1000); // Garante que o elemento seja removido após a animação
     });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual }) => {
