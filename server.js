@@ -14,16 +14,8 @@ const io = new Server(server);
 // Rota para o favicon (evita o erro 404 no console)
 app.get('/favicon.ico', (req, res) => res.status(204).send());
 
-// Rotas para servir os arquivos JSON da raiz
-app.get('/rules.json', (req, res) => {
-    res.sendFile(path.join(__dirname, 'rules.json'));
-});
-
-app.get('/spells.json', (req, res) => {
-    res.sendFile(path.join(__dirname, 'spells.json'));
-});
-
-
+// Configura o Express para servir arquivos estáticos da pasta 'public'
+// Agora, requests para /rules.json serão resolvidos para public/rules.json
 app.use(express.static('public'));
 
 let ALL_NPCS = {};
@@ -42,10 +34,10 @@ try {
     PLAYABLE_CHARACTERS = characters.players || [];
     ALL_NPCS = characters.npcs || {}; 
 
-    // O servidor ainda precisa ler os arquivos para sua própria lógica
-    const rulesData = fs.readFileSync('rules.json', 'utf8');
+    // Ajustado para ler os arquivos da pasta 'public', onde eles devem estar agora.
+    const rulesData = fs.readFileSync('public/rules.json', 'utf8');
     GAME_RULES = JSON.parse(rulesData);
-    const spellsData = fs.readFileSync('spells.json', 'utf8');
+    const spellsData = fs.readFileSync('public/spells.json', 'utf8');
     ALL_SPELLS = JSON.parse(spellsData);
 
     const dynamicCharPath = 'public/images/personagens/';
