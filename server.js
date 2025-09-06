@@ -5,10 +5,24 @@ const http = require('http');
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
+const path = require('path'); // Adicionado para lidar com caminhos de arquivo
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+// Rota para o favicon (evita o erro 404 no console)
+app.get('/favicon.ico', (req, res) => res.status(204).send());
+
+// Rotas para servir os arquivos JSON da raiz
+app.get('/rules.json', (req, res) => {
+    res.sendFile(path.join(__dirname, 'rules.json'));
+});
+
+app.get('/spells.json', (req, res) => {
+    res.sendFile(path.join(__dirname, 'spells.json'));
+});
+
 
 app.use(express.static('public'));
 
@@ -28,9 +42,10 @@ try {
     PLAYABLE_CHARACTERS = characters.players || [];
     ALL_NPCS = characters.npcs || {}; 
 
-    const rulesData = fs.readFileSync('public/rules.json', 'utf8');
+    // O servidor ainda precisa ler os arquivos para sua própria lógica
+    const rulesData = fs.readFileSync('rules.json', 'utf8');
     GAME_RULES = JSON.parse(rulesData);
-    const spellsData = fs.readFileSync('public/spells.json', 'utf8');
+    const spellsData = fs.readFileSync('spells.json', 'utf8');
     ALL_SPELLS = JSON.parse(spellsData);
 
     const dynamicCharPath = 'public/images/personagens/';
