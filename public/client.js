@@ -1475,7 +1475,72 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleConfirmCharacter() {
-        // ... (código existente da função)
+        const attrPointsRemaining = parseInt(document.getElementById('sheet-points-attr-remaining').textContent, 10);
+        const elemPointsRemaining = parseInt(document.getElementById('sheet-points-elem-remaining').textContent, 10);
+        const spellsSelectedCount = tempCharacterSheet.spells.length;
+
+        let warnings = [];
+        if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
+        if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
+        if(spellsSelectedCount === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
+
+        const sendData = () => {
+            const finalAttributes = {};
+            const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
+            finalAttrElements.forEach(item => {
+                const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const value = parseInt(item.querySelector('span').textContent, 10);
+                finalAttributes[label] = value;
+            });
+
+            const money = parseInt(document.getElementById('sheet-money-copper').textContent, 10)
+
+            const finalSheet = {
+                 name: document.getElementById('sheet-name').value,
+                 class: document.getElementById('sheet-class').value,
+                 race: document.getElementById('sheet-race-select').value,
+                 tokenName: tempCharacterSheet.tokenName,
+                 tokenImg: tempCharacterSheet.tokenImg,
+                 money: money,
+                 baseAttributes: {
+                    forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
+                    agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+                    protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
+                    constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+                    inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
+                    mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+                 },
+                 finalAttributes: finalAttributes,
+                 elements: {
+                    fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
+                    agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+                    terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
+                    vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+                    luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
+                    escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+                 },
+                 equipment: {
+                    weapon1: { name: document.getElementById('sheet-weapon1-name').value, type: document.getElementById('sheet-weapon1-type').value },
+                    weapon2: { name: document.getElementById('sheet-weapon2-name').value, type: document.getElementById('sheet-weapon2-type').value },
+                    armor: document.getElementById('sheet-armor-type').value,
+                    shield: document.getElementById('sheet-shield-type').value
+                 },
+                 spells: tempCharacterSheet.spells,
+            };
+            socket.emit('playerAction', { type: 'playerFinalizesCharacter', characterData: finalSheet });
+            showScreen(document.getElementById('player-waiting-screen'));
+            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+        };
+
+        if(warnings.length > 0) {
+            let warningText = "Os seguintes itens não foram completados:<br><ul>" + warnings.map(w => `<li>${w}</li>`).join('') + "</ul>Deseja continuar mesmo assim?";
+            showCustomModal("Aviso", warningText, [
+                { text: 'Sim, continuar', closes: true, onClick: sendData },
+                { text: 'Não, voltar', closes: true, className: 'btn-danger' }
+            ]);
+        } else {
+            sendData();
+        }
     }
     
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
@@ -1768,6 +1833,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialize() {
         showScreen(document.getElementById('loading-screen'));
 
+        // Os event listeners são configurados imediatamente
         document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
         document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
         
