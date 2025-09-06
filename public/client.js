@@ -1411,7 +1411,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let esq = 10 + finalAttributes.agilidade;
         let weaponEsqMod = weapon1Data.esq_mod;
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-            weaponEsqMod = Math.min(weapon1Data.esq_mod, weapon2Data.bta);
+            weaponEsqMod = Math.min(weapon1Data.esq_mod, weapon2Data.esq_mod);
         }
         esq += weaponEsqMod;
         esq += armorData.esq_mod;
@@ -1766,9 +1766,8 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
     function initialize() {
-        showScreen(document.getElementById('loading-screen')); 
+        showScreen(document.getElementById('loading-screen'));
 
-        // Os event listeners são configurados imediatamente
         document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
         document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
         
@@ -1777,7 +1776,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPlayerTokenSelection();
         });
         document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
-        document.getElementById('load-char-input').addEventListener('change', handleLoadCharacter);
+        document.getElementById('load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'creation'));
 
         document.getElementById('confirm-selection-btn').onclick = () => {
             const selectedCard = document.querySelector('.char-card.selected');
@@ -1793,7 +1792,9 @@ document.addEventListener('DOMContentLoaded', () => {
             el.addEventListener('change', (e) => updateCharacterSheet(e));
             el.addEventListener('input', (e) => updateCharacterSheet(e));
         });
-        document.getElementById('sheet-save-btn').addEventListener('click', handleSaveCharacter);
+        
+        // CORREÇÃO: Readicionando os listeners que foram removidos
+        document.getElementById('sheet-save-btn').addEventListener('click', () => handleSaveCharacter('creation'));
         document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
 
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
@@ -1815,6 +1816,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setupTheaterEventListeners();
         initializeGlobalKeyListeners();
         window.addEventListener('resize', scaleGame);
+
+        // Listeners do inventário
+        playerInfoWidget.addEventListener('click', toggleIngameSheet);
+        document.getElementById('ingame-sheet-close-btn').addEventListener('click', toggleIngameSheet);
     }
     
     initialize();
