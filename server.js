@@ -689,6 +689,13 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 target.mahou = Math.max(0, target.mahou - resourceDamage);
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${resourceDamage}`, type: 'damage-mahou' });
                 logMessage(state, `${spell.name} drena ${resourceDamage} de Mahou!`, 'hit');
+
+                // Lógica de recuperação para o atacante
+                if (spell.name === 'Dreno de Energia') {
+                    attacker.mahou = Math.min(attacker.mahouMax, attacker.mahou + 1);
+                    // Não precisa de log ou texto flutuante para uma recuperação tão pequena, a menos que seja solicitado.
+                }
+
                 Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll: resourceDamage, resourceDamage });
             } else {
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Resistiu`, type: 'status-resist' });

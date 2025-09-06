@@ -11,16 +11,16 @@
     {
       "name": "Baforada Dracônica",
       "element": "fogo",
-      "description": "Dispara chamas pela boca, causando 1D6 + nível do usuário em dano.",
-      "costMahou": 3,
-      "costPA": 2,
+      "description": "Dispara chamas pela boca, causando 1D8 + nível do usuário em dano.",
+      "costMahou": 1,
+      "costPA": 1,
       "cooldown": 1,
       "targetType": "single_enemy",
       "inCombat": true,
       "requiresHitRoll": true,
       "effect": {
         "type": "direct_damage",
-        "damageFormula": "1D6",
+        "damageFormula": "1D8",
         "damageBonus": "level",
         "damageAttribute": "inteligencia",
         "animation": "projectile_fire"
@@ -29,18 +29,18 @@
     {
       "name": "Afogamento",
       "element": "agua",
-      "description": "Causa 2 de dano fixo por turno durante 3 turnos (80% de chance por turno).",
-      "costMahou": 2,
-      "costPA": 2,
+      "description": "Causa 3 de dano fixo por turno durante 3 turnos (85% de chance por turno).",
+      "costMahou": 1,
+      "costPA": 1,
       "cooldown": 2,
       "targetType": "single_enemy",
       "inCombat": true,
       "requiresHitRoll": false,
       "effect": {
         "type": "dot",
-        "damage": 2,
+        "damage": 3,
         "duration": 3,
-        "procChance": 0.8,
+        "procChance": 0.85,
         "animation": "target_bubble"
       }
     },
@@ -55,9 +55,9 @@
     {
       "name": "Golpe Rochoso",
       "element": "terra",
-      "description": "Recebe +3 em Força e -2 em Agilidade por 3 turnos.",
+      "description": "Recebe +4 em Força e -1 em Agilidade por 3 turnos.",
       "costMahou": 1,
-      "costPA": 2,
+      "costPA": 1,
       "cooldown": 2,
       "targetType": "self",
       "inCombat": true,
@@ -66,8 +66,8 @@
         "type": "buff",
         "duration": 3,
         "modifiers": [
-          { "attribute": "forca", "value": 3 },
-          { "attribute": "agilidade", "value": -2 }
+          { "attribute": "forca", "value": 4 },
+          { "attribute": "agilidade", "value": -1 }
         ],
         "animation": "self_rock"
       }
@@ -83,9 +83,9 @@
     {
       "name": "Aceleração",
       "element": "vento",
-      "description": "Adiciona +4 no atributo Agilidade por 3 turnos.",
-      "costMahou": 2,
-      "costPA": 2,
+      "description": "Adiciona +5 no atributo Agilidade por 3 turnos.",
+      "costMahou": 1,
+      "costPA": 1,
       "cooldown": 2,
       "targetType": "self",
       "inCombat": true,
@@ -94,7 +94,7 @@
         "type": "buff",
         "duration": 3,
         "modifiers": [
-          { "attribute": "agilidade", "value": 4 }
+          { "attribute": "agilidade", "value": 5 }
         ],
         "animation": "self_swirl"
       }
@@ -118,9 +118,9 @@
     {
       "name": "Flash",
       "element": "luz",
-      "description": "Cega o alvo, fazendo-o perder 1 turno (20% de chance de resistir).",
-      "costMahou": 2,
-      "costPA": 2,
+      "description": "Cega o alvo, fazendo-o perder 1 turno (15% de chance de resistir).",
+      "costMahou": 1,
+      "costPA": 1,
       "cooldown": 2,
       "targetType": "single_enemy",
       "inCombat": true,
@@ -129,7 +129,7 @@
         "type": "status_effect",
         "status": "stunned",
         "duration": 1,
-        "resistChance": 0.20,
+        "resistChance": 0.15,
         "animation": "target_flash"
       }
     },
@@ -142,11 +142,11 @@
       "inCombat": false
     },
     {
-      "name": "Dano de Energia",
+      "name": "Dreno de Energia",
       "element": "escuridao",
-      "description": "Causa 1D6+1 de dano diretamente no Mahou do adversário.",
-      "costMahou": 3,
-      "costPA": 2,
+      "description": "Causa 1D6+1 de dano no Mahou do adversário e recupera 1 de Mahou do usuário.",
+      "costMahou": 0,
+      "costPA": 1,
       "cooldown": 2,
       "targetType": "single_enemy",
       "inCombat": true,
