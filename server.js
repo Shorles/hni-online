@@ -5,18 +5,15 @@ const http = require('http');
 const { Server } = require("socket.io");
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
-const path = require('path'); // Adicionado para lidar com caminhos de arquivo
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Rota para o favicon (evita o erro 404 no console)
-app.get('/favicon.ico', (req, res) => res.status(204).send());
-
-// Configura o Express para servir arquivos estáticos da pasta 'public'
-// Agora, requests para /rules.json serão resolvidos para public/rules.json
 app.use(express.static('public'));
+
+app.get('/favicon.ico', (req, res) => res.status(204).send());
 
 let ALL_NPCS = {};
 let PLAYABLE_CHARACTERS = [];
@@ -34,7 +31,6 @@ try {
     PLAYABLE_CHARACTERS = characters.players || [];
     ALL_NPCS = characters.npcs || {}; 
 
-    // Ajustado para ler os arquivos da pasta 'public', onde eles devem estar agora.
     const rulesData = fs.readFileSync('public/rules.json', 'utf8');
     GAME_RULES = JSON.parse(rulesData);
     const spellsData = fs.readFileSync('public/spells.json', 'utf8');
@@ -811,6 +807,21 @@ function getFullState(room) {
 }
 
 io.on('connection', (socket) => {
+    // --- NOVO: ENVIA TODOS OS DADOS INICIAIS DE UMA VEZ ---
+    socket.emit('initialData', { 
+        rules: GAME_RULES,
+        spells: ALL_SPELLS,
+        characters: { 
+            players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), 
+            npcs: Object.keys(ALL_NPCS).map(name => ({ 
+                name, img: `images/lutadores/${name}.png`, scale: ALL_NPCS[name].scale || 1.0,
+                isMultiPart: !!ALL_NPCS[name].isMultiPart, parts: ALL_NPCS[name].parts || []
+            })), 
+            dynamic: DYNAMIC_CHARACTERS 
+        }, 
+        scenarios: ALL_SCENARIOS 
+    });
+
     socket.on('gmCreatesLobby', () => {
         const roomId = uuidv4();
         socket.join(roomId);
@@ -828,18 +839,6 @@ io.on('connection', (socket) => {
         socket.emit('assignRole', { isGm: true, role: 'gm', roomId: roomId });
         socket.emit('roomCreated', roomId);
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-    });
-
-    socket.emit('initialData', { 
-        characters: { 
-            players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), 
-            npcs: Object.keys(ALL_NPCS).map(name => ({ 
-                name, img: `images/lutadores/${name}.png`, scale: ALL_NPCS[name].scale || 1.0,
-                isMultiPart: !!ALL_NPCS[name].isMultiPart, parts: ALL_NPCS[name].parts || []
-            })), 
-            dynamic: DYNAMIC_CHARACTERS 
-        }, 
-        scenarios: ALL_SCENARIOS 
     });
 
     socket.on('playerJoinsLobby', ({ roomId }) => {

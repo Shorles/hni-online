@@ -1411,7 +1411,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let esq = 10 + finalAttributes.agilidade;
         let weaponEsqMod = weapon1Data.esq_mod;
         if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-            weaponEsqMod = Math.min(weapon1Data.esq_mod, weapon2Data.esq_mod);
+            weaponEsqMod = Math.min(weapon1Data.esq_mod, weapon2Data.bta);
         }
         esq += weaponEsqMod;
         esq += armorData.esq_mod;
@@ -1480,8 +1480,22 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
+        GAME_RULES = data.rules;
+        ALL_SPELLS = data.spells;
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
+    
+        // Após receber os dados de regras, podemos iniciar a lógica que depende deles.
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoomId = urlParams.get('room');
+
+        if (urlRoomId) {
+            socket.emit('playerJoinsLobby', { roomId: urlRoomId });
+        } else {
+            socket.emit('gmCreatesLobby');
+        }
+
+        scaleGame(); // Redimensiona o jogo assim que os dados chegam.
     });
 
     socket.on('gameUpdate', (gameState) => { 
@@ -1751,8 +1765,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
-    async function initialize() {
-        // ... (código existente da função)
+    function initialize() {
+        showScreen(document.getElementById('loading-screen')); 
+
+        // Os event listeners são configurados imediatamente
+        document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
+        document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
+        
+        document.getElementById('new-char-btn').addEventListener('click', () => {
+            showScreen(document.getElementById('selection-screen'));
+            renderPlayerTokenSelection();
+        });
+        document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
+        document.getElementById('load-char-input').addEventListener('change', handleLoadCharacter);
+
+        document.getElementById('confirm-selection-btn').onclick = () => {
+            const selectedCard = document.querySelector('.char-card.selected');
+            if (selectedCard) {
+                tempCharacterSheet.tokenName = selectedCard.dataset.name;
+                tempCharacterSheet.tokenImg = selectedCard.dataset.img;
+                initializeCharacterSheet();
+                showScreen(document.getElementById('character-sheet-screen'));
+            }
+        };
+
+        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
+            el.addEventListener('change', (e) => updateCharacterSheet(e));
+            el.addEventListener('input', (e) => updateCharacterSheet(e));
+        });
+        document.getElementById('sheet-save-btn').addEventListener('click', handleSaveCharacter);
+        document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
+
+        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
+        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
+        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
+        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
+        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
+        
+        floatingSwitchModeBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmSwitchesMode' }));
+        floatingInviteBtn.addEventListener('click', () => {
+             if (myRoomId) {
+                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
+        });
+        
+        if (floatingHelpBtn) floatingHelpBtn.addEventListener('click', showHelpModal);
+
+        setupTheaterEventListeners();
+        initializeGlobalKeyListeners();
+        window.addEventListener('resize', scaleGame);
     }
     
     initialize();
