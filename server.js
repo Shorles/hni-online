@@ -126,7 +126,6 @@ function createNewFighterState(data) {
         scale: data.scale !== undefined ? parseFloat(data.scale) : 1.0,
         isPlayer: !!data.isPlayer,
         pa: 3,
-        level: 1, 
         hasTakenFirstTurn: false,
         activeEffects: [],
         cooldowns: {}
@@ -143,7 +142,26 @@ function createNewFighterState(data) {
 
         fighter.sheet = data;
 
+        // Adicionar informações de Nível, XP, Dinheiro e Inventário
+        fighter.level = data.level || 1;
+        fighter.xp = data.xp || 0;
+        fighter.xpNeeded = data.xpNeeded || 100; // XP para o nível 2
+        fighter.money = data.money !== undefined ? data.money : 200;
+
+        if (!data.inventory) {
+            fighter.inventory = {};
+            const equip = data.equipment;
+            if (equip.weapon1.type !== 'Desarmado') fighter.inventory[equip.weapon1.type] = { type: 'weapon', name: equip.weapon1.type, quantity: 1 };
+            if (equip.weapon2.type !== 'Desarmado' && equip.weapon1.type !== equip.weapon2.type) fighter.inventory[equip.weapon2.type] = { type: 'weapon', name: equip.weapon2.type, quantity: 1 };
+            if (equip.armor !== 'Nenhuma') fighter.inventory[equip.armor] = { type: 'armor', name: equip.armor, quantity: 1 };
+            if (equip.shield !== 'Nenhum') fighter.inventory[equip.shield] = { type: 'shield', name: equip.shield, quantity: 1 };
+        } else {
+            fighter.inventory = data.inventory;
+        }
+
+
     } else { // NPC
+        fighter.level = 1; // NPCs podem ter nível se necessário no futuro
         fighter.sheet = {
             finalAttributes: {},
             equipment: data.equipment || { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
@@ -1071,25 +1089,45 @@ io.on('connection', (socket) => {
                             shouldUpdate = false; // advanceTurn já emite a atualização
                         }
                         break;
+                    case 'changeEquipment':
+                        const playerFighter = getFighter(adventureState, socket.id);
+                        if (playerFighter && adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
+                            playerFighter.pa -= 3;
+                            playerFighter.sheet.equipment = action.newEquipment;
+                            recalculateFighterStats(playerFighter);
+                            logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
+                        } else {
+                            shouldUpdate = false; // Não atualiza se não tiver PA ou não for o turno
+                        }
+                        break;
                 }
                 break;
 
             case 'theater':
-                 if (isGm && activeState && activeState.scenarioStates && activeState.currentScenario) {
-                     const currentScenarioState = activeState.scenarioStates[activeState.currentScenario];
+                 const theaterState = activeState;
+                 if (action.type === 'changeEquipment') { // Troca de equipamento fora de combate
+                    const playerFighter = getFighter(theaterState, socket.id);
+                    if (playerFighter) {
+                        playerFighter.sheet.equipment = action.newEquipment;
+                        recalculateFighterStats(playerFighter);
+                        logMessage(theaterState, `${playerFighter.nome} trocou de equipamento.`, 'info');
+                    }
+                 }
+                 if (isGm && theaterState && theaterState.scenarioStates && theaterState.currentScenario) {
+                     const currentScenarioState = theaterState.scenarioStates[theaterState.currentScenario];
                      if(currentScenarioState) {
                         switch (action.type) {
                             case 'changeScenario':
                                 const newScenarioPath = `mapas/${action.scenario}`;
                                 if (action.scenario && typeof action.scenario === 'string') {
-                                    activeState.currentScenario = newScenarioPath;
-                                    if (!activeState.scenarioStates[newScenarioPath]) {
-                                        activeState.scenarioStates[newScenarioPath] = { 
+                                    theaterState.currentScenario = newScenarioPath;
+                                    if (!theaterState.scenarioStates[newScenarioPath]) {
+                                        theaterState.scenarioStates[newScenarioPath] = { 
                                             scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, 
                                             tokenOrder: [], globalTokenScale: 1.0, isStaging: true 
                                         };
                                     }
-                                    logMessage(activeState, 'GM está preparando um novo cenário...');
+                                    logMessage(theaterState, 'GM está preparando um novo cenário...');
                                 }
                                 break;
                             case 'updateToken':
@@ -1108,30 +1146,30 @@ io.on('connection', (socket) => {
                                     }
                                 }
                                 if (!currentScenarioState.isStaging) {
-                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    activeState.publicState.isStaging = false;
+                                    theaterState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    theaterState.publicState.isStaging = false;
                                 }
                                 break;
                             case 'updateTokenOrder':
                                 if(action.order && Array.isArray(action.order)) {
                                     currentScenarioState.tokenOrder = action.order;
                                     if (!currentScenarioState.isStaging) {
-                                        activeState.publicState.tokenOrder = action.order;
+                                        theaterState.publicState.tokenOrder = action.order;
                                     }
                                 }
                                 break;
                             case 'updateGlobalScale':
                                 currentScenarioState.globalTokenScale = action.scale;
                                 if (!currentScenarioState.isStaging) {
-                                    activeState.publicState.globalTokenScale = action.scale;
+                                    theaterState.publicState.globalTokenScale = action.scale;
                                 }
                                 break;
                             case 'publish_stage':
                                 if (currentScenarioState.isStaging) {
                                     currentScenarioState.isStaging = false;
-                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    activeState.publicState.isStaging = false;
-                                    logMessage(activeState, 'Cena publicada para os jogadores.');
+                                    theaterState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    theaterState.publicState.isStaging = false;
+                                    logMessage(theaterState, 'Cena publicada para os jogadores.');
                                 }
                                 break;
                         }

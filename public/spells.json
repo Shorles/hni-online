@@ -11,7 +11,7 @@
     {
       "name": "Baforada Dracônica",
       "element": "fogo",
-      "description": "Dispara chamas pela boca, causando 1D8 + nível do usuário em dano.",
+      "description": "Dispara chamas pela boca, causando 1D6 + nível do usuário em dano.",
       "costMahou": 1,
       "costPA": 2,
       "cooldown": 1,

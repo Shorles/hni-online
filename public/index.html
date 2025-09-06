@@ -296,6 +296,72 @@
     <!-- Janela de Coordenadas -->
     <div id="coords-display" class="hidden"></div>
 
+    <!-- WIDGET DE INFORMAÇÕES DO JOGADOR -->
+    <div id="player-info-widget" class="hidden">
+        <div id="player-info-token"></div>
+        <span id="player-info-name"></span>
+    </div>
+
+    <!-- MODAL DA FICHA DE PERSONAGEM EM JOGO -->
+    <div id="ingame-sheet-modal" class="hidden">
+        <div class="sheet-container ingame-sheet">
+            <div class="sheet-header">
+                <h1 id="ingame-sheet-name">Ficha de Personagem</h1>
+                <button id="ingame-sheet-close-btn" class="close-btn">&times;</button>
+            </div>
+            
+            <div class="ingame-sheet-top-section">
+                <div class="ingame-sheet-main-stats">
+                    <div id="ingame-sheet-token"></div>
+                    <div class="ingame-sheet-level-xp">
+                        <div class="level-box">Nível: <span id="ingame-sheet-level">1</span></div>
+                        <div class="xp-box">XP: <span id="ingame-sheet-xp">0</span> / <span id="ingame-sheet-xp-needed">100</span></div>
+                    </div>
+                </div>
+                <div class="ingame-sheet-equipment">
+                     <h3>Equipamento Ativo</h3>
+                     <div class="equipment-grid">
+                        <div class="equip-item"> <label for="ingame-sheet-weapon1-type">Arma 1</label> <select id="ingame-sheet-weapon1-type"></select> </div>
+                        <div class="equip-item"> <label for="ingame-sheet-weapon2-type">Arma 2</label> <select id="ingame-sheet-weapon2-type"></select> </div>
+                        <div class="equip-item"> <label for="ingame-sheet-armor-type">Armadura</label> <select id="ingame-sheet-armor-type"></select> </div>
+                        <div class="equip-item"> <label for="ingame-sheet-shield-type">Escudo</label> <select id="ingame-sheet-shield-type"></select> </div>
+                    </div>
+                    <p id="ingame-equipment-info-text" class="info-text"></p>
+                </div>
+            </div>
+
+            <div class="sheet-columns">
+                <div class="sheet-column">
+                    <h3>Atributos</h3>
+                    <div class="attributes-grid final-attributes" id="ingame-sheet-attributes">
+                        <!-- Populado por JS -->
+                    </div>
+                     <h3>Elementos</h3>
+                    <div class="attributes-grid elements-grid view-only" id="ingame-sheet-elements">
+                         <!-- Populado por JS -->
+                    </div>
+                </div>
+                <div class="sheet-column">
+                    <div class="inventory-header">
+                        <h3>Inventário</h3>
+                        <div class="money-container ingame-money">
+                            Dinheiro: <span id="ingame-sheet-money">0</span> moedas
+                        </div>
+                    </div>
+                    <div id="inventory-grid">
+                        <!-- Populado por JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="sheet-footer" id="ingame-sheet-footer">
+                <button id="ingame-sheet-save-btn" class="sheet-btn">Salvar Ficha</button>
+                <button id="ingame-sheet-load-btn" class="sheet-btn">Carregar Ficha</button>
+                <input type="file" id="ingame-load-char-input" class="hidden" accept=".json,.txt">
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script src="/socket.io/socket.io.js"></script>

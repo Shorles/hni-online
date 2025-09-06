@@ -512,3 +512,186 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .floating-text.buff { color: #ffc107; } /* Amarelo */
 .floating-text.status-resist { color: #6c757d; } /* Cinza */
 .floating-text.status-fail { color: #ffc107; } /* Amarelo para destaque */
+
+/* === NOVOS ESTILOS PARA INVENTÁRIO E FICHA EM JOGO === */
+
+#player-info-widget {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 2px solid #a18a59;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 8000;
+}
+#player-info-widget:hover {
+    background-color: rgba(0, 0, 0, 0.9);
+    border-color: #ffeb3b;
+}
+
+#player-info-token {
+    width: 60px;
+    height: 60px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    border-radius: 50%;
+    background-color: #333;
+    border: 2px solid #555;
+    margin-bottom: 5px;
+}
+
+#player-info-name {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #ffc107;
+}
+
+#ingame-sheet-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.sheet-container.ingame-sheet {
+    max-height: 90%;
+}
+.ingame-sheet .sheet-header {
+    position: relative;
+}
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 2.5em;
+    cursor: pointer;
+    line-height: 1;
+}
+.close-btn:hover {
+    color: #ff6b6b;
+}
+
+.ingame-sheet-top-section {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.ingame-sheet-main-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background-color: rgba(255,255,255,.05);
+    border-radius: 6px;
+    padding: 15px;
+    border: 1px solid #444;
+}
+
+#ingame-sheet-token {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    border: 3px solid #a18a59;
+}
+
+.ingame-sheet-level-xp {
+    text-align: center;
+    font-size: 1.2em;
+}
+
+.ingame-sheet-equipment {
+    flex-grow: 1;
+    background-color: rgba(255,255,255,.05);
+    border-radius: 6px;
+    padding: 15px;
+    border: 1px solid #444;
+}
+
+.elements-grid.view-only .attr-item {
+    background: none;
+    padding: 0;
+}
+.elements-grid.view-only span {
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+.inventory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.inventory-header h3 {
+    margin: 0;
+}
+
+.money-container.ingame-money {
+    margin: 0;
+    font-size: 1.1em;
+}
+
+#inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 10px;
+    background-color: rgba(0,0,0,0.3);
+    padding: 10px;
+    border-radius: 4px;
+    min-height: 150px;
+    max-height: 300px;
+    overflow-y: auto;
+    align-content: start;
+}
+
+.inventory-slot {
+    width: 60px;
+    height: 60px;
+    background-color: rgba(255,255,255,0.05);
+    border: 1px solid #555;
+    border-radius: 4px;
+    position: relative;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.inventory-slot.item:hover {
+    border-color: #ffeb3b;
+    cursor: pointer;
+}
+
+.inventory-slot .item-quantity {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 1px 1px 2px #000;
+}
+
+#ingame-sheet-footer {
+    justify-content: space-between;
+}
