@@ -130,13 +130,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('targeting-indicator').classList.add('hidden');
     }
     function getFighter(state, key) {
-        if (!state || (!state.fighters && !state.scenarioStates)) return null;
+        if (!state || (!state.fighters && !state.connectedPlayers)) return null;
         
+        // Em modo aventura, os dados estão em 'fighters'
         if (state.mode === 'adventure' && state.fighters) {
              return state.fighters.players[key] || state.fighters.npcs[key];
         } 
         
-        // Fallback or other modes logic if needed
+        // Em modo cenário ou lobby, os dados da ficha estão em 'connectedPlayers'
+        if (state.connectedPlayers && state.connectedPlayers[key]) {
+            return state.connectedPlayers[key].characterSheet;
+        }
+
         return null;
     }
 
@@ -161,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
         if (amIPlayerAndFinalized) {
-            const myFighterData = getFighter(gameState, myPlayerKey) || myPlayerData.characterSheet;
+            const myFighterData = getFighter(gameState, myPlayerKey);
             if (myFighterData) {
                 const tokenImg = myFighterData.tokenImg || myFighterData.img;
                 const charName = myFighterData.nome || myFighterData.name;
@@ -1494,7 +1499,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const sendData = () => {
             const finalAttributes = {};
-            const finalAttrElements = document.querySelectorAll('.final-attributes .attr-item');
+            const finalAttrElements = document.querySelectorAll('#character-sheet-screen .final-attributes .attr-item');
             finalAttrElements.forEach(item => {
                 const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 const value = parseInt(item.querySelector('span').textContent, 10);
@@ -1867,7 +1872,6 @@ document.addEventListener('DOMContentLoaded', () => {
             el.addEventListener('input', (e) => updateCharacterSheet(e));
         });
         
-        // CORREÇÃO: Readicionando os listeners que foram removidos
         document.getElementById('sheet-save-btn').addEventListener('click', () => handleSaveCharacter('creation'));
         document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
 
