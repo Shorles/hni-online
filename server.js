@@ -1126,14 +1126,17 @@ io.on('connection', (socket) => {
                             case 'changeScenario':
                                 const newScenarioPath = `mapas/${action.scenario}`;
                                 if (action.scenario && typeof action.scenario === 'string') {
-                                    theaterState.currentScenario = newScenarioPath;
-                                    if (!theaterState.scenarioStates[newScenarioPath]) {
-                                        theaterState.scenarioStates[newScenarioPath] = { 
+                                    activeState.currentScenario = newScenarioPath;
+                                    if (!activeState.scenarioStates[newScenarioPath]) {
+                                        activeState.scenarioStates[newScenarioPath] = { 
                                             scenario: newScenarioPath, scenarioWidth: null, scenarioHeight: null, tokens: {}, 
                                             tokenOrder: [], globalTokenScale: 1.0, isStaging: true 
                                         };
+                                    } else {
+                                        // CORREÇÃO: Reseta o estado 'isStaging' ao voltar para um cenário
+                                        activeState.scenarioStates[newScenarioPath].isStaging = true;
                                     }
-                                    logMessage(theaterState, 'GM está preparando um novo cenário...');
+                                    logMessage(activeState, 'GM está preparando um novo cenário...');
                                 }
                                 break;
                             case 'updateToken':
@@ -1152,30 +1155,30 @@ io.on('connection', (socket) => {
                                     }
                                 }
                                 if (!currentScenarioState.isStaging) {
-                                    theaterState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    theaterState.publicState.isStaging = false;
+                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    activeState.publicState.isStaging = false;
                                 }
                                 break;
                             case 'updateTokenOrder':
                                 if(action.order && Array.isArray(action.order)) {
                                     currentScenarioState.tokenOrder = action.order;
                                     if (!currentScenarioState.isStaging) {
-                                        theaterState.publicState.tokenOrder = action.order;
+                                        activeState.publicState.tokenOrder = action.order;
                                     }
                                 }
                                 break;
                             case 'updateGlobalScale':
                                 currentScenarioState.globalTokenScale = action.scale;
                                 if (!currentScenarioState.isStaging) {
-                                    theaterState.publicState.globalTokenScale = action.scale;
+                                    activeState.publicState.globalTokenScale = action.scale;
                                 }
                                 break;
                             case 'publish_stage':
                                 if (currentScenarioState.isStaging) {
                                     currentScenarioState.isStaging = false;
-                                    theaterState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    theaterState.publicState.isStaging = false;
-                                    logMessage(theaterState, 'Cena publicada para os jogadores.');
+                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
+                                    activeState.publicState.isStaging = false;
+                                    logMessage(activeState, 'Cena publicada para os jogadores.');
                                 }
                                 break;
                         }

@@ -130,8 +130,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('targeting-indicator').classList.add('hidden');
     }
     function getFighter(state, key) {
-        if (!state || !state.fighters || !key) return null;
-        return state.fighters.players[key] || state.fighters.npcs[key];
+        if (!state || (!state.fighters && !state.scenarioStates)) return null;
+        
+        if (state.mode === 'adventure' && state.fighters) {
+             return state.fighters.players[key] || state.fighters.npcs[key];
+        } 
+        
+        // Fallback or other modes logic if needed
+        return null;
     }
 
     // =================================================================
@@ -155,10 +161,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
         if (amIPlayerAndFinalized) {
-            const myFighterData = getFighter(gameState, myPlayerKey);
+            const myFighterData = getFighter(gameState, myPlayerKey) || myPlayerData.characterSheet;
             if (myFighterData) {
-                document.getElementById('player-info-token').style.backgroundImage = `url('${myFighterData.img}')`;
-                document.getElementById('player-info-name').textContent = myFighterData.nome;
+                const tokenImg = myFighterData.tokenImg || myFighterData.img;
+                const charName = myFighterData.nome || myFighterData.name;
+                document.getElementById('player-info-token').style.backgroundImage = `url('${tokenImg}')`;
+                document.getElementById('player-info-name').textContent = charName;
             }
         }
         
@@ -1886,6 +1894,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Listeners do inventário
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', toggleIngameSheet);
+        document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
+        document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
+        document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
+
+        document.querySelectorAll('.ingame-sheet-equipment select').forEach(select => {
+            select.addEventListener('change', handleChangeEquipment);
+        });
     }
     
     initialize();
