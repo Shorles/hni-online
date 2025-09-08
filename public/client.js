@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalButton.onclick = () => modal.classList.add('hidden');
     }
     function showCustomModal(title, contentHtml, buttons) {
-        document.getElementById('modal-title').innerHTML = title; // Changed to innerHTML
+        document.getElementById('modal-title').innerHTML = title;
         document.getElementById('modal-text').innerHTML = contentHtml;
         document.getElementById('modal-button').classList.add('hidden');
         
@@ -1019,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mini.title = data.name;
             mini.draggable = true;
             mini.addEventListener('dragstart', (e) => {
-                if (isGm) e.dataTransfer.setData('application/json', JSON.stringify({ charName: data.name, img: data.img }));
+                if (isGm) e.dataTransfer.setData('application/json', JSON.stringify({ charName: data.name, img: data.img, isFlipped: false, scale: 1.0 }));
             });
             theaterCharList.appendChild(mini);
         };
@@ -1028,8 +1028,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTheaterMode(state) {
         if (isDragging) return;
-        const currentScenarioState = state.scenarioStates?.[state.currentScenario];
-        const dataToRender = isGm ? currentScenarioState : state.publicState;
+        const dataToRender = isGm ? state.scenarioStates?.[state.currentScenario] : state.publicState;
         if (!dataToRender || !dataToRender.scenario) return;
 
         const scenarioUrl = `images/${dataToRender.scenario}`;
@@ -1046,9 +1045,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('theater-gm-panel').classList.toggle('hidden', !isGm);
         document.getElementById('toggle-gm-panel-btn').classList.toggle('hidden', !isGm);
-        document.getElementById('theater-publish-btn').classList.toggle('hidden', !isGm || !currentScenarioState?.isStaging);
+        document.getElementById('theater-publish-btn').classList.toggle('hidden', !isGm || !dataToRender.isStaging);
         
-        if (isGm && currentScenarioState) theaterGlobalScale.value = currentScenarioState.globalTokenScale || 1.0;
+        if (isGm) theaterGlobalScale.value = dataToRender.globalTokenScale || 1.0;
         
         theaterTokenContainer.innerHTML = '';
         const fragment = document.createDocumentFragment();
@@ -1065,6 +1064,10 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenEl.dataset.scale = tokenData.scale || 1.0;
             tokenEl.dataset.flipped = String(!!tokenData.isFlipped);
             tokenEl.title = tokenData.charName;
+            
+            if (isGm && tokenData.isHidden) {
+                tokenEl.classList.add('hidden-token');
+            }
             
             const globalTokenScale = dataToRender.globalTokenScale || 1.0;
             const baseScale = parseFloat(tokenEl.dataset.scale);
@@ -1099,7 +1102,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (tokenElement) {
                     isDragging = true;
-                    if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) selectedTokens.clear();
+                    if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) {
+                        selectedTokens.clear();
+                    }
                     if (e.ctrlKey) {
                         selectedTokens.has(tokenElement.id) ? selectedTokens.delete(tokenElement.id) : selectedTokens.add(tokenElement.id);
                     } else {
@@ -1112,7 +1117,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     renderTheaterMode(currentGameState);
                 } else if (!isGroupSelectMode) {
-                    if (selectedTokens.size > 0) selectedTokens.clear();
+                    selectedTokens.clear();
                     renderTheaterMode(currentGameState);
                     isPanning = true;
                 }
@@ -1154,9 +1159,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const gameScale = getGameScale();
                 const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
                 const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
+                const scenarioState = currentGameState.scenarioStates[currentGameState.currentScenario];
+                const scenarioWidth = scenarioState.scenarioWidth;
+                const scenarioHeight = scenarioState.scenarioHeight;
+
                 selectedTokens.forEach(id => {
                     const initialPos = dragOffsets.get(id);
-                    if (initialPos) socket.emit('playerAction', { type: 'updateToken', token: { id, x: initialPos.startX + deltaX, y: initialPos.startY + deltaY } });
+                    if (initialPos) {
+                        const finalX = initialPos.startX + deltaX;
+                        const finalY = initialPos.startY + deltaY;
+                        const isHidden = scenarioWidth ? (finalX < 0 || finalX > scenarioWidth || finalY < 0 || finalY > scenarioHeight) : false;
+                        socket.emit('playerAction', { type: 'updateToken', token: { id, x: finalX, y: finalY, isHidden: isHidden } });
+                    }
                 });
             } else if (isGm && isSelectingBox) {
                 const boxRect = selectionBox.getBoundingClientRect();
@@ -1166,7 +1180,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.theater-token').forEach(token => {
                     const tokenRect = token.getBoundingClientRect();
                     if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
-                        e.ctrlKey && selectedTokens.has(token.id) ? selectedTokens.delete(token.id) : selectedTokens.add(token.id);
+                        if(e.ctrlKey) {
+                             selectedTokens.has(token.id) ? selectedTokens.delete(token.id) : selectedTokens.add(token.id);
+                        } else {
+                            selectedTokens.add(token.id);
+                        }
                     }
                 });
                 renderTheaterMode(currentGameState);
@@ -1181,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tokenWidth = 200, gameScale = getGameScale(), viewportRect = viewport.getBoundingClientRect();
                 const finalX = ((e.clientX - viewportRect.left) / gameScale + viewport.scrollLeft) / localWorldScale - (tokenWidth / 2);
                 const finalY = ((e.clientY - viewportRect.top) / gameScale + viewport.scrollTop) / localWorldScale - (tokenWidth / 2);
-                socket.emit('playerAction', { type: 'updateToken', token: { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: finalX, y: finalY, scale: 1.0, isFlipped: false }});
+                socket.emit('playerAction', { type: 'updateToken', token: { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: finalX, y: finalY, scale: 1.0, isFlipped: false, isHidden: false }});
             } catch (error) { console.error("Drop error:", error); }
         });
         viewport.addEventListener('dragover', (e) => e.preventDefault());
@@ -1190,11 +1208,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && hoveredTokenId && selectedTokens.has(hoveredTokenId)) {
                 const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[hoveredTokenId];
                 if (tokenData) {
-                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.1 : 0.1);
+                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.15 : 0.15); // Aumentado para 0.15
                     selectedTokens.forEach(id => socket.emit('playerAction', { type: 'updateToken', token: { id, scale: Math.max(0.1, newScale) }}));
                 }
             } else {
-                const zoomIntensity = 0.05, scrollDirection = e.deltaY < 0 ? 1 : -1;
+                const zoomIntensity = 0.1, scrollDirection = e.deltaY < 0 ? 1 : -1; // Aumentado para 0.1
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
                 const rect = viewport.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
@@ -1300,7 +1318,40 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function showScenarioSelectionModal(){let e='<div class="category-tabs">';const t=Object.keys(ALL_SCENARIOS);t.forEach((t,o)=>{e+=`<button class="category-tab-btn ${0===o?"active":""}" data-category="${t}">${t.replace(/_/g," ")}</button>`}),e+="</div>",t.forEach((t,o)=>{e+=`<div class="scenarios-grid ${0===o?"active":""}" id="grid-${t}">`,ALL_SCENARIOS[t].forEach(t=>{const o=t.split("/").pop().replace(".png","").replace(".jpg","");e+=`<div class="scenario-card" data-path="${t}"><img src="images/mapas/${t}" alt="${o}"><div class="scenario-name">${o}</div></div>`}),e+="</div>"}),showInfoModal("Mudar Cenário",e,!1),document.querySelectorAll(".category-tab-btn").forEach(e=>{e.addEventListener("click",()=>{document.querySelectorAll(".category-tab-btn, .scenarios-grid").forEach(e=>e.classList.remove("active")),e.classList.add("active"),document.getElementById(`grid-${e.dataset.category}`).classList.add("active")})}),document.querySelectorAll(".scenario-card").forEach(e=>{e.addEventListener("click",()=>{const t=e.dataset.path;socket.emit("playerAction",{type:"changeScenario",scenario:t}),modal.classList.add("hidden")})})}
+    function showScenarioSelectionModal(){
+        let contentHtml = '<div class="category-tabs">';
+        const categories = Object.keys(ALL_SCENARIOS);
+        categories.forEach((category, index) => {
+            contentHtml += `<button class="category-tab-btn ${index === 0 ? "active" : ""}" data-category="${category}">${category.replace(/_/g, " ")}</button>`;
+        });
+        contentHtml += '</div>';
+    
+        categories.forEach((category, index) => {
+            contentHtml += `<div class="scenarios-grid ${index === 0 ? "active" : ""}" id="grid-${category}">`;
+            ALL_SCENARIOS[category].forEach(path => {
+                const name = path.split('/').pop().replace('.png', '').replace('.jpg', '');
+                contentHtml += `<div class="scenario-card" data-path="${path}"><img src="images/mapas/${path}" alt="${name}"><div class="scenario-name">${name}</div></div>`;
+            });
+            contentHtml += '</div>';
+        });
+    
+        showCustomModal("Mudar Cenário", contentHtml, []);
+    
+        document.querySelectorAll(".category-tab-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".category-tab-btn, .scenarios-grid").forEach(el => el.classList.remove("active"));
+                btn.classList.add("active");
+                document.getElementById(`grid-${btn.dataset.category}`).classList.add("active");
+            });
+        });
+        document.querySelectorAll(".scenario-card").forEach(card => {
+            card.addEventListener("click", () => {
+                const path = card.dataset.path;
+                socket.emit("playerAction", { type: 'changeScenario', scenario: path });
+                modal.classList.add("hidden");
+            });
+        });
+    }
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {

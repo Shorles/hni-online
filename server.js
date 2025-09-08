@@ -76,6 +76,8 @@ function rollDice(diceString) {
     return total + bonus;
 }
 
+// --- FUNÇÕES DE ESTADO DO JOGO ---
+
 function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_players', gmId: gmId, connectedPlayers: {}, unavailableCharacters: [], log: [{ text: "Lobby criado. Aguardando jogadores..." }], }; }
 
 function createNewAdventureState(gmId, connectedPlayers) {
@@ -120,6 +122,23 @@ function createNewTheaterState(gmId, initialScenario) {
     return theaterState;
 }
 
+// NOVA FUNÇÃO para filtrar o estado do cenário para os jogadores
+function filterPublicTheaterState(scenarioState) {
+    const publicState = JSON.parse(JSON.stringify(scenarioState));
+    
+    // Remove tokens escondidos da visão do público
+    for (const tokenId in publicState.tokens) {
+        if (publicState.tokens[tokenId].isHidden) {
+            delete publicState.tokens[tokenId];
+        }
+    }
+    // Filtra a ordem dos tokens para garantir que não haja referências a tokens removidos
+    publicState.tokenOrder = publicState.tokenOrder.filter(tokenId => publicState.tokens[tokenId]);
+    
+    return publicState;
+}
+
+
 function createNewFighterState(data) {
     const fighter = {
         id: data.id || `npc-${uuidv4()}`,
@@ -151,7 +170,6 @@ function createNewFighterState(data) {
         fighter.money = data.money !== undefined ? data.money : 200;
 
         fighter.inventory = data.inventory || {};
-
 
     } else { // NPC
         fighter.level = 1;
@@ -914,7 +932,6 @@ io.on('connection', (socket) => {
         
                 const addItemToInventory = (item, type, baseType) => {
                     if (baseType !== 'Desarmado' && baseType !== 'Nenhuma' && baseType !== 'Nenhum') {
-                        // Usa o nome customizado como chave única no inventário.
                         initialInventory[item.name] = {
                             type: type,
                             name: item.name,
@@ -925,7 +942,6 @@ io.on('connection', (socket) => {
                 };
         
                 addItemToInventory(equip.weapon1, 'weapon', equip.weapon1.type);
-                // Evita adicionar a segunda arma se for a mesma que a primeira (caso de arma de 2 mãos)
                 if (equip.weapon1.name !== equip.weapon2.name) {
                     addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type);
                 }
@@ -1139,6 +1155,13 @@ io.on('connection', (socket) => {
                      const currentScenarioState = theaterState.scenarioStates[theaterState.currentScenario];
                      if(currentScenarioState) {
                         switch (action.type) {
+                            case 'update_scenario_dims':
+                                if (action.width && action.height) {
+                                    currentScenarioState.scenarioWidth = action.width;
+                                    currentScenarioState.scenarioHeight = action.height;
+                                    shouldUpdate = false; // Não precisa de update para todos, é info do GM
+                                }
+                                break;
                             case 'changeScenario':
                                 const newScenarioPath = `mapas/${action.scenario}`;
                                 if (action.scenario && typeof action.scenario === 'string') {
@@ -1151,6 +1174,7 @@ io.on('connection', (socket) => {
                                     } else {
                                         activeState.scenarioStates[newScenarioPath].isStaging = true;
                                     }
+                                    activeState.publicState = filterPublicTheaterState(activeState.scenarioStates[newScenarioPath]);
                                     logMessage(activeState, 'GM está preparando um novo cenário...');
                                 }
                                 break;
@@ -1164,35 +1188,33 @@ io.on('connection', (socket) => {
                                 } else if (currentScenarioState.tokens[tokenData.id]) {
                                     Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
                                 } else {
-                                    currentScenarioState.tokens[tokenData.id] = tokenData;
+                                    currentScenarioState.tokens[tokenData.id] = { ...tokenData, isHidden: false };
                                     if (!currentScenarioState.tokenOrder.includes(tokenData.id)) {
                                         currentScenarioState.tokenOrder.push(tokenData.id);
                                     }
                                 }
                                 if (!currentScenarioState.isStaging) {
-                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    activeState.publicState.isStaging = false;
+                                    activeState.publicState = filterPublicTheaterState(currentScenarioState);
                                 }
                                 break;
                             case 'updateTokenOrder':
                                 if(action.order && Array.isArray(action.order)) {
                                     currentScenarioState.tokenOrder = action.order;
                                     if (!currentScenarioState.isStaging) {
-                                        activeState.publicState.tokenOrder = action.order;
+                                        activeState.publicState = filterPublicTheaterState(currentScenarioState);
                                     }
                                 }
                                 break;
                             case 'updateGlobalScale':
                                 currentScenarioState.globalTokenScale = action.scale;
                                 if (!currentScenarioState.isStaging) {
-                                    activeState.publicState.globalTokenScale = action.scale;
+                                    activeState.publicState = filterPublicTheaterState(currentScenarioState);
                                 }
                                 break;
                             case 'publish_stage':
                                 if (currentScenarioState.isStaging) {
                                     currentScenarioState.isStaging = false;
-                                    activeState.publicState = JSON.parse(JSON.stringify(currentScenarioState));
-                                    activeState.publicState.isStaging = false;
+                                    activeState.publicState = filterPublicTheaterState(currentScenarioState);
                                     logMessage(activeState, 'Cena publicada para os jogadores.');
                                 }
                                 break;
