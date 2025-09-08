@@ -703,6 +703,22 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     justify-content: space-between;
 }
 
+#ingame-sheet-spells-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.spell-card.ingame-spell {
+    cursor: help;
+    border-color: #444;
+}
+.spell-card.ingame-spell h4 {
+    font-size: 0.9em;
+}
+
+
 /* --- ESTILOS PARA FUTURA DISTRIBUIÇÃO DE PONTOS --- */
 .point-dist-label {
     display: block;

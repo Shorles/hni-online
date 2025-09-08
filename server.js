@@ -145,29 +145,21 @@ function createNewFighterState(data) {
 
         fighter.sheet = data;
 
-        // Adicionar informações de Nível, XP, Dinheiro e Inventário
         fighter.level = data.level || 1;
         fighter.xp = data.xp || 0;
-        fighter.xpNeeded = data.xpNeeded || 100; // XP para o nível 2
+        fighter.xpNeeded = data.xpNeeded || 100;
         fighter.money = data.money !== undefined ? data.money : 200;
 
-        if (!data.inventory) {
-            fighter.inventory = {};
-            const equip = data.equipment;
-            if (equip.weapon1.type !== 'Desarmado') fighter.inventory[equip.weapon1.type] = { type: 'weapon', name: equip.weapon1.type, quantity: 1 };
-            if (equip.weapon2.type !== 'Desarmado' && equip.weapon1.type !== equip.weapon2.type) fighter.inventory[equip.weapon2.type] = { type: 'weapon', name: equip.weapon2.type, quantity: 1 };
-            if (equip.armor !== 'Nenhuma') fighter.inventory[equip.armor] = { type: 'armor', name: equip.armor, quantity: 1 };
-            if (equip.shield !== 'Nenhum') fighter.inventory[equip.shield] = { type: 'shield', name: equip.shield, quantity: 1 };
-        } else {
-            fighter.inventory = data.inventory;
-        }
+        // A lógica do inventário agora é tratada quando a ficha é finalizada.
+        // Se já existe um inventário (carregado de um save), mantém.
+        fighter.inventory = data.inventory || {};
 
 
     } else { // NPC
-        fighter.level = 1; // NPCs podem ter nível se necessário no futuro
+        fighter.level = 1;
         fighter.sheet = {
             finalAttributes: {},
-            equipment: data.equipment || { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
+            equipment: data.equipment || { weapon1: {type: 'Desarmado', name: ''}, weapon2: {type: 'Desarmado', name: ''}, armor: 'Nenhuma', shield: 'Nenhum' },
             spells: data.spells || []
         };
         
@@ -711,10 +703,8 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${resourceDamage}`, type: 'damage-mahou' });
                 logMessage(state, `${spell.name} drena ${resourceDamage} de Mahou!`, 'hit');
 
-                // Lógica de recuperação para o atacante
                 if (spell.name === 'Dreno de Energia') {
                     attacker.mahou = Math.min(attacker.mahouMax, attacker.mahou + 1);
-                    // Não precisa de log ou texto flutuante para uma recuperação tão pequena, a menos que seja solicitado.
                 }
 
                 Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll: resourceDamage, resourceDamage });
@@ -742,11 +732,11 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             recalculateFighterStats(target);
             break;
 
-        case 'dot': // CORREÇÃO AQUI
+        case 'dot':
             target.activeEffects.push({
                 name: spell.name,
                 type: spell.effect.type,
-                duration: spell.effect.duration + 1, // +1 porque a duração diminui no início do turno
+                duration: spell.effect.duration + 1,
                 ...spell.effect
             });
             break;
@@ -807,7 +797,6 @@ function getFullState(room) {
 }
 
 io.on('connection', (socket) => {
-    // --- NOVO: ENVIA TODOS OS DADOS INICIAIS DE UMA VEZ ---
     socket.emit('initialData', { 
         rules: GAME_RULES,
         spells: ALL_SPELLS,
@@ -923,15 +912,28 @@ io.on('connection', (socket) => {
         if (action.type === 'playerFinalizesCharacter') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (playerInfo) {
-                // Monta o inventário inicial ao finalizar a ficha
                 const initialInventory = {};
                 const equip = action.characterData.equipment;
-                if (equip.weapon1.type !== 'Desarmado') initialInventory[equip.weapon1.type] = { type: 'weapon', name: equip.weapon1.type, quantity: 1 };
-                if (equip.weapon2.type !== 'Desarmado' && equip.weapon1.type !== equip.weapon2.type) initialInventory[equip.weapon2.type] = { type: 'weapon', name: equip.weapon2.type, quantity: 1 };
-                if (equip.armor !== 'Nenhuma') initialInventory[equip.armor] = { type: 'armor', name: equip.armor, quantity: 1 };
-                if (equip.shield !== 'Nenhum') initialInventory[equip.shield] = { type: 'shield', name: equip.shield, quantity: 1 };
+        
+                const addItemToInventory = (item, type, baseType) => {
+                    const itemName = item.name || item.type;
+                    if (itemName !== 'Desarmado' && itemName !== 'Nenhuma' && itemName !== 'Nenhum') {
+                        initialInventory[itemName] = {
+                            type: type,
+                            name: itemName,
+                            baseType: baseType,
+                            quantity: 1
+                        };
+                    }
+                };
+        
+                addItemToInventory(equip.weapon1, 'weapon', equip.weapon1.type);
+                addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type);
+                addItemToInventory({ type: equip.armor }, 'armor', equip.armor);
+                addItemToInventory({ type: equip.shield }, 'shield', equip.shield);
+        
                 action.characterData.inventory = initialInventory;
-
+        
                 playerInfo.characterSheet = action.characterData;
                 playerInfo.characterName = action.characterData.name;
                 playerInfo.characterFinalized = true;
@@ -1101,22 +1103,24 @@ io.on('connection', (socket) => {
                     case 'end_turn':
                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
                             advanceTurn(adventureState, roomId);
-                            shouldUpdate = false; // advanceTurn já emite a atualização
+                            shouldUpdate = false;
                         }
                         break;
                     case 'changeEquipment':
                         const playerFighter = getFighter(adventureState, socket.id);
-                        if (playerFighter && adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
-                            playerFighter.pa -= 3;
-                            playerFighter.sheet.equipment = action.newEquipment;
-                            recalculateFighterStats(playerFighter);
-                            logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
-                        } else if (playerFighter && currentGameState.mode !== 'adventure') {
-                             playerFighter.sheet.equipment = action.newEquipment;
-                             recalculateFighterStats(playerFighter);
-                             logMessage(adventureState, `${playerFighter.nome} trocou de equipamento fora de combate.`);
-                        } else {
-                            shouldUpdate = false; // Não atualiza se não tiver PA ou não for o turno
+                        if (playerFighter) {
+                             if (currentGameState.mode === 'adventure' && adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
+                                playerFighter.pa -= 3;
+                                playerFighter.sheet.equipment = action.newEquipment;
+                                recalculateFighterStats(playerFighter);
+                                logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
+                            } else if (currentGameState.mode !== 'adventure') {
+                                playerFighter.sheet.equipment = action.newEquipment;
+                                recalculateFighterStats(playerFighter);
+                                logMessage(adventureState, `${playerFighter.nome} trocou de equipamento fora de combate.`);
+                            } else {
+                                shouldUpdate = false;
+                            }
                         }
                         break;
                 }
@@ -1124,11 +1128,10 @@ io.on('connection', (socket) => {
 
             case 'theater':
                  const theaterState = activeState;
-                 if (action.type === 'changeEquipment') { // Troca de equipamento fora de combate
+                 if (action.type === 'changeEquipment') {
                     const playerLobbyInfo = lobbyState.connectedPlayers[socket.id];
                     if (playerLobbyInfo && playerLobbyInfo.characterSheet) {
                          playerLobbyInfo.characterSheet.equipment = action.newEquipment;
-                         // A recalculação de stats não é tão crítica aqui, mas pode ser feita se necessário
                          logMessage(theaterState, `${playerLobbyInfo.characterName} trocou de equipamento.`);
                     }
                  }

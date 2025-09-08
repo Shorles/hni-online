@@ -133,13 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function getFighter(state, key) {
         if (!state || !key) return null;
     
-        // Modo Aventura tem a estrutura de combatentes mais detalhada.
         if (state.mode === 'adventure' && state.fighters) {
             const fighter = state.fighters.players[key] || state.fighters.npcs[key];
             if (fighter) return fighter;
         }
     
-        // Para outros modos (Lobby, Theater) ou como fallback, pegamos a ficha do jogador.
         if (state.connectedPlayers && state.connectedPlayers[key] && state.connectedPlayers[key].characterSheet) {
             const sheet = state.connectedPlayers[key].characterSheet;
             const fighterInBattle = state.fighters?.players[key];
@@ -185,8 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (amIPlayerAndFinalized) {
             const myFighterData = getFighter(gameState, myPlayerKey);
             if (myFighterData) {
-                const tokenImg = myFighterData.tokenImg || myFighterData.img;
-                const charName = myFighterData.nome || myFighterData.name;
+                const tokenImg = myFighterData.sheet.tokenImg || myFighterData.img;
+                const charName = myFighterData.sheet.name || myFighterData.nome;
                 document.getElementById('player-info-token').style.backgroundImage = `url('${tokenImg}')`;
                 document.getElementById('player-info-name').textContent = charName;
             }
@@ -762,18 +760,18 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
 
-        const weapon1 = attacker.sheet.equipment.weapon1.type;
-        const weapon2 = attacker.sheet.equipment.weapon2.type;
-        const isDualWielding = weapon1 !== 'Desarmado' && weapon2 !== 'Desarmado';
+        const weapon1 = attacker.sheet.equipment.weapon1;
+        const weapon2 = attacker.sheet.equipment.weapon2;
+        const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
         
         if (isDualWielding) {
             showCustomModal('Escolha seu Ataque', 'Você está empunhando duas armas.', [
-                { text: `Atacar com ${weapon1}`, closes: true, onClick: () => {
+                { text: `Atacar com ${weapon1.name}`, closes: true, onClick: () => {
                     targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: 'weapon1' };
                     isTargeting = true;
                     document.getElementById('targeting-indicator').classList.remove('hidden');
                 }},
-                { text: `Atacar com ${weapon2}`, closes: true, onClick: () => {
+                { text: `Atacar com ${weapon2.name}`, closes: true, onClick: () => {
                     targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: 'weapon2' };
                     isTargeting = true;
                     document.getElementById('targeting-indicator').classList.remove('hidden');
@@ -1222,7 +1220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const focusedEl = document.activeElement;
-            if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA' || focusedEl.tagName === 'SELECT') {
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(focusedEl.tagName)) {
                 return;
             }
             
@@ -1426,7 +1424,7 @@ document.addEventListener('DOMContentLoaded', () => {
              weaponBtaMod = Math.min(weapon1Data.bta, weapon2Data.bta);
         }
         bta += weaponBtaMod;
-        bta += armorData.esq_mod; // usa o mesmo mod de esquiva como penalidade
+        bta += armorData.esq_mod;
         bta += shieldData.esq_mod;
         document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
 
@@ -1523,7 +1521,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 finalAttributes[label] = value;
             });
 
-            const money = parseInt(document.getElementById('sheet-money-copper').textContent, 10)
+            const money = parseInt(document.getElementById('sheet-money-copper').textContent, 10);
+            
+            const weapon1Type = document.getElementById('sheet-weapon1-type').value;
+            const weapon1Name = document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type;
+            const weapon2Type = document.getElementById('sheet-weapon2-type').value;
+            const weapon2Name = document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type;
+
 
             const finalSheet = {
                  name: document.getElementById('sheet-name').value,
@@ -1550,8 +1554,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
                  },
                  equipment: {
-                    weapon1: { name: document.getElementById('sheet-weapon1-name').value, type: document.getElementById('sheet-weapon1-type').value },
-                    weapon2: { name: document.getElementById('sheet-weapon2-name').value, type: document.getElementById('sheet-weapon2-type').value },
+                    weapon1: { name: weapon1Name, type: weapon1Type },
+                    weapon2: { name: weapon2Name, type: weapon2Type },
                     armor: document.getElementById('sheet-armor-type').value,
                     shield: document.getElementById('sheet-shield-type').value
                  },
@@ -1587,6 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
             populateIngameSheet(myFighterData);
             modal.classList.remove('hidden');
         } else {
+            modal.classList.add('hidden');
             handleEquipmentChangeConfirmation();
         }
     }
@@ -1598,46 +1603,66 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
         const canEditEquipment = !isAdventureMode || isMyTurn;
     
-        // Informações básicas
-        document.getElementById('ingame-sheet-name').textContent = fighter.nome || fighter.name;
-        document.getElementById('ingame-sheet-token').style.backgroundImage = `url('${fighter.img || fighter.tokenImg}')`;
+        document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
+        document.getElementById('ingame-sheet-token').style.backgroundImage = `url('${fighter.sheet.tokenImg || fighter.img}')`;
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
         document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
         document.getElementById('ingame-sheet-xp-needed').textContent = fighter.xpNeeded || 100;
         document.getElementById('ingame-sheet-money').textContent = fighter.money !== undefined ? fighter.money : 0;
     
-        // Equipamentos
-        const populateEquipSelect = (selectId, type, nullOption, inventory) => {
-            const select = document.getElementById(selectId);
-            select.innerHTML = '';
-            const ownedItems = Object.values(inventory).filter(item => item.type === type);
+        const inventory = fighter.inventory || {};
+        const equipment = fighter.sheet.equipment;
     
-            const defaultOption = document.createElement('option');
-            defaultOption.value = nullOption;
-            defaultOption.textContent = nullOption;
-            select.appendChild(defaultOption);
+        const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
+        const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
+        const armorSelect = document.getElementById('ingame-sheet-armor-type');
+        const shieldSelect = document.getElementById('ingame-sheet-shield-type');
     
-            ownedItems.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.name;
-                option.textContent = item.name;
-                select.appendChild(option);
+        const populateSelect = (selectEl, itemType, nullOption, equippedItemsToExclude = []) => {
+            selectEl.innerHTML = '';
+            const items = Object.values(inventory).filter(item => item.type === itemType);
+    
+            const noneOpt = document.createElement('option');
+            noneOpt.value = nullOption;
+            noneOpt.textContent = nullOption;
+            selectEl.appendChild(noneOpt);
+    
+            items.forEach(item => {
+                if (!equippedItemsToExclude.includes(item.name)) {
+                    const opt = document.createElement('option');
+                    opt.value = item.name;
+                    opt.textContent = `${item.name} (${item.baseType})`;
+                    selectEl.appendChild(opt);
+                }
             });
-            select.disabled = !canEditEquipment;
+            selectEl.disabled = !canEditEquipment;
         };
     
-        const inventory = fighter.inventory || {};
-        populateEquipSelect('ingame-sheet-weapon1-type', 'weapon', 'Desarmado', inventory);
-        populateEquipSelect('ingame-sheet-weapon2-type', 'weapon', 'Desarmado', inventory);
-        populateEquipSelect('ingame-sheet-armor-type', 'armor', 'Nenhuma', inventory);
-        populateEquipSelect('ingame-sheet-shield-type', 'shield', 'Nenhum', inventory);
+        populateSelect(armorSelect, 'armor', 'Nenhuma');
+        populateSelect(shieldSelect, 'shield', 'Nenhum');
     
-        document.getElementById('ingame-sheet-weapon1-type').value = fighter.sheet.equipment.weapon1.type;
-        document.getElementById('ingame-sheet-weapon2-type').value = fighter.sheet.equipment.weapon2.type;
-        document.getElementById('ingame-sheet-armor-type').value = fighter.sheet.equipment.armor;
-        document.getElementById('ingame-sheet-shield-type').value = fighter.sheet.equipment.shield;
+        const updateWeaponSelects = () => {
+            const weapon1Value = weapon1Select.value;
+            const weapon2Value = weapon2Select.value;
+            
+            populateSelect(weapon1Select, 'weapon', 'Desarmado', weapon2Value !== 'Desarmado' ? [weapon2Value] : []);
+            populateSelect(weapon2Select, 'weapon', 'Desarmado', weapon1Value !== 'Desarmado' ? [weapon1Value] : []);
+            
+            weapon1Select.value = weapon1Value;
+            weapon2Select.value = weapon2Value;
+        };
     
-        // Atributos
+        weapon1Select.onchange = updateWeaponSelects;
+        weapon2Select.onchange = updateWeaponSelects;
+    
+        populateSelect(weapon1Select, 'weapon', 'Desarmado');
+        populateSelect(weapon2Select, 'weapon', 'Desarmado');
+        weapon1Select.value = equipment.weapon1.name;
+        weapon2Select.value = equipment.weapon2.name;
+        armorSelect.value = equipment.armor;
+        shieldSelect.value = equipment.shield;
+        updateWeaponSelects();
+    
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
         const finalAttributes = fighter.sheet.finalAttributes || {};
@@ -1646,7 +1671,6 @@ document.addEventListener('DOMContentLoaded', () => {
             attributesGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${finalAttributes[attr]}</span></div>`;
         }
     
-        // Elementos
         const elementsGrid = document.getElementById('ingame-sheet-elements');
         elementsGrid.innerHTML = '';
         const elements = fighter.sheet.elements || {};
@@ -1657,7 +1681,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     
-        // Inventário
         const inventoryGrid = document.getElementById('inventory-grid');
         inventoryGrid.innerHTML = '';
         const MAX_SLOTS = 24;
@@ -1666,7 +1689,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const slot = document.createElement('div');
             slot.className = 'inventory-slot item';
             slot.title = `${item.name} (${item.type})`;
-            const imgName = item.name.replace(/\s+/g, '_') + '.png';
+            const imgName = item.baseType.replace(/\s+/g, '_') + '.png';
             slot.style.backgroundImage = `url('images/itens/${imgName}')`;
     
             if (item.quantity > 1) {
@@ -1681,32 +1704,60 @@ document.addEventListener('DOMContentLoaded', () => {
             emptySlot.className = 'inventory-slot';
             inventoryGrid.appendChild(emptySlot);
         }
+
+        const spellsGrid = document.getElementById('ingame-sheet-spells-grid');
+        spellsGrid.innerHTML = '';
+        const spells = fighter.sheet.spells || [];
+        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+        
+        if (spells.length > 0) {
+            spells.forEach(spellName => {
+                const spellData = allSpells.find(s => s.name === spellName);
+                if(spellData) {
+                    const card = document.createElement('div');
+                    card.className = 'spell-card ingame-spell';
+                    card.dataset.spellName = spellData.name;
+                    card.title = spellData.description;
+                    const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
+                    card.innerHTML = `<h4>${spellData.name} <small>${spellType}</small></h4>`;
+                    spellsGrid.appendChild(card);
+                }
+            });
+        } else {
+            spellsGrid.innerHTML = `<p style="color: #888; text-align: center; grid-column: 1 / -1;">Nenhuma magia conhecida.</p>`;
+        }
     }
     
     function handleEquipmentChangeConfirmation() {
-        const modal = document.getElementById('ingame-sheet-modal');
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        if (!myFighter) return;
         
+        const inventory = myFighter.inventory || {};
+        const getBaseType = (itemName, itemType) => {
+            if (itemName === 'Desarmado' || itemName === 'Nenhuma' || itemName === 'Nenhum') return itemName;
+            return inventory[itemName]?.baseType || itemType;
+        };
+
         const newEquipment = {
-            weapon1: { type: document.getElementById('ingame-sheet-weapon1-type').value, name: '' },
-            weapon2: { type: document.getElementById('ingame-sheet-weapon2-type').value, name: '' },
+            weapon1: { 
+                name: document.getElementById('ingame-sheet-weapon1-type').value, 
+                type: getBaseType(document.getElementById('ingame-sheet-weapon1-type').value, 'weapon')
+            },
+            weapon2: { 
+                name: document.getElementById('ingame-sheet-weapon2-type').value,
+                type: getBaseType(document.getElementById('ingame-sheet-weapon2-type').value, 'weapon')
+            },
             armor: document.getElementById('ingame-sheet-armor-type').value,
             shield: document.getElementById('ingame-sheet-shield-type').value,
         };
     
         const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
     
-        if (!hasChanged) {
-            modal.classList.add('hidden');
-            return;
-        }
+        if (!hasChanged) return;
     
-        const myFighter = getFighter(currentGameState, myPlayerKey);
-        
         if (currentGameState.mode === 'adventure') {
             if (myFighter.pa < 3) {
-                showInfoModal("Aviso", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações foram revertidas.");
-                // A reversão acontecerá visualmente na próxima vez que a ficha for aberta
-                modal.classList.add('hidden');
+                showInfoModal("Ação Bloqueada", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações não foram salvas.");
                 return;
             }
     
@@ -1716,17 +1767,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 [
                     { text: 'Sim, Gastar 3 PA', closes: true, onClick: () => {
                         socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
-                        modal.classList.add('hidden');
                     }},
-                    { text: 'Não, Cancelar', closes: true, className: 'btn-danger', onClick: () => {
-                        // Apenas fecha, a reversão visual ocorrerá na próxima abertura
-                        modal.classList.add('hidden');
-                    }}
+                    { text: 'Não, Cancelar', closes: true, className: 'btn-danger' }
                 ]
             );
-        } else { // Modo Cenário ou outro modo sem custo de PA
+        } else {
             socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
-            modal.classList.add('hidden');
         }
     }
 
@@ -2069,8 +2115,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
         document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
-
-        // O 'change' event não é mais necessário aqui, a lógica foi movida para o botão de fechar.
     }
     
     initialize();
