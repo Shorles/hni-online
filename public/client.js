@@ -130,20 +130,42 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('targeting-indicator').classList.add('hidden');
     }
     function getFighter(state, key) {
-        if (!state || (!state.fighters && !state.connectedPlayers)) return null;
-        
-        // Em modo aventura, os dados estão em 'fighters'
+        if (!state || !key) return null;
+    
+        // Modo Aventura tem a estrutura de combatentes mais detalhada.
         if (state.mode === 'adventure' && state.fighters) {
-             return state.fighters.players[key] || state.fighters.npcs[key];
-        } 
-        
-        // Em modo cenário ou lobby, os dados da ficha estão em 'connectedPlayers'
-        if (state.connectedPlayers && state.connectedPlayers[key]) {
-            return state.connectedPlayers[key].characterSheet;
+            const fighter = state.fighters.players[key] || state.fighters.npcs[key];
+            if (fighter) return fighter;
         }
-
+    
+        // Para outros modos (Lobby, Theater) ou como fallback, pegamos a ficha do jogador.
+        if (state.connectedPlayers && state.connectedPlayers[key] && state.connectedPlayers[key].characterSheet) {
+            // No modo aventura, precisamos dos dados de combate (hp, mahou) que podem estar na ficha.
+            const sheet = state.connectedPlayers[key].characterSheet;
+            const fighterInBattle = state.fighters?.players[key];
+    
+            // Se o jogador estiver na batalha, mescla os dados de HP/Mahou atuais com a ficha completa.
+            if (fighterInBattle) {
+                return {
+                    ...fighterInBattle,
+                    sheet: sheet // Garante que a ficha completa está sempre presente
+                };
+            }
+    
+            // Se não, retorna a ficha como está.
+            return {
+                id: key,
+                nome: sheet.name,
+                img: sheet.tokenImg,
+                isPlayer: true,
+                sheet: sheet,
+                ...sheet // Espalha as propriedades da ficha para acesso fácil
+            };
+        }
+    
         return null;
     }
+
 
     // =================================================================
     // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
@@ -1354,22 +1376,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let armorType = document.getElementById('sheet-armor-type').value;
         let shieldType = document.getElementById('sheet-shield-type').value;
 
-        let maxAttrPoints = 5 + (raceData.bon.escolha || 0);
-        const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
-        const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
-        document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
-        document.querySelectorAll('#attribute-points-header ~ .attributes-grid .up-arrow').forEach(btn => btn.disabled = attrPointsRemaining <= 0);
-
-        const maxElemPoints = 2;
-        const totalElemPoints = Object.values(elements).reduce((sum, val) => sum + val, 0);
-        const elemPointsRemaining = maxElemPoints - totalElemPoints;
-        document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
-        document.querySelectorAll('.elements-grid .up-arrow').forEach(btn => btn.disabled = elemPointsRemaining <= 0);
-
-        let finalAttributes = { ...baseAttributes };
-        if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
-        if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
-
         let weapon1Data = GAME_RULES.weapons[weapon1Type];
         let weapon2Data = GAME_RULES.weapons[weapon2Type];
         let armorData = GAME_RULES.armors[armorType];
@@ -1387,6 +1393,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
         
+        let maxAttrPoints = 5 + (raceData.bon.escolha || 0);
+        const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
+        const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
+        document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
+        document.querySelectorAll('#attribute-points-header ~ .attributes-grid .up-arrow').forEach(btn => btn.disabled = attrPointsRemaining <= 0);
+
+        const maxElemPoints = 2;
+        const totalElemPoints = Object.values(elements).reduce((sum, val) => sum + val, 0);
+        const elemPointsRemaining = maxElemPoints - totalElemPoints;
+        document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
+        document.querySelectorAll('.elements-grid .up-arrow').forEach(btn => btn.disabled = elemPointsRemaining <= 0);
+
+        let finalAttributes = { ...baseAttributes };
+        if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
+        if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
+
         let infoText = '';
         const weapon1Is2H = weapon1Data.hand === 2;
         if (weapon1Is2H && finalAttributes.forca < 4) {
@@ -1556,6 +1578,127 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
+
+    function toggleIngameSheet() {
+        const modal = document.getElementById('ingame-sheet-modal');
+        if (!modal || !currentGameState) return;
+    
+        const myFighterData = getFighter(currentGameState, myPlayerKey);
+        if (!myFighterData) return;
+    
+        const isHidden = modal.classList.contains('hidden');
+        if (isHidden) {
+            populateIngameSheet(myFighterData);
+            modal.classList.remove('hidden');
+        } else {
+            modal.classList.add('hidden');
+        }
+    }
+    
+    function populateIngameSheet(fighter) {
+        if (!fighter || !fighter.sheet) return;
+    
+        // Informações básicas
+        document.getElementById('ingame-sheet-name').textContent = fighter.nome || fighter.name;
+        document.getElementById('ingame-sheet-token').style.backgroundImage = `url('${fighter.img || fighter.tokenImg}')`;
+        document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
+        document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
+        document.getElementById('ingame-sheet-xp-needed').textContent = fighter.xpNeeded || 100;
+        document.getElementById('ingame-sheet-money').textContent = fighter.money !== undefined ? fighter.money : 0;
+    
+        // Equipamentos
+        const populateEquipSelect = (selectId, type) => {
+            const select = document.getElementById(selectId);
+            select.innerHTML = ''; 
+            Object.keys(GAME_RULES[type]).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = key;
+                select.appendChild(option);
+            });
+        };
+        populateEquipSelect('ingame-sheet-weapon1-type', 'weapons');
+        populateEquipSelect('ingame-sheet-weapon2-type', 'weapons');
+        populateEquipSelect('ingame-sheet-armor-type', 'armors');
+        populateEquipSelect('ingame-sheet-shield-type', 'shields');
+
+        document.getElementById('ingame-sheet-weapon1-type').value = fighter.sheet.equipment.weapon1.type;
+        document.getElementById('ingame-sheet-weapon2-type').value = fighter.sheet.equipment.weapon2.type;
+        document.getElementById('ingame-sheet-armor-type').value = fighter.sheet.equipment.armor;
+        document.getElementById('ingame-sheet-shield-type').value = fighter.sheet.equipment.shield;
+    
+        // Atributos
+        const attributesGrid = document.getElementById('ingame-sheet-attributes');
+        attributesGrid.innerHTML = '';
+        const finalAttributes = fighter.sheet.finalAttributes || {};
+        for (const attr in finalAttributes) {
+            const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1);
+            attributesGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${finalAttributes[attr]}</span></div>`;
+        }
+    
+        // Elementos
+        const elementsGrid = document.getElementById('ingame-sheet-elements');
+        elementsGrid.innerHTML = '';
+        const elements = fighter.sheet.elements || {};
+        for (const elem in elements) {
+            if (elements[elem] > 0) {
+                 const capitalized = elem.charAt(0).toUpperCase() + elem.slice(1);
+                elementsGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${elements[elem]}</span></div>`;
+            }
+        }
+    
+        // Inventário
+        const inventoryGrid = document.getElementById('inventory-grid');
+        inventoryGrid.innerHTML = '';
+        const inventory = fighter.inventory || {};
+        const MAX_SLOTS = 24; 
+    
+        Object.values(inventory).forEach(item => {
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot item';
+            slot.title = `${item.name} (${item.type})`;
+            // Assumindo que o nome do item corresponderá a um arquivo de imagem na pasta 'itens'
+            const imgName = item.name.replace(/\s+/g, '_') + '.png';
+            slot.style.backgroundImage = `url('images/itens/${imgName}')`;
+    
+            if (item.quantity > 1) {
+                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
+            }
+            inventoryGrid.appendChild(slot);
+        });
+    
+        const filledSlots = Object.keys(inventory).length;
+        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
+            const emptySlot = document.createElement('div');
+            emptySlot.className = 'inventory-slot';
+            inventoryGrid.appendChild(emptySlot);
+        }
+    }
+
+    function handleChangeEquipment() {
+        const newEquipment = {
+            weapon1: { type: document.getElementById('ingame-sheet-weapon1-type').value, name: '' },
+            weapon2: { type: document.getElementById('ingame-sheet-weapon2-type').value, name: '' },
+            armor: document.getElementById('ingame-sheet-armor-type').value,
+            shield: document.getElementById('ingame-sheet-shield-type').value,
+        };
+
+        // Lógica de validação (ex: 2 mãos com escudo) pode ser adicionada aqui se necessário.
+
+        socket.emit('playerAction', {
+            type: 'changeEquipment',
+            newEquipment: newEquipment
+        });
+
+        // Opcional: Desabilitar os selects temporariamente para evitar spam
+        document.querySelectorAll('.ingame-sheet-equipment select').forEach(s => s.disabled = true);
+        setTimeout(() => {
+            document.querySelectorAll('.ingame-sheet-equipment select').forEach(s => s.disabled = false);
+        }, 1000); // Reabilita após 1 segundo
+    }
+
+
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
         GAME_RULES = data.rules;
