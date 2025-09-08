@@ -1,4 +1,4 @@
-// client.js
+/ client.js
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- VARIÁVEIS DE REGRAS DO JOGO (CARREGADAS DE JSON) ---
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalButton.onclick = () => modal.classList.add('hidden');
     }
     function showCustomModal(title, contentHtml, buttons) {
-        document.getElementById('modal-title').innerHTML = title; // Changed to innerHTML
+        document.getElementById('modal-title').innerHTML = title;
         document.getElementById('modal-text').innerHTML = contentHtml;
         document.getElementById('modal-button').classList.add('hidden');
         
@@ -1524,10 +1524,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const money = parseInt(document.getElementById('sheet-money-copper').textContent, 10);
             
             const weapon1Type = document.getElementById('sheet-weapon1-type').value;
-            const weapon1Name = document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type;
+            const weapon1Name = weapon1Type === 'Desarmado' ? 'Desarmado' : (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type);
             const weapon2Type = document.getElementById('sheet-weapon2-type').value;
-            const weapon2Name = document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type;
-
+            const weapon2Name = weapon2Type === 'Desarmado' ? 'Desarmado' : (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type);
 
             const finalSheet = {
                  name: document.getElementById('sheet-name').value,
@@ -1592,7 +1591,8 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
         } else {
             modal.classList.add('hidden');
-            handleEquipmentChangeConfirmation();
+            // A confirmação é chamada DEPOIS de fechar para evitar o bug de travamento
+            setTimeout(handleEquipmentChangeConfirmation, 50); 
         }
     }
     
@@ -1631,7 +1631,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!equippedItemsToExclude.includes(item.name)) {
                     const opt = document.createElement('option');
                     opt.value = item.name;
-                    opt.textContent = `${item.name} (${item.baseType})`;
+                    // Mostra o nome customizado e o tipo base entre parênteses
+                    opt.textContent = item.name === item.baseType ? item.name : `${item.name} (${item.baseType})`;
                     selectEl.appendChild(opt);
                 }
             });
@@ -1655,13 +1656,14 @@ document.addEventListener('DOMContentLoaded', () => {
         weapon1Select.onchange = updateWeaponSelects;
         weapon2Select.onchange = updateWeaponSelects;
     
+        // População inicial
         populateSelect(weapon1Select, 'weapon', 'Desarmado');
         populateSelect(weapon2Select, 'weapon', 'Desarmado');
         weapon1Select.value = equipment.weapon1.name;
         weapon2Select.value = equipment.weapon2.name;
         armorSelect.value = equipment.armor;
         shieldSelect.value = equipment.shield;
-        updateWeaponSelects();
+        updateWeaponSelects(); // Executa para garantir que a exclusão inicial funcione
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
@@ -1717,9 +1719,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const card = document.createElement('div');
                     card.className = 'spell-card ingame-spell';
                     card.dataset.spellName = spellData.name;
-                    card.title = spellData.description;
                     const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
-                    card.innerHTML = `<h4>${spellData.name} <small>${spellType}</small></h4>`;
+                    card.innerHTML = `<h4>${spellData.name} <small>${spellType}</small></h4><p>${spellData.description}</p>`;
                     spellsGrid.appendChild(card);
                 }
             });

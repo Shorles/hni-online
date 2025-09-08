@@ -150,8 +150,6 @@ function createNewFighterState(data) {
         fighter.xpNeeded = data.xpNeeded || 100;
         fighter.money = data.money !== undefined ? data.money : 200;
 
-        // A lógica do inventário agora é tratada quando a ficha é finalizada.
-        // Se já existe um inventário (carregado de um save), mantém.
         fighter.inventory = data.inventory || {};
 
 
@@ -289,7 +287,6 @@ function calculateESQ(fighter) {
     Object.assign(details, agiBreakdown.details);
     details['Base'] = 10;
     
-    // Lógica de equipamento omitida para brevidade, mas funciona da mesma forma
     return { value: total, details };
 }
 
@@ -916,11 +913,11 @@ io.on('connection', (socket) => {
                 const equip = action.characterData.equipment;
         
                 const addItemToInventory = (item, type, baseType) => {
-                    const itemName = item.name || item.type;
-                    if (itemName !== 'Desarmado' && itemName !== 'Nenhuma' && itemName !== 'Nenhum') {
-                        initialInventory[itemName] = {
+                    if (baseType !== 'Desarmado' && baseType !== 'Nenhuma' && baseType !== 'Nenhum') {
+                        // Usa o nome customizado como chave única no inventário.
+                        initialInventory[item.name] = {
                             type: type,
-                            name: itemName,
+                            name: item.name,
                             baseType: baseType,
                             quantity: 1
                         };
@@ -928,9 +925,12 @@ io.on('connection', (socket) => {
                 };
         
                 addItemToInventory(equip.weapon1, 'weapon', equip.weapon1.type);
-                addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type);
-                addItemToInventory({ type: equip.armor }, 'armor', equip.armor);
-                addItemToInventory({ type: equip.shield }, 'shield', equip.shield);
+                // Evita adicionar a segunda arma se for a mesma que a primeira (caso de arma de 2 mãos)
+                if (equip.weapon1.name !== equip.weapon2.name) {
+                    addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type);
+                }
+                addItemToInventory({ name: equip.armor, type: equip.armor }, 'armor', equip.armor);
+                addItemToInventory({ name: equip.shield, type: equip.shield }, 'shield', equip.shield);
         
                 action.characterData.inventory = initialInventory;
         
@@ -1109,12 +1109,12 @@ io.on('connection', (socket) => {
                     case 'changeEquipment':
                         const playerFighter = getFighter(adventureState, socket.id);
                         if (playerFighter) {
-                             if (currentGameState.mode === 'adventure' && adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
+                             if (room.activeMode === 'adventure' && adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
                                 playerFighter.pa -= 3;
                                 playerFighter.sheet.equipment = action.newEquipment;
                                 recalculateFighterStats(playerFighter);
                                 logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
-                            } else if (currentGameState.mode !== 'adventure') {
+                            } else if (room.activeMode !== 'adventure') {
                                 playerFighter.sheet.equipment = action.newEquipment;
                                 recalculateFighterStats(playerFighter);
                                 logMessage(adventureState, `${playerFighter.nome} trocou de equipamento fora de combate.`);

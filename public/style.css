@@ -711,11 +711,11 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 
 .spell-card.ingame-spell {
-    cursor: help;
+    cursor: default;
     border-color: #444;
 }
-.spell-card.ingame-spell h4 {
-    font-size: 0.9em;
+.spell-card.ingame-spell p {
+    display: block; /* Garante que a descrição seja exibida */
 }
 
 
