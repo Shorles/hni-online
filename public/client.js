@@ -1,4 +1,4 @@
-/ client.js
+// client.js
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- VARIÁVEIS DE REGRAS DO JOGO (CARREGADAS DE JSON) ---
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalButton.onclick = () => modal.classList.add('hidden');
     }
     function showCustomModal(title, contentHtml, buttons) {
-        document.getElementById('modal-title').innerHTML = title;
+        document.getElementById('modal-title').innerHTML = title; // Changed to innerHTML
         document.getElementById('modal-text').innerHTML = contentHtml;
         document.getElementById('modal-button').classList.add('hidden');
         
@@ -753,7 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const attacker = getFighter(currentGameState, currentGameState.activeCharacterKey);
         if (!attacker) return;
 
-        if (!attacker.isPlayer) { // Logic for NPCs
+        if (!attacker.isPlayer) {
              targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: 'weapon1' };
              isTargeting = true;
              document.getElementById('targeting-indicator').classList.remove('hidden');
@@ -1631,7 +1631,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!equippedItemsToExclude.includes(item.name)) {
                     const opt = document.createElement('option');
                     opt.value = item.name;
-                    // Mostra o nome customizado e o tipo base entre parênteses
                     opt.textContent = item.name === item.baseType ? item.name : `${item.name} (${item.baseType})`;
                     selectEl.appendChild(opt);
                 }
@@ -1663,7 +1662,7 @@ document.addEventListener('DOMContentLoaded', () => {
         weapon2Select.value = equipment.weapon2.name;
         armorSelect.value = equipment.armor;
         shieldSelect.value = equipment.shield;
-        updateWeaponSelects(); // Executa para garantir que a exclusão inicial funcione
+        updateWeaponSelects();
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
