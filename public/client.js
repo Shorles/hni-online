@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isSelectingBox = false;
     let selectionBoxStartPos = { x: 0, y: 0 };
     let isGmDebugModeActive = false;
+    let originalEquipmentState = null; // Para reverter a troca de equipamento
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -140,26 +141,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
         // Para outros modos (Lobby, Theater) ou como fallback, pegamos a ficha do jogador.
         if (state.connectedPlayers && state.connectedPlayers[key] && state.connectedPlayers[key].characterSheet) {
-            // No modo aventura, precisamos dos dados de combate (hp, mahou) que podem estar na ficha.
             const sheet = state.connectedPlayers[key].characterSheet;
             const fighterInBattle = state.fighters?.players[key];
     
-            // Se o jogador estiver na batalha, mescla os dados de HP/Mahou atuais com a ficha completa.
             if (fighterInBattle) {
-                return {
-                    ...fighterInBattle,
-                    sheet: sheet // Garante que a ficha completa está sempre presente
-                };
+                return { ...fighterInBattle, sheet: sheet };
             }
     
-            // Se não, retorna a ficha como está.
             return {
                 id: key,
                 nome: sheet.name,
                 img: sheet.tokenImg,
                 isPlayer: true,
                 sheet: sheet,
-                ...sheet // Espalha as propriedades da ficha para acesso fácil
+                ...sheet
             };
         }
     
@@ -1227,7 +1222,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const focusedEl = document.activeElement;
-            if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA') {
+            if (focusedEl.tagName === 'INPUT' || focusedEl.tagName === 'TEXTAREA' || focusedEl.tagName === 'SELECT') {
                 return;
             }
             
@@ -1584,20 +1579,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('ingame-sheet-modal');
         if (!modal || !currentGameState) return;
     
-        const myFighterData = getFighter(currentGameState, myPlayerKey);
-        if (!myFighterData) return;
-    
         const isHidden = modal.classList.contains('hidden');
         if (isHidden) {
+            const myFighterData = getFighter(currentGameState, myPlayerKey);
+            if (!myFighterData) return;
+            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment));
             populateIngameSheet(myFighterData);
             modal.classList.remove('hidden');
         } else {
-            modal.classList.add('hidden');
+            handleEquipmentChangeConfirmation();
         }
     }
     
     function populateIngameSheet(fighter) {
         if (!fighter || !fighter.sheet) return;
+    
+        const isAdventureMode = currentGameState.mode === 'adventure';
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
+        const canEditEquipment = !isAdventureMode || isMyTurn;
     
         // Informações básicas
         document.getElementById('ingame-sheet-name').textContent = fighter.nome || fighter.name;
@@ -1608,21 +1607,31 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ingame-sheet-money').textContent = fighter.money !== undefined ? fighter.money : 0;
     
         // Equipamentos
-        const populateEquipSelect = (selectId, type) => {
+        const populateEquipSelect = (selectId, type, nullOption, inventory) => {
             const select = document.getElementById(selectId);
-            select.innerHTML = ''; 
-            Object.keys(GAME_RULES[type]).forEach(key => {
+            select.innerHTML = '';
+            const ownedItems = Object.values(inventory).filter(item => item.type === type);
+    
+            const defaultOption = document.createElement('option');
+            defaultOption.value = nullOption;
+            defaultOption.textContent = nullOption;
+            select.appendChild(defaultOption);
+    
+            ownedItems.forEach(item => {
                 const option = document.createElement('option');
-                option.value = key;
-                option.textContent = key;
+                option.value = item.name;
+                option.textContent = item.name;
                 select.appendChild(option);
             });
+            select.disabled = !canEditEquipment;
         };
-        populateEquipSelect('ingame-sheet-weapon1-type', 'weapons');
-        populateEquipSelect('ingame-sheet-weapon2-type', 'weapons');
-        populateEquipSelect('ingame-sheet-armor-type', 'armors');
-        populateEquipSelect('ingame-sheet-shield-type', 'shields');
-
+    
+        const inventory = fighter.inventory || {};
+        populateEquipSelect('ingame-sheet-weapon1-type', 'weapon', 'Desarmado', inventory);
+        populateEquipSelect('ingame-sheet-weapon2-type', 'weapon', 'Desarmado', inventory);
+        populateEquipSelect('ingame-sheet-armor-type', 'armor', 'Nenhuma', inventory);
+        populateEquipSelect('ingame-sheet-shield-type', 'shield', 'Nenhum', inventory);
+    
         document.getElementById('ingame-sheet-weapon1-type').value = fighter.sheet.equipment.weapon1.type;
         document.getElementById('ingame-sheet-weapon2-type').value = fighter.sheet.equipment.weapon2.type;
         document.getElementById('ingame-sheet-armor-type').value = fighter.sheet.equipment.armor;
@@ -1633,7 +1642,7 @@ document.addEventListener('DOMContentLoaded', () => {
         attributesGrid.innerHTML = '';
         const finalAttributes = fighter.sheet.finalAttributes || {};
         for (const attr in finalAttributes) {
-            const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1);
+            const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1).replace('cao', 'ção');
             attributesGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${finalAttributes[attr]}</span></div>`;
         }
     
@@ -1643,7 +1652,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const elements = fighter.sheet.elements || {};
         for (const elem in elements) {
             if (elements[elem] > 0) {
-                 const capitalized = elem.charAt(0).toUpperCase() + elem.slice(1);
+                 const capitalized = elem.charAt(0).toUpperCase() + elem.slice(1).replace('ao', 'ão');
                 elementsGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${elements[elem]}</span></div>`;
             }
         }
@@ -1651,14 +1660,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Inventário
         const inventoryGrid = document.getElementById('inventory-grid');
         inventoryGrid.innerHTML = '';
-        const inventory = fighter.inventory || {};
-        const MAX_SLOTS = 24; 
+        const MAX_SLOTS = 24;
     
         Object.values(inventory).forEach(item => {
             const slot = document.createElement('div');
             slot.className = 'inventory-slot item';
             slot.title = `${item.name} (${item.type})`;
-            // Assumindo que o nome do item corresponderá a um arquivo de imagem na pasta 'itens'
             const imgName = item.name.replace(/\s+/g, '_') + '.png';
             slot.style.backgroundImage = `url('images/itens/${imgName}')`;
     
@@ -1675,27 +1682,52 @@ document.addEventListener('DOMContentLoaded', () => {
             inventoryGrid.appendChild(emptySlot);
         }
     }
-
-    function handleChangeEquipment() {
+    
+    function handleEquipmentChangeConfirmation() {
+        const modal = document.getElementById('ingame-sheet-modal');
+        
         const newEquipment = {
             weapon1: { type: document.getElementById('ingame-sheet-weapon1-type').value, name: '' },
             weapon2: { type: document.getElementById('ingame-sheet-weapon2-type').value, name: '' },
             armor: document.getElementById('ingame-sheet-armor-type').value,
             shield: document.getElementById('ingame-sheet-shield-type').value,
         };
-
-        // Lógica de validação (ex: 2 mãos com escudo) pode ser adicionada aqui se necessário.
-
-        socket.emit('playerAction', {
-            type: 'changeEquipment',
-            newEquipment: newEquipment
-        });
-
-        // Opcional: Desabilitar os selects temporariamente para evitar spam
-        document.querySelectorAll('.ingame-sheet-equipment select').forEach(s => s.disabled = true);
-        setTimeout(() => {
-            document.querySelectorAll('.ingame-sheet-equipment select').forEach(s => s.disabled = false);
-        }, 1000); // Reabilita após 1 segundo
+    
+        const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
+    
+        if (!hasChanged) {
+            modal.classList.add('hidden');
+            return;
+        }
+    
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        
+        if (currentGameState.mode === 'adventure') {
+            if (myFighter.pa < 3) {
+                showInfoModal("Aviso", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações foram revertidas.");
+                // A reversão acontecerá visualmente na próxima vez que a ficha for aberta
+                modal.classList.add('hidden');
+                return;
+            }
+    
+            showCustomModal(
+                "Confirmar Mudança de Equipamento",
+                "Trocar de equipamento durante o combate custará 3 Pontos de Ação. Deseja continuar?",
+                [
+                    { text: 'Sim, Gastar 3 PA', closes: true, onClick: () => {
+                        socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
+                        modal.classList.add('hidden');
+                    }},
+                    { text: 'Não, Cancelar', closes: true, className: 'btn-danger', onClick: () => {
+                        // Apenas fecha, a reversão visual ocorrerá na próxima abertura
+                        modal.classList.add('hidden');
+                    }}
+                ]
+            );
+        } else { // Modo Cenário ou outro modo sem custo de PA
+            socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
+            modal.classList.add('hidden');
+        }
     }
 
 
@@ -1706,7 +1738,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
     
-        // Após receber os dados de regras, podemos iniciar a lógica que depende deles.
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
 
@@ -1716,7 +1747,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('gmCreatesLobby');
         }
 
-        scaleGame(); // Redimensiona o jogo assim que os dados chegam.
+        scaleGame();
     });
 
     socket.on('gameUpdate', (gameState) => { 
@@ -1808,7 +1839,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetEl = document.getElementById(targetId);
         if (!targetEl) return;
     
-        // Contamos os textos existentes para escalonar o tempo de criação
         const textsForDelay = fightScreen.querySelectorAll(`.floating-text[data-target-id="${targetId}"]`).length;
     
         const textEl = document.createElement('div');
@@ -1816,9 +1846,7 @@ document.addEventListener('DOMContentLoaded', () => {
         textEl.textContent = text;
         textEl.dataset.targetId = targetId;
         
-        // Atraso escalonado para evitar que múltiplos eventos se sobreponham no cálculo
         setTimeout(() => {
-            // Recalculamos a contagem NO MOMENTO da criação para obter a posição Y correta
             const currentExistingTexts = fightScreen.querySelectorAll(`.floating-text[data-target-id="${targetId}"]`).length;
             
             fightScreen.appendChild(textEl);
@@ -1830,8 +1858,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const x = (rect.left + rect.width / 2 - gameWrapperRect.left) / gameScale;
             const y = (rect.top - gameWrapperRect.top) / gameScale;
         
-            // O deslocamento Y é baseado na contagem no momento da criação
-            const yOffset = currentExistingTexts * -30; // Sobe 30px para cada texto extra
+            const yOffset = currentExistingTexts * -30;
             textEl.style.left = `${x}px`;
             textEl.style.top = `${y}px`;
             textEl.style.setProperty('--y-offset', `${yOffset}px`);
@@ -1839,7 +1866,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 textEl.remove();
             }, 2000);
-        }, textsForDelay * 100); // Atraso de 100ms por cada texto existente no momento do evento
+        }, textsForDelay * 100);
     });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual }) => {
@@ -1989,7 +2016,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialize() {
         showScreen(document.getElementById('loading-screen'));
 
-        // Os event listeners são configurados imediatamente
         document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
         document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
         
@@ -2038,16 +2064,13 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGlobalKeyListeners();
         window.addEventListener('resize', scaleGame);
 
-        // Listeners do inventário
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
         document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
 
-        document.querySelectorAll('.ingame-sheet-equipment select').forEach(select => {
-            select.addEventListener('change', handleChangeEquipment);
-        });
+        // O 'change' event não é mais necessário aqui, a lógica foi movida para o botão de fechar.
     }
     
     initialize();

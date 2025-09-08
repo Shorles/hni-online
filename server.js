@@ -923,6 +923,15 @@ io.on('connection', (socket) => {
         if (action.type === 'playerFinalizesCharacter') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (playerInfo) {
+                // Monta o inventário inicial ao finalizar a ficha
+                const initialInventory = {};
+                const equip = action.characterData.equipment;
+                if (equip.weapon1.type !== 'Desarmado') initialInventory[equip.weapon1.type] = { type: 'weapon', name: equip.weapon1.type, quantity: 1 };
+                if (equip.weapon2.type !== 'Desarmado' && equip.weapon1.type !== equip.weapon2.type) initialInventory[equip.weapon2.type] = { type: 'weapon', name: equip.weapon2.type, quantity: 1 };
+                if (equip.armor !== 'Nenhuma') initialInventory[equip.armor] = { type: 'armor', name: equip.armor, quantity: 1 };
+                if (equip.shield !== 'Nenhum') initialInventory[equip.shield] = { type: 'shield', name: equip.shield, quantity: 1 };
+                action.characterData.inventory = initialInventory;
+
                 playerInfo.characterSheet = action.characterData;
                 playerInfo.characterName = action.characterData.name;
                 playerInfo.characterFinalized = true;
@@ -1102,6 +1111,10 @@ io.on('connection', (socket) => {
                             playerFighter.sheet.equipment = action.newEquipment;
                             recalculateFighterStats(playerFighter);
                             logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
+                        } else if (playerFighter && currentGameState.mode !== 'adventure') {
+                             playerFighter.sheet.equipment = action.newEquipment;
+                             recalculateFighterStats(playerFighter);
+                             logMessage(adventureState, `${playerFighter.nome} trocou de equipamento fora de combate.`);
                         } else {
                             shouldUpdate = false; // Não atualiza se não tiver PA ou não for o turno
                         }
@@ -1112,11 +1125,11 @@ io.on('connection', (socket) => {
             case 'theater':
                  const theaterState = activeState;
                  if (action.type === 'changeEquipment') { // Troca de equipamento fora de combate
-                    const playerFighter = getFighter(theaterState, socket.id);
-                    if (playerFighter) {
-                        playerFighter.sheet.equipment = action.newEquipment;
-                        recalculateFighterStats(playerFighter);
-                        logMessage(theaterState, `${playerFighter.nome} trocou de equipamento.`, 'info');
+                    const playerLobbyInfo = lobbyState.connectedPlayers[socket.id];
+                    if (playerLobbyInfo && playerLobbyInfo.characterSheet) {
+                         playerLobbyInfo.characterSheet.equipment = action.newEquipment;
+                         // A recalculação de stats não é tão crítica aqui, mas pode ser feita se necessário
+                         logMessage(theaterState, `${playerLobbyInfo.characterName} trocou de equipamento.`);
                     }
                  }
                  if (isGm && theaterState && theaterState.scenarioStates && theaterState.currentScenario) {
@@ -1133,7 +1146,6 @@ io.on('connection', (socket) => {
                                             tokenOrder: [], globalTokenScale: 1.0, isStaging: true 
                                         };
                                     } else {
-                                        // CORREÇÃO: Reseta o estado 'isStaging' ao voltar para um cenário
                                         activeState.scenarioStates[newScenarioPath].isStaging = true;
                                     }
                                     logMessage(activeState, 'GM está preparando um novo cenário...');

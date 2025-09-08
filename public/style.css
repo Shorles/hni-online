@@ -568,6 +568,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 .sheet-container.ingame-sheet {
     max-height: 90%;
+    overflow-y: auto;
 }
 .ingame-sheet .sheet-header {
     position: relative;
@@ -625,6 +626,12 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     border-radius: 6px;
     padding: 15px;
     border: 1px solid #444;
+}
+.ingame-sheet-equipment select:disabled {
+    background-color: #495057;
+    color: #aaa;
+    cursor: not-allowed;
+    opacity: 0.7;
 }
 
 .elements-grid.view-only .attr-item {
@@ -694,4 +701,27 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 #ingame-sheet-footer {
     justify-content: space-between;
+}
+
+/* --- ESTILOS PARA FUTURA DISTRIBUIÇÃO DE PONTOS --- */
+.point-dist-label {
+    display: block;
+    text-align: center;
+    font-size: 1.1em;
+    color: #ffc107;
+    margin: 15px 0 10px;
+}
+
+.point-distribution-grid input[type="number"] {
+    width: 30px;
+    border: none;
+    background-color: transparent;
+    font-size: 1.2em;
+    color: #fff;
+    text-align: center;
+}
+
+#ingame-confirm-points-btn {
+    display: block;
+    margin: 15px auto 0;
 }
