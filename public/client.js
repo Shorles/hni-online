@@ -1591,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.onclick = () => {
                         tempCharacterSheet[weaponSlot] = { img: imgPath, isRanged: isRanged };
                         weaponImageModal.classList.add('hidden');
-                        updateCharacterSheet(); // <<< CORREÇÃO APLICADA AQUI
+                        updateCharacterSheet();
                     };
                     grid.appendChild(card);
                 });
