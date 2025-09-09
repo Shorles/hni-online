@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     let myRoomId = null; 
     let coordsModeActive = false;
-    let clientFlowState = 'initializing'; // CONTROLA O FLUXO PARA EVITAR BUGS
+    let clientFlowState = 'initializing';
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
     let stagedNpcSlots = new Array(5).fill(null);
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isSelectingBox = false;
     let selectionBoxStartPos = { x: 0, y: 0 };
     let isGmDebugModeActive = false;
-    let originalEquipmentState = null; // Para reverter a troca de equipamento
+    let originalEquipmentState = null;
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -182,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
         if (amIPlayerAndFinalized) {
             const myFighterData = getFighter(gameState, myPlayerKey);
-            if (myFighterData) {
+            if (myFighterData && myFighterData.sheet) {
                 const tokenImg = myFighterData.sheet.tokenImg || myFighterData.img;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
                 document.getElementById('player-info-token').style.backgroundImage = `url('${tokenImg}')`;
@@ -721,16 +721,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
         const finalCanControl = canControl && !isStunned;
 
-        const createButton = (text, onClick, disabled = false, className = 'action-btn') => {
+        const createButton = (text, onClick, disabled = false, className = 'action-btn', title = '') => {
             const btn = document.createElement('button');
             btn.className = className;
             btn.textContent = text;
             btn.disabled = disabled;
             btn.onclick = onClick;
+            btn.title = title;
             return btn;
         };
         
-        actionButtonsWrapper.appendChild(createButton('Atacar', startAttackSequence, !finalCanControl));
+        const weapon1 = activeFighter.sheet.equipment.weapon1;
+        let attackButtonText = 'Atacar';
+        let attackButtonTitle = 'Atacar com arma equipada';
+        if (weapon1 && weapon1.isRanged) {
+            attackButtonText = `Atacar (${activeFighter.ammo || 0})`;
+            attackButtonTitle = `Munição restante: ${activeFighter.ammo || 0}`;
+        }
+        actionButtonsWrapper.appendChild(createButton(attackButtonText, startAttackSequence, !finalCanControl, 'action-btn', attackButtonTitle));
 
         const fighterSpells = activeFighter.sheet?.spells || [];
         if (fighterSpells.length > 0) {
@@ -738,8 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
-                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
-                    spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
+                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn', `${spell.description} (Custo: ${spell.costMahou} Mahou)`);
                     actionButtonsWrapper.appendChild(spellBtn);
                 }
             });
@@ -1168,7 +1175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (initialPos) {
                         const finalX = initialPos.startX + deltaX;
                         const finalY = initialPos.startY + deltaY;
-                        const isHidden = scenarioWidth ? (finalX < 0 || finalX > scenarioWidth || finalY < 0 || finalY > scenarioHeight) : false;
+                        const isHidden = scenarioWidth ? (finalX < -100 || finalX > scenarioWidth -100 || finalY < -100 || finalY > scenarioHeight-100) : false;
                         socket.emit('playerAction', { type: 'updateToken', token: { id, x: finalX, y: finalY, isHidden: isHidden } });
                     }
                 });
@@ -1208,11 +1215,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && hoveredTokenId && selectedTokens.has(hoveredTokenId)) {
                 const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[hoveredTokenId];
                 if (tokenData) {
-                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.15 : 0.15); // Aumentado para 0.15
+                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.15 : 0.15);
                     selectedTokens.forEach(id => socket.emit('playerAction', { type: 'updateToken', token: { id, scale: Math.max(0.1, newScale) }}));
                 }
             } else {
-                const zoomIntensity = 0.1, scrollDirection = e.deltaY < 0 ? 1 : -1; // Aumentado para 0.1
+                const zoomIntensity = 0.1, scrollDirection = e.deltaY < 0 ? 1 : -1;
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
                 const rect = viewport.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
@@ -1642,7 +1649,6 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
         } else {
             modal.classList.add('hidden');
-            // A confirmação é chamada DEPOIS de fechar para evitar o bug de travamento
             setTimeout(handleEquipmentChangeConfirmation, 50); 
         }
     }
@@ -1706,7 +1712,6 @@ document.addEventListener('DOMContentLoaded', () => {
         weapon1Select.onchange = updateWeaponSelects;
         weapon2Select.onchange = updateWeaponSelects;
     
-        // População inicial
         populateSelect(weapon1Select, 'weapon', 'Desarmado');
         populateSelect(weapon2Select, 'weapon', 'Desarmado');
         weapon1Select.value = equipment.weapon1.name;

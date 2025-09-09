@@ -21,6 +21,7 @@ let DYNAMIC_CHARACTERS = [];
 let ALL_SCENARIOS = {};
 let GAME_RULES = {};
 let ALL_SPELLS = {};
+let WEAPON_IMAGES = {}; // NOVA ESTRUTURA PARA IMAGENS DE ARMAS
 
 const MAX_PLAYERS = 4;
 const MAX_NPCS = 5; 
@@ -49,6 +50,32 @@ try {
             ALL_SCENARIOS[category] = fs.readdirSync(path).filter(file => file.endsWith('.png') || file.endsWith('.jpg')).map(file => `${category}/${file}`);
         }
     });
+
+    // --- NOVA LÓGICA PARA ESCANEAR IMAGENS DE ARMAS ---
+    const weaponImagePath = 'public/images/armas/';
+    if (fs.existsSync(weaponImagePath)) {
+        const weaponFiles = fs.readdirSync(weaponImagePath);
+        const weaponTypeMap = {
+            "minima": "1 Mão Mínima", "leve": "1 Mão Leve", "mediana": "1 Mão Mediana", "cetro": "Cetro",
+            "grande": "2 Mãos Pesada", "gigante": "2 Mãos Gigante", "colossal": "2 Mãos Colossal", "cajado": "Cajado"
+        };
+        weaponFiles.forEach(file => {
+            const match = file.match(/^(.*?)(\d+)\.png$/);
+            if (!match) return;
+
+            let typeKey = match[1].toLowerCase().replace('dist', '').trim();
+            const isRanged = match[1].toLowerCase().includes('dist');
+            const ruleName = weaponTypeMap[typeKey];
+
+            if (ruleName) {
+                if (!WEAPON_IMAGES[ruleName]) {
+                    WEAPON_IMAGES[ruleName] = { melee: [], ranged: [] };
+                }
+                const category = isRanged ? 'ranged' : 'melee';
+                WEAPON_IMAGES[ruleName][category].push(`armas/${file}`);
+            }
+        });
+    }
 
 } catch (error) { console.error('Erro ao carregar arquivos de configuração:', error); }
 
@@ -122,17 +149,14 @@ function createNewTheaterState(gmId, initialScenario) {
     return theaterState;
 }
 
-// NOVA FUNÇÃO para filtrar o estado do cenário para os jogadores
 function filterPublicTheaterState(scenarioState) {
     const publicState = JSON.parse(JSON.stringify(scenarioState));
     
-    // Remove tokens escondidos da visão do público
     for (const tokenId in publicState.tokens) {
         if (publicState.tokens[tokenId].isHidden) {
             delete publicState.tokens[tokenId];
         }
     }
-    // Filtra a ordem dos tokens para garantir que não haja referências a tokens removidos
     publicState.tokenOrder = publicState.tokenOrder.filter(tokenId => publicState.tokens[tokenId]);
     
     return publicState;
@@ -170,6 +194,11 @@ function createNewFighterState(data) {
         fighter.money = data.money !== undefined ? data.money : 200;
 
         fighter.inventory = data.inventory || {};
+
+        if (data.equipment.weapon1.isRanged || data.equipment.weapon2.isRanged) {
+            fighter.ammo = data.ammo !== undefined ? data.ammo : 15;
+        }
+
 
     } else { // NPC
         fighter.level = 1;
@@ -243,6 +272,9 @@ function cachePlayerStats(room) {
             if (playerFighter.status !== 'fled') {
                  lobbyPlayer.characterSheet.hp = playerFighter.hp;
                  lobbyPlayer.characterSheet.mahou = playerFighter.mahou;
+                 if (playerFighter.ammo !== undefined) {
+                     lobbyPlayer.characterSheet.ammo = playerFighter.ammo;
+                 }
             } else {
                 delete lobbyPlayer.characterSheet.hp;
                 delete lobbyPlayer.characterSheet.mahou;
@@ -325,9 +357,15 @@ function getBtaBreakdown(fighter, weaponKey) {
 }
 
 function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
-    const forcaBreakdown = getAttributeBreakdown(fighter, 'forca');
-    let total = forcaBreakdown.value;
-    const details = forcaBreakdown.details;
+    const weapon = fighter.sheet.equipment[weaponKey];
+    const isRanged = weapon.isRanged || false;
+
+    // Dano de armas à distância agora usa AGILIDADE
+    const damageAttribute = isRanged ? 'agilidade' : 'forca';
+    const breakdown = getAttributeBreakdown(fighter, damageAttribute);
+    let total = breakdown.value;
+    const details = breakdown.details;
+
     if (isDualAttackPart) {
         details['Ataque Duplo'] = -1;
         total -= 1;
@@ -484,6 +522,16 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     const attacker = getFighter(state, attackerKey);
     let target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
+
+    const weapon = attacker.sheet.equipment[weaponChoice];
+    if (weapon && weapon.isRanged) {
+        if (!attacker.ammo || attacker.ammo <= 0) {
+            logMessage(state, `${attacker.nome} está sem munição!`, 'miss');
+            io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+            return;
+        }
+        attacker.ammo--;
+    }
 
     const paCost = 2;
     if (attacker.pa < paCost) {
@@ -823,7 +871,8 @@ io.on('connection', (socket) => {
             })), 
             dynamic: DYNAMIC_CHARACTERS 
         }, 
-        scenarios: ALL_SCENARIOS 
+        scenarios: ALL_SCENARIOS,
+        weaponImages: WEAPON_IMAGES
     });
 
     socket.on('gmCreatesLobby', () => {
@@ -933,10 +982,7 @@ io.on('connection', (socket) => {
                 const addItemToInventory = (item, type, baseType) => {
                     if (baseType !== 'Desarmado' && baseType !== 'Nenhuma' && baseType !== 'Nenhum') {
                         initialInventory[item.name] = {
-                            type: type,
-                            name: item.name,
-                            baseType: baseType,
-                            quantity: 1
+                            type: type, name: item.name, baseType: baseType, quantity: 1
                         };
                     }
                 };
@@ -1159,7 +1205,7 @@ io.on('connection', (socket) => {
                                 if (action.width && action.height) {
                                     currentScenarioState.scenarioWidth = action.width;
                                     currentScenarioState.scenarioHeight = action.height;
-                                    shouldUpdate = false; // Não precisa de update para todos, é info do GM
+                                    shouldUpdate = false;
                                 }
                                 break;
                             case 'changeScenario':
@@ -1188,7 +1234,7 @@ io.on('connection', (socket) => {
                                 } else if (currentScenarioState.tokens[tokenData.id]) {
                                     Object.assign(currentScenarioState.tokens[tokenData.id], tokenData);
                                 } else {
-                                    currentScenarioState.tokens[tokenData.id] = { ...tokenData, isHidden: false };
+                                    currentScenarioState.tokens[tokenData.id] = { ...tokenData, isHidden: tokenData.isHidden || false };
                                     if (!currentScenarioState.tokenOrder.includes(tokenData.id)) {
                                         currentScenarioState.tokenOrder.push(tokenData.id);
                                     }
