@@ -1,0 +1,38 @@
+{
+  "1 Mão Mínima": {
+    "meleePrefix": "Minima",
+    "rangedPrefix": "MinimaDist"
+  },
+  "1 Mão Leve": {
+    "meleePrefix": "Leve",
+    "rangedPrefix": "LeveDist"
+  },
+  "1 Mão Mediana": {
+    "meleePrefix": "Mediana",
+    "rangedPrefix": "MedianaDist"
+  },
+  "Cetro": {
+    "meleePrefix": "Cetro",
+    "rangedPrefix": null
+  },
+  "2 Mãos Pesada": {
+    "meleePrefix": "Grande",
+    "rangedPrefix": "GrandeDist"
+  },
+  "2 Mãos Gigante": {
+    "meleePrefix": "Gigante",
+    "rangedPrefix": "GiganteDist"
+  },
+  "2 Mãos Colossal": {
+    "meleePrefix": "Colossal",
+    "rangedPrefix": "ColossalDist"
+  },
+  "Cajado": {
+    "meleePrefix": "Cajado",
+    "rangedPrefix": null
+  },
+  "Desarmado": {
+    "meleePrefix": null,
+    "rangedPrefix": null
+  }
+}

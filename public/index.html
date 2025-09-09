@@ -284,6 +284,17 @@
             <button id="modal-button">OK</button>
         </div>
     </div>
+
+    <!-- MODAL DE SELEÇÃO DE IMAGEM DE ARMA -->
+    <div id="weapon-image-modal" class="hidden">
+        <div id="weapon-image-modal-content">
+            <h3 id="weapon-image-modal-title">Selecione a Aparência da Arma</h3>
+            <div id="weapon-image-modal-body">
+                <!-- Conteúdo será populado via JS -->
+            </div>
+            <button id="weapon-image-modal-cancel">Cancelar</button>
+        </div>
+    </div>
     
     <!-- BOTÕES FLUTUANTES -->
     <button id="back-to-lobby-btn" class="back-btn hidden" title="Voltar ao Lobby">⌂</button>
@@ -325,6 +336,10 @@
                         <div class="equip-item"> <label for="ingame-sheet-weapon2-type">Arma 2</label> <select id="ingame-sheet-weapon2-type"></select> </div>
                         <div class="equip-item"> <label for="ingame-sheet-armor-type">Armadura</label> <select id="ingame-sheet-armor-type"></select> </div>
                         <div class="equip-item"> <label for="ingame-sheet-shield-type">Escudo</label> <select id="ingame-sheet-shield-type"></select> </div>
+                    </div>
+                    <div id="ingame-sheet-ammunition" class="hidden">
+                        <h4>Munição</h4>
+                        <div id="ingame-sheet-ammo-list"></div>
                     </div>
                     <p id="ingame-equipment-info-text" class="info-text"></p>
                 </div>
