@@ -1409,17 +1409,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateCharacterSheet(event = null) {
         if (!GAME_RULES.races) return; 
         
-        // Se o evento for de um select de arma, reseta a imagem
-        if (event && event.target && event.target.id.includes('weapon-type')) {
-            const weaponSlot = event.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
-            tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-        }
+        document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
         
-        // Sempre atualiza a imagem exibida com base no estado atual
         document.getElementById('sheet-weapon1-image').style.backgroundImage = tempCharacterSheet.weapon1.img ? `url(${tempCharacterSheet.weapon1.img})` : 'none';
         document.getElementById('sheet-weapon2-image').style.backgroundImage = tempCharacterSheet.weapon2.img ? `url(${tempCharacterSheet.weapon2.img})` : 'none';
-        
-        document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
         
         const selectedRace = document.getElementById('sheet-race-select').value;
         const raceData = GAME_RULES.races[selectedRace];
@@ -2240,17 +2233,28 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Adiciona listeners para todos os inputs e selects que afetam os cálculos.
-        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
-            el.addEventListener('change', (e) => {
-                updateCharacterSheet(e);
-            });
+        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select:not([id*="weapon-type"])').forEach(el => {
+            el.addEventListener('change', (e) => updateCharacterSheet(e));
             if (el.tagName !== 'SELECT' && el.type !== 'file') {
-                el.addEventListener('input', (e) => {
-                    updateCharacterSheet(e);
-                });
+                el.addEventListener('input', (e) => updateCharacterSheet(e));
             }
         });
         
+        // Listener dedicado para os selects de tipo de arma para o fluxo correto
+        document.querySelectorAll('#sheet-weapon1-type, #sheet-weapon2-type').forEach(el => {
+            el.addEventListener('change', (e) => {
+                const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
+                // Reseta a imagem e os dados da arma
+                tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+                // Atualiza a ficha (isso vai limpar a imagem e recalcular tudo)
+                updateCharacterSheet(e);
+                // Se não for 'Desarmado', abre o modal de seleção de imagem
+                if (e.target.value !== 'Desarmado') {
+                    showWeaponImageSelectionModal(weaponSlot);
+                }
+            });
+        });
+
         document.getElementById('weapon-image-modal-cancel').onclick = () => {
              weaponImageModal.classList.add('hidden');
         };
