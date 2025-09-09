@@ -1411,6 +1411,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
         
+        // Resetar imagem da arma se o tipo mudar E não for uma chamada vinda do modal de imagem
+        if (event && event.target && event.target.id.includes('weapon-type') && !fromWeaponImageSelection) {
+            const weaponSlot = event.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
+            tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+        }
+
+        // SEMPRE garantir que a imagem exibida corresponda ao estado salvo em tempCharacterSheet
+        document.getElementById('sheet-weapon1-image').style.backgroundImage = tempCharacterSheet.weapon1.img ? `url(${tempCharacterSheet.weapon1.img})` : 'none';
+        document.getElementById('sheet-weapon2-image').style.backgroundImage = tempCharacterSheet.weapon2.img ? `url(${tempCharacterSheet.weapon2.img})` : 'none';
+        
         const selectedRace = document.getElementById('sheet-race-select').value;
         const raceData = GAME_RULES.races[selectedRace];
         const baseAttributes = {
@@ -1428,16 +1438,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let weapon2Type = document.getElementById('sheet-weapon2-type').value;
         let armorType = document.getElementById('sheet-armor-type').value;
         let shieldType = document.getElementById('sheet-shield-type').value;
-
-        // Resetar imagem da arma se o tipo mudar
-        if (event && event.target && event.target.id.includes('weapon') && !fromWeaponImageSelection) {
-            const weaponSlot = event.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
-            tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-        }
-        
-        document.getElementById('sheet-weapon1-image').style.backgroundImage = tempCharacterSheet.weapon1.img ? `url(${tempCharacterSheet.weapon1.img})` : 'none';
-        document.getElementById('sheet-weapon2-image').style.backgroundImage = tempCharacterSheet.weapon2.img ? `url(${tempCharacterSheet.weapon2.img})` : 'none';
-
 
         let weapon1Data = GAME_RULES.weapons[weapon1Type];
         let weapon2Data = GAME_RULES.weapons[weapon2Type];
@@ -1567,6 +1567,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         document.getElementById('sheet-spells-selected-count').textContent = tempCharacterSheet.spells.length;
+        
+        // No final da atualização, verifica se precisa abrir o modal
+        if (event && event.target && event.target.id.includes('weapon-type') && !fromWeaponImageSelection && event.target.value !== 'Desarmado') {
+            const weaponSlot = event.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
+            // Usa um pequeno timeout para garantir que o DOM atualizou antes de mostrar o modal
+            setTimeout(() => showWeaponImageSelectionModal(weaponSlot), 50);
+        }
     }
 
     function showWeaponImageSelectionModal(weaponSlot) {
@@ -2239,26 +2246,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // Adiciona listeners para todos os inputs e selects que NÃO são de tipo de arma
-        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select:not([id*="weapon-type"])').forEach(el => {
+        // Adiciona listeners para todos os inputs e selects que afetam os cálculos.
+        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
+            // A função principal de atualização é sempre chamada no 'change'
             el.addEventListener('change', updateCharacterSheet);
-            if (el.tagName !== 'SELECT') {
+
+            // Inputs de texto e número também atualizam enquanto se digita
+            if (el.tagName !== 'SELECT' && el.type !== 'file') {
                 el.addEventListener('input', updateCharacterSheet);
             }
-        });
-
-        // Adiciona listeners específicos para os selects de TIPO de arma
-        document.querySelectorAll('#sheet-weapon1-type, #sheet-weapon2-type').forEach(el => {
-            el.addEventListener('change', (e) => {
-                // Primeiro, atualiza a ficha com base na nova seleção (isso irá resetar a imagem da arma)
-                updateCharacterSheet(e);
-                
-                // Se uma arma real foi escolhida (não "Desarmado"), abre o modal de seleção de imagem
-                if (e.target.value !== 'Desarmado') {
-                    const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
-                    showWeaponImageSelectionModal(weaponSlot);
-                }
-            });
         });
 
         document.getElementById('weapon-image-modal-cancel').onclick = () => {
