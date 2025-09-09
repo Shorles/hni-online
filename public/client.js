@@ -2239,18 +2239,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
+        // Event listeners separados para mais clareza e correção do bug
+        document.querySelectorAll('#character-sheet-screen input:not([id*="weapon"]), #character-sheet-screen select:not([id*="weapon"])').forEach(el => {
+            el.addEventListener('change', updateCharacterSheet);
+            if (el.tagName !== 'SELECT') {
+                el.addEventListener('input', updateCharacterSheet);
+            }
+        });
+        document.querySelectorAll('#sheet-weapon1-name, #sheet-weapon2-name').forEach(el => {
+            el.addEventListener('input', updateCharacterSheet);
+        });
+        document.querySelectorAll('#sheet-weapon1-type, #sheet-weapon2-type').forEach(el => {
             el.addEventListener('change', (e) => {
                 updateCharacterSheet(e);
-                if (e.target.id.includes('weapon-type') && e.target.value !== 'Desarmado') {
+                if (e.target.value !== 'Desarmado') {
                     const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
                     showWeaponImageSelectionModal(weaponSlot);
                 }
             });
-             if (el.tagName !== 'SELECT') {
-                el.addEventListener('input', (e) => updateCharacterSheet(e));
-            }
         });
+
         document.getElementById('weapon-image-modal-cancel').onclick = () => {
              weaponImageModal.classList.add('hidden');
         };
