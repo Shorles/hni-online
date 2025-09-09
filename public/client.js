@@ -1434,6 +1434,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const weaponSlot = event.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
             tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
         }
+        
+        document.getElementById('sheet-weapon1-image').style.backgroundImage = tempCharacterSheet.weapon1.img ? `url(${tempCharacterSheet.weapon1.img})` : 'none';
+        document.getElementById('sheet-weapon2-image').style.backgroundImage = tempCharacterSheet.weapon2.img ? `url(${tempCharacterSheet.weapon2.img})` : 'none';
+
 
         let weapon1Data = GAME_RULES.weapons[weapon1Type];
         let weapon2Data = GAME_RULES.weapons[weapon2Type];
@@ -1571,6 +1575,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!images || (images.melee.length === 0 && images.ranged.length === 0)) {
             tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+            updateCharacterSheet(null, true);
             return;
         }
 
@@ -1738,7 +1743,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const inventory = fighter.inventory || {};
         const equipment = fighter.sheet.equipment;
-    
+        
+        document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = equipment.weapon1.img ? `url(${equipment.weapon1.img})` : 'none';
+        document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = equipment.weapon2.img ? `url(${equipment.weapon2.img})` : 'none';
+
         const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
         const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
         const armorSelect = document.getElementById('ingame-sheet-armor-type');
@@ -1811,8 +1819,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const inventoryGrid = document.getElementById('inventory-grid');
         inventoryGrid.innerHTML = '';
         const MAX_SLOTS = 24;
+        
+        const equippedItems = [equipment.weapon1.name, equipment.weapon2.name, equipment.armor, equipment.shield];
+        const unequippedInventory = Object.values(inventory).filter(item => !equippedItems.includes(item.name));
     
-        Object.values(inventory).forEach(item => {
+        unequippedInventory.forEach(item => {
             const slot = document.createElement('div');
             slot.className = 'inventory-slot item';
             slot.title = `${item.name} (${item.type})`;
@@ -1825,7 +1836,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inventoryGrid.appendChild(slot);
         });
     
-        const filledSlots = Object.keys(inventory).length;
+        const filledSlots = unequippedInventory.length;
         for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
             const emptySlot = document.createElement('div');
             emptySlot.className = 'inventory-slot';
@@ -2229,22 +2240,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
-            if(el.id.includes('weapon') && el.tagName === 'SELECT') {
-                el.addEventListener('mousedown', (e) => {
-                    if (e.target.value !== 'Desarmado') {
-                         e.preventDefault();
-                         showWeaponImageSelectionModal(el.id.includes('weapon1') ? 'weapon1' : 'weapon2');
-                    }
-                });
-                el.addEventListener('change', (e) => {
-                    if (e.target.value === 'Desarmado') {
-                        updateCharacterSheet(e);
-                    } else {
-                        showWeaponImageSelectionModal(el.id.includes('weapon1') ? 'weapon1' : 'weapon2');
-                    }
-                });
-            } else {
-                el.addEventListener('change', (e) => updateCharacterSheet(e));
+            el.addEventListener('change', (e) => {
+                updateCharacterSheet(e);
+                if (e.target.id.includes('weapon-type') && e.target.value !== 'Desarmado') {
+                    const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
+                    showWeaponImageSelectionModal(weaponSlot);
+                }
+            });
+             if (el.tagName !== 'SELECT') {
                 el.addEventListener('input', (e) => updateCharacterSheet(e));
             }
         });

@@ -161,10 +161,30 @@
                     <div id="sheet-equipment-section" class="sheet-section">
                         <h3>Equipamentos</h3>
                         <div class="equipment-grid">
-                            <div class="equip-item"> <label for="sheet-weapon1-name">Arma 1</label> <input type="text" id="sheet-weapon1-name" placeholder="Nome da Arma"> <select id="sheet-weapon1-type"></select> </div>
-                            <div class="equip-item"> <label for="sheet-weapon2-name">Arma 2</label> <input type="text" id="sheet-weapon2-name" placeholder="Nome da Arma"> <select id="sheet-weapon2-type"></select> </div>
-                            <div class="equip-item"> <label for="sheet-armor-type">Armadura</label> <select id="sheet-armor-type"></select> </div>
-                            <div class="equip-item"> <label for="sheet-shield-type">Escudo</label> <select id="sheet-shield-type"></select> </div>
+                            <div class="equip-item">
+                                <div id="sheet-weapon1-image" class="weapon-image-display"></div>
+                                <div class="equip-controls">
+                                    <label for="sheet-weapon1-name">Arma 1</label>
+                                    <input type="text" id="sheet-weapon1-name" placeholder="Nome da Arma">
+                                    <select id="sheet-weapon1-type"></select>
+                                </div>
+                            </div>
+                            <div class="equip-item">
+                                <div id="sheet-weapon2-image" class="weapon-image-display"></div>
+                                <div class="equip-controls">
+                                    <label for="sheet-weapon2-name">Arma 2</label>
+                                    <input type="text" id="sheet-weapon2-name" placeholder="Nome da Arma">
+                                    <select id="sheet-weapon2-type"></select>
+                                </div>
+                            </div>
+                            <div class="equip-item">
+                                <label for="sheet-armor-type">Armadura</label>
+                                <select id="sheet-armor-type"></select>
+                            </div>
+                            <div class="equip-item">
+                                <label for="sheet-shield-type">Escudo</label>
+                                <select id="sheet-shield-type"></select>
+                            </div>
                         </div>
                          <div class="money-container">
                             Dinheiro: <span id="sheet-money-copper">200</span> moedas de cobre
@@ -332,10 +352,28 @@
                 <div class="ingame-sheet-equipment">
                      <h3>Equipamento Ativo</h3>
                      <div class="equipment-grid">
-                        <div class="equip-item"> <label for="ingame-sheet-weapon1-type">Arma 1</label> <select id="ingame-sheet-weapon1-type"></select> </div>
-                        <div class="equip-item"> <label for="ingame-sheet-weapon2-type">Arma 2</label> <select id="ingame-sheet-weapon2-type"></select> </div>
-                        <div class="equip-item"> <label for="ingame-sheet-armor-type">Armadura</label> <select id="ingame-sheet-armor-type"></select> </div>
-                        <div class="equip-item"> <label for="ingame-sheet-shield-type">Escudo</label> <select id="ingame-sheet-shield-type"></select> </div>
+                        <div class="equip-item">
+                            <div id="ingame-sheet-weapon1-image" class="weapon-image-display"></div>
+                            <div class="equip-controls">
+                                <label for="ingame-sheet-weapon1-type">Arma 1</label>
+                                <select id="ingame-sheet-weapon1-type"></select>
+                            </div>
+                        </div>
+                        <div class="equip-item">
+                            <div id="ingame-sheet-weapon2-image" class="weapon-image-display"></div>
+                            <div class="equip-controls">
+                                <label for="ingame-sheet-weapon2-type">Arma 2</label>
+                                <select id="ingame-sheet-weapon2-type"></select>
+                            </div>
+                        </div>
+                        <div class="equip-item">
+                            <label for="ingame-sheet-armor-type">Armadura</label>
+                            <select id="ingame-sheet-armor-type"></select>
+                        </div>
+                        <div class="equip-item">
+                            <label for="ingame-sheet-shield-type">Escudo</label>
+                            <select id="ingame-sheet-shield-type"></select>
+                        </div>
                     </div>
                     <div id="ingame-sheet-ammunition" class="hidden">
                         <h4>Munição</h4>
