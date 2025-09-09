@@ -1406,20 +1406,20 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCharacterSheet();
     }
     
-    function updateCharacterSheet(event = null, fromWeaponImageSelection = false) {
+    function updateCharacterSheet(event = null) {
         if (!GAME_RULES.races) return; 
         
-        document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
-        
-        // Resetar imagem da arma se o tipo mudar E não for uma chamada vinda do modal de imagem
-        if (event && event.target && event.target.id.includes('weapon-type') && !fromWeaponImageSelection) {
+        // Se o evento for de um select de arma, reseta a imagem
+        if (event && event.target && event.target.id.includes('weapon-type')) {
             const weaponSlot = event.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
             tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
         }
-
-        // SEMPRE garantir que a imagem exibida corresponda ao estado salvo em tempCharacterSheet
+        
+        // Sempre atualiza a imagem exibida com base no estado atual
         document.getElementById('sheet-weapon1-image').style.backgroundImage = tempCharacterSheet.weapon1.img ? `url(${tempCharacterSheet.weapon1.img})` : 'none';
         document.getElementById('sheet-weapon2-image').style.backgroundImage = tempCharacterSheet.weapon2.img ? `url(${tempCharacterSheet.weapon2.img})` : 'none';
+        
+        document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
         
         const selectedRace = document.getElementById('sheet-race-select').value;
         const raceData = GAME_RULES.races[selectedRace];
@@ -1567,13 +1567,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         document.getElementById('sheet-spells-selected-count').textContent = tempCharacterSheet.spells.length;
-        
-        // No final da atualização, verifica se precisa abrir o modal
-        if (event && event.target && event.target.id.includes('weapon-type') && !fromWeaponImageSelection && event.target.value !== 'Desarmado') {
-            const weaponSlot = event.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
-            // Usa um pequeno timeout para garantir que o DOM atualizou antes de mostrar o modal
-            setTimeout(() => showWeaponImageSelectionModal(weaponSlot), 50);
-        }
     }
 
     function showWeaponImageSelectionModal(weaponSlot) {
@@ -1582,7 +1575,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!images || (images.melee.length === 0 && images.ranged.length === 0)) {
             tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-            updateCharacterSheet(null, true);
+            updateCharacterSheet();
             return;
         }
 
@@ -1605,7 +1598,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.onclick = () => {
                         tempCharacterSheet[weaponSlot] = { img: imgPath, isRanged: isRanged };
                         weaponImageModal.classList.add('hidden');
-                        updateCharacterSheet(null, true); 
+                        updateCharacterSheet(); 
                     };
                     grid.appendChild(card);
                 });
@@ -2248,15 +2241,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Adiciona listeners para todos os inputs e selects que afetam os cálculos.
         document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
-            // A função principal de atualização é sempre chamada no 'change'
-            el.addEventListener('change', updateCharacterSheet);
-
-            // Inputs de texto e número também atualizam enquanto se digita
+            el.addEventListener('change', (e) => {
+                updateCharacterSheet(e);
+            });
             if (el.tagName !== 'SELECT' && el.type !== 'file') {
-                el.addEventListener('input', updateCharacterSheet);
+                el.addEventListener('input', (e) => {
+                    updateCharacterSheet(e);
+                });
             }
         });
-
+        
         document.getElementById('weapon-image-modal-cancel').onclick = () => {
              weaponImageModal.classList.add('hidden');
         };
