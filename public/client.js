@@ -2239,19 +2239,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // Event listeners separados para mais clareza e correção do bug
-        document.querySelectorAll('#character-sheet-screen input:not([id*="weapon"]), #character-sheet-screen select:not([id*="weapon"])').forEach(el => {
+        // Adiciona listeners para todos os inputs e selects que NÃO são de tipo de arma
+        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select:not([id*="weapon-type"])').forEach(el => {
             el.addEventListener('change', updateCharacterSheet);
             if (el.tagName !== 'SELECT') {
                 el.addEventListener('input', updateCharacterSheet);
             }
         });
-        document.querySelectorAll('#sheet-weapon1-name, #sheet-weapon2-name').forEach(el => {
-            el.addEventListener('input', updateCharacterSheet);
-        });
+
+        // Adiciona listeners específicos para os selects de TIPO de arma
         document.querySelectorAll('#sheet-weapon1-type, #sheet-weapon2-type').forEach(el => {
             el.addEventListener('change', (e) => {
+                // Primeiro, atualiza a ficha com base na nova seleção (isso irá resetar a imagem da arma)
                 updateCharacterSheet(e);
+                
+                // Se uma arma real foi escolhida (não "Desarmado"), abre o modal de seleção de imagem
                 if (e.target.value !== 'Desarmado') {
                     const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
                     showWeaponImageSelectionModal(weaponSlot);
