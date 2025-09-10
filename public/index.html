@@ -54,7 +54,7 @@
         <div class="mode-buttons-container">
             <button id="new-char-btn" class="mode-btn">Novo Personagem</button>
             <button id="load-char-btn" class="mode-btn">Carregar Personagem</button>
-            <input type="file" id="load-char-input" class="hidden" accept=".json,.txt">
+            <input type="file" id="load-char-input" class="hidden" accept=".txt,.json">
         </div>
     </div>
 
@@ -196,7 +196,7 @@
                         <div id="race-info-box" class="info-box">Selecione uma raça para ver os detalhes.</div>
                     </div>
                      <div class="sheet-section">
-                        <h3>Magias Iniciais (Grau 1) <small>(<span id="sheet-spells-selected-count">0</span> selecionadas)</small></h3>
+                        <h3>Magias Iniciais (Grau 1) <small>(<span id="sheet-spells-selected-count">0</span>/2 selecionadas)</small></h3>
                         <div id="spell-info-box" class="info-box">
                             <div id="spell-selection-grid"></div>
                         </div>
@@ -341,7 +341,6 @@
                 <button id="ingame-sheet-close-btn" class="close-btn">&times;</button>
             </div>
             
-            <!-- AJUSTE 3: Wrapper para conteúdo que rola -->
             <div class="ingame-sheet-scrollable-content">
                 <div class="ingame-sheet-top-section">
                     <div class="ingame-sheet-main-stats">
@@ -401,7 +400,6 @@
                                 <!-- Populado por JS -->
                             </div>
                         </div>
-                        <!-- Seção para distribuição de pontos (futuro level up) -->
                         <div id="ingame-point-distribution-section" class="sheet-section hidden">
                             <h4>Distribuir Pontos</h4>
                             <div id="ingame-attribute-points-dist" class="hidden">
@@ -416,7 +414,7 @@
                                 </div>
                             </div>
                             <div id="ingame-element-points-dist" class="hidden">
-                                <label class="point-dist-label">Pontos de Elemento: <span id="ingame-elem-points-avail">0</span></label>
+                                 <label class="point-dist-label">Pontos de Elemento: <span id="ingame-elem-points-avail">0</span></label>
                                 <div class="attributes-grid elements-grid point-distribution-grid">
                                     <div class="attr-item"><label>Fogo</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="fogo" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
                                     <div class="attr-item"><label>Água</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="agua" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
@@ -441,13 +439,12 @@
                         </div>
                     </div>
                 </div>
-            </div> <!-- Fim do wrapper de rolagem -->
+            </div> 
             
-            <!-- AJUSTE 3: Footer movido para fora da área de rolagem -->
             <div class="sheet-footer" id="ingame-sheet-footer">
                 <button id="ingame-sheet-save-btn" class="sheet-btn">Salvar Ficha</button>
                 <button id="ingame-sheet-load-btn" class="sheet-btn">Carregar Ficha</button>
-                <input type="file" id="ingame-load-char-input" class="hidden" accept=".json,.txt">
+                <input type="file" id="ingame-load-char-input" class="hidden" accept=".txt,.json">
             </div>
         </div>
     </div>

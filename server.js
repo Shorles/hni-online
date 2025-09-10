@@ -47,7 +47,6 @@ try {
             const config = weaponImagesConfig[weaponType];
             ALL_WEAPON_IMAGES[weaponType] = { melee: [], ranged: [] };
             
-            // CORREÇÃO: Adicionando a barra "/" no início do caminho da imagem
             if (config.meleePrefix) {
                 ALL_WEAPON_IMAGES[weaponType].melee = weaponImageFiles
                     .filter(file => file.startsWith(config.meleePrefix + ' ('))
@@ -65,7 +64,6 @@ try {
     const dynamicCharPath = 'public/images/personagens/';
     if (fs.existsSync(dynamicCharPath)) {
         const files = fs.readdirSync(dynamicCharPath).filter(file => file.startsWith('Personagem (') && (file.endsWith('.png') || file.endsWith('.jpg')));
-        // CORREÇÃO: Adicionando a barra "/" no início do caminho da imagem
         DYNAMIC_CHARACTERS = files.map(file => ({ name: file.split('.')[0], img: `/images/personagens/${file}` }));
     }
 
@@ -149,17 +147,14 @@ function createNewTheaterState(gmId, initialScenario) {
     return theaterState;
 }
 
-// NOVA FUNÇÃO para filtrar o estado do cenário para os jogadores
 function filterPublicTheaterState(scenarioState) {
     const publicState = JSON.parse(JSON.stringify(scenarioState));
     
-    // Remove tokens escondidos da visão do público
     for (const tokenId in publicState.tokens) {
         if (publicState.tokens[tokenId].isHidden) {
             delete publicState.tokens[tokenId];
         }
     }
-    // Filtra a ordem dos tokens para garantir que não haja referências a tokens removidos
     publicState.tokenOrder = publicState.tokenOrder.filter(tokenId => publicState.tokens[tokenId]);
     
     return publicState;
@@ -181,8 +176,8 @@ function createNewFighterState(data) {
     };
 
     if (fighter.isPlayer && data.finalAttributes) {
-        const constituicao = data.finalAttributes.constituicao;
-        const mente = data.finalAttributes.mente;
+        const constituicao = data.finalAttributes.constituicao || 0;
+        const mente = data.finalAttributes.mente || 0;
         
         fighter.hpMax = 20 + (constituicao * 5);
         fighter.mahouMax = 10 + (mente * 5);
@@ -275,7 +270,6 @@ function cachePlayerStats(room) {
             } else {
                 delete lobbyPlayer.characterSheet.hp;
                 delete lobbyPlayer.characterSheet.mahou;
-                // Don't delete ammo, it should persist
             }
         }
     });
@@ -347,17 +341,41 @@ function calculateMagicDefense(fighter) {
     return { value: total, details };
 }
 
-function getBtaBreakdown(fighter, weaponKey) {
+function getBtaBreakdown(fighter) {
     const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
     let total = agiBreakdown.value;
-    const details = agiBreakdown.details;
+    const details = { ...agiBreakdown.details };
+
+    // AJUSTE: Lógica de penalidade de -2 BTA para arma de 2 mãos em uma mão
+    const forca = getFighterAttribute(fighter, 'forca');
+    if (forca >= 4) {
+        const weapon1 = fighter.sheet.equipment.weapon1;
+        const weapon2 = fighter.sheet.equipment.weapon2;
+        const shield = fighter.sheet.equipment.shield;
+        
+        const w1Data = GAME_RULES.weapons[weapon1.type] || {};
+        const w2Data = GAME_RULES.weapons[weapon2.type] || {};
+
+        const w1Is2H = w1Data.hand === 2;
+        const w2Is2H = w2Data.hand === 2;
+        
+        const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
+        const isShielding = shield !== 'Nenhum';
+
+        if ((w1Is2H || w2Is2H) && (isDualWielding || isShielding)) {
+            total -= 2;
+            details['Penalidade 2 Mãos (1 Mão)'] = -2;
+        }
+    }
+    
     return { value: total, details };
 }
+
 
 function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
     const weapon = fighter.sheet.equipment[weaponKey];
     if (!weapon) return { value: 0, details: {} };
-
+    
     const isRanged = !!weapon.isRanged;
     const attributeToUse = isRanged ? 'agilidade' : 'forca';
 
@@ -366,9 +384,18 @@ function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
     const details = { ...attrBreakdown.details };
     details[`Atributo de Dano`] = `(${isRanged ? 'Agilidade' : 'Força'})`;
 
+    // AJUSTE: Lógica de penalidade de dano em ataque duplo
     if (isDualAttackPart) {
-        details['Ataque Duplo'] = -1;
-        total -= 1;
+        const weaponData = GAME_RULES.weapons[weapon.type] || {};
+        const forca = getFighterAttribute(fighter, 'forca');
+        
+        if (weaponData.hand === 2 && forca >= 4) {
+            details['Ataque Duplo (2 Mãos)'] = -2;
+            total -= 2;
+        } else {
+            details['Ataque Duplo (1 Mão)'] = -1;
+            total -= 1;
+        }
     }
     return { value: total, details };
 }
@@ -523,12 +550,14 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     let target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
 
-    const paCost = 2;
+    // AJUSTE: Custo de PA do ataque duplo
+    const paCost = weaponChoice === 'dual' ? 3 : 2;
     if (attacker.pa < paCost) {
         logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes!`, 'miss');
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
         return;
     }
+    attacker.pa -= paCost;
 
     const performSingleAttack = (weaponKey, isDual = false) => {
         target = getFighter(state, targetKey);
@@ -545,10 +574,8 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             logMessage(state, `${attacker.nome} usa 1 munição de ${weapon.name}. Restam: ${attacker.ammunition[weaponKey]}.`, 'info');
         }
 
-        attacker.pa -= paCost;
-
         const hitRoll = rollD20();
-        const btaBreakdown = getBtaBreakdown(attacker, weaponKey);
+        const btaBreakdown = getBtaBreakdown(attacker);
         const bta = btaBreakdown.value;
         const attackRoll = hitRoll + bta;
         const weaponType = weapon.type;
@@ -952,19 +979,18 @@ io.on('connection', (socket) => {
             }
             if (action.type === 'gmSwitchesMode') {
                  if (room.activeMode === 'adventure') {
-                    // AJUSTE 4: Salva o estado da aventura antes de mudar de modo
                     cachePlayerStats(room);
                     room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
                     room.activeMode = 'theater';
                  } else if (room.activeMode === 'theater') {
-                    // AJUSTE 4: Inicia a lógica de perguntar ao GM
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
-                        shouldUpdate = false; // Não atualiza até o GM decidir
+                        shouldUpdate = false; 
                     } else {
-                        // Se não há cache, vai direto para uma nova aventura
                         room.activeMode = 'adventure';
-                        room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                        if(!room.gameModes.adventure) {
+                             room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                        }
                     }
                  }
 
@@ -975,10 +1001,10 @@ io.on('connection', (socket) => {
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
-                    room.adventureCache = null; // Limpa o cache após restaurar
-                } else { // 'new' or no cache
+                    room.adventureCache = null; 
+                } else { 
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                    room.adventureCache = null; // Garante que o cache antigo seja limpo
+                    room.adventureCache = null; 
                 }
                 room.activeMode = 'adventure';
                 logMessage(room.gameModes.adventure, "Mestre iniciou o modo Aventura.");
@@ -993,7 +1019,6 @@ io.on('connection', (socket) => {
                 const equip = characterData.equipment;
                 const ammunition = {};
 
-                // Update equipment object with server-side info
                 equip.weapon1.isRanged = action.isRanged.weapon1;
                 equip.weapon1.img = action.weaponImages.weapon1;
                 equip.weapon2.isRanged = action.isRanged.weapon2;
@@ -1233,7 +1258,7 @@ io.on('connection', (socket) => {
                                 if (action.width && action.height) {
                                     currentScenarioState.scenarioWidth = action.width;
                                     currentScenarioState.scenarioHeight = action.height;
-                                    shouldUpdate = false; // Não precisa de update para todos, é info do GM
+                                    shouldUpdate = false;
                                 }
                                 break;
                             case 'changeScenario':

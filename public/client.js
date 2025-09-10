@@ -1443,7 +1443,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const canWield2HInOneHand = finalAttributes.forca >= 4;
 
-        // Lógica de correção de equipamento
         let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
         let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
 
@@ -1466,7 +1465,6 @@ document.addEventListener('DOMContentLoaded', () => {
             shieldSelect.value = 'Nenhum';
         }
         
-        // Releia os valores após as correções automáticas
         const weapon1Type = weapon1Select.value;
         const weapon2Type = weapon2Select.value;
         const shieldType = shieldSelect.value;
@@ -1476,7 +1474,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let armorData = GAME_RULES.armors[armorType] || {};
         let shieldData = GAME_RULES.shields[shieldType] || {};
 
-        // Atualize o estado desabilitado dos seletores
         weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
         shieldSelect.disabled = weapon2Type !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
 
@@ -1490,7 +1487,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Dinheiro insuficiente!");
             const changedElement = event.target;
             changedElement.value = (changedElement.id.includes('weapon')) ? "Desarmado" : (changedElement.id.includes('armor') ? "Nenhuma" : "Nenhum");
-            return updateCharacterSheet(); // Chama novamente para recalcular com o valor corrigido
+            return updateCharacterSheet();
         }
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
@@ -1582,8 +1579,10 @@ document.addEventListener('DOMContentLoaded', () => {
             card.addEventListener('click', () => {
                 if (tempCharacterSheet.spells.includes(spell.name)) {
                     tempCharacterSheet.spells = tempCharacterSheet.spells.filter(s => s !== spell.name);
-                } else {
+                } else if (tempCharacterSheet.spells.length < 2) { // AJUSTE 1: Limite de magias
                     tempCharacterSheet.spells.push(spell.name);
+                } else {
+                    alert("Você pode escolher no máximo 2 magias iniciais.");
                 }
                 updateCharacterSheet();
             });
@@ -1644,7 +1643,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const myFighter = isCreation ? null : getFighter(currentGameState, myPlayerKey);
 
         const finalAttributes = {};
-        document.querySelectorAll(`#${prefix}-screen .final-attributes .attr-item, #${prefix}-attributes .attr-item`).forEach(item => {
+        document.querySelectorAll(`#${isCreation ? 'character-sheet-screen' : 'ingame-sheet-modal'} .final-attributes .attr-item, #${prefix}-attributes .attr-item`).forEach(item => {
             const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const value = parseInt(item.querySelector('span').textContent, 10);
             finalAttributes[label] = value;
@@ -1659,7 +1658,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tokenImg: isCreation ? tempCharacterSheet.tokenImg : myFighter.sheet.tokenImg,
             class: isCreation ? document.getElementById('sheet-class').value : myFighter.sheet.class,
             race: isCreation ? document.getElementById('sheet-race-select').value : myFighter.sheet.race,
-            money: parseInt(document.getElementById(`${prefix}-money-copper`)?.textContent || document.getElementById(`${prefix}-money`).textContent || '0', 10),
+            money: parseInt(document.getElementById(isCreation ? 'sheet-money-copper' : 'ingame-sheet-money')?.textContent || '0', 10),
             level: myFighter?.level || 1,
             xp: myFighter?.xp || 0,
             xpNeeded: myFighter?.xpNeeded || 100,
@@ -1694,38 +1693,110 @@ document.addEventListener('DOMContentLoaded', () => {
         return data;
     }
 
+    // AJUSTE 3: Funções de "criptografia"
+    function encryptData(data) {
+        try {
+            const jsonString = JSON.stringify(data);
+            return btoa(unescape(encodeURIComponent(jsonString))); // Base64 encoding
+        } catch (e) {
+            console.error("Erro ao criptografar dados:", e);
+            return null;
+        }
+    }
+    
+    function decryptData(encodedData) {
+        try {
+            const jsonString = decodeURIComponent(escape(atob(encodedData))); // Base64 decoding
+            return JSON.parse(jsonString);
+        } catch (e) {
+            console.error("Erro ao descriptografar dados:", e);
+            return null;
+        }
+    }
+
     function handleSaveCharacter(context) {
         const sheetData = getCharacterSheetData(context);
-        if (!sheetData.name && !sheetData.tokenName) {
+        const characterName = sheetData.name || sheetData.tokenName;
+        if (!characterName) {
             alert("Por favor, dê um nome ao seu personagem antes de salvar.");
             return;
         }
-        const characterName = sheetData.name || sheetData.tokenName;
-        const dataStr = JSON.stringify(sheetData, null, 2);
-        const blob = new Blob([dataStr], { type: "application/json" });
+        const encryptedData = encryptData(sheetData);
+        if (!encryptedData) return;
+
+        const blob = new Blob([encryptedData], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${characterName.replace(/\s+/g, '_')}.json`;
+        a.download = `${characterName.replace(/\s+/g, '_')}.txt`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
     
-    function handleLoadCharacter(event) {
-        // ... (código existente da função)
+    function handleLoadCharacter(event, context) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const decryptedData = decryptData(e.target.result);
+                if (!decryptedData) throw new Error("Arquivo inválido ou corrompido.");
+                
+                // Aplicar dados carregados
+                if (context === 'creation') {
+                    document.getElementById('sheet-name').value = decryptedData.name || '';
+                    document.getElementById('sheet-class').value = decryptedData.class || '';
+                    document.getElementById('sheet-race-select').value = decryptedData.race || 'Humano';
+
+                    tempCharacterSheet.tokenName = decryptedData.tokenName;
+                    tempCharacterSheet.tokenImg = decryptedData.tokenImg;
+                    tempCharacterSheet.spells = decryptedData.spells || [];
+
+                    // Preencher atributos e elementos
+                    for (const attr in decryptedData.baseAttributes) {
+                        document.getElementById(`sheet-base-attr-${attr}`).value = decryptedData.baseAttributes[attr];
+                    }
+                    for (const elem in decryptedData.elements) {
+                        document.getElementById(`sheet-elem-${elem}`).value = decryptedData.elements[elem];
+                    }
+                    
+                    // Preencher equipamentos
+                    document.getElementById('sheet-weapon1-name').value = decryptedData.equipment.weapon1.name;
+                    document.getElementById('sheet-weapon1-type').value = decryptedData.equipment.weapon1.type;
+                    document.getElementById('sheet-weapon2-name').value = decryptedData.equipment.weapon2.name;
+                    document.getElementById('sheet-weapon2-type').value = decryptedData.equipment.weapon2.type;
+                    document.getElementById('sheet-armor-type').value = decryptedData.equipment.armor;
+                    document.getElementById('sheet-shield-type').value = decryptedData.equipment.shield;
+
+                    updateCharacterSheet();
+                    showScreen(document.getElementById('character-sheet-screen'));
+                }
+                // Adicionar lógica para 'ingame' se necessário no futuro
+            } catch (error) {
+                alert(`Erro ao carregar a ficha: ${error.message}`);
+            } finally {
+                event.target.value = ''; // Limpa o input para permitir carregar o mesmo arquivo novamente
+            }
+        };
+        reader.readAsText(file);
     }
 
     function handleConfirmCharacter() {
+        if (tempCharacterSheet.spells.length > 2) {
+            alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
+            return;
+        }
+
         const attrPointsRemaining = parseInt(document.getElementById('sheet-points-attr-remaining').textContent, 10);
         const elemPointsRemaining = parseInt(document.getElementById('sheet-points-elem-remaining').textContent, 10);
-        const spellsSelectedCount = tempCharacterSheet.spells.length;
 
         let warnings = [];
         if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
         if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
-        if(spellsSelectedCount === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
+        if(tempCharacterSheet.spells.length === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
 
         const sendData = () => {
             const finalSheet = getCharacterSheetData('creation');
