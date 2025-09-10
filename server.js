@@ -50,12 +50,12 @@ try {
             if (config.meleePrefix) {
                 ALL_WEAPON_IMAGES[weaponType].melee = weaponImageFiles
                     .filter(file => file.startsWith(config.meleePrefix + ' ('))
-                    .map(file => `images/armas/${file}`);
+                    .map(file => `/images/armas/${file}`); // <<< CORREÇÃO APLICADA AQUI
             }
             if (config.rangedPrefix) {
                 ALL_WEAPON_IMAGES[weaponType].ranged = weaponImageFiles
                     .filter(file => file.startsWith(config.rangedPrefix + ' ('))
-                    .map(file => `images/armas/${file}`);
+                    .map(file => `/images/armas/${file}`); // <<< CORREÇÃO APLICADA AQUI
             }
         }
     }
