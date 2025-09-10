@@ -1758,12 +1758,12 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const decryptedData = decryptData(e.target.result);
                 if (!decryptedData) throw new Error("Arquivo inválido ou corrompido.");
-                if (!GAME_RULES.races[decryptedData.race]) throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida.`);
                 
                 if (context === 'creation') {
                     document.getElementById('sheet-name').value = decryptedData.name || '';
                     document.getElementById('sheet-class').value = decryptedData.class || '';
-                    document.getElementById('sheet-race-select').value = decryptedData.race;
+                    document.getElementById('sheet-race-select').value = decryptedData.race || 'Humano';
+                    if (!GAME_RULES.races[decryptedData.race]) throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida.`);
 
                     tempCharacterSheet.tokenName = decryptedData.tokenName;
                     tempCharacterSheet.tokenImg = decryptedData.tokenImg;
@@ -1925,7 +1925,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const armorSelect = document.getElementById('ingame-sheet-armor-type');
         const shieldSelect = document.getElementById('ingame-sheet-shield-type');
     
-        const populateSelect = (selectEl, itemType, nullOption, equippedItemsToExclude = []) => {
+        const populateSelect = (selectEl, itemType, nullOption) => {
+            const currentValue = selectEl.value;
             selectEl.innerHTML = '';
             const items = Object.values(inventory).filter(item => item.type === itemType);
     
@@ -1935,13 +1936,12 @@ document.addEventListener('DOMContentLoaded', () => {
             selectEl.appendChild(noneOpt);
     
             items.forEach(item => {
-                if (!equippedItemsToExclude.includes(item.name)) {
-                    const opt = document.createElement('option');
-                    opt.value = item.name;
-                    opt.textContent = item.name === item.baseType ? item.name : `${item.name} (${item.baseType})`;
-                    selectEl.appendChild(opt);
-                }
+                const opt = document.createElement('option');
+                opt.value = item.name;
+                opt.textContent = item.name === item.baseType ? item.name : `${item.name} (${item.baseType})`;
+                selectEl.appendChild(opt);
             });
+            selectEl.value = currentValue;
             selectEl.disabled = !canEditEquipment;
         };
     
@@ -1982,8 +1982,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 finalShield = 'Nenhum';
             }
 
-            populateSelect(weapon1Select, 'weapon', 'Desarmado', finalWeapon2 !== 'Desarmado' ? [finalWeapon2] : []);
-            populateSelect(weapon2Select, 'weapon', 'Desarmado', finalWeapon1 !== 'Desarmado' ? [finalWeapon1] : []);
+            populateSelect(weapon1Select, 'weapon', 'Desarmado');
+            populateSelect(weapon2Select, 'weapon', 'Desarmado');
 
             weapon1Select.value = finalWeapon1;
             weapon2Select.value = finalWeapon2;
@@ -2002,21 +2002,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             renderIngameInventory(fighter);
         };
-    
+        
         populateSelect(armorSelect, 'armor', 'Nenhuma');
         populateSelect(shieldSelect, 'shield', 'Nenhum');
+        populateSelect(weapon1Select, 'weapon', 'Desarmado');
+        populateSelect(weapon2Select, 'weapon', 'Desarmado');
+        
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
+        weapon1Select.value = equipment.weapon1.name || 'Desarmado';
+        weapon2Select.value = equipment.weapon2.name || 'Desarmado';
         
         weapon1Select.onchange = updateWeaponAndShieldingLogic;
         weapon2Select.onchange = updateWeaponAndShieldingLogic;
         shieldSelect.onchange = updateWeaponAndShieldingLogic;
         armorSelect.onchange = () => renderIngameInventory(fighter);
-
-        populateSelect(weapon1Select, 'weapon', 'Desarmado', (equipment.weapon2.name && equipment.weapon2.name !== 'Desarmado') ? [equipment.weapon2.name] : []);
-        populateSelect(weapon2Select, 'weapon', 'Desarmado', (equipment.weapon1.name && equipment.weapon1.name !== 'Desarmado') ? [equipment.weapon1.name] : []);
-        weapon1Select.value = equipment.weapon1.name || 'Desarmado';
-        weapon2Select.value = equipment.weapon2.name || 'Desarmado';
         
         updateWeaponAndShieldingLogic();
     
