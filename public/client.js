@@ -760,7 +760,6 @@ document.addEventListener('DOMContentLoaded', () => {
         createAttackButton('weapon1');
         createAttackButton('weapon2');
         
-        // Botão de ataque desarmado
         if (!attackButtonAdded) {
             const btn = createButton('Atacar Desarmado', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
             actionButtonsWrapper.appendChild(btn);
@@ -1452,20 +1451,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
         if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
 
-        // CORREÇÃO 1: Lógica aprimorada para armas de 2 mãos e Força 4+
         let weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
         let weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
         
+        // AJUSTE 1: Lógica aprimorada para armas de 2 mãos e Força 4+
         const canWield2HInOneHand = finalAttributes.forca >= 4;
 
         if ((weapon1Data.hand === 2 && !canWield2HInOneHand) || (weapon2Data.hand === 2 && !canWield2HInOneHand)) {
             if (weapon1Data.hand === 2) {
                 if (weapon2Type !== 'Desarmado') weapon2Select.value = 'Desarmado';
-            } else { // weapon2 is 2H
+            } else { 
                 if (weapon1Type !== 'Desarmado') weapon1Select.value = 'Desarmado';
             }
             if (shieldType !== 'Nenhum') shieldSelect.value = 'Nenhum';
-            return updateCharacterSheet(); // Reinicia a validação com os valores corrigidos
+            return updateCharacterSheet();
         }
         
         if (weapon2Type !== 'Desarmado' && shieldType !== 'Nenhum') {
@@ -1473,7 +1472,6 @@ document.addEventListener('DOMContentLoaded', () => {
              return updateCharacterSheet();
         }
 
-        // Recarrega os dados após possíveis correções
         weapon1Type = weapon1Select.value; weapon2Type = weapon2Select.value; shieldType = shieldSelect.value;
         let armorType = armorSelect.value;
         weapon1Data = GAME_RULES.weapons[weapon1Type] || {}; weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
@@ -1481,7 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         weapon1Select.disabled = (weapon2Data.hand === 2 && !canWield2HInOneHand);
         weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
-        shieldSelect.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || (weapon2Data.hand === 2 && !canWield2HInOneHand) || weapon2Type !== 'Desarmado';
+        shieldSelect.disabled = weapon2Type !== 'Desarmado';
 
 
         let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
@@ -1509,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.elements-grid .up-arrow').forEach(btn => btn.disabled = elemPointsRemaining <= 0);
 
         let infoText = '';
-        if ((weapon1Data.hand === 2 || weapon2Data.hand === 2) && finalAttributes.forca < 4) {
+        if ((weapon1Data.hand === 2 || weapon2Data.hand === 2) && !canWield2HInOneHand) {
             infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
         }
 
@@ -1854,13 +1852,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
             const weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
             
+            // AJUSTE 1: Lógica de 2 mãos com Força 4+
             const canWield2HInOneHand = (myFighterData.sheet.finalAttributes.forca || 0) >= 4;
 
             let finalWeapon1 = weapon1ItemName;
             let finalWeapon2 = weapon2ItemName;
             let finalShield = shieldItemName;
             
-            // CORREÇÃO 1: Lógica de 2 mãos com Força 4+
             if ((weapon1Data.hand === 2 && !canWield2HInOneHand) || (weapon2Data.hand === 2 && !canWield2HInOneHand)) {
                 if (weapon1Data.hand === 2) { finalWeapon2 = 'Desarmado'; } 
                 else { finalWeapon1 = 'Desarmado'; }
@@ -2295,7 +2293,6 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('fleeResolved', ({ actorKey }) => {
         const actorEl = document.getElementById(actorKey);
         if (actorEl) {
-            // CORREÇÃO 2: Verifica a classe correta do elemento para aplicar a animação certa
             if (actorEl.classList.contains('player-char-container')) {
                 actorEl.classList.add('is-fleeing-player');
             } else {
@@ -2328,27 +2325,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // Adiciona listeners para todos os inputs e selects que afetam os cálculos.
-        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select:not([id*="weapon-type"])').forEach(el => {
-            el.addEventListener('change', (e) => updateCharacterSheet(e));
+        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
+            el.addEventListener('change', (e) => {
+                const isWeaponType = e.target.id.includes('weapon') && e.target.id.includes('type');
+                if (isWeaponType) {
+                    const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
+                    tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+                    updateCharacterSheet(e); // Primeiro atualiza a lógica
+                    if (e.target.value !== 'Desarmado') {
+                        showWeaponImageSelectionModal(weaponSlot); // Depois abre o modal se necessário
+                    }
+                } else {
+                    updateCharacterSheet(e);
+                }
+            });
             if (el.tagName !== 'SELECT' && el.type !== 'file') {
                 el.addEventListener('input', (e) => updateCharacterSheet(e));
             }
-        });
-        
-        // Listener dedicado para os selects de tipo de arma para o fluxo correto
-        document.querySelectorAll('#sheet-weapon1-type, #sheet-weapon2-type').forEach(el => {
-            el.addEventListener('change', (e) => {
-                const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
-                // Reseta a imagem e os dados da arma
-                tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-                // Atualiza a ficha (isso vai limpar a imagem e recalcular tudo)
-                updateCharacterSheet(e);
-                // Se não for 'Desarmado', abre o modal de seleção de imagem
-                if (e.target.value !== 'Desarmado') {
-                    showWeaponImageSelectionModal(weaponSlot);
-                }
-            });
         });
 
         document.getElementById('weapon-image-modal-cancel').onclick = () => {
