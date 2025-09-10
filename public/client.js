@@ -1419,11 +1419,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
         
-        const imgPath1 = tempCharacterSheet.weapon1.img;
-        document.getElementById('sheet-weapon1-image').style.backgroundImage = imgPath1 ? `url("${imgPath1}")` : 'none';
-        
-        const imgPath2 = tempCharacterSheet.weapon2.img;
-        document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
+        const weapon1Select = document.getElementById('sheet-weapon1-type');
+        const weapon2Select = document.getElementById('sheet-weapon2-type');
+        const shieldSelect = document.getElementById('sheet-shield-type');
+        const armorSelect = document.getElementById('sheet-armor-type');
         
         const selectedRace = document.getElementById('sheet-race-select').value;
         const raceData = GAME_RULES.races[selectedRace];
@@ -1438,30 +1437,28 @@ document.addEventListener('DOMContentLoaded', () => {
             luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0, escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
         };
         
-        const weapon1Select = document.getElementById('sheet-weapon1-type');
-        const weapon2Select = document.getElementById('sheet-weapon2-type');
-        const shieldSelect = document.getElementById('sheet-shield-type');
-        const armorSelect = document.getElementById('sheet-armor-type');
-
-        // Primeiro, calcule os atributos finais para obter a Força
         let finalAttributes = { ...baseAttributes };
         if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
         if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
         
-        // Agora, use a Força final para a lógica das armas
         const canWield2HInOneHand = finalAttributes.forca >= 4;
 
-        let weapon1Type = weapon1Select.value;
-        let weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
+        // Lógica de correção de equipamento
+        let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
         if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-            if (weapon2Select.value !== 'Desarmado') weapon2Select.value = 'Desarmado';
+            if (weapon2Select.value !== 'Desarmado') {
+                weapon2Select.value = 'Desarmado';
+                tempCharacterSheet.weapon2 = { img: null, isRanged: false };
+            }
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         }
 
-        let weapon2Type = weapon2Select.value;
-        let weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
+        let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
         if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
-            if (weapon1Select.value !== 'Desarmado') weapon1Select.value = 'Desarmado';
+            if (weapon1Select.value !== 'Desarmado') {
+                weapon1Select.value = 'Desarmado';
+                tempCharacterSheet.weapon1 = { img: null, isRanged: false };
+            }
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         }
 
@@ -1469,30 +1466,29 @@ document.addEventListener('DOMContentLoaded', () => {
             shieldSelect.value = 'Nenhum';
         }
         
-        // Releia os valores após as correções automáticas
-        weapon1Type = weapon1Select.value;
-        weapon2Type = weapon2Select.value;
-        let shieldType = shieldSelect.value;
-        let armorType = armorSelect.value;
+        const weapon1Type = weapon1Select.value;
+        const weapon2Type = weapon2Select.value;
+        const shieldType = shieldSelect.value;
+        const armorType = armorSelect.value;
         weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
         weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
         let armorData = GAME_RULES.armors[armorType] || {};
         let shieldData = GAME_RULES.shields[shieldType] || {};
 
-        // Atualize o estado desabilitado dos seletores
         weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
         shieldSelect.disabled = weapon2Type !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
 
+        const imgPath1 = tempCharacterSheet.weapon1.img;
+        document.getElementById('sheet-weapon1-image').style.backgroundImage = imgPath1 ? `url("${imgPath1}")` : 'none';
+        const imgPath2 = tempCharacterSheet.weapon2.img;
+        document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
 
         let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
         if (cost > 200 && event && event.target && event.type === 'change') {
             alert("Dinheiro insuficiente!");
             const changedElement = event.target;
-            if (changedElement.id.includes('weapon')) { changedElement.value = "Desarmado"; }
-            else if (changedElement.id.includes('armor')) { changedElement.value = "Nenhuma"; }
-            else if (changedElement.id.includes('shield')) { changedElement.value = "Nenhum"; }
-            // Chama a função novamente para recalcular após a correção automática do item
-            return updateCharacterSheet();
+            changedElement.value = (changedElement.id.includes('weapon')) ? "Desarmado" : (changedElement.id.includes('armor') ? "Nenhuma" : "Nenhum");
+            return updateCharacterSheet(); // Chama novamente para recalcular com o valor corrigido
         }
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
