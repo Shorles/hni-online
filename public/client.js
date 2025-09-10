@@ -64,18 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const coordsDisplay = document.getElementById('coords-display');
     const playerInfoWidget = document.getElementById('player-info-widget');
     const ingameSheetModal = document.getElementById('ingame-sheet-modal');
-    const debugPanel = document.getElementById('debug-panel'); // PAINEL DE DEBUG
-
-    // --- FUNÇÕES DE DEPURACÃO ---
-    function updateDebugPanel() {
-        if (debugPanel && !debugPanel.classList.contains('hidden')) {
-            const debugData = {
-                weapon1: tempCharacterSheet.weapon1,
-                weapon2: tempCharacterSheet.weapon2,
-            };
-            debugPanel.textContent = "DEBUGGER\n" + JSON.stringify(debugData, null, 2);
-        }
-    }
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -88,10 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function showScreen(screenToShow) {
         allScreens.forEach(screen => screen.classList.toggle('active', screen === screenToShow));
-        // Mostra o painel de debug apenas na tela da ficha
-        if (debugPanel) {
-            debugPanel.classList.toggle('hidden', screenToShow.id !== 'character-sheet-screen');
-        }
     }
     function showInfoModal(title, text, showButton = true) {
         document.getElementById('modal-title').innerText = title;
@@ -1378,7 +1362,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
-        alert("DEBUG: Ficha de personagem inicializada (initializeCharacterSheet).");
         tempCharacterSheet.spells = []; 
         tempCharacterSheet.weapon1 = { img: null, isRanged: false };
         tempCharacterSheet.weapon2 = { img: null, isRanged: false };
@@ -1424,9 +1407,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateCharacterSheet(event = null) {
-        alert("DEBUG: Atualizando a ficha (updateCharacterSheet).");
-        updateDebugPanel();
-
         if (!GAME_RULES.races) return; 
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
@@ -1583,7 +1563,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showWeaponImageSelectionModal(weaponSlot) {
-        alert(`DEBUG: Abrindo modal de imagem para ${weaponSlot} (showWeaponImageSelectionModal).`);
         const weaponType = document.getElementById(`sheet-${weaponSlot}-type`).value;
         const images = ALL_WEAPON_IMAGES[weaponType];
         
@@ -1610,7 +1589,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.className = 'weapon-image-card';
                     card.innerHTML = `<img src="${imgPath}" alt="weapon image">`;
                     card.onclick = () => {
-                        alert(`DEBUG: Imagem selecionada! Salvando: ${imgPath} para ${weaponSlot}`);
                         tempCharacterSheet[weaponSlot] = { img: imgPath, isRanged: isRanged };
                         weaponImageModal.classList.add('hidden');
                         updateCharacterSheet();

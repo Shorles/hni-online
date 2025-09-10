@@ -47,15 +47,16 @@ try {
             const config = weaponImagesConfig[weaponType];
             ALL_WEAPON_IMAGES[weaponType] = { melee: [], ranged: [] };
             
+            // CORREÇÃO: Adicionando a barra "/" no início do caminho da imagem
             if (config.meleePrefix) {
                 ALL_WEAPON_IMAGES[weaponType].melee = weaponImageFiles
                     .filter(file => file.startsWith(config.meleePrefix + ' ('))
-                    .map(file => `/images/armas/${file}`); // <<< CORREÇÃO APLICADA AQUI
+                    .map(file => `/images/armas/${file}`);
             }
             if (config.rangedPrefix) {
                 ALL_WEAPON_IMAGES[weaponType].ranged = weaponImageFiles
                     .filter(file => file.startsWith(config.rangedPrefix + ' ('))
-                    .map(file => `/images/armas/${file}`); // <<< CORREÇÃO APLICADA AQUI
+                    .map(file => `/images/armas/${file}`);
             }
         }
     }
@@ -64,7 +65,8 @@ try {
     const dynamicCharPath = 'public/images/personagens/';
     if (fs.existsSync(dynamicCharPath)) {
         const files = fs.readdirSync(dynamicCharPath).filter(file => file.startsWith('Personagem (') && (file.endsWith('.png') || file.endsWith('.jpg')));
-        DYNAMIC_CHARACTERS = files.map(file => ({ name: file.split('.')[0], img: `images/personagens/${file}` }));
+        // CORREÇÃO: Adicionando a barra "/" no início do caminho da imagem
+        DYNAMIC_CHARACTERS = files.map(file => ({ name: file.split('.')[0], img: `/images/personagens/${file}` }));
     }
 
     const scenarioCategories = ["cenarios externos", "cenarios internos", "cenas", "fichas", "objetos", "outros"];
@@ -235,7 +237,7 @@ function createNewFighterState(data) {
             };
         } else {
              fighter.mahouMax = 10; fighter.mahou = 10;
-             fighter.sheet.finalAttributes = { forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 };
+             fighter.sheet.finalAttributes = { forca: 1, agilidade: 1, protecao: 1, constituicao: 1, mente: 1 };
         }
     }
     
@@ -865,9 +867,9 @@ io.on('connection', (socket) => {
         spells: ALL_SPELLS,
         weaponImages: ALL_WEAPON_IMAGES,
         characters: { 
-            players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `images/players/${name}.png` })), 
+            players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `/images/players/${name}.png` })), 
             npcs: Object.keys(ALL_NPCS).map(name => ({ 
-                name, img: `images/lutadores/${name}.png`, scale: ALL_NPCS[name].scale || 1.0,
+                name, img: `/images/lutadores/${name}.png`, scale: ALL_NPCS[name].scale || 1.0,
                 isMultiPart: !!ALL_NPCS[name].isMultiPart, parts: ALL_NPCS[name].parts || []
             })), 
             dynamic: DYNAMIC_CHARACTERS 
@@ -1233,7 +1235,7 @@ io.on('connection', (socket) => {
                                     } else {
                                         activeState.scenarioStates[newScenarioPath].isStaging = true;
                                     }
-                                    activeState.publicState = filterPublicTheaterState(activeState.scenarioStates[newScenarioPath]);
+                                    activeState.publicState = filterPublicTheaterState(currentScenarioState);
                                     logMessage(activeState, 'GM está preparando um novo cenário...');
                                 }
                                 break;
