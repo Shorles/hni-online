@@ -200,8 +200,8 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
         
-        if (gameState.mode === 'adventure' && gameState.scenario) gameWrapper.style.backgroundImage = `url('images/${gameState.scenario}')`;
-        else if (gameState.mode === 'lobby') gameWrapper.style.backgroundImage = `url('images/mapas/cenarios externos/externo (1).png')`;
+        if (gameState.mode === 'adventure' && gameState.scenario) gameWrapper.style.backgroundImage = `url('/images/${gameState.scenario}')`;
+        else if (gameState.mode === 'lobby') gameWrapper.style.backgroundImage = `url('/images/mapas/cenarios externos/externo (1).png')`;
         else gameWrapper.style.backgroundImage = 'none';
 
         document.getElementById('turn-order-sidebar').classList.add('hidden');
@@ -1038,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dataToRender = isGm ? state.scenarioStates?.[state.currentScenario] : state.publicState;
         if (!dataToRender || !dataToRender.scenario) return;
 
-        const scenarioUrl = `images/${dataToRender.scenario}`;
+        const scenarioUrl = `/images/${dataToRender.scenario}`;
         if (!theaterBackgroundImage.src.includes(dataToRender.scenario)) {
             const img = new Image();
             img.onload = () => {
@@ -1411,8 +1411,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
         
-        document.getElementById('sheet-weapon1-image').style.backgroundImage = tempCharacterSheet.weapon1.img ? `url(${tempCharacterSheet.weapon1.img})` : 'none';
-        document.getElementById('sheet-weapon2-image').style.backgroundImage = tempCharacterSheet.weapon2.img ? `url(${tempCharacterSheet.weapon2.img})` : 'none';
+        const imgPath1 = tempCharacterSheet.weapon1.img;
+        document.getElementById('sheet-weapon1-image').style.backgroundImage = imgPath1 ? `url("${imgPath1}")` : 'none';
+        
+        const imgPath2 = tempCharacterSheet.weapon2.img;
+        document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
         
         const selectedRace = document.getElementById('sheet-race-select').value;
         const raceData = GAME_RULES.races[selectedRace];
@@ -1737,8 +1740,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const inventory = fighter.inventory || {};
         const equipment = fighter.sheet.equipment;
         
-        document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = equipment.weapon1.img ? `url(${equipment.weapon1.img})` : 'none';
-        document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = equipment.weapon2.img ? `url(${equipment.weapon2.img})` : 'none';
+        document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = equipment.weapon1.img ? `url("${equipment.weapon1.img}")` : 'none';
+        document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = equipment.weapon2.img ? `url("${equipment.weapon2.img}")` : 'none';
 
         const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
         const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
