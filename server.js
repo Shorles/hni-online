@@ -1190,6 +1190,10 @@ io.on('connection', (socket) => {
                                 playerFighter.pa -= 3;
                                 playerFighter.sheet.equipment = action.newEquipment;
                                 recalculateFighterStats(playerFighter);
+                                // AJUSTE 2: Sincroniza a alteração de equipamento de volta para a ficha no lobby
+                                if (lobbyState.connectedPlayers[socket.id]) {
+                                    lobbyState.connectedPlayers[socket.id].characterSheet.equipment = action.newEquipment;
+                                }
                                 logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
                             } else if (room.activeMode !== 'adventure') {
                                 playerFighter.sheet.equipment = action.newEquipment;
