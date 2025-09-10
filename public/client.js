@@ -760,7 +760,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createAttackButton('weapon1');
         createAttackButton('weapon2');
         
-        // CORREÇÃO 4: Adicionar botão de ataque desarmado se nenhuma arma estiver equipada
+        // Botão de ataque desarmado
         if (!attackButtonAdded) {
             const btn = createButton('Atacar Desarmado', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
             actionButtonsWrapper.appendChild(btn);
@@ -1448,28 +1448,24 @@ document.addEventListener('DOMContentLoaded', () => {
         let weapon2Type = weapon2Select.value;
         let shieldType = shieldSelect.value;
 
-        // CORREÇÃO 1: Lógica aprimorada para armas de 2 mãos
+        let finalAttributes = { ...baseAttributes };
+        if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
+        if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
+
+        // CORREÇÃO 1: Lógica aprimorada para armas de 2 mãos e Força 4+
         let weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
         let weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
+        
+        const canWield2HInOneHand = finalAttributes.forca >= 4;
 
-        if (weapon1Data.hand === 2) {
-            if (weapon2Type !== 'Desarmado') {
-                weapon2Select.value = 'Desarmado';
-                return updateCharacterSheet(); // Reinicia a validação com o valor corrigido
+        if ((weapon1Data.hand === 2 && !canWield2HInOneHand) || (weapon2Data.hand === 2 && !canWield2HInOneHand)) {
+            if (weapon1Data.hand === 2) {
+                if (weapon2Type !== 'Desarmado') weapon2Select.value = 'Desarmado';
+            } else { // weapon2 is 2H
+                if (weapon1Type !== 'Desarmado') weapon1Select.value = 'Desarmado';
             }
-            if (shieldType !== 'Nenhum') {
-                shieldSelect.value = 'Nenhum';
-                return updateCharacterSheet();
-            }
-        } else if (weapon2Data.hand === 2) {
-            if (weapon1Type !== 'Desarmado') {
-                weapon1Select.value = 'Desarmado';
-                return updateCharacterSheet();
-            }
-            if (shieldType !== 'Nenhum') {
-                shieldSelect.value = 'Nenhum';
-                return updateCharacterSheet();
-            }
+            if (shieldType !== 'Nenhum') shieldSelect.value = 'Nenhum';
+            return updateCharacterSheet(); // Reinicia a validação com os valores corrigidos
         }
         
         if (weapon2Type !== 'Desarmado' && shieldType !== 'Nenhum') {
@@ -1478,18 +1474,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Recarrega os dados após possíveis correções
-        weapon1Type = weapon1Select.value;
-        weapon2Type = weapon2Select.value;
-        shieldType = shieldSelect.value;
+        weapon1Type = weapon1Select.value; weapon2Type = weapon2Select.value; shieldType = shieldSelect.value;
         let armorType = armorSelect.value;
-        weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
-        weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
-        let armorData = GAME_RULES.armors[armorType] || {};
-        let shieldData = GAME_RULES.shields[shieldType] || {};
+        weapon1Data = GAME_RULES.weapons[weapon1Type] || {}; weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
+        let armorData = GAME_RULES.armors[armorType] || {}; let shieldData = GAME_RULES.shields[shieldType] || {};
 
-        weapon1Select.disabled = (weapon2Data.hand === 2);
-        weapon2Select.disabled = (weapon1Data.hand === 2 || shieldType !== 'Nenhum');
-        shieldSelect.disabled = (weapon1Data.hand === 2 || weapon2Data.hand === 2 || weapon2Type !== 'Desarmado');
+        weapon1Select.disabled = (weapon2Data.hand === 2 && !canWield2HInOneHand);
+        weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
+        shieldSelect.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || (weapon2Data.hand === 2 && !canWield2HInOneHand) || weapon2Type !== 'Desarmado';
 
 
         let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
@@ -1515,10 +1507,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const elemPointsRemaining = maxElemPoints - totalElemPoints;
         document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
         document.querySelectorAll('.elements-grid .up-arrow').forEach(btn => btn.disabled = elemPointsRemaining <= 0);
-
-        let finalAttributes = { ...baseAttributes };
-        if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
-        if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
 
         let infoText = '';
         if ((weapon1Data.hand === 2 || weapon2Data.hand === 2) && finalAttributes.forca < 4) {
@@ -1746,13 +1734,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-    // CORREÇÃO 3: Nova função para renderizar o inventário
     function renderIngameInventory(fighter) {
         if (!fighter || !fighter.sheet) return;
 
         const inventory = fighter.inventory || {};
         
-        // Pega os itens atualmente selecionados nos dropdowns
         const equippedItems = [
             document.getElementById('ingame-sheet-weapon1-type').value,
             document.getElementById('ingame-sheet-weapon2-type').value,
@@ -1850,7 +1836,6 @@ document.addEventListener('DOMContentLoaded', () => {
             selectEl.disabled = !canEditEquipment;
         };
     
-        // CORREÇÃO 1 e 3: Função centralizada para atualizar selects de arma e inventário
         const updateWeaponAndShieldingLogic = () => {
             const myFighterData = getFighter(currentGameState, myPlayerKey);
             if (!myFighterData) return;
@@ -1868,44 +1853,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
             const weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
+            
+            const canWield2HInOneHand = (myFighterData.sheet.finalAttributes.forca || 0) >= 4;
 
             let finalWeapon1 = weapon1ItemName;
             let finalWeapon2 = weapon2ItemName;
             let finalShield = shieldItemName;
-
-            if (weapon1Data.hand === 2) {
-                finalWeapon2 = 'Desarmado';
+            
+            // CORREÇÃO 1: Lógica de 2 mãos com Força 4+
+            if ((weapon1Data.hand === 2 && !canWield2HInOneHand) || (weapon2Data.hand === 2 && !canWield2HInOneHand)) {
+                if (weapon1Data.hand === 2) { finalWeapon2 = 'Desarmado'; } 
+                else { finalWeapon1 = 'Desarmado'; }
                 finalShield = 'Nenhum';
-            } else if (weapon2Data.hand === 2) {
-                finalWeapon1 = 'Desarmado';
-                finalShield = 'Nenhum';
-            } else if (weapon2ItemName !== 'Desarmado' && shieldItemName !== 'Nenhum') {
+            }
+            
+            if (weapon2ItemName !== 'Desarmado' && shieldItemName !== 'Nenhum') {
                 finalShield = 'Nenhum';
             }
 
-            // Repopula os selects com os itens corretos, excluindo os já equipados
             populateSelect(weapon1Select, 'weapon', 'Desarmado', finalWeapon2 !== 'Desarmado' ? [finalWeapon2] : []);
             populateSelect(weapon2Select, 'weapon', 'Desarmado', finalWeapon1 !== 'Desarmado' ? [finalWeapon1] : []);
 
-            // Define os valores finais (após validação)
             weapon1Select.value = finalWeapon1;
             weapon2Select.value = finalWeapon2;
             shieldSelect.value = finalShield;
 
-            // Atualiza imagens e lógica de bloqueio
             const finalWeapon1Item = inventory[finalWeapon1] || {};
             const finalWeapon2Item = inventory[finalWeapon2] || {};
             const finalWeapon1BaseType = finalWeapon1Item.baseType || (finalWeapon1 === 'Desarmado' ? 'Desarmado' : null);
-            const finalWeapon2BaseType = finalWeapon2Item.baseType || (finalWeapon2 === 'Desarmado' ? 'Desarmado' : null);
             const finalWeapon1Data = GAME_RULES.weapons[finalWeapon1BaseType] || {};
 
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalWeapon1Item.img ? `url("${finalWeapon1Item.img}")` : 'none';
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = finalWeapon2Item.img ? `url("${finalWeapon2Item.img}")` : 'none';
             
-            weapon2Select.disabled = !canEditEquipment || finalWeapon1Data.hand === 2 || shieldSelect.value !== 'Nenhum';
-            shieldSelect.disabled = !canEditEquipment || finalWeapon1Data.hand === 2 || weapon2Select.value !== 'Desarmado';
+            weapon2Select.disabled = !canEditEquipment || (finalWeapon1Data.hand === 2 && !canWield2HInOneHand) || shieldSelect.value !== 'Nenhum';
+            shieldSelect.disabled = !canEditEquipment || weapon2Select.value !== 'Desarmado';
 
-            // CORREÇÃO 3: Renderiza o inventário novamente
             renderIngameInventory(fighter);
         };
     
@@ -1914,19 +1897,17 @@ document.addEventListener('DOMContentLoaded', () => {
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
         
-        // Configuração inicial e listeners
         weapon1Select.onchange = updateWeaponAndShieldingLogic;
         weapon2Select.onchange = updateWeaponAndShieldingLogic;
         shieldSelect.onchange = updateWeaponAndShieldingLogic;
-        armorSelect.onchange = () => renderIngameInventory(fighter); // Armadura só precisa atualizar o inventário
+        armorSelect.onchange = () => renderIngameInventory(fighter);
 
-        // Popula armas pela primeira vez e define valores
         populateSelect(weapon1Select, 'weapon', 'Desarmado', (equipment.weapon2.name && equipment.weapon2.name !== 'Desarmado') ? [equipment.weapon2.name] : []);
         populateSelect(weapon2Select, 'weapon', 'Desarmado', (equipment.weapon1.name && equipment.weapon1.name !== 'Desarmado') ? [equipment.weapon1.name] : []);
         weapon1Select.value = equipment.weapon1.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2.name || 'Desarmado';
         
-        updateWeaponAndShieldingLogic(); // Executa a lógica de validação e atualização inicial
+        updateWeaponAndShieldingLogic();
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
@@ -1946,7 +1927,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // CORREÇÃO 3: A lógica do inventário foi movida para sua própria função
         renderIngameInventory(fighter);
 
         const spellsGrid = document.getElementById('ingame-sheet-spells-grid');
@@ -2315,7 +2295,12 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('fleeResolved', ({ actorKey }) => {
         const actorEl = document.getElementById(actorKey);
         if (actorEl) {
-            actorEl.classList.add(actorEl.querySelector('.player-char-container') ? 'is-fleeing-player' : 'is-fleeing-npc');
+            // CORREÇÃO 2: Verifica a classe correta do elemento para aplicar a animação certa
+            if (actorEl.classList.contains('player-char-container')) {
+                actorEl.classList.add('is-fleeing-player');
+            } else {
+                actorEl.classList.add('is-fleeing-npc');
+            }
         }
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
