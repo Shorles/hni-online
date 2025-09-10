@@ -1490,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Dinheiro insuficiente!");
             const changedElement = event.target;
             changedElement.value = (changedElement.id.includes('weapon')) ? "Desarmado" : (changedElement.id.includes('armor') ? "Nenhuma" : "Nenhum");
-            return updateCharacterSheet();
+            return updateCharacterSheet(); // Chama novamente para recalcular com o valor corrigido
         }
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
@@ -1638,7 +1638,6 @@ document.addEventListener('DOMContentLoaded', () => {
         weaponImageModal.classList.remove('hidden');
     }
 
-    // AJUSTE 2: Lógica para salvar a ficha
     function getCharacterSheetData(context) {
         const isCreation = context === 'creation';
         const prefix = isCreation ? 'sheet' : 'ingame-sheet';
@@ -1655,12 +1654,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const weapon2Type = document.getElementById(`${prefix}-weapon2-type`).value;
 
         const data = {
-            name: document.getElementById(`${prefix}-name`).value,
+            name: isCreation ? document.getElementById('sheet-name').value : myFighter.sheet.name,
             tokenName: isCreation ? tempCharacterSheet.tokenName : myFighter.sheet.tokenName,
             tokenImg: isCreation ? tempCharacterSheet.tokenImg : myFighter.sheet.tokenImg,
             class: isCreation ? document.getElementById('sheet-class').value : myFighter.sheet.class,
             race: isCreation ? document.getElementById('sheet-race-select').value : myFighter.sheet.race,
-            money: parseInt(document.getElementById(`${prefix}-money-copper`]?.textContent || document.getElementById(`${prefix}-money`).textContent || '0', 10),
+            money: parseInt(document.getElementById(`${prefix}-money-copper`)?.textContent || document.getElementById(`${prefix}-money`).textContent || '0', 10),
             level: myFighter?.level || 1,
             xp: myFighter?.xp || 0,
             xpNeeded: myFighter?.xpNeeded || 100,
@@ -1697,16 +1696,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleSaveCharacter(context) {
         const sheetData = getCharacterSheetData(context);
-        if (!sheetData.name) {
+        if (!sheetData.name && !sheetData.tokenName) {
             alert("Por favor, dê um nome ao seu personagem antes de salvar.");
             return;
         }
+        const characterName = sheetData.name || sheetData.tokenName;
         const dataStr = JSON.stringify(sheetData, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${sheetData.name.replace(/\s+/g, '_')}.json`;
+        a.download = `${characterName.replace(/\s+/g, '_')}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1812,7 +1812,6 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
         } else {
             modal.classList.add('hidden');
-            // AJUSTE 1: Chama a confirmação apenas se houver mudanças
             handleEquipmentChangeConfirmation();
         }
     }
@@ -2021,7 +2020,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
     
-        // AJUSTE 1: Sai da função se nada mudou
         if (!hasChanged) return;
     
         if (currentGameState.mode === 'adventure') {
