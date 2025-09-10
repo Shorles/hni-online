@@ -176,6 +176,7 @@ function createNewFighterState(data) {
     };
 
     if (fighter.isPlayer && data.finalAttributes) {
+        // AJUSTE 2: Garante que os atributos existam para o cálculo, evitando "null"
         const constituicao = data.finalAttributes.constituicao || 0;
         const mente = data.finalAttributes.mente || 0;
         
@@ -778,15 +779,18 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
 
     switch(spell.effect.type) {
         case 'direct_damage':
-            let damageRoll = rollDice(spell.effect.damageFormula);
-            if (spell.effect.damageBonus === 'level') damageRoll += attacker.level;
+            const damageRoll = rollDice(spell.effect.damageFormula);
+            let levelBonus = 0;
+            if (spell.effect.damageBonus === 'level') {
+                levelBonus = attacker.level;
+            }
             
             const critDamage = debugInfo.isCrit ? damageRoll : 0;
             const btmBreakdown = getBtmBreakdown(attacker);
             const btm = btmBreakdown.value;
             const targetProtectionBreakdown = getProtectionBreakdown(target);
             const targetProtection = targetProtectionBreakdown.value;
-            const totalDamage = damageRoll + critDamage + btm + effectModifier;
+            const totalDamage = damageRoll + levelBonus + critDamage + btm + effectModifier;
             const finalDamage = Math.max(1, totalDamage - targetProtection);
             
             target.hp = Math.max(0, target.hp - finalDamage);
@@ -796,7 +800,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
-            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, critDamage, btm, btmBreakdown: btmBreakdown.details, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
+            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, btm, btmBreakdown: btmBreakdown.details, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
             io.to(roomId).emit('spellResolved', { debugInfo });
             break;
         

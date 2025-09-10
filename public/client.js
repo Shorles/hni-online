@@ -774,7 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let ammo2 = weapon2.isRanged ? activeFighter.ammunition?.['weapon2'] : Infinity;
             let dualDisabled = ammo1 <= 0 || ammo2 <= 0;
 
-            const btn = createButton('Ataque Duplo', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
+            const btn = createButton('Ataque Duplo (3 PA)', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
             actionButtonsWrapper.appendChild(btn);
         }
 
@@ -1579,7 +1579,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.addEventListener('click', () => {
                 if (tempCharacterSheet.spells.includes(spell.name)) {
                     tempCharacterSheet.spells = tempCharacterSheet.spells.filter(s => s !== spell.name);
-                } else if (tempCharacterSheet.spells.length < 2) { // AJUSTE 1: Limite de magias
+                } else if (tempCharacterSheet.spells.length < 2) {
                     tempCharacterSheet.spells.push(spell.name);
                 } else {
                     alert("Você pode escolher no máximo 2 magias iniciais.");
@@ -1643,14 +1643,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const myFighter = isCreation ? null : getFighter(currentGameState, myPlayerKey);
 
         const finalAttributes = {};
-        document.querySelectorAll(`#${isCreation ? 'character-sheet-screen' : 'ingame-sheet-modal'} .final-attributes .attr-item, #${prefix}-attributes .attr-item`).forEach(item => {
+        const attrSelector = isCreation ? '#character-sheet-screen .final-attributes .attr-item' : '#ingame-sheet-attributes .attr-item';
+        document.querySelectorAll(attrSelector).forEach(item => {
             const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             const value = parseInt(item.querySelector('span').textContent, 10);
             finalAttributes[label] = value;
         });
+        
+        const weapon1Select = document.getElementById(`${prefix}-weapon1-type`);
+        const weapon2Select = document.getElementById(`${prefix}-weapon2-type`);
+        const weapon1Type = weapon1Select.value;
+        const weapon2Type = weapon2Select.value;
 
-        const weapon1Type = document.getElementById(`${prefix}-weapon1-type`).value;
-        const weapon2Type = document.getElementById(`${prefix}-weapon2-type`).value;
+        let weapon1, weapon2;
+
+        if (isCreation) {
+            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type), type: weapon1Type, ...tempCharacterSheet.weapon1 };
+            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type), type: weapon2Type, ...tempCharacterSheet.weapon2 };
+        } else {
+            const w1Item = myFighter.inventory[weapon1Type] || { baseType: 'Desarmado', img: null, isRanged: false };
+            const w2Item = myFighter.inventory[weapon2Type] || { baseType: 'Desarmado', img: null, isRanged: false };
+            weapon1 = { name: weapon1Type, type: w1Item.baseType, img: w1Item.img, isRanged: w1Item.isRanged };
+            weapon2 = { name: weapon2Type, type: w2Item.baseType, img: w2Item.img, isRanged: w2Item.isRanged };
+        }
 
         const data = {
             name: isCreation ? document.getElementById('sheet-name').value : myFighter.sheet.name,
@@ -1666,8 +1681,8 @@ document.addEventListener('DOMContentLoaded', () => {
             finalAttributes: finalAttributes,
             elements: {},
             equipment: {
-                weapon1: { name: isCreation ? (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type) : weapon1Type, type: isCreation ? weapon1Type : (myFighter.inventory[weapon1Type]?.baseType || 'Desarmado') },
-                weapon2: { name: isCreation ? (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type) : weapon2Type, type: isCreation ? weapon2Type : (myFighter.inventory[weapon2Type]?.baseType || 'Desarmado') },
+                weapon1: weapon1,
+                weapon2: weapon2,
                 armor: document.getElementById(`${prefix}-armor-type`).value,
                 shield: document.getElementById(`${prefix}-shield-type`).value,
             },
@@ -1692,24 +1707,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return data;
     }
-
-    // AJUSTE 3: Funções de "criptografia"
+    
     function encryptData(data) {
         try {
             const jsonString = JSON.stringify(data);
-            return btoa(unescape(encodeURIComponent(jsonString))); // Base64 encoding
+            return btoa(unescape(encodeURIComponent(jsonString)));
         } catch (e) {
-            console.error("Erro ao criptografar dados:", e);
+            console.error("Erro ao codificar dados:", e);
             return null;
         }
     }
     
     function decryptData(encodedData) {
         try {
-            const jsonString = decodeURIComponent(escape(atob(encodedData))); // Base64 decoding
+            const jsonString = decodeURIComponent(escape(atob(encodedData)));
             return JSON.parse(jsonString);
         } catch (e) {
-            console.error("Erro ao descriptografar dados:", e);
+            console.error("Erro ao decodificar dados:", e);
             return null;
         }
     }
@@ -1744,18 +1758,19 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const decryptedData = decryptData(e.target.result);
                 if (!decryptedData) throw new Error("Arquivo inválido ou corrompido.");
+                if (!GAME_RULES.races[decryptedData.race]) throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida.`);
                 
-                // Aplicar dados carregados
                 if (context === 'creation') {
                     document.getElementById('sheet-name').value = decryptedData.name || '';
                     document.getElementById('sheet-class').value = decryptedData.class || '';
-                    document.getElementById('sheet-race-select').value = decryptedData.race || 'Humano';
+                    document.getElementById('sheet-race-select').value = decryptedData.race;
 
                     tempCharacterSheet.tokenName = decryptedData.tokenName;
                     tempCharacterSheet.tokenImg = decryptedData.tokenImg;
                     tempCharacterSheet.spells = decryptedData.spells || [];
+                    tempCharacterSheet.weapon1 = decryptedData.equipment.weapon1 || { img: null, isRanged: false };
+                    tempCharacterSheet.weapon2 = decryptedData.equipment.weapon2 || { img: null, isRanged: false };
 
-                    // Preencher atributos e elementos
                     for (const attr in decryptedData.baseAttributes) {
                         document.getElementById(`sheet-base-attr-${attr}`).value = decryptedData.baseAttributes[attr];
                     }
@@ -1763,10 +1778,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById(`sheet-elem-${elem}`).value = decryptedData.elements[elem];
                     }
                     
-                    // Preencher equipamentos
-                    document.getElementById('sheet-weapon1-name').value = decryptedData.equipment.weapon1.name;
+                    document.getElementById('sheet-weapon1-name').value = decryptedData.equipment.weapon1.name === decryptedData.equipment.weapon1.type ? '' : decryptedData.equipment.weapon1.name;
                     document.getElementById('sheet-weapon1-type').value = decryptedData.equipment.weapon1.type;
-                    document.getElementById('sheet-weapon2-name').value = decryptedData.equipment.weapon2.name;
+                    document.getElementById('sheet-weapon2-name').value = decryptedData.equipment.weapon2.name === decryptedData.equipment.weapon2.type ? '' : decryptedData.equipment.weapon2.name;
                     document.getElementById('sheet-weapon2-type').value = decryptedData.equipment.weapon2.type;
                     document.getElementById('sheet-armor-type').value = decryptedData.equipment.armor;
                     document.getElementById('sheet-shield-type').value = decryptedData.equipment.shield;
@@ -1774,11 +1788,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateCharacterSheet();
                     showScreen(document.getElementById('character-sheet-screen'));
                 }
-                // Adicionar lógica para 'ingame' se necessário no futuro
             } catch (error) {
                 alert(`Erro ao carregar a ficha: ${error.message}`);
             } finally {
-                event.target.value = ''; // Limpa o input para permitir carregar o mesmo arquivo novamente
+                event.target.value = '';
             }
         };
         reader.readAsText(file);
@@ -2363,6 +2376,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (spellData.finalDamage !== undefined) {
                         report += `
                             <div class="grid-row"><span>Rolagem de Dano (${spellData.damageFormula}):</span> <span>${spellData.damageRoll}</span></div>
+                            ${spellData.levelBonus ? `<div class="grid-row"><span>Bônus de Nível:</span> <span>+${spellData.levelBonus}</span></div>` : ''}
                             ${spellData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${spellData.critDamage}</span></div>` : ''}
                             <div class="grid-row"><span>BTM do Atacante:</span> <span>${spellData.btm >= 0 ? '+' : ''}${spellData.btm}</span></div>
                             <div class="debug-breakdown">${formatBreakdown(spellData.btmBreakdown)}</div>
