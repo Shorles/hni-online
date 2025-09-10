@@ -261,7 +261,7 @@ function recalculateFighterStats(fighter) {
 }
 
 function cachePlayerStats(room) {
-    if (room.activeMode !== 'adventure' || !room.gameModes.adventure) return;
+    if (!room.gameModes.adventure) return;
     const adventureState = room.gameModes.adventure;
     const lobbyState = room.gameModes.lobby;
 
@@ -951,27 +951,37 @@ io.on('connection', (socket) => {
                 return;
             }
             if (action.type === 'gmSwitchesMode') {
-                 if (room.activeMode === 'adventure') room.activeMode = 'theater';
-                 else if (room.activeMode === 'theater') room.activeMode = 'adventure';
-
-                 if(room.activeMode === 'adventure' && !room.gameModes.adventure) {
-                     if (room.adventureCache) {
-                         socket.emit('promptForAdventureType');
-                         shouldUpdate = false;
-                     } else {
+                 if (room.activeMode === 'adventure') {
+                    // AJUSTE 4: Salva o estado da aventura antes de mudar de modo
+                    cachePlayerStats(room);
+                    room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                    room.activeMode = 'theater';
+                 } else if (room.activeMode === 'theater') {
+                    // AJUSTE 4: Inicia a lógica de perguntar ao GM
+                    if (room.adventureCache) {
+                        socket.emit('promptForAdventureType');
+                        shouldUpdate = false; // Não atualiza até o GM decidir
+                    } else {
+                        // Se não há cache, vai direto para uma nova aventura
+                        room.activeMode = 'adventure';
                         room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
-                     }
-                 } else if (room.activeMode === 'theater' && !room.gameModes.theater) {
+                    }
+                 }
+
+                 if (room.activeMode === 'theater' && !room.gameModes.theater) {
                     room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                  }
             }
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
-                    room.adventureCache = null;
-                } else { // new
+                    room.adventureCache = null; // Limpa o cache após restaurar
+                } else { // 'new' or no cache
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
+                    room.adventureCache = null; // Garante que o cache antigo seja limpo
                 }
+                room.activeMode = 'adventure';
+                logMessage(room.gameModes.adventure, "Mestre iniciou o modo Aventura.");
             }
         }
         
@@ -1190,7 +1200,6 @@ io.on('connection', (socket) => {
                                 playerFighter.pa -= 3;
                                 playerFighter.sheet.equipment = action.newEquipment;
                                 recalculateFighterStats(playerFighter);
-                                // AJUSTE 2: Sincroniza a alteração de equipamento de volta para a ficha no lobby
                                 if (lobbyState.connectedPlayers[socket.id]) {
                                     lobbyState.connectedPlayers[socket.id].characterSheet.equipment = action.newEquipment;
                                 }

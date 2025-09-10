@@ -1445,6 +1445,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Lógica de correção de equipamento
         let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
+        let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
+
         if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
             if (weapon2Select.value !== 'Desarmado') {
                 weapon2Select.value = 'Desarmado';
@@ -1452,8 +1454,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         }
-
-        let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
         if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
             if (weapon1Select.value !== 'Desarmado') {
                 weapon1Select.value = 'Desarmado';
@@ -1466,6 +1466,7 @@ document.addEventListener('DOMContentLoaded', () => {
             shieldSelect.value = 'Nenhum';
         }
         
+        // Releia os valores após as correções automáticas
         const weapon1Type = weapon1Select.value;
         const weapon2Type = weapon2Select.value;
         const shieldType = shieldSelect.value;
@@ -1475,6 +1476,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let armorData = GAME_RULES.armors[armorType] || {};
         let shieldData = GAME_RULES.shields[shieldType] || {};
 
+        // Atualize o estado desabilitado dos seletores
         weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
         shieldSelect.disabled = weapon2Type !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
 
@@ -1488,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Dinheiro insuficiente!");
             const changedElement = event.target;
             changedElement.value = (changedElement.id.includes('weapon')) ? "Desarmado" : (changedElement.id.includes('armor') ? "Nenhuma" : "Nenhum");
-            return updateCharacterSheet(); // Chama novamente para recalcular com o valor corrigido
+            return updateCharacterSheet();
         }
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
@@ -1636,8 +1638,79 @@ document.addEventListener('DOMContentLoaded', () => {
         weaponImageModal.classList.remove('hidden');
     }
 
-    function handleSaveCharacter() {
-        // ... (código existente da função)
+    // AJUSTE 2: Lógica para salvar a ficha
+    function getCharacterSheetData(context) {
+        const isCreation = context === 'creation';
+        const prefix = isCreation ? 'sheet' : 'ingame-sheet';
+        const myFighter = isCreation ? null : getFighter(currentGameState, myPlayerKey);
+
+        const finalAttributes = {};
+        document.querySelectorAll(`#${prefix}-screen .final-attributes .attr-item, #${prefix}-attributes .attr-item`).forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const value = parseInt(item.querySelector('span').textContent, 10);
+            finalAttributes[label] = value;
+        });
+
+        const weapon1Type = document.getElementById(`${prefix}-weapon1-type`).value;
+        const weapon2Type = document.getElementById(`${prefix}-weapon2-type`).value;
+
+        const data = {
+            name: document.getElementById(`${prefix}-name`).value,
+            tokenName: isCreation ? tempCharacterSheet.tokenName : myFighter.sheet.tokenName,
+            tokenImg: isCreation ? tempCharacterSheet.tokenImg : myFighter.sheet.tokenImg,
+            class: isCreation ? document.getElementById('sheet-class').value : myFighter.sheet.class,
+            race: isCreation ? document.getElementById('sheet-race-select').value : myFighter.sheet.race,
+            money: parseInt(document.getElementById(`${prefix}-money-copper`]?.textContent || document.getElementById(`${prefix}-money`).textContent || '0', 10),
+            level: myFighter?.level || 1,
+            xp: myFighter?.xp || 0,
+            xpNeeded: myFighter?.xpNeeded || 100,
+            baseAttributes: {},
+            finalAttributes: finalAttributes,
+            elements: {},
+            equipment: {
+                weapon1: { name: isCreation ? (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type) : weapon1Type, type: isCreation ? weapon1Type : (myFighter.inventory[weapon1Type]?.baseType || 'Desarmado') },
+                weapon2: { name: isCreation ? (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type) : weapon2Type, type: isCreation ? weapon2Type : (myFighter.inventory[weapon2Type]?.baseType || 'Desarmado') },
+                armor: document.getElementById(`${prefix}-armor-type`).value,
+                shield: document.getElementById(`${prefix}-shield-type`).value,
+            },
+            spells: isCreation ? [...tempCharacterSheet.spells] : [...myFighter.sheet.spells]
+        };
+
+        if (isCreation) {
+            ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente'].forEach(attr => {
+                data.baseAttributes[attr] = parseInt(document.getElementById(`sheet-base-attr-${attr}`).value) || 0;
+            });
+            ['fogo', 'agua', 'terra', 'vento', 'luz', 'escuridao'].forEach(elem => {
+                data.elements[elem] = parseInt(document.getElementById(`sheet-elem-${elem}`).value) || 0;
+            });
+        } else {
+            data.baseAttributes = myFighter.sheet.baseAttributes;
+            data.elements = myFighter.sheet.elements;
+            data.inventory = myFighter.inventory;
+            data.ammunition = myFighter.ammunition;
+            data.hp = myFighter.hp;
+            data.mahou = myFighter.mahou;
+        }
+
+        return data;
+    }
+
+    function handleSaveCharacter(context) {
+        const sheetData = getCharacterSheetData(context);
+        if (!sheetData.name) {
+            alert("Por favor, dê um nome ao seu personagem antes de salvar.");
+            return;
+        }
+        const dataStr = JSON.stringify(sheetData, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${sheetData.name.replace(/\s+/g, '_')}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
     
     function handleLoadCharacter(event) {
@@ -1655,53 +1728,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if(spellsSelectedCount === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
 
         const sendData = () => {
-            const finalAttributes = {};
-            const finalAttrElements = document.querySelectorAll('#character-sheet-screen .final-attributes .attr-item');
-            finalAttrElements.forEach(item => {
-                const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                const value = parseInt(item.querySelector('span').textContent, 10);
-                finalAttributes[label] = value;
-            });
+            const finalSheet = getCharacterSheetData('creation');
 
-            const money = parseInt(document.getElementById('sheet-money-copper').textContent, 10);
-            
-            const weapon1Type = document.getElementById('sheet-weapon1-type').value;
-            const weapon1Name = weapon1Type === 'Desarmado' ? 'Desarmado' : (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type);
-            const weapon2Type = document.getElementById('sheet-weapon2-type').value;
-            const weapon2Name = weapon2Type === 'Desarmado' ? 'Desarmado' : (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type);
-
-            const finalSheet = {
-                 name: document.getElementById('sheet-name').value,
-                 class: document.getElementById('sheet-class').value,
-                 race: document.getElementById('sheet-race-select').value,
-                 tokenName: tempCharacterSheet.tokenName,
-                 tokenImg: tempCharacterSheet.tokenImg,
-                 money: money,
-                 baseAttributes: {
-                    forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0,
-                    agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
-                    protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0,
-                    constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
-                    inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0,
-                    mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
-                 },
-                 finalAttributes: finalAttributes,
-                 elements: {
-                    fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0,
-                    agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
-                    terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0,
-                    vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
-                    luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0,
-                    escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
-                 },
-                 equipment: {
-                    weapon1: { name: weapon1Name, type: weapon1Type },
-                    weapon2: { name: weapon2Name, type: weapon2Type },
-                    armor: document.getElementById('sheet-armor-type').value,
-                    shield: document.getElementById('sheet-shield-type').value
-                 },
-                 spells: tempCharacterSheet.spells,
-            };
             socket.emit('playerAction', { 
                 type: 'playerFinalizesCharacter', 
                 characterData: finalSheet,
@@ -1784,7 +1812,8 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
         } else {
             modal.classList.add('hidden');
-            setTimeout(handleEquipmentChangeConfirmation, 50); 
+            // AJUSTE 1: Chama a confirmação apenas se houver mudanças
+            handleEquipmentChangeConfirmation();
         }
     }
     
@@ -1992,6 +2021,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
     
+        // AJUSTE 1: Sai da função se nada mudou
         if (!hasChanged) return;
     
         if (currentGameState.mode === 'adventure') {

@@ -341,105 +341,109 @@
                 <button id="ingame-sheet-close-btn" class="close-btn">&times;</button>
             </div>
             
-            <div class="ingame-sheet-top-section">
-                <div class="ingame-sheet-main-stats">
-                    <div id="ingame-sheet-token"></div>
-                    <div class="ingame-sheet-level-xp">
-                        <div class="level-box">Nível: <span id="ingame-sheet-level">1</span></div>
-                        <div class="xp-box">XP: <span id="ingame-sheet-xp">0</span> / <span id="ingame-sheet-xp-needed">100</span></div>
+            <!-- AJUSTE 3: Wrapper para conteúdo que rola -->
+            <div class="ingame-sheet-scrollable-content">
+                <div class="ingame-sheet-top-section">
+                    <div class="ingame-sheet-main-stats">
+                        <div id="ingame-sheet-token"></div>
+                        <div class="ingame-sheet-level-xp">
+                            <div class="level-box">Nível: <span id="ingame-sheet-level">1</span></div>
+                            <div class="xp-box">XP: <span id="ingame-sheet-xp">0</span> / <span id="ingame-sheet-xp-needed">100</span></div>
+                        </div>
                     </div>
-                </div>
-                <div class="ingame-sheet-equipment">
-                     <h3>Equipamento Ativo</h3>
-                     <div class="equipment-grid">
-                        <div class="equip-item">
-                            <div id="ingame-sheet-weapon1-image" class="weapon-image-display"></div>
-                            <div class="equip-controls">
-                                <label for="ingame-sheet-weapon1-type">Arma 1</label>
-                                <select id="ingame-sheet-weapon1-type"></select>
+                    <div class="ingame-sheet-equipment">
+                        <h3>Equipamento Ativo</h3>
+                        <div class="equipment-grid">
+                            <div class="equip-item">
+                                <div id="ingame-sheet-weapon1-image" class="weapon-image-display"></div>
+                                <div class="equip-controls">
+                                    <label for="ingame-sheet-weapon1-type">Arma 1</label>
+                                    <select id="ingame-sheet-weapon1-type"></select>
+                                </div>
+                            </div>
+                            <div class="equip-item">
+                                <div id="ingame-sheet-weapon2-image" class="weapon-image-display"></div>
+                                <div class="equip-controls">
+                                    <label for="ingame-sheet-weapon2-type">Arma 2</label>
+                                    <select id="ingame-sheet-weapon2-type"></select>
+                                </div>
+                            </div>
+                            <div class="equip-item">
+                                <label for="ingame-sheet-armor-type">Armadura</label>
+                                <select id="ingame-sheet-armor-type"></select>
+                            </div>
+                            <div class="equip-item">
+                                <label for="ingame-sheet-shield-type">Escudo</label>
+                                <select id="ingame-sheet-shield-type"></select>
                             </div>
                         </div>
-                        <div class="equip-item">
-                            <div id="ingame-sheet-weapon2-image" class="weapon-image-display"></div>
-                            <div class="equip-controls">
-                                <label for="ingame-sheet-weapon2-type">Arma 2</label>
-                                <select id="ingame-sheet-weapon2-type"></select>
-                            </div>
+                        <div id="ingame-sheet-ammunition" class="hidden">
+                            <h4>Munição</h4>
+                            <div id="ingame-sheet-ammo-list"></div>
                         </div>
-                        <div class="equip-item">
-                            <label for="ingame-sheet-armor-type">Armadura</label>
-                            <select id="ingame-sheet-armor-type"></select>
-                        </div>
-                        <div class="equip-item">
-                            <label for="ingame-sheet-shield-type">Escudo</label>
-                            <select id="ingame-sheet-shield-type"></select>
-                        </div>
+                        <p id="ingame-equipment-info-text" class="info-text"></p>
                     </div>
-                    <div id="ingame-sheet-ammunition" class="hidden">
-                        <h4>Munição</h4>
-                        <div id="ingame-sheet-ammo-list"></div>
-                    </div>
-                    <p id="ingame-equipment-info-text" class="info-text"></p>
                 </div>
-            </div>
 
-            <div class="sheet-columns">
-                <div class="sheet-column">
-                    <div class="sheet-section">
-                        <h3>Atributos</h3>
-                        <div class="attributes-grid final-attributes" id="ingame-sheet-attributes"></div>
+                <div class="sheet-columns">
+                    <div class="sheet-column">
+                        <div class="sheet-section">
+                            <h3>Atributos</h3>
+                            <div class="attributes-grid final-attributes" id="ingame-sheet-attributes"></div>
+                        </div>
+                        <div class="sheet-section">
+                            <h3>Elementos</h3>
+                            <div class="attributes-grid elements-grid view-only" id="ingame-sheet-elements"></div>
+                        </div>
+                        <div class="sheet-section">
+                            <h3>Magias</h3>
+                            <div id="ingame-sheet-spells-grid">
+                                <!-- Populado por JS -->
+                            </div>
+                        </div>
+                        <!-- Seção para distribuição de pontos (futuro level up) -->
+                        <div id="ingame-point-distribution-section" class="sheet-section hidden">
+                            <h4>Distribuir Pontos</h4>
+                            <div id="ingame-attribute-points-dist" class="hidden">
+                                <label class="point-dist-label">Pontos de Atributo: <span id="ingame-attr-points-avail">0</span></label>
+                                <div class="attributes-grid point-distribution-grid">
+                                    <div class="attr-item"><label>Força</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="forca" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Agilidade</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="agilidade" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Proteção</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="protecao" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Constituição</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="constituicao" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Inteligência</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="inteligencia" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Mente</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="mente" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                </div>
+                            </div>
+                            <div id="ingame-element-points-dist" class="hidden">
+                                <label class="point-dist-label">Pontos de Elemento: <span id="ingame-elem-points-avail">0</span></label>
+                                <div class="attributes-grid elements-grid point-distribution-grid">
+                                    <div class="attr-item"><label>Fogo</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="fogo" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Água</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="agua" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Terra</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="terra" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Vento</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="vento" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Luz</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="luz" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                    <div class="attr-item"><label>Escuridão</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="escuridao" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
+                                </div>
+                            </div>
+                            <button id="ingame-confirm-points-btn" class="sheet-btn hidden">Confirmar Distribuição</button>
+                        </div>
                     </div>
-                     <div class="sheet-section">
-                        <h3>Elementos</h3>
-                        <div class="attributes-grid elements-grid view-only" id="ingame-sheet-elements"></div>
-                    </div>
-                     <div class="sheet-section">
-                        <h3>Magias</h3>
-                        <div id="ingame-sheet-spells-grid">
+                    <div class="sheet-column">
+                        <div class="inventory-header">
+                            <h3>Inventário</h3>
+                            <div class="money-container ingame-money">
+                                Dinheiro: <span id="ingame-sheet-money">0</span> moedas
+                            </div>
+                        </div>
+                        <div id="inventory-grid">
                             <!-- Populado por JS -->
                         </div>
                     </div>
-                    <!-- Seção para distribuição de pontos (futuro level up) -->
-                    <div id="ingame-point-distribution-section" class="sheet-section hidden">
-                        <h4>Distribuir Pontos</h4>
-                        <div id="ingame-attribute-points-dist" class="hidden">
-                            <label class="point-dist-label">Pontos de Atributo: <span id="ingame-attr-points-avail">0</span></label>
-                            <div class="attributes-grid point-distribution-grid">
-                                <div class="attr-item"><label>Força</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="forca" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Agilidade</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="agilidade" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Proteção</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="protecao" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Constituição</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="constituicao" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Inteligência</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="inteligencia" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Mente</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-attr="mente" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                            </div>
-                        </div>
-                        <div id="ingame-element-points-dist" class="hidden">
-                             <label class="point-dist-label">Pontos de Elemento: <span id="ingame-elem-points-avail">0</span></label>
-                            <div class="attributes-grid elements-grid point-distribution-grid">
-                                <div class="attr-item"><label>Fogo</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="fogo" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Água</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="agua" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Terra</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="terra" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Vento</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="vento" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Luz</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="luz" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                                <div class="attr-item"><label>Escuridão</label><div class="number-input-wrapper"><button class="arrow-btn down-arrow" disabled>-</button><input type="number" data-elem="escuridao" value="0" readonly><button class="arrow-btn up-arrow">+</button></div></div>
-                            </div>
-                        </div>
-                        <button id="ingame-confirm-points-btn" class="sheet-btn hidden">Confirmar Distribuição</button>
-                    </div>
                 </div>
-                <div class="sheet-column">
-                    <div class="inventory-header">
-                        <h3>Inventário</h3>
-                        <div class="money-container ingame-money">
-                            Dinheiro: <span id="ingame-sheet-money">0</span> moedas
-                        </div>
-                    </div>
-                    <div id="inventory-grid">
-                        <!-- Populado por JS -->
-                    </div>
-                </div>
-            </div>
-
+            </div> <!-- Fim do wrapper de rolagem -->
+            
+            <!-- AJUSTE 3: Footer movido para fora da área de rolagem -->
             <div class="sheet-footer" id="ingame-sheet-footer">
                 <button id="ingame-sheet-save-btn" class="sheet-btn">Salvar Ficha</button>
                 <button id="ingame-sheet-load-btn" class="sheet-btn">Carregar Ficha</button>

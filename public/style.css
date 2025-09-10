@@ -570,8 +570,18 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 .sheet-container.ingame-sheet {
     max-height: 90%;
-    overflow-y: auto;
+    /* overflow-y: auto; */ /* Removido daqui */
 }
+
+/* AJUSTE 3: Wrapper de rolagem */
+.ingame-sheet-scrollable-content {
+    overflow-y: auto;
+    padding-right: 10px; /* Espaço para a barra de rolagem */
+    flex-grow: 1;
+    min-height: 0; /* Essencial para flexbox permitir o encolhimento */
+}
+
+
 .ingame-sheet .sheet-header {
     position: relative;
 }
@@ -701,9 +711,18 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     text-shadow: 1px 1px 2px #000;
 }
 
+/* AJUSTE 3: Novo estilo para o footer da ficha em jogo */
 #ingame-sheet-footer {
+    display: flex;
     justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding-top: 15px; /* Adiciona espaço acima dos botões */
+    border-top: 1px solid #a18a59; /* Adiciona uma linha separadora */
+    margin-top: auto; /* Empurra para o final do container flex */
 }
+
 
 #ingame-sheet-spells-grid {
     display: grid;
