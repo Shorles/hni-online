@@ -346,16 +346,25 @@ function getBtaBreakdown(fighter) {
     let total = agiBreakdown.value;
     const details = { ...agiBreakdown.details };
 
-    // AJUSTE: Lógica de penalidade de -2 BTA para arma de 2 mãos em uma mão
+    const weapon1 = fighter.sheet.equipment.weapon1;
+    const weapon2 = fighter.sheet.equipment.weapon2;
+    const w1Data = GAME_RULES.weapons[weapon1.type] || { bta: 0 };
+    const w2Data = GAME_RULES.weapons[weapon2.type] || { bta: 0 };
+
+    let weaponBtaMod = w1Data.bta;
+    if (weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado') {
+        weaponBtaMod = Math.min(w1Data.bta, w2Data.bta);
+    }
+    
+    if (weaponBtaMod !== 0) {
+        details[`Bônus de Arma`] = weaponBtaMod;
+        total += weaponBtaMod;
+    }
+
     const forca = getFighterAttribute(fighter, 'forca');
     if (forca >= 4) {
-        const weapon1 = fighter.sheet.equipment.weapon1;
-        const weapon2 = fighter.sheet.equipment.weapon2;
         const shield = fighter.sheet.equipment.shield;
         
-        const w1Data = GAME_RULES.weapons[weapon1.type] || {};
-        const w2Data = GAME_RULES.weapons[weapon2.type] || {};
-
         const w1Is2H = w1Data.hand === 2;
         const w2Is2H = w2Data.hand === 2;
         
@@ -383,10 +392,14 @@ function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
     let total = attrBreakdown.value;
     const details = { ...attrBreakdown.details };
     details[`Atributo de Dano`] = `(${isRanged ? 'Agilidade' : 'Força'})`;
+    
+    const weaponData = GAME_RULES.weapons[weapon.type] || { btd: 0 };
+    if (weaponData.btd !== 0) {
+        details[`Bônus de Arma (${weapon.type})`] = weaponData.btd;
+        total += weaponData.btd;
+    }
 
-    // AJUSTE: Lógica de penalidade de dano em ataque duplo
     if (isDualAttackPart) {
-        const weaponData = GAME_RULES.weapons[weapon.type] || {};
         const forca = getFighterAttribute(fighter, 'forca');
         
         if (weaponData.hand === 2 && forca >= 4) {
@@ -550,7 +563,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     let target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
 
-    // AJUSTE: Custo de PA do ataque duplo
     const paCost = weaponChoice === 'dual' ? 3 : 2;
     if (attacker.pa < paCost) {
         logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes!`, 'miss');
@@ -720,7 +732,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         targetDefense = target.magicDefense;
         targetDefenseBreakdown = target.magicDefenseBreakdown;
     } else {
-        const btaData = getBtaBreakdown(attacker, 'weapon1');
+        const btaData = getBtaBreakdown(attacker);
         attackBonus = btaData.value;
         attackBonusBreakdown = btaData.details;
         targetDefense = target.esquiva;
