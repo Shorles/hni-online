@@ -1414,7 +1414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCharacterSheet();
     }
     
-    function updateCharacterSheet(event = null) {
+    function updateCharacterSheet(loadedData = null) {
         if (!GAME_RULES.races) return; 
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
@@ -1424,22 +1424,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const shieldSelect = document.getElementById('sheet-shield-type');
         const armorSelect = document.getElementById('sheet-armor-type');
         
-        const selectedRace = document.getElementById('sheet-race-select').value;
+        const selectedRace = loadedData ? loadedData.race : document.getElementById('sheet-race-select').value;
         const raceData = GAME_RULES.races[selectedRace];
-        const baseAttributes = {
+        const baseAttributes = loadedData ? loadedData.baseAttributes : {
             forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0, agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
             protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0, constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
             inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0, mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
         };
-        const elements = {
+        const elements = loadedData ? loadedData.elements : {
             fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0, agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
             terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0, vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
             luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0, escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
         };
         
         let finalAttributes = { ...baseAttributes };
-        if (raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
-        if (raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
+        if (raceData && raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
+        if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
         
         const canWield2HInOneHand = finalAttributes.forca >= 4;
 
@@ -1492,7 +1492,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('sheet-money-copper').textContent = 200 - cost;
         
-        let maxAttrPoints = 5 + (raceData.bon.escolha || 0);
+        let maxAttrPoints = 5 + (raceData.bon?.escolha || 0);
         const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
         const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
         document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
@@ -1760,38 +1760,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!decryptedData) throw new Error("Arquivo inválido ou corrompido.");
                 
                 if (context === 'creation') {
+                    // ETAPA 1: Garantir que a ficha esteja pronta para ser preenchida
+                    initializeCharacterSheet();
+
+                    // ETAPA 2: Popular o estado temporário e os campos da ficha com os dados carregados
+                    if (!GAME_RULES.races[decryptedData.race]) {
+                        throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida nas regras atuais do jogo.`);
+                    }
+
+                    tempCharacterSheet.tokenName = decryptedData.tokenName || '';
+                    tempCharacterSheet.tokenImg = decryptedData.tokenImg || '';
+                    tempCharacterSheet.spells = decryptedData.spells || [];
+                    tempCharacterSheet.weapon1 = decryptedData.equipment?.weapon1 || { img: null, isRanged: false, type: 'Desarmado' };
+                    tempCharacterSheet.weapon2 = decryptedData.equipment?.weapon2 || { img: null, isRanged: false, type: 'Desarmado' };
+                    
                     document.getElementById('sheet-name').value = decryptedData.name || '';
                     document.getElementById('sheet-class').value = decryptedData.class || '';
                     document.getElementById('sheet-race-select').value = decryptedData.race || 'Humano';
-                    if (!GAME_RULES.races[decryptedData.race]) throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida.`);
 
-                    tempCharacterSheet.tokenName = decryptedData.tokenName;
-                    tempCharacterSheet.tokenImg = decryptedData.tokenImg;
-                    tempCharacterSheet.spells = decryptedData.spells || [];
-                    tempCharacterSheet.weapon1 = decryptedData.equipment.weapon1 || { img: null, isRanged: false };
-                    tempCharacterSheet.weapon2 = decryptedData.equipment.weapon2 || { img: null, isRanged: false };
-
-                    for (const attr in decryptedData.baseAttributes) {
-                        document.getElementById(`sheet-base-attr-${attr}`).value = decryptedData.baseAttributes[attr];
-                    }
-                    for (const elem in decryptedData.elements) {
-                        document.getElementById(`sheet-elem-${elem}`).value = decryptedData.elements[elem];
-                    }
+                    Object.keys(decryptedData.baseAttributes || {}).forEach(attr => {
+                        const input = document.getElementById(`sheet-base-attr-${attr}`);
+                        if (input) input.value = decryptedData.baseAttributes[attr];
+                    });
+                    Object.keys(decryptedData.elements || {}).forEach(elem => {
+                         const input = document.getElementById(`sheet-elem-${elem}`);
+                         if (input) input.value = decryptedData.elements[elem];
+                    });
                     
-                    document.getElementById('sheet-weapon1-name').value = decryptedData.equipment.weapon1.name === decryptedData.equipment.weapon1.type ? '' : decryptedData.equipment.weapon1.name;
-                    document.getElementById('sheet-weapon1-type').value = decryptedData.equipment.weapon1.type;
-                    document.getElementById('sheet-weapon2-name').value = decryptedData.equipment.weapon2.name === decryptedData.equipment.weapon2.type ? '' : decryptedData.equipment.weapon2.name;
-                    document.getElementById('sheet-weapon2-type').value = decryptedData.equipment.weapon2.type;
-                    document.getElementById('sheet-armor-type').value = decryptedData.equipment.armor;
-                    document.getElementById('sheet-shield-type').value = decryptedData.equipment.shield;
+                    const w1 = tempCharacterSheet.weapon1;
+                    const w2 = tempCharacterSheet.weapon2;
+                    document.getElementById('sheet-weapon1-name').value = (w1.name && w1.name !== w1.type) ? w1.name : '';
+                    document.getElementById('sheet-weapon1-type').value = w1.type || 'Desarmado';
+                    document.getElementById('sheet-weapon2-name').value = (w2.name && w2.name !== w2.type) ? w2.name : '';
+                    document.getElementById('sheet-weapon2-type').value = w2.type || 'Desarmado';
+                    document.getElementById('sheet-armor-type').value = decryptedData.equipment?.armor || 'Nenhuma';
+                    document.getElementById('sheet-shield-type').value = decryptedData.equipment?.shield || 'Nenhum';
 
+                    // ETAPA 3: Atualizar a ficha para calcular todos os valores derivados
                     updateCharacterSheet();
+
+                    // ETAPA 4: Mostrar a ficha preenchida
                     showScreen(document.getElementById('character-sheet-screen'));
                 }
             } catch (error) {
                 alert(`Erro ao carregar a ficha: ${error.message}`);
             } finally {
-                event.target.value = '';
+                event.target.value = ''; // Limpa o input para permitir carregar o mesmo arquivo de novo
             }
         };
         reader.readAsText(file);
@@ -2445,16 +2459,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isWeaponType) {
                     const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
                     tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-                    updateCharacterSheet(e);
+                    updateCharacterSheet(null, e);
                     if (e.target.value !== 'Desarmado') {
                         showWeaponImageSelectionModal(weaponSlot);
                     }
                 } else {
-                    updateCharacterSheet(e);
+                    updateCharacterSheet(null, e);
                 }
             });
             if (el.tagName !== 'SELECT' && el.type !== 'file') {
-                el.addEventListener('input', (e) => updateCharacterSheet(e));
+                el.addEventListener('input', (e) => updateCharacterSheet(null, e));
             }
         });
 
