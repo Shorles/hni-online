@@ -104,7 +104,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const button = document.createElement('button');
             button.textContent = btnInfo.text;
             button.className = btnInfo.className || '';
+            if (btnInfo.className === 'disabled-btn') {
+                button.disabled = true;
+            }
             button.onclick = () => {
+                if(button.disabled) return;
                 if (btnInfo.onClick) btnInfo.onClick();
                 if (btnInfo.closes) modal.classList.add('hidden');
             };
@@ -1483,12 +1487,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const imgPath2 = tempCharacterSheet.weapon2.img;
         document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
 
-        // Atualiza imagens da armadura e escudo
+        // CORREÇÃO: Constrói o nome do arquivo corretamente
         const armorImgDiv = document.getElementById('sheet-armor-image');
-        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorType.replace(/ /g, '%20')}.png")` : 'none';
+        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/Armadura ${armorType}.png")`.replace(/ /g, '%20') : 'none';
         const shieldImgDiv = document.getElementById('sheet-shield-image');
-        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldType.replace(/ /g, '%20')}.png")` : 'none';
-
+        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/Escudo ${shieldType}.png")`.replace(/ /g, '%20') : 'none';
 
         let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
         if (cost > 200 && event && event.target && event.type === 'change') {
@@ -1867,41 +1870,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderIngameInventory(fighter) {
         if (!fighter || !fighter.sheet) return;
-
+    
         const inventory = fighter.inventory || {};
-        
-        const equippedItems = [
-            document.getElementById('ingame-sheet-weapon1-type').value,
-            document.getElementById('ingame-sheet-weapon2-type').value,
-            document.getElementById('ingame-sheet-armor-type').value,
-            document.getElementById('ingame-sheet-shield-type').value,
-        ];
-
+        const equippedItems = Object.values(fighter.sheet.equipment);
         const inventoryGrid = document.getElementById('inventory-grid');
         inventoryGrid.innerHTML = '';
         const MAX_SLOTS = 24;
-        
-        const unequippedInventory = Object.values(inventory).filter(item => !equippedItems.includes(item.name));
     
-        unequippedInventory.forEach(item => {
+        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItems.includes(item.name));
+    
+        itemsToDisplay.forEach(item => {
             const slot = document.createElement('div');
             slot.className = 'inventory-slot item';
             
-            const itemDetails = ALL_ITEMS[item.baseType] || ALL_ITEMS[item.name] || {};
-            slot.title = `${item.name}\n${itemDetails.description || `Tipo: ${item.type}`}`;
+            const itemDetails = ALL_ITEMS[item.name];
+            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
             
-            const imgPath = item.img || itemDetails.img || `/images/itens/${item.baseType.replace(/\s+/g, '_')}.png`;
+            const imgPath = item.img || (itemDetails ? itemDetails.img : `/images/itens/default.png`);
             slot.style.backgroundImage = `url("${imgPath}")`;
     
             if (item.quantity > 1) {
                 slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
             }
-            // NOVO: Adiciona evento de clique para abrir o menu de contexto do item
             slot.addEventListener('click', () => showItemContextMenu(item));
             inventoryGrid.appendChild(slot);
         });
     
-        const filledSlots = unequippedInventory.length;
+        const filledSlots = itemsToDisplay.length;
         for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
             const emptySlot = document.createElement('div');
             emptySlot.className = 'inventory-slot';
@@ -1909,17 +1904,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // NOVO: Função para mostrar o modal de uso/descarte de item
+    // NOVA FUNÇÃO: Mostra modal para usar/descartar item
     function showItemContextMenu(item) {
         const itemDetails = ALL_ITEMS[item.name];
-        if (!itemDetails) return; // Não faz nada para itens não definidos (como equipamentos)
+        if (!itemDetails || !itemDetails.isUsable) return; 
 
         const myFighter = getFighter(currentGameState, myPlayerKey);
         if (!myFighter) return;
 
         let content = `
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <div class="inventory-slot item" style="background-image: url('${itemDetails.img}'); margin: 0;"></div>
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                <div class="inventory-slot item" style="background-image: url('${itemDetails.img}'); margin: 0; flex-shrink: 0;"></div>
                 <div>
                     <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
                     <p style="margin: 0; color: #ccc;">${itemDetails.description}</p>
@@ -1927,34 +1922,29 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
 
         const buttons = [];
+        let canUse = true;
+        let reason = '';
 
-        if (itemDetails.isUsable) {
-            let canUse = true;
-            let reason = '';
-            if (currentGameState.mode === 'adventure') {
-                if (currentGameState.activeCharacterKey !== myPlayerKey) {
-                    canUse = false;
-                    reason = ' (Não é seu turno)';
-                } else if (myFighter.pa < itemDetails.costPA) {
-                    canUse = false;
-                    reason = ` (PA insuficiente: ${myFighter.pa}/${itemDetails.costPA})`;
+        if (currentGameState.mode === 'adventure') {
+            if (currentGameState.activeCharacterKey !== myPlayerKey) {
+                canUse = false;
+                reason = ' (Não é seu turno)';
+            } else if (myFighter.pa < itemDetails.costPA) {
+                canUse = false;
+                reason = ` (PA insuficiente: ${myFighter.pa}/${itemDetails.costPA})`;
+            }
+        }
+        
+        buttons.push({
+            text: `Usar${reason}`,
+            closes: canUse,
+            className: canUse ? '' : 'disabled-btn',
+            onClick: () => {
+                if (canUse) {
+                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
                 }
             }
-            buttons.push({
-                text: `Usar${reason}`,
-                closes: canUse,
-                className: canUse ? '' : 'disabled-btn',
-                onClick: () => {
-                    if (canUse) {
-                        socket.emit('playerAction', {
-                            type: 'useItem',
-                            actorKey: myPlayerKey,
-                            itemName: item.name
-                        });
-                    }
-                }
-            });
-        }
+        });
         
         buttons.push({
             text: 'Descartar',
@@ -1967,10 +1957,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         closes: true,
                         className: 'btn-danger',
                         onClick: () => {
-                             socket.emit('playerAction', {
-                                type: 'discardItem',
-                                itemName: item.name
-                            });
+                             socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
                         }
                     },
                     { text: 'Cancelar', closes: true }
@@ -2023,13 +2010,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = equipment.weapon1.img ? `url("${equipment.weapon1.img}")` : 'none';
         document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = equipment.weapon2.img ? `url("${equipment.weapon2.img}")` : 'none';
         
-        // Atualiza imagens da armadura e escudo na ficha em jogo
         const armorType = equipment.armor || 'Nenhuma';
         const shieldType = equipment.shield || 'Nenhum';
         const armorImgDiv = document.getElementById('ingame-sheet-armor-image');
-        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorType.replace(/ /g, '%20')}.png")` : 'none';
+        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/Armadura ${armorType}.png")`.replace(/ /g, '%20') : 'none';
         const shieldImgDiv = document.getElementById('ingame-sheet-shield-image');
-        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldType.replace(/ /g, '%20')}.png")` : 'none';
+        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/Escudo ${shieldType}.png")`.replace(/ /g, '%20') : 'none';
 
 
         const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
@@ -2245,7 +2231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         GAME_RULES = data.rules;
         ALL_SPELLS = data.spells;
         ALL_WEAPON_IMAGES = data.weaponImages;
-        ALL_ITEMS = data.items || {}; // Recebe dados dos itens
+        ALL_ITEMS = data.items || {};
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
     
