@@ -37,7 +37,7 @@ try {
     GAME_RULES = JSON.parse(rulesData);
     const spellsData = fs.readFileSync('public/spells.json', 'utf8');
     ALL_SPELLS = JSON.parse(spellsData);
-    const itemsData = fs.readFileSync('public/items.json', 'utf8'); // NOVO: Carrega items.json
+    const itemsData = fs.readFileSync('public/items.json', 'utf8'); 
     ALL_ITEMS = JSON.parse(itemsData);
     
     const weaponImagesConfigData = fs.readFileSync('public/weaponImages.json', 'utf8');
@@ -977,7 +977,7 @@ io.on('connection', (socket) => {
         rules: GAME_RULES,
         spells: ALL_SPELLS,
         weaponImages: ALL_WEAPON_IMAGES,
-        items: ALL_ITEMS, // NOVO: Envia dados dos itens
+        items: ALL_ITEMS, 
         characters: { 
             players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `/images/players/${name}.png` })), 
             npcs: Object.keys(ALL_NPCS).map(name => ({ 
@@ -1105,7 +1105,7 @@ io.on('connection', (socket) => {
                 characterData.equipment.weapon2.isRanged = action.isRanged.weapon2;
                 characterData.equipment.weapon2.img = action.weaponImages.weapon2;
                 
-                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment, true); // Adiciona itens iniciais
+                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment, true); 
                 characterData.inventory = inventory;
                 characterData.ammunition = ammunition;
                 characterData.equipment = updatedEquipment;
@@ -1122,7 +1122,6 @@ io.on('connection', (socket) => {
             if (playerInfo && action.characterData) {
                 const characterData = action.characterData;
 
-                // Se o inventário não existir no arquivo salvo, cria um novo
                 if (!characterData.inventory) {
                     const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment, true);
                     characterData.inventory = inventory;
@@ -1143,6 +1142,14 @@ io.on('connection', (socket) => {
                 }
 
                 logMessage(lobbyState, `Jogador ${playerInfo.characterName} carregou uma nova ficha.`);
+            }
+        }
+
+        if (action.type === 'discardItem') { // NOVO
+            const playerInfo = lobbyState.connectedPlayers[socket.id];
+            if (playerInfo && playerInfo.characterSheet.inventory[action.itemName]) {
+                delete playerInfo.characterSheet.inventory[action.itemName];
+                logMessage(activeState, `${playerInfo.characterName} descartou ${action.itemName}.`);
             }
         }
 
@@ -1290,7 +1297,7 @@ io.on('connection', (socket) => {
                             shouldUpdate = false;
                         }
                         break;
-                    case 'useItem': // NOVO
+                    case 'useItem': 
                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
                             const actor = getFighter(adventureState, action.actorKey);
                             const itemData = ALL_ITEMS[action.itemName];
@@ -1320,7 +1327,7 @@ io.on('connection', (socket) => {
                                         io.to(roomId).emit('floatingTextTriggered', { targetId: actor.id, text: `+${healedMahou} Mahou`, type: 'heal-mahou' });
                                     }
 
-                                    logMessage(adventureState, `${actor.nome} usou ${action.itemName} e recuperou ${healedHp} HP e ${healedMahou} Mahou.`, 'info');
+                                    logMessage(adventureState, `${actor.nome} usou ${action.itemName} e recuperou ${healedHp > 0 ? `${healedHp} HP` : ''}${healedHp > 0 && healedMahou > 0 ? ' e ' : ''}${healedMahou > 0 ? `${healedMahou} Mahou` : ''}.`, 'info');
                                 } else {
                                     logMessage(adventureState, `${actor.nome} não tem PA suficiente para usar ${action.itemName}.`, 'miss');
                                 }
@@ -1380,34 +1387,34 @@ io.on('connection', (socket) => {
                          logMessage(theaterState, `${playerLobbyInfo.characterName} trocou de equipamento.`);
                     }
                  }
-                 if (action.type === 'useItem') { // NOVO
-                    const actor = lobbyState.connectedPlayers[socket.id]?.characterSheet;
+                 if (action.type === 'useItem') { 
+                    const actorSheet = lobbyState.connectedPlayers[socket.id]?.characterSheet;
                     const itemData = ALL_ITEMS[action.itemName];
-                    if (actor && actor.inventory[action.itemName] && itemData && itemData.isUsable) {
-                        const itemInInventory = actor.inventory[action.itemName];
+                    if (actorSheet && actorSheet.inventory[action.itemName] && itemData && itemData.isUsable) {
+                        const itemInInventory = actorSheet.inventory[action.itemName];
                         itemInInventory.quantity--;
                         if (itemInInventory.quantity <= 0) {
-                            delete actor.inventory[action.itemName];
+                            delete actorSheet.inventory[action.itemName];
                         }
-                        // Lógica de cura fora de combate (sempre cura o máximo possível)
+                        
                         let healedHp = 0;
                         let healedMahou = 0;
-                        const constituicao = actor.finalAttributes.constituicao || 0;
-                        const mente = actor.finalAttributes.mente || 0;
+                        const constituicao = actorSheet.finalAttributes.constituicao || 0;
+                        const mente = actorSheet.finalAttributes.mente || 0;
                         const hpMax = 20 + (constituicao * 5);
                         const mahouMax = 10 + (mente * 5);
 
                         if(itemData.effect.type === 'heal_hp' || itemData.effect.type === 'heal_total'){
                             const hpAmount = rollDice(itemData.effect.hp_formula || itemData.effect.formula);
-                            healedHp = Math.min(hpMax - (actor.hp || hpMax), hpAmount);
-                            actor.hp = (actor.hp || hpMax) + healedHp;
+                            healedHp = Math.min(hpMax - (actorSheet.hp || hpMax), hpAmount);
+                            actorSheet.hp = (actorSheet.hp || hpMax) + healedHp;
                         }
                          if(itemData.effect.type === 'heal_mahou' || itemData.effect.type === 'heal_total'){
                             const mahouAmount = rollDice(itemData.effect.mahou_formula || itemData.effect.formula);
-                            healedMahou = Math.min(mahouMax - (actor.mahou || mahouMax), mahouAmount);
-                            actor.mahou = (actor.mahou || mahouMax) + healedMahou;
+                            healedMahou = Math.min(mahouMax - (actorSheet.mahou || mahouMax), mahouAmount);
+                            actorSheet.mahou = (actorSheet.mahou || mahouMax) + healedMahou;
                         }
-                        logMessage(theaterState, `${actor.name} usou ${action.itemName} fora de combate.`, 'info');
+                        logMessage(theaterState, `${actorSheet.name} usou ${action.itemName} fora de combate.`, 'info');
                     }
                  }
                  if (isGm && theaterState && theaterState.scenarioStates && theaterState.currentScenario) {

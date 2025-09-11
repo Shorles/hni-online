@@ -1875,7 +1875,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!fighter || !fighter.sheet) return;
     
         const inventory = fighter.inventory || {};
-        const equippedItems = Object.values(fighter.sheet.equipment);
+        const equippedItems = Object.values(fighter.sheet.equipment).map(e => e.name || e);
         const inventoryGrid = document.getElementById('inventory-grid');
         inventoryGrid.innerHTML = '';
         const MAX_SLOTS = 24;
@@ -1886,10 +1886,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const slot = document.createElement('div');
             slot.className = 'inventory-slot item';
             
-            const itemDetails = ALL_ITEMS[item.name];
-            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
+            const itemDetails = ALL_ITEMS[item.name] || {};
+            slot.title = `${item.name}\n${itemDetails.description || `Tipo: ${item.type || 'Equipamento'}`}`;
             
-            const imgPath = item.img || (itemDetails ? itemDetails.img : `/images/itens/default.png`);
+            const imgPath = item.img || (itemDetails.img) || `/images/itens/default.png`;
             slot.style.backgroundImage = `url("${imgPath}")`;
     
             if (item.quantity > 1) {
@@ -1908,9 +1908,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showItemContextMenu(item) {
-        const itemDetails = ALL_ITEMS[item.name];
-        // Permite abrir o menu para qualquer item, mas o botão "Usar" só aparece se for usável
-        const effectiveDetails = itemDetails || { description: `Tipo: ${item.type}`, img: item.img, isUsable: false };
+        const itemDetails = ALL_ITEMS[item.name] || {};
+        const effectiveDetails = {
+            ...itemDetails,
+            img: item.img || itemDetails.img,
+            description: itemDetails.description || `Tipo: ${item.type}`,
+            isUsable: itemDetails.isUsable || false
+        };
 
         const myFighter = getFighter(currentGameState, myPlayerKey);
         if (!myFighter) return;
@@ -1945,15 +1949,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 onClick: () => {
                     if (canUse) {
                         socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                        // Atualização otimista da UI
-                        const fighter = getFighter(currentGameState, myPlayerKey);
-                        if (fighter && fighter.sheet.inventory[item.name]) {
-                            fighter.sheet.inventory[item.name].quantity--;
-                            if (fighter.sheet.inventory[item.name].quantity <= 0) {
-                                delete fighter.sheet.inventory[item.name];
-                            }
-                            renderIngameInventory(fighter);
-                        }
+                        // Fecha a ficha imediatamente após usar o item
+                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
                     }
                 }
             });
@@ -1961,7 +1958,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         buttons.push({
             text: 'Descartar',
-            closes: false, // Não fecha o primeiro modal, abre o de confirmação
+            closes: false, 
             className: 'btn-danger',
             onClick: () => {
                 showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
@@ -1971,9 +1968,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         className: 'btn-danger',
                         onClick: () => {
                              socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
+                             // Atualização otimista
+                             const fighter = getFighter(currentGameState, myPlayerKey);
+                             if(fighter && fighter.sheet.inventory[item.name]) {
+                                delete fighter.sheet.inventory[item.name];
+                                renderIngameInventory(fighter);
+                             }
                         }
                     },
-                    { text: 'Cancelar', closes: true, className: 'btn-secondary' }
+                    { text: 'Não', closes: true, className: 'btn-secondary' }
                 ]);
             }
         });
