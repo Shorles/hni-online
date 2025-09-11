@@ -1760,14 +1760,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!decryptedData) throw new Error("Arquivo inválido ou corrompido.");
                 
                 if (context === 'creation') {
-                    // ETAPA 1: Garantir que a ficha esteja pronta para ser preenchida
                     initializeCharacterSheet();
-
-                    // ETAPA 2: Popular o estado temporário e os campos da ficha com os dados carregados
                     if (!GAME_RULES.races[decryptedData.race]) {
                         throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida nas regras atuais do jogo.`);
                     }
-
                     tempCharacterSheet.tokenName = decryptedData.tokenName || '';
                     tempCharacterSheet.tokenImg = decryptedData.tokenImg || '';
                     tempCharacterSheet.spells = decryptedData.spells || [];
@@ -1796,16 +1792,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('sheet-armor-type').value = decryptedData.equipment?.armor || 'Nenhuma';
                     document.getElementById('sheet-shield-type').value = decryptedData.equipment?.shield || 'Nenhum';
 
-                    // ETAPA 3: Atualizar a ficha para calcular todos os valores derivados
                     updateCharacterSheet();
-
-                    // ETAPA 4: Mostrar a ficha preenchida
                     showScreen(document.getElementById('character-sheet-screen'));
+                } else if (context === 'ingame') {
+                    // NOVO: Lógica para carregar personagem já em jogo
+                    socket.emit('playerAction', {
+                        type: 'playerLoadsCharacterIngame',
+                        characterData: decryptedData
+                    });
+                    showInfoModal("Sucesso", "Personagem carregado! A ficha será atualizada em breve.");
+                    toggleIngameSheet(); // Fecha a ficha para ver a atualização
                 }
             } catch (error) {
                 alert(`Erro ao carregar a ficha: ${error.message}`);
             } finally {
-                event.target.value = ''; // Limpa o input para permitir carregar o mesmo arquivo de novo
+                event.target.value = '';
             }
         };
         reader.readAsText(file);
@@ -1920,7 +1921,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
         const canEditEquipment = !isAdventureMode || isMyTurn;
-    
+        
+        // NOVO: Desabilitar botão de carregar em modo aventura
+        const loadBtn = document.getElementById('ingame-sheet-load-btn');
+        loadBtn.disabled = isAdventureMode;
+        loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
+
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
         document.getElementById('ingame-sheet-token').style.backgroundImage = `url("${fighter.sheet.tokenImg || fighter.img}")`;
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;

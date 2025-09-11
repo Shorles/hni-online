@@ -176,7 +176,6 @@ function createNewFighterState(data) {
     };
 
     if (fighter.isPlayer && data.finalAttributes) {
-        // AJUSTE 2: Garante que os atributos existam para o cálculo, evitando "null"
         const constituicao = data.finalAttributes.constituicao || 0;
         const mente = data.finalAttributes.mente || 0;
         
@@ -1066,6 +1065,49 @@ io.on('connection', (socket) => {
                 playerInfo.characterName = characterData.name;
                 playerInfo.characterFinalized = true;
                 logMessage(lobbyState, `Jogador ${playerInfo.characterName} está pronto!`);
+            }
+        }
+
+        if (action.type === 'playerLoadsCharacterIngame') {
+            const playerInfo = lobbyState.connectedPlayers[socket.id];
+            if (playerInfo && action.characterData) {
+                const characterData = action.characterData;
+                const initialInventory = {};
+                const equip = characterData.equipment;
+                const ammunition = {};
+
+                const addItemToInventory = (item, type, baseType, slotKey) => {
+                     if (baseType && baseType !== 'Desarmado' && baseType !== 'Nenhuma' && baseType !== 'Nenhum') {
+                        initialInventory[item.name] = { type, name: item.name, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
+                        if (item.isRanged) { ammunition[slotKey] = 15; }
+                    }
+                };
+                
+                addItemToInventory(equip.weapon1, 'weapon', equip.weapon1.type, 'weapon1');
+                if (equip.weapon1.name !== equip.weapon2.name) {
+                    addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type, 'weapon2');
+                }
+                addItemToInventory({ name: equip.armor, type: 'armor' }, 'armor', equip.armor, 'armor');
+                addItemToInventory({ name: equip.shield, type: 'shield' }, 'shield', equip.shield, 'shield');
+                
+                characterData.inventory = initialInventory;
+                characterData.ammunition = ammunition;
+
+                playerInfo.characterSheet = characterData;
+                playerInfo.characterName = characterData.name;
+                
+                // Se já estiver em modo aventura, atualiza o lutador também
+                if (room.activeMode === 'adventure' && room.gameModes.adventure.fighters.players[socket.id]) {
+                    const existingFighter = room.gameModes.adventure.fighters.players[socket.id];
+                    const updatedFighter = createNewFighterState({ ...characterData, id: socket.id, isPlayer: true });
+                    // Mantém o estado atual da batalha (PA, status, efeitos)
+                    updatedFighter.pa = existingFighter.pa;
+                    updatedFighter.status = existingFighter.status;
+                    updatedFighter.activeEffects = existingFighter.activeEffects;
+                    room.gameModes.adventure.fighters.players[socket.id] = updatedFighter;
+                }
+
+                logMessage(lobbyState, `Jogador ${playerInfo.characterName} carregou uma nova ficha.`);
             }
         }
 
