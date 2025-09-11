@@ -1052,9 +1052,7 @@ io.on('connection', (socket) => {
                 };
         
                 addItemToInventory(equip.weapon1, 'weapon', equip.weapon1.type, 'weapon1');
-                if (equip.weapon1.name !== equip.weapon2.name) {
-                    addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type, 'weapon2');
-                }
+                addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type, 'weapon2');
                 addItemToInventory({ name: equip.armor, type: equip.armor }, 'armor', equip.armor, 'armor');
                 addItemToInventory({ name: equip.shield, type: equip.shield }, 'shield', equip.shield, 'shield');
         
@@ -1083,10 +1081,9 @@ io.on('connection', (socket) => {
                     }
                 };
                 
+                // CORREÇÃO: Chamar a função para ambas as armas, sem a condição falha
                 addItemToInventory(equip.weapon1, 'weapon', equip.weapon1.type, 'weapon1');
-                if (equip.weapon1.name !== equip.weapon2.name) {
-                    addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type, 'weapon2');
-                }
+                addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type, 'weapon2');
                 addItemToInventory({ name: equip.armor, type: 'armor' }, 'armor', equip.armor, 'armor');
                 addItemToInventory({ name: equip.shield, type: 'shield' }, 'shield', equip.shield, 'shield');
                 
@@ -1096,11 +1093,9 @@ io.on('connection', (socket) => {
                 playerInfo.characterSheet = characterData;
                 playerInfo.characterName = characterData.name;
                 
-                // Se já estiver em modo aventura, atualiza o lutador também
                 if (room.activeMode === 'adventure' && room.gameModes.adventure.fighters.players[socket.id]) {
                     const existingFighter = room.gameModes.adventure.fighters.players[socket.id];
                     const updatedFighter = createNewFighterState({ ...characterData, id: socket.id, isPlayer: true });
-                    // Mantém o estado atual da batalha (PA, status, efeitos)
                     updatedFighter.pa = existingFighter.pa;
                     updatedFighter.status = existingFighter.status;
                     updatedFighter.activeEffects = existingFighter.activeEffects;
