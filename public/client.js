@@ -1487,11 +1487,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const imgPath2 = tempCharacterSheet.weapon2.img;
         document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
 
-        // CORREÇÃO: Constrói o nome do arquivo corretamente
         const armorImgDiv = document.getElementById('sheet-armor-image');
-        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/Armadura ${armorType}.png")`.replace(/ /g, '%20') : 'none';
+        const armorImgName = armorType === 'Mediana' ? 'Armadura Mediana' : `Armadura ${armorType}`;
+        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorImgName}.png")`.replace(/ /g, '%20') : 'none';
+        
         const shieldImgDiv = document.getElementById('sheet-shield-image');
-        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/Escudo ${shieldType}.png")`.replace(/ /g, '%20') : 'none';
+        const shieldImgName = shieldType === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldType}`;
+        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldImgName}.png")`.replace(/ /g, '%20') : 'none';
+
 
         let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
         if (cost > 200 && event && event.target && event.type === 'change') {
@@ -1904,51 +1907,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // NOVA FUNÇÃO: Mostra modal para usar/descartar item
     function showItemContextMenu(item) {
         const itemDetails = ALL_ITEMS[item.name];
-        if (!itemDetails || !itemDetails.isUsable) return; 
+        // Permite abrir o menu para qualquer item, mas o botão "Usar" só aparece se for usável
+        const effectiveDetails = itemDetails || { description: `Tipo: ${item.type}`, img: item.img, isUsable: false };
 
         const myFighter = getFighter(currentGameState, myPlayerKey);
         if (!myFighter) return;
 
         let content = `
             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                <div class="inventory-slot item" style="background-image: url('${itemDetails.img}'); margin: 0; flex-shrink: 0;"></div>
+                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
                 <div>
                     <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
-                    <p style="margin: 0; color: #ccc;">${itemDetails.description}</p>
+                    <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
                 </div>
             </div>`;
 
         const buttons = [];
-        let canUse = true;
-        let reason = '';
 
-        if (currentGameState.mode === 'adventure') {
-            if (currentGameState.activeCharacterKey !== myPlayerKey) {
-                canUse = false;
-                reason = ' (Não é seu turno)';
-            } else if (myFighter.pa < itemDetails.costPA) {
-                canUse = false;
-                reason = ` (PA insuficiente: ${myFighter.pa}/${itemDetails.costPA})`;
+        if (effectiveDetails.isUsable) {
+            let canUse = true;
+            let reason = '';
+            if (currentGameState.mode === 'adventure') {
+                if (currentGameState.activeCharacterKey !== myPlayerKey) {
+                    canUse = false;
+                    reason = ' (Não é seu turno)';
+                } else if (myFighter.pa < effectiveDetails.costPA) {
+                    canUse = false;
+                    reason = ` (PA insuficiente: ${myFighter.pa}/${effectiveDetails.costPA})`;
+                }
             }
+            buttons.push({
+                text: `Usar${reason}`,
+                closes: canUse,
+                className: canUse ? '' : 'disabled-btn',
+                onClick: () => {
+                    if (canUse) {
+                        socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                        // Atualização otimista da UI
+                        const fighter = getFighter(currentGameState, myPlayerKey);
+                        if (fighter && fighter.sheet.inventory[item.name]) {
+                            fighter.sheet.inventory[item.name].quantity--;
+                            if (fighter.sheet.inventory[item.name].quantity <= 0) {
+                                delete fighter.sheet.inventory[item.name];
+                            }
+                            renderIngameInventory(fighter);
+                        }
+                    }
+                }
+            });
         }
         
         buttons.push({
-            text: `Usar${reason}`,
-            closes: canUse,
-            className: canUse ? '' : 'disabled-btn',
-            onClick: () => {
-                if (canUse) {
-                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                }
-            }
-        });
-        
-        buttons.push({
             text: 'Descartar',
-            closes: true,
+            closes: false, // Não fecha o primeiro modal, abre o de confirmação
             className: 'btn-danger',
             onClick: () => {
                 showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
@@ -1960,10 +1973,12 @@ document.addEventListener('DOMContentLoaded', () => {
                              socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
                         }
                     },
-                    { text: 'Cancelar', closes: true }
+                    { text: 'Cancelar', closes: true, className: 'btn-secondary' }
                 ]);
             }
         });
+
+        buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
         
         showCustomModal(item.name, content, buttons);
     }
@@ -2013,9 +2028,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const armorType = equipment.armor || 'Nenhuma';
         const shieldType = equipment.shield || 'Nenhum';
         const armorImgDiv = document.getElementById('ingame-sheet-armor-image');
-        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/Armadura ${armorType}.png")`.replace(/ /g, '%20') : 'none';
+        const armorImgName = armorType === 'Mediana' ? 'Armadura Mediana' : `Armadura ${armorType}`;
+        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorImgName}.png")`.replace(/ /g, '%20') : 'none';
         const shieldImgDiv = document.getElementById('ingame-sheet-shield-image');
-        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/Escudo ${shieldType}.png")`.replace(/ /g, '%20') : 'none';
+        const shieldImgName = shieldType === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldType}`;
+        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldImgName}.png")`.replace(/ /g, '%20') : 'none';
 
 
         const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
