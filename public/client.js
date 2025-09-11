@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let GAME_RULES = {};
     let ALL_SPELLS = {};
     let ALL_WEAPON_IMAGES = {};
+    let ALL_ITEMS = {}; // NOVO: Armazena dados dos itens
     let tempCharacterSheet = {};
 
     // --- VARIÁVEIS DE ESTADO ---
@@ -1482,6 +1483,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const imgPath2 = tempCharacterSheet.weapon2.img;
         document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
 
+        // Atualiza imagens da armadura e escudo
+        const armorImgDiv = document.getElementById('sheet-armor-image');
+        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorType.replace(/ /g, '%20')}.png")` : 'none';
+        const shieldImgDiv = document.getElementById('sheet-shield-image');
+        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldType.replace(/ /g, '%20')}.png")` : 'none';
+
+
         let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
         if (cost > 200 && event && event.target && event.type === 'change') {
             alert("Dinheiro insuficiente!");
@@ -1795,13 +1803,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateCharacterSheet();
                     showScreen(document.getElementById('character-sheet-screen'));
                 } else if (context === 'ingame') {
-                    // NOVO: Lógica para carregar personagem já em jogo
                     socket.emit('playerAction', {
                         type: 'playerLoadsCharacterIngame',
                         characterData: decryptedData
                     });
                     showInfoModal("Sucesso", "Personagem carregado! A ficha será atualizada em breve.");
-                    toggleIngameSheet(); // Fecha a ficha para ver a atualização
+                    toggleIngameSheet(); 
                 }
             } catch (error) {
                 alert(`Erro ao carregar a ficha: ${error.message}`);
@@ -1879,13 +1886,18 @@ document.addEventListener('DOMContentLoaded', () => {
         unequippedInventory.forEach(item => {
             const slot = document.createElement('div');
             slot.className = 'inventory-slot item';
-            slot.title = `${item.name} (${item.type})`;
-            const imgPath = item.img || `/images/itens/${item.baseType.replace(/\s+/g, '_')}.png`;
+            
+            const itemDetails = ALL_ITEMS[item.baseType] || ALL_ITEMS[item.name] || {};
+            slot.title = `${item.name}\n${itemDetails.description || `Tipo: ${item.type}`}`;
+            
+            const imgPath = item.img || itemDetails.img || `/images/itens/${item.baseType.replace(/\s+/g, '_')}.png`;
             slot.style.backgroundImage = `url("${imgPath}")`;
     
             if (item.quantity > 1) {
                 slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
             }
+            // NOVO: Adiciona evento de clique para abrir o menu de contexto do item
+            slot.addEventListener('click', () => showItemContextMenu(item));
             inventoryGrid.appendChild(slot);
         });
     
@@ -1895,6 +1907,78 @@ document.addEventListener('DOMContentLoaded', () => {
             emptySlot.className = 'inventory-slot';
             inventoryGrid.appendChild(emptySlot);
         }
+    }
+
+    // NOVO: Função para mostrar o modal de uso/descarte de item
+    function showItemContextMenu(item) {
+        const itemDetails = ALL_ITEMS[item.name];
+        if (!itemDetails) return; // Não faz nada para itens não definidos (como equipamentos)
+
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        if (!myFighter) return;
+
+        let content = `
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="inventory-slot item" style="background-image: url('${itemDetails.img}'); margin: 0;"></div>
+                <div>
+                    <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
+                    <p style="margin: 0; color: #ccc;">${itemDetails.description}</p>
+                </div>
+            </div>`;
+
+        const buttons = [];
+
+        if (itemDetails.isUsable) {
+            let canUse = true;
+            let reason = '';
+            if (currentGameState.mode === 'adventure') {
+                if (currentGameState.activeCharacterKey !== myPlayerKey) {
+                    canUse = false;
+                    reason = ' (Não é seu turno)';
+                } else if (myFighter.pa < itemDetails.costPA) {
+                    canUse = false;
+                    reason = ` (PA insuficiente: ${myFighter.pa}/${itemDetails.costPA})`;
+                }
+            }
+            buttons.push({
+                text: `Usar${reason}`,
+                closes: canUse,
+                className: canUse ? '' : 'disabled-btn',
+                onClick: () => {
+                    if (canUse) {
+                        socket.emit('playerAction', {
+                            type: 'useItem',
+                            actorKey: myPlayerKey,
+                            itemName: item.name
+                        });
+                    }
+                }
+            });
+        }
+        
+        buttons.push({
+            text: 'Descartar',
+            closes: true,
+            className: 'btn-danger',
+            onClick: () => {
+                showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
+                    {
+                        text: 'Sim, Descartar',
+                        closes: true,
+                        className: 'btn-danger',
+                        onClick: () => {
+                             socket.emit('playerAction', {
+                                type: 'discardItem',
+                                itemName: item.name
+                            });
+                        }
+                    },
+                    { text: 'Cancelar', closes: true }
+                ]);
+            }
+        });
+        
+        showCustomModal(item.name, content, buttons);
     }
 
 
@@ -1922,7 +2006,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
         const canEditEquipment = !isAdventureMode || isMyTurn;
         
-        // NOVO: Desabilitar botão de carregar em modo aventura
         const loadBtn = document.getElementById('ingame-sheet-load-btn');
         loadBtn.disabled = isAdventureMode;
         loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
@@ -1939,6 +2022,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = equipment.weapon1.img ? `url("${equipment.weapon1.img}")` : 'none';
         document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = equipment.weapon2.img ? `url("${equipment.weapon2.img}")` : 'none';
+        
+        // Atualiza imagens da armadura e escudo na ficha em jogo
+        const armorType = equipment.armor || 'Nenhuma';
+        const shieldType = equipment.shield || 'Nenhum';
+        const armorImgDiv = document.getElementById('ingame-sheet-armor-image');
+        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorType.replace(/ /g, '%20')}.png")` : 'none';
+        const shieldImgDiv = document.getElementById('ingame-sheet-shield-image');
+        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldType.replace(/ /g, '%20')}.png")` : 'none';
+
 
         const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
         const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
@@ -2153,6 +2245,7 @@ document.addEventListener('DOMContentLoaded', () => {
         GAME_RULES = data.rules;
         ALL_SPELLS = data.spells;
         ALL_WEAPON_IMAGES = data.weaponImages;
+        ALL_ITEMS = data.items || {}; // Recebe dados dos itens
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
     

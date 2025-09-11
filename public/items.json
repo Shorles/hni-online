@@ -1,0 +1,64 @@
+{
+  "Poção de HP menor": {
+    "img": "/images/itens/PoçãoHPmenor.png",
+    "description": "Recupera 2D4+2 de HP.",
+    "isUsable": true,
+    "costPA": 3,
+    "effect": {
+      "type": "heal_hp",
+      "formula": "2D4+2"
+    }
+  },
+  "Poção de Mahou menor": {
+    "img": "/images/itens/PoçãoMahoumenor.png",
+    "description": "Recupera 2D3+2 de Mahou.",
+    "isUsable": true,
+    "costPA": 3,
+    "effect": {
+      "type": "heal_mahou",
+      "formula": "2D3+2"
+    }
+  },
+  "Poção Total menor": {
+    "img": "/images/itens/PoçãoTotalmenor.png",
+    "description": "Recupera 2D4+2 de HP e 2D3+2 de Mahou.",
+    "isUsable": true,
+    "costPA": 3,
+    "effect": {
+      "type": "heal_total",
+      "hp_formula": "2D4+2",
+      "mahou_formula": "2D3+2"
+    }
+  },
+  "Poção de HP": {
+    "img": "/images/itens/PoçãoHP.png",
+    "description": "Recupera 2D6+4 de HP.",
+    "isUsable": true,
+    "costPA": 3,
+    "effect": {
+      "type": "heal_hp",
+      "formula": "2D6+4"
+    }
+  },
+  "Poção de Mahou": {
+    "img": "/images/itens/PoçãoMahou.png",
+    "description": "Recupera 2D4+4 de Mahou.",
+    "isUsable": true,
+    "costPA": 3,
+    "effect": {
+      "type": "heal_mahou",
+      "formula": "2D4+4"
+    }
+  },
+  "Poção Total": {
+    "img": "/images/itens/PoçãoTotal.png",
+    "description": "Recupera 2D6+4 de HP e 2D4+4 de Mahou.",
+    "isUsable": true,
+    "costPA": 3,
+    "effect": {
+      "type": "heal_total",
+      "hp_formula": "2D6+4",
+      "mahou_formula": "2D4+4"
+    }
+  }
+}

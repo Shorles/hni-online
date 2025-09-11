@@ -22,6 +22,7 @@ let ALL_SCENARIOS = {};
 let GAME_RULES = {};
 let ALL_SPELLS = {};
 let ALL_WEAPON_IMAGES = {};
+let ALL_ITEMS = {}; // NOVO: Armazena dados dos itens
 
 const MAX_PLAYERS = 4;
 const MAX_NPCS = 5; 
@@ -36,6 +37,8 @@ try {
     GAME_RULES = JSON.parse(rulesData);
     const spellsData = fs.readFileSync('public/spells.json', 'utf8');
     ALL_SPELLS = JSON.parse(spellsData);
+    const itemsData = fs.readFileSync('public/items.json', 'utf8'); // NOVO: Carrega items.json
+    ALL_ITEMS = JSON.parse(itemsData);
     
     const weaponImagesConfigData = fs.readFileSync('public/weaponImages.json', 'utf8');
     const weaponImagesConfig = JSON.parse(weaponImagesConfigData);
@@ -84,12 +87,27 @@ function rollD20() { return Math.floor(Math.random() * 20) + 1; }
 function rollDice(diceString) {
     if (!diceString || typeof diceString !== 'string') return 0;
     
+    // Suporte para fórmulas como "2D3+2"
+    let match = diceString.match(/(\d+)d(\d+)(\+\d+)?/i);
+    if (match) {
+        const numDice = parseInt(match[1], 10);
+        const diceSides = parseInt(match[2], 10);
+        const bonus = match[3] ? parseInt(match[3], 10) : 0;
+
+        let total = 0;
+        for (let i = 0; i < numDice; i++) {
+            total += Math.floor(Math.random() * diceSides) + 1;
+        }
+        return total + bonus;
+    }
+    
+    // Fallback para fórmulas antigas como "1D6+1"
     let mainParts = diceString.split('+');
     let formula = mainParts[0];
-    let bonus = mainParts[1] ? parseInt(mainParts[1], 10) : 0;
+    let bonusLegacy = mainParts[1] ? parseInt(mainParts[1], 10) : 0;
 
     const parts = formula.match(/(\d+)d(\d+)/i);
-    if (!parts) return bonus;
+    if (!parts) return bonusLegacy;
     
     const numDice = parseInt(parts[1], 10);
     const diceSides = parseInt(parts[2], 10);
@@ -98,8 +116,9 @@ function rollDice(diceString) {
     for (let i = 0; i < numDice; i++) {
         total += Math.floor(Math.random() * diceSides) + 1;
     }
-    return total + bonus;
+    return total + bonusLegacy;
 }
+
 
 // --- FUNÇÕES DE ESTADO DO JOGO ---
 
@@ -904,10 +923,10 @@ function getFullState(room) {
 }
 
 // NOVA FUNÇÃO: Gera inventário e lida com nomes de itens duplicados
-function createInventoryFromEquipment(equipment) {
+function createInventoryFromEquipment(equipment, addStartingItems = false) {
     const inventory = {};
     const ammunition = {};
-    const newEquipment = JSON.parse(JSON.stringify(equipment));
+    const newEquipment = JSON.parse(JSON.stringify(equipment)); // Deep copy to modify names safely
 
     const addItem = (item, type, slotKey) => {
         const baseType = item.type;
@@ -916,13 +935,14 @@ function createInventoryFromEquipment(equipment) {
         }
 
         let finalName = item.name;
+        // Se o nome customizado for igual ao tipo base, e esse tipo já existe, adiciona um sufixo
         if (inventory[finalName]) {
             let count = 2;
             while (inventory[`${item.name} (${count})`]) {
                 count++;
             }
             finalName = `${item.name} (${count})`;
-            item.name = finalName; 
+            item.name = finalName; // Atualiza o nome no objeto de equipamento
         }
 
         inventory[finalName] = { type, name: finalName, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
@@ -934,8 +954,19 @@ function createInventoryFromEquipment(equipment) {
 
     addItem(newEquipment.weapon1, 'weapon', 'weapon1');
     addItem(newEquipment.weapon2, 'weapon', 'weapon2');
-    addItem({ name: newEquipment.armor, type: newEquipment.armor }, 'armor', null);
-    addItem({ name: newEquipment.shield, type: newEquipment.shield }, 'shield', null);
+    addItem({ name: newEquipment.armor, type: 'armor' }, 'armor', null);
+    addItem({ name: newEquipment.shield, type: 'shield' }, 'shield', null);
+
+    if (addStartingItems) {
+        const hpPotion = "Poção de HP menor";
+        const mahouPotion = "Poção de Mahou menor";
+        if (ALL_ITEMS[hpPotion]) {
+            inventory[hpPotion] = { name: hpPotion, type: 'potion', quantity: 1, ...ALL_ITEMS[hpPotion] };
+        }
+        if (ALL_ITEMS[mahouPotion]) {
+            inventory[mahouPotion] = { name: mahouPotion, type: 'potion', quantity: 1, ...ALL_ITEMS[mahouPotion] };
+        }
+    }
 
     return { inventory, ammunition, updatedEquipment: newEquipment };
 }
@@ -946,6 +977,7 @@ io.on('connection', (socket) => {
         rules: GAME_RULES,
         spells: ALL_SPELLS,
         weaponImages: ALL_WEAPON_IMAGES,
+        items: ALL_ITEMS, // NOVO: Envia dados dos itens
         characters: { 
             players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `/images/players/${name}.png` })), 
             npcs: Object.keys(ALL_NPCS).map(name => ({ 
@@ -1073,7 +1105,7 @@ io.on('connection', (socket) => {
                 characterData.equipment.weapon2.isRanged = action.isRanged.weapon2;
                 characterData.equipment.weapon2.img = action.weaponImages.weapon2;
                 
-                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment);
+                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment, true); // Adiciona itens iniciais
                 characterData.inventory = inventory;
                 characterData.ammunition = ammunition;
                 characterData.equipment = updatedEquipment;
@@ -1090,11 +1122,14 @@ io.on('connection', (socket) => {
             if (playerInfo && action.characterData) {
                 const characterData = action.characterData;
 
-                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment);
-                characterData.inventory = inventory;
-                characterData.ammunition = ammunition;
-                characterData.equipment = updatedEquipment;
-
+                // Se o inventário não existir no arquivo salvo, cria um novo
+                if (!characterData.inventory) {
+                    const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment, true);
+                    characterData.inventory = inventory;
+                    characterData.ammunition = ammunition;
+                    characterData.equipment = updatedEquipment;
+                }
+                
                 playerInfo.characterSheet = characterData;
                 playerInfo.characterName = characterData.name;
                 
@@ -1255,6 +1290,43 @@ io.on('connection', (socket) => {
                             shouldUpdate = false;
                         }
                         break;
+                    case 'useItem': // NOVO
+                        if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
+                            const actor = getFighter(adventureState, action.actorKey);
+                            const itemData = ALL_ITEMS[action.itemName];
+                            if (actor && actor.sheet.inventory[action.itemName] && itemData && itemData.isUsable) {
+                                if(actor.pa >= itemData.costPA) {
+                                    actor.pa -= itemData.costPA;
+                                    
+                                    const itemInInventory = actor.sheet.inventory[action.itemName];
+                                    itemInInventory.quantity--;
+                                    if (itemInInventory.quantity <= 0) {
+                                        delete actor.sheet.inventory[action.itemName];
+                                    }
+
+                                    let healedHp = 0;
+                                    let healedMahou = 0;
+
+                                    if(itemData.effect.type === 'heal_hp' || itemData.effect.type === 'heal_total'){
+                                        const hpAmount = rollDice(itemData.effect.hp_formula || itemData.effect.formula);
+                                        healedHp = Math.min(actor.hpMax - actor.hp, hpAmount);
+                                        actor.hp += healedHp;
+                                        io.to(roomId).emit('floatingTextTriggered', { targetId: actor.id, text: `+${healedHp} HP`, type: 'heal-hp' });
+                                    }
+                                     if(itemData.effect.type === 'heal_mahou' || itemData.effect.type === 'heal_total'){
+                                        const mahouAmount = rollDice(itemData.effect.mahou_formula || itemData.effect.formula);
+                                        healedMahou = Math.min(actor.mahouMax - actor.mahou, mahouAmount);
+                                        actor.mahou += healedMahou;
+                                        io.to(roomId).emit('floatingTextTriggered', { targetId: actor.id, text: `+${healedMahou} Mahou`, type: 'heal-mahou' });
+                                    }
+
+                                    logMessage(adventureState, `${actor.nome} usou ${action.itemName} e recuperou ${healedHp} HP e ${healedMahou} Mahou.`, 'info');
+                                } else {
+                                    logMessage(adventureState, `${actor.nome} não tem PA suficiente para usar ${action.itemName}.`, 'miss');
+                                }
+                            }
+                        }
+                        break;
                     case 'flee':
                          if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
                              const actor = getFighter(adventureState, action.actorKey);
@@ -1306,6 +1378,36 @@ io.on('connection', (socket) => {
                     if (playerLobbyInfo && playerLobbyInfo.characterSheet) {
                          playerLobbyInfo.characterSheet.equipment = action.newEquipment;
                          logMessage(theaterState, `${playerLobbyInfo.characterName} trocou de equipamento.`);
+                    }
+                 }
+                 if (action.type === 'useItem') { // NOVO
+                    const actor = lobbyState.connectedPlayers[socket.id]?.characterSheet;
+                    const itemData = ALL_ITEMS[action.itemName];
+                    if (actor && actor.inventory[action.itemName] && itemData && itemData.isUsable) {
+                        const itemInInventory = actor.inventory[action.itemName];
+                        itemInInventory.quantity--;
+                        if (itemInInventory.quantity <= 0) {
+                            delete actor.inventory[action.itemName];
+                        }
+                        // Lógica de cura fora de combate (sempre cura o máximo possível)
+                        let healedHp = 0;
+                        let healedMahou = 0;
+                        const constituicao = actor.finalAttributes.constituicao || 0;
+                        const mente = actor.finalAttributes.mente || 0;
+                        const hpMax = 20 + (constituicao * 5);
+                        const mahouMax = 10 + (mente * 5);
+
+                        if(itemData.effect.type === 'heal_hp' || itemData.effect.type === 'heal_total'){
+                            const hpAmount = rollDice(itemData.effect.hp_formula || itemData.effect.formula);
+                            healedHp = Math.min(hpMax - (actor.hp || hpMax), hpAmount);
+                            actor.hp = (actor.hp || hpMax) + healedHp;
+                        }
+                         if(itemData.effect.type === 'heal_mahou' || itemData.effect.type === 'heal_total'){
+                            const mahouAmount = rollDice(itemData.effect.mahou_formula || itemData.effect.formula);
+                            healedMahou = Math.min(mahouMax - (actor.mahou || mahouMax), mahouAmount);
+                            actor.mahou = (actor.mahou || mahouMax) + healedMahou;
+                        }
+                        logMessage(theaterState, `${actor.name} usou ${action.itemName} fora de combate.`, 'info');
                     }
                  }
                  if (isGm && theaterState && theaterState.scenarioStates && theaterState.currentScenario) {

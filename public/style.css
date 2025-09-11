@@ -509,11 +509,14 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     --y-offset: 0px; /* Variável para o deslocamento vertical inicial */
 }
 
-.floating-text.damage-hp { color: #dc3545; } /* Vermelho */
-.floating-text.damage-mahou { color: #007bff; } /* Azul */
+.floating-text.damage-hp, .floating-text.heal-hp-negative { color: #dc3545; } /* Vermelho */
+.floating-text.damage-mahou, .floating-text.heal-mahou-negative { color: #007bff; } /* Azul */
 .floating-text.buff { color: #ffc107; } /* Amarelo */
 .floating-text.status-resist { color: #6c757d; } /* Cinza */
 .floating-text.status-fail { color: #ffc107; } /* Amarelo para destaque */
+.floating-text.heal-hp { color: #28a745; } /* Verde para cura HP */
+.floating-text.heal-mahou { color: #17a2b8; } /* Ciano para cura Mahou */
+
 
 /* === NOVOS ESTILOS PARA INVENTÁRIO E FICHA EM JOGO === */
 
@@ -877,7 +880,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     border: 1px solid white;
 }
 
-/* Layout para imagem da arma */
+/* Layout para imagem da arma e equipamento */
 #sheet-equipment-section .equip-item,
 .ingame-sheet-equipment .equip-item {
     display: flex;
@@ -886,7 +889,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     align-items: center;
 }
 
-.weapon-image-display {
+.equipment-image-display {
     width: 60px;
     height: 60px;
     background-color: rgba(0,0,0,0.2);
