@@ -903,6 +903,44 @@ function getFullState(room) {
     return { ...activeState, gmId: room.gameModes.lobby.gmId, connectedPlayers: room.gameModes.lobby.connectedPlayers };
 }
 
+// NOVA FUNÇÃO: Gera inventário e lida com nomes de itens duplicados
+function createInventoryFromEquipment(equipment) {
+    const inventory = {};
+    const ammunition = {};
+    const newEquipment = JSON.parse(JSON.stringify(equipment));
+
+    const addItem = (item, type, slotKey) => {
+        const baseType = item.type;
+        if (!baseType || ['Desarmado', 'Nenhuma', 'Nenhum'].includes(baseType)) {
+            return;
+        }
+
+        let finalName = item.name;
+        if (inventory[finalName]) {
+            let count = 2;
+            while (inventory[`${item.name} (${count})`]) {
+                count++;
+            }
+            finalName = `${item.name} (${count})`;
+            item.name = finalName; 
+        }
+
+        inventory[finalName] = { type, name: finalName, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
+
+        if (item.isRanged && slotKey) {
+            ammunition[slotKey] = 15;
+        }
+    };
+
+    addItem(newEquipment.weapon1, 'weapon', 'weapon1');
+    addItem(newEquipment.weapon2, 'weapon', 'weapon2');
+    addItem({ name: newEquipment.armor, type: newEquipment.armor }, 'armor', null);
+    addItem({ name: newEquipment.shield, type: newEquipment.shield }, 'shield', null);
+
+    return { inventory, ammunition, updatedEquipment: newEquipment };
+}
+
+
 io.on('connection', (socket) => {
     socket.emit('initialData', { 
         rules: GAME_RULES,
@@ -1030,34 +1068,15 @@ io.on('connection', (socket) => {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (playerInfo) {
                 const characterData = action.characterData;
-                const initialInventory = {};
-                const equip = characterData.equipment;
-                const ammunition = {};
-
-                equip.weapon1.isRanged = action.isRanged.weapon1;
-                equip.weapon1.img = action.weaponImages.weapon1;
-                equip.weapon2.isRanged = action.isRanged.weapon2;
-                equip.weapon2.img = action.weaponImages.weapon2;
-        
-                const addItemToInventory = (item, type, baseType, slotKey) => {
-                    if (baseType !== 'Desarmado' && baseType !== 'Nenhuma' && baseType !== 'Nenhum') {
-                        initialInventory[item.name] = {
-                            type: type, name: item.name, baseType: baseType, quantity: 1,
-                            img: item.img, isRanged: item.isRanged
-                        };
-                        if (item.isRanged) {
-                            ammunition[slotKey] = 15;
-                        }
-                    }
-                };
-        
-                addItemToInventory(equip.weapon1, 'weapon', equip.weapon1.type, 'weapon1');
-                addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type, 'weapon2');
-                addItemToInventory({ name: equip.armor, type: equip.armor }, 'armor', equip.armor, 'armor');
-                addItemToInventory({ name: equip.shield, type: equip.shield }, 'shield', equip.shield, 'shield');
-        
-                characterData.inventory = initialInventory;
+                characterData.equipment.weapon1.isRanged = action.isRanged.weapon1;
+                characterData.equipment.weapon1.img = action.weaponImages.weapon1;
+                characterData.equipment.weapon2.isRanged = action.isRanged.weapon2;
+                characterData.equipment.weapon2.img = action.weaponImages.weapon2;
+                
+                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment);
+                characterData.inventory = inventory;
                 characterData.ammunition = ammunition;
+                characterData.equipment = updatedEquipment;
         
                 playerInfo.characterSheet = characterData;
                 playerInfo.characterName = characterData.name;
@@ -1070,25 +1089,11 @@ io.on('connection', (socket) => {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (playerInfo && action.characterData) {
                 const characterData = action.characterData;
-                const initialInventory = {};
-                const equip = characterData.equipment;
-                const ammunition = {};
 
-                const addItemToInventory = (item, type, baseType, slotKey) => {
-                     if (baseType && baseType !== 'Desarmado' && baseType !== 'Nenhuma' && baseType !== 'Nenhum') {
-                        initialInventory[item.name] = { type, name: item.name, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
-                        if (item.isRanged) { ammunition[slotKey] = 15; }
-                    }
-                };
-                
-                // CORREÇÃO: Chamar a função para ambas as armas, sem a condição falha
-                addItemToInventory(equip.weapon1, 'weapon', equip.weapon1.type, 'weapon1');
-                addItemToInventory(equip.weapon2, 'weapon', equip.weapon2.type, 'weapon2');
-                addItemToInventory({ name: equip.armor, type: 'armor' }, 'armor', equip.armor, 'armor');
-                addItemToInventory({ name: equip.shield, type: 'shield' }, 'shield', equip.shield, 'shield');
-                
-                characterData.inventory = initialInventory;
+                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment);
+                characterData.inventory = inventory;
                 characterData.ammunition = ammunition;
+                characterData.equipment = updatedEquipment;
 
                 playerInfo.characterSheet = characterData;
                 playerInfo.characterName = characterData.name;
