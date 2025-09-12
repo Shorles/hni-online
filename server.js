@@ -22,7 +22,7 @@ let ALL_SCENARIOS = {};
 let GAME_RULES = {};
 let ALL_SPELLS = {};
 let ALL_WEAPON_IMAGES = {};
-let ALL_ITEMS = {}; // NOVO: Armazena dados dos itens
+let ALL_ITEMS = {}; 
 
 const MAX_PLAYERS = 4;
 const MAX_NPCS = 5; 
@@ -87,7 +87,6 @@ function rollD20() { return Math.floor(Math.random() * 20) + 1; }
 function rollDice(diceString) {
     if (!diceString || typeof diceString !== 'string') return 0;
     
-    // Suporte para fórmulas como "2D3+2"
     let match = diceString.match(/(\d+)d(\d+)(\+\d+)?/i);
     if (match) {
         const numDice = parseInt(match[1], 10);
@@ -101,7 +100,6 @@ function rollDice(diceString) {
         return total + bonus;
     }
     
-    // Fallback para fórmulas antigas como "1D6+1"
     let mainParts = diceString.split('+');
     let formula = mainParts[0];
     let bonusLegacy = mainParts[1] ? parseInt(mainParts[1], 10) : 0;
@@ -152,7 +150,8 @@ function createNewAdventureState(gmId, connectedPlayers) {
 function createNewTheaterState(gmId, initialScenario) {
     const theaterState = {
         mode: 'theater', gmId: gmId, log: [{ text: "Modo Cenário iniciado."}],
-        scenarioStates: {}, publicState: {}
+        scenarioStates: {}, publicState: {},
+        shop: { gmItems: {}, playerItems: [], isOpen: false } // NOVO: Adiciona estado da loja
     };
     const initialScenarioPath = `mapas/${initialScenario}`;
     theaterState.currentScenario = initialScenarioPath;
@@ -922,11 +921,10 @@ function getFullState(room) {
     return { ...activeState, gmId: room.gameModes.lobby.gmId, connectedPlayers: room.gameModes.lobby.connectedPlayers };
 }
 
-// NOVA FUNÇÃO: Gera inventário e lida com nomes de itens duplicados
 function createInventoryFromEquipment(equipment, addStartingItems = false) {
     const inventory = {};
     const ammunition = {};
-    const newEquipment = JSON.parse(JSON.stringify(equipment)); // Deep copy to modify names safely
+    const newEquipment = JSON.parse(JSON.stringify(equipment));
 
     const addItem = (item, type, slotKey) => {
         const baseType = item.type;
@@ -935,14 +933,13 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
         }
 
         let finalName = item.name;
-        // Se o nome customizado for igual ao tipo base, e esse tipo já existe, adiciona um sufixo
         if (inventory[finalName]) {
             let count = 2;
             while (inventory[`${item.name} (${count})`]) {
                 count++;
             }
             finalName = `${item.name} (${count})`;
-            item.name = finalName; // Atualiza o nome no objeto de equipamento
+            item.name = finalName; 
         }
 
         inventory[finalName] = { type, name: finalName, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
@@ -1145,7 +1142,7 @@ io.on('connection', (socket) => {
             }
         }
 
-        if (action.type === 'discardItem') { // NOVO
+        if (action.type === 'discardItem') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (playerInfo && playerInfo.characterSheet.inventory[action.itemName]) {
                 delete playerInfo.characterSheet.inventory[action.itemName];
@@ -1415,6 +1412,57 @@ io.on('connection', (socket) => {
                             actorSheet.mahou = (actorSheet.mahou || mahouMax) + healedMahou;
                         }
                         logMessage(theaterState, `${actorSheet.name} usou ${action.itemName} fora de combate.`, 'info');
+                    }
+                 }
+                 if (isGm) {
+                     switch(action.type) {
+                        case 'gmUpdatesShop':
+                            if (theaterState.shop) {
+                                theaterState.shop.gmItems = action.items;
+                            }
+                            break;
+                        case 'gmPublishesShop':
+                            if (theaterState.shop) {
+                                theaterState.shop.playerItems = Object.values(action.items);
+                                theaterState.shop.isOpen = true;
+                                logMessage(theaterState, 'O Mestre abriu a loja.');
+                            }
+                            break;
+                        case 'gmClosesShop':
+                            if (theaterState.shop) {
+                                theaterState.shop.isOpen = false;
+                                logMessage(theaterState, 'O Mestre fechou a loja.');
+                            }
+                            break;
+                     }
+                 }
+                 if (action.type === 'playerBuysItem') {
+                    const playerInfo = lobbyState.connectedPlayers[socket.id];
+                    const shopItem = theaterState.shop.gmItems[action.itemId];
+
+                    if (playerInfo && shopItem && shopItem.quantity > 0) {
+                        const totalCost = shopItem.price * action.quantity;
+                        if (playerInfo.characterSheet.money >= totalCost && action.quantity <= shopItem.quantity) {
+                            // Deduz dinheiro do jogador
+                            playerInfo.characterSheet.money -= totalCost;
+                            
+                            // Reduz a quantidade na loja
+                            shopItem.quantity -= action.quantity;
+                            if (shopItem.quantity <= 0) {
+                                delete theaterState.shop.gmItems[action.itemId];
+                            }
+                            // Atualiza a visão dos players
+                            theaterState.shop.playerItems = Object.values(theaterState.shop.gmItems);
+
+                            // Adiciona o item ao inventário do jogador
+                            const playerInv = playerInfo.characterSheet.inventory;
+                            if (playerInv[shopItem.name]) {
+                                playerInv[shopItem.name].quantity += action.quantity;
+                            } else {
+                                playerInv[shopItem.name] = { ...shopItem.itemData, name: shopItem.name, quantity: action.quantity };
+                            }
+                            logMessage(theaterState, `${playerInfo.characterName} comprou ${action.quantity}x ${shopItem.name}.`);
+                        }
                     }
                  }
                  if (isGm && theaterState && theaterState.scenarioStates && theaterState.currentScenario) {

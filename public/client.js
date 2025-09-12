@@ -5,8 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let GAME_RULES = {};
     let ALL_SPELLS = {};
     let ALL_WEAPON_IMAGES = {};
-    let ALL_ITEMS = {}; // NOVO: Armazena dados dos itens
-    let tempCharacterSheet = {};
+    let ALL_ITEMS = {}; 
 
     // --- VARIÁVEIS DE ESTADO ---
     let myRole = null, myPlayerKey = null, isGm = false;
@@ -37,7 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let isSelectingBox = false;
     let selectionBoxStartPos = { x: 0, y: 0 };
     let isGmDebugModeActive = false;
-    let originalEquipmentState = null; // Para reverter a troca de equipamento
+    let originalEquipmentState = null;
+    let shopStagedItems = {}; // NOVO: Estado local da loja do GM
+    let isShopOpen = false;
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -53,6 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterGlobalScale = document.getElementById('theater-global-scale');
     const initiativeUI = document.getElementById('initiative-ui');
     const modal = document.getElementById('modal');
+    const shopModal = document.getElementById('shop-modal'); // NOVO
     const weaponImageModal = document.getElementById('weapon-image-modal');
     const selectionBox = document.getElementById('selection-box');
     const turnOrderSidebar = document.getElementById('turn-order-sidebar');
@@ -232,6 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 defeatAnimationPlayed.clear();
                 stagedNpcSlots.fill(null);
                 selectedSlotIndex = null;
+                isShopOpen = false;
+                shopModal.classList.add('hidden');
                 if (isGm) {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
@@ -244,12 +248,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'adventure':
+                isShopOpen = false;
+                shopModal.classList.add('hidden');
                 handleAdventureMode(gameState);
                 break;
             case 'theater':
                 if (!oldGameState || oldGameState.mode !== 'theater') initializeTheaterMode();
                 showScreen(document.getElementById('theater-screen'));
                 renderTheaterMode(gameState);
+                if (gameState.shop) {
+                    if (isGm) {
+                        shopStagedItems = gameState.shop.gmItems;
+                        if(isShopOpen) renderShopModal();
+                    } else {
+                        if (gameState.shop.isOpen) {
+                            if (!isShopOpen) { // Abre a loja para o jogador se ela foi recém publicada
+                                isShopOpen = true;
+                                renderShopModal();
+                            }
+                            shopModal.classList.remove('hidden');
+                        } else {
+                            isShopOpen = false;
+                            shopModal.classList.add('hidden');
+                        }
+                    }
+                }
                 break;
             default:
                 showScreen(document.getElementById('loading-screen'));
@@ -1021,7 +1044,13 @@ document.addEventListener('DOMContentLoaded', () => {
         window.removeEventListener('mouseup', onFighterMouseUp);
     }
     function showHelpModal() {
-        const content = `<div style="text-align: left; font-size: 1.2em; line-height: 1.8;"><p><b>P:</b> Abrir menu de Cheats (GM).</p><p><b>M:</b> Ativar/Desativar modo de depuração de combate (GM).</p><p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p><p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p></div>`;
+        const content = `<div style="text-align: left; font-size: 1.2em; line-height: 1.8;">
+            <p><b>P:</b> Abrir menu de Cheats (GM).</p>
+            <p><b>M:</b> Ativar/Desativar modo de depuração de combate (GM).</p>
+            <p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p>
+            <p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p>
+            <p><b>I:</b> Abrir/Fechar loja (GM - Modo Cenário).</p>
+        </div>`;
         showInfoModal("Atalhos do Teclado", content);
     }
     
@@ -1252,13 +1281,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeGlobalKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
-            if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape') {
-                cancelTargeting();
-                return;
-            }
 
             const focusedEl = document.activeElement;
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(focusedEl.tagName)) {
+                 if (e.key === 'Escape' && shopModal.classList.contains('active')) {
+                    toggleShop();
+                }
+                return;
+            }
+
+            if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape') {
+                cancelTargeting();
                 return;
             }
             
@@ -1284,6 +1317,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 isFreeMoveModeActive = !isFreeMoveModeActive;
                 makeFightersDraggable(isFreeMoveModeActive);
                 showInfoModal("Modo de Movimento", `Modo de movimento livre ${isFreeMoveModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
+            }
+            
+            if (currentGameState.mode === 'theater' && e.key.toLowerCase() === 'i') {
+                e.preventDefault();
+                toggleShop();
             }
 
             if (currentGameState.mode !== 'theater' || !isGm) return;
@@ -1949,7 +1987,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 onClick: () => {
                     if (canUse) {
                         socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                        // Fecha a ficha imediatamente após usar o item
                         document.getElementById('ingame-sheet-modal').classList.add('hidden');
                     }
                 }
@@ -1968,7 +2005,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         className: 'btn-danger',
                         onClick: () => {
                              socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
-                             // Atualização otimista
                              const fighter = getFighter(currentGameState, myPlayerKey);
                              if(fighter && fighter.sheet.inventory[item.name]) {
                                 delete fighter.sheet.inventory[item.name];
