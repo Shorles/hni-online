@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectionBoxStartPos = { x: 0, y: 0 };
     let isGmDebugModeActive = false;
     let originalEquipmentState = null;
-    let stagedCharacterSheet = {}; // Nome corrigido aqui
+    let stagedCharacterSheet = {}; 
     let shopStagedItems = {}; 
     let isShopOpen = false;
 
@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const confirmBtn = document.getElementById('confirm-selection-btn');
         charListContainer.innerHTML = '';
         confirmBtn.disabled = true;
-        let myCurrentSelection = stagedCharacterSheet.tokenImg; // CORREÇÃO AQUI
+        let myCurrentSelection = stagedCharacterSheet.tokenImg; 
 
         (ALL_CHARACTERS.players || []).forEach(data => {
             const card = document.createElement('div');
