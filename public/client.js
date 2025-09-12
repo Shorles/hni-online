@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterGlobalScale = document.getElementById('theater-global-scale');
     const initiativeUI = document.getElementById('initiative-ui');
     const modal = document.getElementById('modal');
-    const shopModal = document.getElementById('shop-modal'); // NOVO
+    const shopModal = document.getElementById('shop-modal'); 
     const weaponImageModal = document.getElementById('weapon-image-modal');
     const selectionBox = document.getElementById('selection-box');
     const turnOrderSidebar = document.getElementById('turn-order-sidebar');
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 stagedNpcSlots.fill(null);
                 selectedSlotIndex = null;
                 isShopOpen = false;
-                shopModal.classList.add('hidden');
+                if(shopModal) shopModal.classList.add('hidden');
                 if (isGm) {
                     showScreen(document.getElementById('gm-initial-lobby'));
                     updateGmLobbyUI(gameState);
@@ -249,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'adventure':
                 isShopOpen = false;
-                shopModal.classList.add('hidden');
+                if(shopModal) shopModal.classList.add('hidden');
                 handleAdventureMode(gameState);
                 break;
             case 'theater':
@@ -262,10 +262,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         if(isShopOpen) renderShopModal();
                     } else {
                         if (gameState.shop.isOpen) {
-                            if (!isShopOpen) { // Abre a loja para o jogador se ela foi recém publicada
+                            if (!isShopOpen) {
                                 isShopOpen = true;
-                                renderShopModal();
                             }
+                            renderShopModal();
                             shopModal.classList.remove('hidden');
                         } else {
                             isShopOpen = false;
@@ -1924,10 +1924,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const slot = document.createElement('div');
             slot.className = 'inventory-slot item';
             
-            const itemDetails = ALL_ITEMS[item.name] || {};
-            slot.title = `${item.name}\n${itemDetails.description || `Tipo: ${item.type || 'Equipamento'}`}`;
+            const itemDetails = ALL_ITEMS[item.name];
+            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
             
-            const imgPath = item.img || (itemDetails.img) || `/images/itens/default.png`;
+            const imgPath = item.img || (itemDetails ? itemDetails.img : `/images/itens/default.png`);
             slot.style.backgroundImage = `url("${imgPath}")`;
     
             if (item.quantity > 1) {
