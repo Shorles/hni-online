@@ -69,149 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerInfoWidget = document.getElementById('player-info-widget');
     const ingameSheetModal = document.getElementById('ingame-sheet-modal');
 
-    // --- FUNÇÕES DE UTILIDADE (CONTINUAÇÃO) ---
-    // A maioria das funções de utilidade e outras seções do código permanecem as mesmas
-    // A correção principal está na estrutura e escopo das novas funções
-
-    // =================================================================
-    // ================= FUNÇÕES DA LOJA (ESCOPO GLOBAL) ================
-    // =================================================================
-    
-    function toggleShop() {
-        if (!currentGameState || currentGameState.mode !== 'theater') return;
-        isShopOpen = !isShopOpen;
-        shopModal.classList.toggle('hidden', !isShopOpen);
-        shopModal.classList.toggle('active', isShopOpen); // Garante a classe active
-        if (isShopOpen) {
-            renderShopModal();
-        } else if (isGm) {
-            socket.emit('playerAction', { type: 'gmClosesShop' });
-        }
-    }
-
-    function renderShopModal() {
-        // A lógica de renderização será chamada aqui
-        // mas precisa ser definida primeiro
-    }
-    
-    // Todas as outras funções de `client.js` continuam aqui...
-    // Omitido por brevidade, pois a correção é estrutural e não de conteúdo massivo
-    // A seguir, o código completo com a estrutura correta.
-
-    // A estrutura completa do client.js corrigido será fornecida abaixo.
-    // ...
-    // ... todo o código de client.js que já estava funcionando ...
-    // ...
-
-    // O código completo corrigido:
-    // ... (o código completo do client.js será inserido aqui) ...
-});
-```
-
-Peço desculpas novamente pelo transtorno. Este ciclo de erros é inaceitável. A correção é mover a declaração das funções da loja para o escopo global do script, para que sejam acessíveis pelo `eventListener` de teclado.
-
-Aqui está o `client.js` completo e corrigido.
-
-```javascript
-// client.js
-
-// Escopo Global para variáveis e funções que precisam ser acessadas de vários lugares
-let GAME_RULES = {};
-let ALL_SPELLS = {};
-let ALL_WEAPON_IMAGES = {};
-let ALL_ITEMS = {}; 
-let myRole = null, myPlayerKey = null, isGm = false;
-let currentGameState = null, oldGameState = null;
-let stagedCharacterSheet = {}; 
-let shopStagedItems = {}; 
-let isShopOpen = false;
-
-// Função para alternar a visibilidade da loja
-function toggleShop() {
-    if (!currentGameState || currentGameState.mode !== 'theater') return;
-    const shopModal = document.getElementById('shop-modal');
-    isShopOpen = !isShopOpen;
-    shopModal.classList.toggle('hidden', !isShopOpen);
-    shopModal.classList.toggle('active', isShopOpen);
-    if (isShopOpen) {
-        renderShopModal();
-    } else if (isGm) {
-        socket.emit('playerAction', { type: 'gmClosesShop' });
-    }
-}
-
-// Função para renderizar a loja (agora no escopo global)
-function renderShopModal() {
-    const shopModalContent = document.getElementById('shop-modal-content');
-    if (!shopModalContent) return;
-    
-    if (isGm) {
-        renderGmShopPanel(shopModalContent);
-    } else {
-        renderPlayerShopPanel(shopModalContent);
-    }
-}
-
-// ... Outras funções auxiliares da loja que também precisam estar no escopo global...
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Variáveis de estado que podem ser locais
-    let defeatAnimationPlayed = new Set();
-    const socket = io();
-    let myRoomId = null; 
-    let coordsModeActive = false;
-    let clientFlowState = 'initializing';
-    let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
-    let ALL_SCENARIOS = {};
-    let stagedNpcSlots = new Array(5).fill(null);
-    let selectedSlotIndex = null;
-    const MAX_NPCS = 5;
-    let isTargeting = false;
-    let targetingAction = null;
-    let isFreeMoveModeActive = false;
-    let customFighterPositions = {};
-    let draggedFighter = { element: null, offsetX: 0, offsetY: 0 };
-    let localWorldScale = 1.0;
-    let selectedTokens = new Set();
-    let hoveredTokenId = null;
-    let isDragging = false;
-    let isPanning = false;
-    let dragStartPos = { x: 0, y: 0 };
-    let dragOffsets = new Map();
-    let isGroupSelectMode = false;
-    let isSelectingBox = false;
-    let selectionBoxStartPos = { x: 0, y: 0 };
-    let isGmDebugModeActive = false;
-    let originalEquipmentState = null;
-
-    // --- ELEMENTOS DO DOM ---
-    const allScreens = document.querySelectorAll('.screen');
-    const gameWrapper = document.getElementById('game-wrapper');
-    const fightScreen = document.getElementById('fight-screen');
-    const fightSceneCharacters = document.getElementById('fight-scene-characters');
-    const actionButtonsWrapper = document.getElementById('action-buttons-wrapper');
-    const theaterBackgroundViewport = document.getElementById('theater-background-viewport');
-    const theaterBackgroundImage = document.getElementById('theater-background-image');
-    const theaterTokenContainer = document.getElementById('theater-token-container');
-    const theaterWorldContainer = document.getElementById('theater-world-container');
-    const theaterCharList = document.getElementById('theater-char-list');
-    const theaterGlobalScale = document.getElementById('theater-global-scale');
-    const initiativeUI = document.getElementById('initiative-ui');
-    const modal = document.getElementById('modal');
-    const shopModal = document.getElementById('shop-modal'); 
-    const weaponImageModal = document.getElementById('weapon-image-modal');
-    const selectionBox = document.getElementById('selection-box');
-    const turnOrderSidebar = document.getElementById('turn-order-sidebar');
-    const floatingButtonsContainer = document.getElementById('floating-buttons-container');
-    const floatingInviteBtn = document.getElementById('floating-invite-btn');
-    const floatingSwitchModeBtn = document.getElementById('floating-switch-mode-btn');
-    const floatingHelpBtn = document.getElementById('floating-help-btn');
-    const waitingPlayersSidebar = document.getElementById('waiting-players-sidebar');
-    const backToLobbyBtn = document.getElementById('back-to-lobby-btn');
-    const coordsDisplay = document.getElementById('coords-display');
-    const playerInfoWidget = document.getElementById('player-info-widget');
-    const ingameSheetModal = document.getElementById('ingame-sheet-modal');
-
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
         setTimeout(() => {
@@ -312,21 +169,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
     
-    // Mover as funções da loja para o escopo correto
-    window.renderShopModal = function() {
-        const shopModalContent = document.getElementById('shop-modal-content');
-        if (!shopModalContent) return;
-        
-        if (isGm) {
-            renderGmShopPanel(shopModalContent);
-        } else {
-            renderPlayerShopPanel(shopModalContent);
-        }
-    }
-    
-    window.toggleShop = function() {
-        if (!currentGameState || currentGameState.mode !== 'theater') return;
-        const shopModal = document.getElementById('shop-modal');
+    // --- LÓGICA DA LOJA ---
+    function toggleShop() {
+        if (!currentGameState || currentGameState.mode !== 'theater' || !shopModal) return;
         isShopOpen = !isShopOpen;
         shopModal.classList.toggle('hidden', !isShopOpen);
         shopModal.classList.toggle('active', isShopOpen);
@@ -337,7 +182,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function renderShopModal() {
+        if (!shopModal) return;
+        const shopModalContent = shopModal.querySelector('#shop-modal-content');
+        if (!shopModalContent) return;
 
+        if (isGm) {
+            renderGmShopPanel(shopModalContent);
+        } else {
+            renderPlayerShopPanel(shopModalContent);
+        }
+    }
+    
+    // ... (restante das funções da loja e outras funções do client.js)
+    
     // =================================================================
     // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
     // =================================================================
