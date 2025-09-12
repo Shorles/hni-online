@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const socket = io();
     let myRoomId = null; 
     let coordsModeActive = false;
-    let clientFlowState = 'initializing'; // CONTROLA O FLUXO PARA EVITAR BUGS
+    let clientFlowState = 'initializing';
     let ALL_CHARACTERS = { players: [], npcs: [], dynamic: [] };
     let ALL_SCENARIOS = {};
     let stagedNpcSlots = new Array(5).fill(null);
@@ -169,33 +169,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
     
-    // --- LÓGICA DA LOJA ---
-    function toggleShop() {
-        if (!currentGameState || currentGameState.mode !== 'theater' || !shopModal) return;
-        isShopOpen = !isShopOpen;
-        shopModal.classList.toggle('hidden', !isShopOpen);
-        shopModal.classList.toggle('active', isShopOpen);
-        if (isShopOpen) {
-            renderShopModal();
-        } else if (isGm) {
-            socket.emit('playerAction', { type: 'gmClosesShop' });
-        }
-    }
-
-    function renderShopModal() {
-        if (!shopModal) return;
-        const shopModalContent = shopModal.querySelector('#shop-modal-content');
-        if (!shopModalContent) return;
-
-        if (isGm) {
-            renderGmShopPanel(shopModalContent);
-        } else {
-            renderPlayerShopPanel(shopModalContent);
-        }
-    }
+    // --- LÓGICA DA LOJA (MOVENDO PARA O ESCOPO CORRETO) ---
+    // A declaração das funções precisa vir antes de serem chamadas.
     
-    // ... (restante das funções da loja e outras funções do client.js)
-    
+    let renderShopModal, renderGmShopPanel, renderPlayerShopPanel, toggleShop;
+
     // =================================================================
     // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
     // =================================================================
