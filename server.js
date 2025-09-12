@@ -1460,16 +1460,25 @@ io.on('connection', (socket) => {
 
                             // Adiciona o item ao inventário do jogador
                             const playerInv = playerInfo.characterSheet.inventory;
-                            if (playerInv[shopItem.name]) {
-                                playerInv[shopItem.name].quantity += quantityToTake;
+                            const itemData = shopItem.itemData;
+                            const newItem = {
+                                ...itemData,
+                                name: itemData.name,
+                                baseType: itemData.name, // Garante que baseType exista para armas/armaduras
+                                quantity: quantityToTake
+                            };
+
+                            // Encontra uma imagem padrão se não houver
+                            if (!newItem.img) {
+                                if(newItem.type === 'weapon' && ALL_WEAPON_IMAGES[newItem.name]?.melee[0]) {
+                                   newItem.img = ALL_WEAPON_IMAGES[newItem.name].melee[0];
+                                }
+                            }
+                            
+                            if (playerInv[newItem.name]) {
+                                playerInv[newItem.name].quantity += quantityToTake;
                             } else {
-                                const newItemData = JSON.parse(JSON.stringify(shopItem.itemData));
-                                playerInv[shopItem.name] = { 
-                                    ...newItemData, 
-                                    name: shopItem.name, 
-                                    baseType: shopItem.name, // Garante que baseType exista
-                                    quantity: quantityToTake 
-                                };
+                                playerInv[newItem.name] = newItem;
                             }
 
                             if (shopItem.quantity <= 0) {

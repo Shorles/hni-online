@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 card.innerHTML = `
-                    <img src="${imgPath || '/images/itens/default.png'}" alt="${itemData.name}">
+                    <img src="${imgPath || ''}" alt="${itemData.name}" onerror="this.style.display='none'">
                     <div class="shop-item-name">${itemData.name}</div>
                 `;
                 card.onclick = () => showAddItemToShopModal(itemData);
@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             card.innerHTML = `
                 <button class="remove-staged-npc" style="top:2px; right:2px;">X</button>
-                <img src="${imgPath || '/images/itens/default.png'}" alt="${stagedItem.name}">
+                <img src="${imgPath || ''}" alt="${stagedItem.name}" onerror="this.style.display='none'">
                 <div class="staged-item-info">
                     <div>${stagedItem.name}</div>
                     <div>Preço: ${stagedItem.price}</div>
@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const priceHtml = shopItem.price > 0 ? `<div class="shop-item-price">Preço: ${shopItem.price}</div>` : '';
 
             card.innerHTML = `
-                <img src="${imgPath || '/images/itens/default.png'}" alt="${shopItem.name}">
+                <img src="${imgPath || ''}" alt="${shopItem.name}" onerror="this.style.display='none'">
                 <div class="shop-item-name">${shopItem.name}</div>
                 ${priceHtml}
             `;
@@ -526,11 +526,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
         if (amIPlayerAndFinalized) {
-            const myFighterData = getFighter(gameState, myPlayerKey); 
+            const myFighterData = getFighter(gameState, myPlayerKey);
             if (myFighterData && myFighterData.sheet) {
-                const tokenImg = myFighterData.sheet.tokenImg || myFighterData.img;
+                const tokenImg = myFighterData.sheet.tokenImg;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
-                document.getElementById('player-info-token').style.backgroundImage = `url("${tokenImg}")`;
+                if(tokenImg) {
+                    document.getElementById('player-info-token').style.backgroundImage = `url("${tokenImg}")`;
+                } else {
+                    document.getElementById('player-info-token').style.backgroundImage = 'none';
+                }
                 document.getElementById('player-info-name').textContent = charName;
             }
         }
@@ -2266,8 +2270,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const itemDetails = ALL_ITEMS[item.name];
             slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
             
-            const imgPath = item.img || (itemDetails ? itemDetails.img : `/images/itens/default.png`);
-            slot.style.backgroundImage = `url("${imgPath}")`;
+            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
+            if (imgPath) {
+                slot.style.backgroundImage = `url("${imgPath}")`;
+            } else {
+                 slot.style.backgroundImage = 'none';
+            }
     
             if (item.quantity > 1) {
                 slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
@@ -2434,7 +2442,7 @@ document.addEventListener('DOMContentLoaded', () => {
             items.forEach(item => {
                 const opt = document.createElement('option');
                 opt.value = item.name;
-                opt.textContent = item.name === item.baseType ? item.name : `${item.name} (${item.baseType})`;
+                opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
                 selectEl.appendChild(opt);
             });
             
@@ -2443,7 +2451,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  if (currentItem) {
                     const opt = document.createElement('option');
                     opt.value = currentItem.name;
-                    opt.textContent = currentItem.name === currentItem.baseType ? currentItem.name : `${currentItem.name} (${currentItem.baseType})`;
+                    opt.textContent = (currentItem.name === currentItem.baseType || !currentItem.baseType) ? currentItem.name : `${currentItem.name} (${currentItem.baseType})`;
                     selectEl.appendChild(opt);
                  }
             }
@@ -2501,23 +2509,19 @@ document.addEventListener('DOMContentLoaded', () => {
             renderIngameInventory(fighter);
         };
         
-        // Popula as listas de armadura/escudo primeiro
         populateSelect(armorSelect, 'armor', 'Nenhuma');
         populateSelect(shieldSelect, 'shield', 'Nenhum');
-
-        // Define os valores iniciais dos equipamentos
+        
         weapon1Select.value = equipment.weapon1.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
         
-        // Adiciona os listeners de eventos
         weapon1Select.onchange = updateWeaponAndShieldingLogic;
         weapon2Select.onchange = updateWeaponAndShieldingLogic;
         shieldSelect.onchange = updateWeaponAndShieldingLogic;
         armorSelect.onchange = () => renderIngameInventory(fighter);
         
-        // Roda a lógica de atualização uma vez para inicializar o estado correto
         updateWeaponAndShieldingLogic();
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
