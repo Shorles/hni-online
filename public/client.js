@@ -142,30 +142,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function getFighter(state, key) {
         if (!state || !key) return null;
-        
-        // Prioridade para o lutador em combate, se houver
-        if (state.mode === 'adventure' && state.fighters && (state.fighters.players[key] || state.fighters.npcs[key])) {
-            return state.fighters.players[key] || state.fighters.npcs[key];
+    
+        // Busca primeiro os dados da ficha do personagem, que é a fonte principal de informações estáticas
+        const playerLobbyData = state.connectedPlayers?.[key];
+        const sheet = playerLobbyData?.characterSheet;
+    
+        // Busca os dados de combate (HP, status, etc.) se estiver no modo aventura
+        const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
+    
+        if (fighterInBattle) {
+            // Se encontrou em combate, retorna uma fusão dos dados de combate com a ficha
+            return { ...fighterInBattle, sheet: sheet || fighterInBattle.sheet };
         }
-
-        // Se não estiver em combate ou se for um jogador fora do combate, pega da lista de players conectados
-        if (state.connectedPlayers && state.connectedPlayers[key] && state.connectedPlayers[key].characterSheet) {
-            const sheet = state.connectedPlayers[key].characterSheet;
-            
-            // Tenta encontrar o lutador no estado de aventura para pegar dados de combate como HP/Mahou atuais
-            const fighterInBattle = state.fighters?.players[key];
     
-            // Se o lutador está em combate, mescla os dados para ter a informação mais completa
-            if (fighterInBattle) {
-                return { ...fighterInBattle, sheet: sheet };
-            }
-    
-            // Se não, constrói um objeto de lutador a partir da ficha
+        // Se não está em combate, mas existe na lista de players, constrói o objeto a partir da ficha
+        if (sheet) {
             const constituicao = sheet.finalAttributes?.constituicao || 0;
             const mente = sheet.finalAttributes?.mente || 0;
             const hpMax = 20 + (constituicao * 5);
             const mahouMax = 10 + (mente * 5);
-
+    
             return {
                 id: key,
                 nome: sheet.name,
@@ -183,12 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
     
-        // Se for um NPC que não está no combate (raro, mas pode acontecer)
-        if (state.fighters && state.fighters.npcs[key]) {
-             return state.fighters.npcs[key];
-        }
-
-        return null;
+        return null; // Retorna nulo se não encontrar em lugar nenhum
     }
     
     // --- LÓGICA DA LOJA ---
@@ -417,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.playerItems.forEach(shopItem => {
             const card = document.createElement('div');
             card.className = 'shop-item-card player-view';
-            card.title = shopItem.itemData.description || `${shopItem.name}\nPreço: ${shopItem.price}\nDisponível: ${shopItem.quantity}`;
+            card.title = shopItem.itemData.description || `${shopItem.name}\n${shopItem.price > 0 ? 'Preço: ' + shopItem.price + '\n' : ''}Disponível: ${shopItem.quantity}`;
 
             const itemData = shopItem.itemData;
             let imgPath = itemData.img;
@@ -436,9 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            const priceHtml = shopItem.price === 0 
-                ? `<div class="shop-item-price free">Grátis</div>`
-                : `<div class="shop-item-price">Preço: ${shopItem.price}</div>`;
+            const priceHtml = shopItem.price > 0 ? `<div class="shop-item-price">Preço: ${shopItem.price}</div>` : '';
 
             card.innerHTML = `
                 <img src="${imgPath || '/images/itens/default.png'}" alt="${shopItem.name}">
@@ -537,12 +526,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
         if (amIPlayerAndFinalized) {
-            const myFighterData = getFighter(gameState, myPlayerKey);
-            // Correção #1: Garantir que a ficha (sheet) seja usada para buscar os dados do widget
-            const myPlayerSheet = myPlayerData.characterSheet;
-            if (myFighterData && myPlayerSheet) {
-                const tokenImg = myPlayerSheet.tokenImg || myFighterData.img;
-                const charName = myPlayerSheet.name || myFighterData.nome;
+            const myFighterData = getFighter(gameState, myPlayerKey); // Usa a função corrigida
+            if (myFighterData && myFighterData.sheet) {
+                const tokenImg = myFighterData.sheet.tokenImg || myFighterData.img;
+                const charName = myFighterData.sheet.name || myFighterData.nome;
                 document.getElementById('player-info-token').style.backgroundImage = `url("${tokenImg}")`;
                 document.getElementById('player-info-name').textContent = charName;
             }
@@ -2431,10 +2418,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const armorSelect = document.getElementById('ingame-sheet-armor-type');
         const shieldSelect = document.getElementById('ingame-sheet-shield-type');
     
-        const populateSelect = (selectEl, itemType, nullOption) => {
+        const populateSelect = (selectEl, itemType, nullOption, equippedElsewhere) => {
             const currentValue = selectEl.value;
             selectEl.innerHTML = '';
-            const items = Object.values(inventory).filter(item => item.type === itemType);
+            
+            // Itens disponíveis = todos no inventário que são do tipo certo E não estão equipados em outro slot
+            const items = Object.values(inventory).filter(item => 
+                item.type === itemType && item.name !== equippedElsewhere
+            );
     
             const noneOpt = document.createElement('option');
             noneOpt.value = nullOption;
@@ -2447,6 +2438,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 opt.textContent = item.name === item.baseType ? item.name : `${item.name} (${item.baseType})`;
                 selectEl.appendChild(opt);
             });
+            
+            // Adiciona a opção atualmente equipada de volta se ela não estiver na lista (para evitar que desapareça)
+            if (currentValue !== nullOption && !items.some(item => item.name === currentValue)) {
+                 const currentItem = inventory[currentValue];
+                 if (currentItem) {
+                    const opt = document.createElement('option');
+                    opt.value = currentItem.name;
+                    opt.textContent = currentItem.name === currentItem.baseType ? currentItem.name : `${currentItem.name} (${currentItem.baseType})`;
+                    selectEl.appendChild(opt);
+                 }
+            }
+            
             selectEl.value = currentValue;
             selectEl.disabled = !canEditEquipment;
         };
@@ -2467,37 +2470,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const weapon2BaseType = weapon2Item.baseType || (weapon2ItemName === 'Desarmado' ? 'Desarmado' : null);
 
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
-            const weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
             
             const canWield2HInOneHand = (myFighterData.sheet.finalAttributes.forca || 0) >= 4;
 
-            let finalWeapon1 = weapon1ItemName;
-            let finalWeapon2 = weapon2ItemName;
-            let finalShield = shieldItemName;
-            
+            // Lógica de restrição primeiro
             if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-                if (finalWeapon2 !== 'Desarmado') finalWeapon2 = 'Desarmado';
-                if (finalShield !== 'Nenhum') finalShield = 'Nenhum';
+                if (weapon2Select.value !== 'Desarmado') weapon2Select.value = 'Desarmado';
+                if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
             }
-            if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
-                if (finalWeapon1 !== 'Desarmado') finalWeapon1 = 'Desarmado';
-                if (finalShield !== 'Nenhum') finalShield = 'Nenhum';
+            if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
+                shieldSelect.value = 'Nenhum';
             }
             
-            if (finalWeapon2 !== 'Desarmado' && finalShield !== 'Nenhum') {
-                finalShield = 'Nenhum';
-            }
+            // Agora popula as listas com base nas restrições
+            populateSelect(weapon1Select, 'weapon', 'Desarmado', weapon2Select.value);
+            populateSelect(weapon2Select, 'weapon', 'Desarmado', weapon1Select.value);
 
-            populateSelect(weapon1Select, 'weapon', 'Desarmado');
-            populateSelect(weapon2Select, 'weapon', 'Desarmado');
-
-            weapon1Select.value = finalWeapon1;
-            weapon2Select.value = finalWeapon2;
-            shieldSelect.value = finalShield;
-
-            const finalWeapon1Item = inventory[finalWeapon1] || {};
-            const finalWeapon2Item = inventory[finalWeapon2] || {};
-            const finalWeapon1BaseType = finalWeapon1Item.baseType || (finalWeapon1 === 'Desarmado' ? 'Desarmado' : null);
+            // Re-lê os valores para garantir que as imagens e disabled states estejam corretos
+            const finalWeapon1Name = weapon1Select.value;
+            const finalWeapon2Name = weapon2Select.value;
+            const finalWeapon1Item = inventory[finalWeapon1Name] || {};
+            const finalWeapon2Item = inventory[finalWeapon2Name] || {};
+            const finalWeapon1BaseType = finalWeapon1Item.baseType || (finalWeapon1Name === 'Desarmado' ? 'Desarmado' : null);
             const finalWeapon1Data = GAME_RULES.weapons[finalWeapon1BaseType] || {};
 
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalWeapon1Item.img ? `url("${finalWeapon1Item.img}")` : 'none';
@@ -2511,8 +2505,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         populateSelect(armorSelect, 'armor', 'Nenhuma');
         populateSelect(shieldSelect, 'shield', 'Nenhum');
-        populateSelect(weapon1Select, 'weapon', 'Desarmado');
-        populateSelect(weapon2Select, 'weapon', 'Desarmado');
         
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';

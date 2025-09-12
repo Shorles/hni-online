@@ -1076,10 +1076,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     font-size: 0.9em;
     color: #ffeb3b;
     margin-top: 5px;
-}
-.shop-item-price.free {
-    color: #28a745;
-    font-weight: bold;
+    min-height: 1.1em; /* Garante que o layout não quebre quando o preço está oculto */
 }
 
 
