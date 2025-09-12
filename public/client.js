@@ -142,30 +142,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function getFighter(state, key) {
         if (!state || !key) return null;
-    
-        if (state.mode === 'adventure' && state.fighters) {
-            const fighter = state.fighters.players[key] || state.fighters.npcs[key];
-            if (fighter) return fighter;
+        
+        // Prioridade para o lutador em combate, se houver
+        if (state.mode === 'adventure' && state.fighters && (state.fighters.players[key] || state.fighters.npcs[key])) {
+            return state.fighters.players[key] || state.fighters.npcs[key];
         }
-    
+
+        // Se não estiver em combate ou se for um jogador fora do combate, pega da lista de players conectados
         if (state.connectedPlayers && state.connectedPlayers[key] && state.connectedPlayers[key].characterSheet) {
             const sheet = state.connectedPlayers[key].characterSheet;
+            
+            // Tenta encontrar o lutador no estado de aventura para pegar dados de combate como HP/Mahou atuais
             const fighterInBattle = state.fighters?.players[key];
     
+            // Se o lutador está em combate, mescla os dados para ter a informação mais completa
             if (fighterInBattle) {
                 return { ...fighterInBattle, sheet: sheet };
             }
     
+            // Se não, constrói um objeto de lutador a partir da ficha
+            const constituicao = sheet.finalAttributes?.constituicao || 0;
+            const mente = sheet.finalAttributes?.mente || 0;
+            const hpMax = 20 + (constituicao * 5);
+            const mahouMax = 10 + (mente * 5);
+
             return {
                 id: key,
                 nome: sheet.name,
                 img: sheet.tokenImg,
                 isPlayer: true,
                 sheet: sheet,
+                hp: sheet.hp !== undefined ? sheet.hp : hpMax,
+                hpMax: hpMax,
+                mahou: sheet.mahou !== undefined ? sheet.mahou : mahouMax,
+                mahouMax: mahouMax,
+                money: sheet.money,
+                inventory: sheet.inventory,
+                ammunition: sheet.ammunition,
                 ...sheet
             };
         }
     
+        // Se for um NPC que não está no combate (raro, mas pode acontecer)
+        if (state.fighters && state.fighters.npcs[key]) {
+             return state.fighters.npcs[key];
+        }
+
         return null;
     }
     
@@ -192,9 +214,294 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPlayerShopPanel(shopModalContent);
         }
     }
-
-    // Continuação... (O resto das funções e o código completo estarão abaixo)
     
+    function renderGmShopPanel(container) {
+        container.innerHTML = ''; // Limpa o conteúdo anterior
+
+        const state = currentGameState.shop;
+        if (!state) return;
+
+        const allGameItems = {
+            'Armas': Object.entries(GAME_RULES.weapons).map(([name, data]) => ({ name, type: 'weapon', ...data })),
+            'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })),
+            'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })),
+            'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: 'item', ...data })),
+        };
+        
+        container.innerHTML = `
+            <div class="shop-header">
+                <h2>Gerenciador da Loja (GM)</h2>
+                <button id="shop-close-btn" class="close-btn">&times;</button>
+            </div>
+            <div class="shop-layout">
+                <div class="shop-selection-panel">
+                    <h3>Catálogo de Itens</h3>
+                    <div class="shop-tabs"></div>
+                    <div class="shop-item-grids-container"></div>
+                </div>
+                <div class="shop-staging-panel">
+                    <h3>Itens à Venda</h3>
+                    <div id="shop-staging-area"></div>
+                    <button id="shop-publish-btn" class="mode-btn">Publicar Loja para Jogadores</button>
+                </div>
+            </div>
+        `;
+        
+        const tabsContainer = container.querySelector('.shop-tabs');
+        const gridsContainer = container.querySelector('.shop-item-grids-container');
+        
+        Object.keys(allGameItems).forEach((category, index) => {
+            const tabBtn = document.createElement('button');
+            tabBtn.className = `shop-tab-btn ${index === 0 ? 'active' : ''}`;
+            tabBtn.dataset.category = category;
+            tabBtn.textContent = category;
+            tabsContainer.appendChild(tabBtn);
+            
+            const grid = document.createElement('div');
+            grid.className = `shop-item-grid ${index === 0 ? 'active' : ''}`;
+            grid.id = `shop-grid-${category}`;
+            gridsContainer.appendChild(grid);
+            
+            allGameItems[category].forEach(itemData => {
+                const card = document.createElement('div');
+                card.className = 'shop-item-card';
+                card.title = itemData.description || itemData.name;
+                
+                let imgPath = itemData.img;
+                if (!imgPath) {
+                    if(itemData.type === 'weapon') {
+                       const weaponTypeImages = ALL_WEAPON_IMAGES[itemData.name];
+                       if (weaponTypeImages && weaponTypeImages.melee.length > 0) {
+                           imgPath = weaponTypeImages.melee[0];
+                       }
+                    } else if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
+                        const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
+                        imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
+                    } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
+                         const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
+                         imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
+                    }
+                }
+                
+                card.innerHTML = `
+                    <img src="${imgPath || '/images/itens/default.png'}" alt="${itemData.name}">
+                    <div class="shop-item-name">${itemData.name}</div>
+                `;
+                card.onclick = () => showAddItemToShopModal(itemData);
+                grid.appendChild(card);
+            });
+            
+            tabBtn.onclick = () => {
+                container.querySelectorAll('.shop-tab-btn, .shop-item-grid').forEach(el => el.classList.remove('active'));
+                tabBtn.classList.add('active');
+                grid.classList.add('active');
+            };
+        });
+
+        renderStagedItemsForGm(container.querySelector('#shop-staging-area'));
+        
+        container.querySelector('#shop-publish-btn').onclick = () => {
+             socket.emit('playerAction', { type: 'gmPublishesShop', items: shopStagedItems });
+             showInfoModal("Loja Publicada", "Os jogadores agora podem ver e comprar os itens.");
+        };
+
+        container.querySelector('#shop-close-btn').onclick = toggleShop;
+    }
+
+    function showAddItemToShopModal(itemData) {
+        const itemId = itemData.name.replace(/\s+/g, '-');
+        const existingItem = shopStagedItems[itemId];
+
+        const content = `
+            <div class="npc-config-grid" style="grid-template-columns: auto 1fr; max-width: 300px; margin: auto;">
+                <label for="shop-item-price">Preço:</label>
+                <input type="number" id="shop-item-price" value="${existingItem ? existingItem.price : (itemData.cost || 10)}" min="0">
+                <label for="shop-item-quantity">Quantidade:</label>
+                <input type="number" id="shop-item-quantity" value="${existingItem ? existingItem.quantity : 1}" min="1">
+            </div>
+        `;
+        
+        showCustomModal(`Adicionar ${itemData.name} à Loja`, content, [
+            { text: 'Confirmar', closes: true, onClick: () => {
+                const price = parseInt(document.getElementById('shop-item-price').value, 10);
+                const quantity = parseInt(document.getElementById('shop-item-quantity').value, 10);
+                
+                if (price >= 0 && quantity > 0) {
+                    shopStagedItems[itemId] = {
+                        id: itemId,
+                        name: itemData.name,
+                        price: price,
+                        quantity: quantity,
+                        itemData: itemData // Store original data
+                    };
+                    renderStagedItemsForGm(document.getElementById('shop-staging-area'));
+                }
+            }},
+            { text: 'Cancelar', closes: true }
+        ]);
+    }
+
+    function renderStagedItemsForGm(container) {
+        if (!container) return;
+        container.innerHTML = '';
+        Object.values(shopStagedItems).forEach(stagedItem => {
+            const card = document.createElement('div');
+            card.className = 'staged-item-card';
+
+            const itemData = stagedItem.itemData;
+             let imgPath = itemData.img;
+            if (!imgPath) {
+                if(itemData.type === 'weapon') {
+                   const weaponTypeImages = ALL_WEAPON_IMAGES[itemData.name];
+                   if (weaponTypeImages && weaponTypeImages.melee.length > 0) {
+                       imgPath = weaponTypeImages.melee[0];
+                   }
+                } else if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
+                    const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
+                    imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
+                } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
+                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
+                     imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
+                }
+            }
+            
+            card.innerHTML = `
+                <button class="remove-staged-npc" style="top:2px; right:2px;">X</button>
+                <img src="${imgPath || '/images/itens/default.png'}" alt="${stagedItem.name}">
+                <div class="staged-item-info">
+                    <div>${stagedItem.name}</div>
+                    <div>Preço: ${stagedItem.price}</div>
+                    <div>Qtd: ${stagedItem.quantity}</div>
+                </div>
+            `;
+            card.onclick = (e) => {
+                if (e.target.tagName !== 'BUTTON') {
+                    showAddItemToShopModal(stagedItem.itemData);
+                }
+            };
+            card.querySelector('button').onclick = () => {
+                delete shopStagedItems[stagedItem.id];
+                renderStagedItemsForGm(container);
+            };
+            container.appendChild(card);
+        });
+    }
+
+    function renderPlayerShopPanel(container) {
+        container.innerHTML = ''; // Limpa o conteúdo anterior
+        const state = currentGameState.shop;
+        if (!state || !state.playerItems) return;
+
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        const myMoney = myFighter ? myFighter.money : 0;
+
+        container.innerHTML = `
+            <div class="shop-header">
+                <h2>Loja</h2>
+                <span>Seu Dinheiro: ${myMoney} moedas</span>
+            </div>
+            <div id="shop-player-view-area"></div>
+        `;
+        
+        const playerViewArea = container.querySelector('#shop-player-view-area');
+        
+        if (state.playerItems.length === 0) {
+            playerViewArea.innerHTML = '<p style="text-align: center; color: #888;">A loja está fechada ou não há itens à venda no momento.</p>';
+            return;
+        }
+
+        state.playerItems.forEach(shopItem => {
+            const card = document.createElement('div');
+            card.className = 'shop-item-card player-view';
+            card.title = shopItem.itemData.description || `${shopItem.name}\nPreço: ${shopItem.price}\nDisponível: ${shopItem.quantity}`;
+
+            const itemData = shopItem.itemData;
+            let imgPath = itemData.img;
+            if (!imgPath) {
+                if(itemData.type === 'weapon') {
+                   const weaponTypeImages = ALL_WEAPON_IMAGES[itemData.name];
+                   if (weaponTypeImages && weaponTypeImages.melee.length > 0) {
+                       imgPath = weaponTypeImages.melee[0];
+                   }
+                } else if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
+                    const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
+                    imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
+                } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
+                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
+                     imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
+                }
+            }
+            
+            card.innerHTML = `
+                <img src="${imgPath || '/images/itens/default.png'}" alt="${shopItem.name}">
+                <div class="shop-item-name">${shopItem.name}</div>
+                <div class="shop-item-price">Preço: ${shopItem.price}</div>
+            `;
+            
+            card.onclick = () => showBuyItemModal(shopItem, myMoney);
+            playerViewArea.appendChild(card);
+        });
+    }
+
+    function showBuyItemModal(shopItem, myMoney) {
+        const content = `
+            <div style="text-align: center;">
+                <p>${shopItem.itemData.description || 'Um item valioso.'}</p>
+                <p><strong>Preço:</strong> ${shopItem.price} moedas cada</p>
+                <p><strong>Disponível:</strong> ${shopItem.quantity}</p>
+                <div class="npc-config-grid" style="grid-template-columns: auto 1fr; max-width: 250px; margin: 20px auto;">
+                    <label for="buy-quantity">Quantidade:</label>
+                    <input type="number" id="buy-quantity" value="1" min="1" max="${shopItem.quantity}">
+                </div>
+                <p><strong>Custo Total:</strong> <span id="total-cost">${shopItem.price}</span> moedas</p>
+            </div>
+        `;
+        
+        const buyBtn = {
+            text: 'Comprar',
+            closes: true,
+            onClick: () => {
+                const quantity = parseInt(document.getElementById('buy-quantity').value, 10);
+                if (quantity > 0) {
+                    socket.emit('playerAction', {
+                        type: 'playerBuysItem',
+                        itemId: shopItem.id,
+                        quantity: quantity
+                    });
+                }
+            }
+        };
+
+        if (myMoney < shopItem.price) {
+            buyBtn.className = 'disabled-btn';
+        }
+
+        showCustomModal(`Comprar ${shopItem.name}`, content, [
+            buyBtn,
+            { text: 'Cancelar', closes: true, className: 'btn-danger' }
+        ]);
+
+        const quantityInput = document.getElementById('buy-quantity');
+        const totalCostSpan = document.getElementById('total-cost');
+        const buyButtonInModal = document.querySelector('.modal-button-container button:first-child');
+        
+        const updateTotal = () => {
+            const quantity = parseInt(quantityInput.value, 10) || 0;
+            const total = quantity * shopItem.price;
+            totalCostSpan.textContent = total;
+            if (total > myMoney || quantity <= 0 || quantity > shopItem.quantity) {
+                buyButtonInModal.classList.add('disabled-btn');
+                buyButtonInModal.disabled = true;
+            } else {
+                buyButtonInModal.classList.remove('disabled-btn');
+                buyButtonInModal.disabled = false;
+            }
+        };
+        
+        quantityInput.oninput = updateTotal;
+        updateTotal(); // Initial call
+    }
+
     // =================================================================
     // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
     // =================================================================
