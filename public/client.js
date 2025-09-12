@@ -170,30 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- LÓGICA DA LOJA ---
-    function toggleShop() {
-        if (!currentGameState || currentGameState.mode !== 'theater' || !shopModal) return;
-        isShopOpen = !isShopOpen;
-        shopModal.classList.toggle('hidden', !isShopOpen);
-        shopModal.classList.toggle('active', isShopOpen);
-        if (isShopOpen) {
-            renderShopModal();
-        } else if (isGm) {
-            socket.emit('playerAction', { type: 'gmClosesShop' });
-        }
-    }
-
-    function renderShopModal() {
-        const shopModalContent = document.getElementById('shop-modal-content');
-        if (!shopModalContent) return;
-        
-        if (isGm) {
-            renderGmShopPanel(shopModalContent);
-        } else {
-            renderPlayerShopPanel(shopModalContent);
-        }
-    }
-
-    // Continuação... (O resto das funções e o código completo estarão abaixo)
+    // A declaração das funções precisa vir antes de serem chamadas.
+    let renderShopModal, renderGmShopPanel, renderPlayerShopPanel, toggleShop;
     
     // =================================================================
     // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
