@@ -37,7 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectionBoxStartPos = { x: 0, y: 0 };
     let isGmDebugModeActive = false;
     let originalEquipmentState = null;
-    let shopStagedItems = {}; // NOVO: Estado local da loja do GM
+    let stagedCharacterSheet = {}; // Nome corrigido aqui
+    let shopStagedItems = {}; 
     let isShopOpen = false;
 
     // --- ELEMENTOS DO DOM ---
@@ -345,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const confirmBtn = document.getElementById('confirm-selection-btn');
         charListContainer.innerHTML = '';
         confirmBtn.disabled = true;
-        let myCurrentSelection = tempCharacterSheet.tokenImg;
+        let myCurrentSelection = stagedCharacterSheet.tokenImg; // CORREÇÃO AQUI
 
         (ALL_CHARACTERS.players || []).forEach(data => {
             const card = document.createElement('div');
@@ -1413,9 +1414,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
-        tempCharacterSheet.spells = []; 
-        tempCharacterSheet.weapon1 = { img: null, isRanged: false };
-        tempCharacterSheet.weapon2 = { img: null, isRanged: false };
+        stagedCharacterSheet = {};
+        stagedCharacterSheet.spells = []; 
+        stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
+        stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
 
         const raceSelect = document.getElementById('sheet-race-select');
         raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(race => `<option value="${race}">${race}</option>`).join('');
@@ -1492,14 +1494,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
             if (weapon2Select.value !== 'Desarmado') {
                 weapon2Select.value = 'Desarmado';
-                tempCharacterSheet.weapon2 = { img: null, isRanged: false };
+                stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
             }
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         }
         if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
             if (weapon1Select.value !== 'Desarmado') {
                 weapon1Select.value = 'Desarmado';
-                tempCharacterSheet.weapon1 = { img: null, isRanged: false };
+                stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
             }
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         }
@@ -1520,9 +1522,9 @@ document.addEventListener('DOMContentLoaded', () => {
         weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
         shieldSelect.disabled = weapon2Type !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
 
-        const imgPath1 = tempCharacterSheet.weapon1.img;
+        const imgPath1 = stagedCharacterSheet.weapon1.img;
         document.getElementById('sheet-weapon1-image').style.backgroundImage = imgPath1 ? `url("${imgPath1}")` : 'none';
-        const imgPath2 = tempCharacterSheet.weapon2.img;
+        const imgPath2 = stagedCharacterSheet.weapon2.img;
         document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
 
         const armorImgDiv = document.getElementById('sheet-armor-image');
@@ -1572,8 +1574,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
         
         let btdAttribute = finalAttributes.forca;
-        if ((weapon1Type !== 'Desarmado' && tempCharacterSheet.weapon1.isRanged) || 
-            (weapon2Type !== 'Desarmado' && tempCharacterSheet.weapon2.isRanged)) {
+        if ((weapon1Type !== 'Desarmado' && stagedCharacterSheet.weapon1.isRanged) || 
+            (weapon2Type !== 'Desarmado' && stagedCharacterSheet.weapon2.isRanged)) {
             btdAttribute = finalAttributes.agilidade;
         }
 
@@ -1625,14 +1627,14 @@ document.addEventListener('DOMContentLoaded', () => {
             card.dataset.spellName = spell.name;
             const spellType = spell.inCombat ? '(Combate)' : '(Utilitário)';
             card.innerHTML = `<h4>${spell.name} <small>${spellType}</small></h4><p>${spell.description}</p>`;
-            if (tempCharacterSheet.spells.includes(spell.name)) {
+            if (stagedCharacterSheet.spells.includes(spell.name)) {
                 card.classList.add('selected');
             }
             card.addEventListener('click', () => {
-                if (tempCharacterSheet.spells.includes(spell.name)) {
-                    tempCharacterSheet.spells = tempCharacterSheet.spells.filter(s => s !== spell.name);
-                } else if (tempCharacterSheet.spells.length < 2) {
-                    tempCharacterSheet.spells.push(spell.name);
+                if (stagedCharacterSheet.spells.includes(spell.name)) {
+                    stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(s => s !== spell.name);
+                } else if (stagedCharacterSheet.spells.length < 2) {
+                    stagedCharacterSheet.spells.push(spell.name);
                 } else {
                     alert("Você pode escolher no máximo 2 magias iniciais.");
                 }
@@ -1641,7 +1643,7 @@ document.addEventListener('DOMContentLoaded', () => {
             spellGrid.appendChild(card);
         });
         
-        document.getElementById('sheet-spells-selected-count').textContent = tempCharacterSheet.spells.length;
+        document.getElementById('sheet-spells-selected-count').textContent = stagedCharacterSheet.spells.length;
     }
 
     function showWeaponImageSelectionModal(weaponSlot) {
@@ -1649,7 +1651,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const images = ALL_WEAPON_IMAGES[weaponType];
         
         if (!images || (images.melee.length === 0 && images.ranged.length === 0)) {
-            tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+            stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
             updateCharacterSheet();
             return;
         }
@@ -1671,7 +1673,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.className = 'weapon-image-card';
                     card.innerHTML = `<img src="${imgPath}" alt="weapon image">`;
                     card.onclick = () => {
-                        tempCharacterSheet[weaponSlot] = { img: imgPath, isRanged: isRanged };
+                        stagedCharacterSheet[weaponSlot] = { img: imgPath, isRanged: isRanged };
                         weaponImageModal.classList.add('hidden');
                         updateCharacterSheet();
                     };
@@ -1710,8 +1712,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let weapon1, weapon2;
 
         if (isCreation) {
-            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type), type: weapon1Type, ...tempCharacterSheet.weapon1 };
-            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type), type: weapon2Type, ...tempCharacterSheet.weapon2 };
+            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type), type: weapon1Type, ...stagedCharacterSheet.weapon1 };
+            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type), type: weapon2Type, ...stagedCharacterSheet.weapon2 };
         } else {
             const w1Item = myFighter.inventory[weapon1Type] || { baseType: 'Desarmado', img: null, isRanged: false };
             const w2Item = myFighter.inventory[weapon2Type] || { baseType: 'Desarmado', img: null, isRanged: false };
@@ -1721,8 +1723,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = {
             name: isCreation ? document.getElementById('sheet-name').value : myFighter.sheet.name,
-            tokenName: isCreation ? tempCharacterSheet.tokenName : myFighter.sheet.tokenName,
-            tokenImg: isCreation ? tempCharacterSheet.tokenImg : myFighter.sheet.tokenImg,
+            tokenName: isCreation ? stagedCharacterSheet.tokenName : myFighter.sheet.tokenName,
+            tokenImg: isCreation ? stagedCharacterSheet.tokenImg : myFighter.sheet.tokenImg,
             class: isCreation ? document.getElementById('sheet-class').value : myFighter.sheet.class,
             race: isCreation ? document.getElementById('sheet-race-select').value : myFighter.sheet.race,
             money: parseInt(document.getElementById(isCreation ? 'sheet-money-copper' : 'ingame-sheet-money')?.textContent || '0', 10),
@@ -1738,7 +1740,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 armor: document.getElementById(`${prefix}-armor-type`).value,
                 shield: document.getElementById(`${prefix}-shield-type`).value,
             },
-            spells: isCreation ? [...tempCharacterSheet.spells] : [...myFighter.sheet.spells]
+            spells: isCreation ? [...stagedCharacterSheet.spells] : [...myFighter.sheet.spells]
         };
 
         if (isCreation) {
@@ -1816,11 +1818,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!GAME_RULES.races[decryptedData.race]) {
                         throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida nas regras atuais do jogo.`);
                     }
-                    tempCharacterSheet.tokenName = decryptedData.tokenName || '';
-                    tempCharacterSheet.tokenImg = decryptedData.tokenImg || '';
-                    tempCharacterSheet.spells = decryptedData.spells || [];
-                    tempCharacterSheet.weapon1 = decryptedData.equipment?.weapon1 || { img: null, isRanged: false, type: 'Desarmado' };
-                    tempCharacterSheet.weapon2 = decryptedData.equipment?.weapon2 || { img: null, isRanged: false, type: 'Desarmado' };
+                    stagedCharacterSheet.tokenName = decryptedData.tokenName || '';
+                    stagedCharacterSheet.tokenImg = decryptedData.tokenImg || '';
+                    stagedCharacterSheet.spells = decryptedData.spells || [];
+                    stagedCharacterSheet.weapon1 = decryptedData.equipment?.weapon1 || { img: null, isRanged: false, type: 'Desarmado' };
+                    stagedCharacterSheet.weapon2 = decryptedData.equipment?.weapon2 || { img: null, isRanged: false, type: 'Desarmado' };
                     
                     document.getElementById('sheet-name').value = decryptedData.name || '';
                     document.getElementById('sheet-class').value = decryptedData.class || '';
@@ -1835,8 +1837,8 @@ document.addEventListener('DOMContentLoaded', () => {
                          if (input) input.value = decryptedData.elements[elem];
                     });
                     
-                    const w1 = tempCharacterSheet.weapon1;
-                    const w2 = tempCharacterSheet.weapon2;
+                    const w1 = stagedCharacterSheet.weapon1;
+                    const w2 = stagedCharacterSheet.weapon2;
                     document.getElementById('sheet-weapon1-name').value = (w1.name && w1.name !== w1.type) ? w1.name : '';
                     document.getElementById('sheet-weapon1-type').value = w1.type || 'Desarmado';
                     document.getElementById('sheet-weapon2-name').value = (w2.name && w2.name !== w2.type) ? w2.name : '';
@@ -1864,7 +1866,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleConfirmCharacter() {
-        if (tempCharacterSheet.spells.length > 2) {
+        if (stagedCharacterSheet.spells.length > 2) {
             alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
             return;
         }
@@ -1875,7 +1877,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let warnings = [];
         if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
         if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
-        if(tempCharacterSheet.spells.length === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
+        if(stagedCharacterSheet.spells.length === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
 
         const sendData = () => {
             const finalSheet = getCharacterSheetData('creation');
@@ -1884,12 +1886,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'playerFinalizesCharacter', 
                 characterData: finalSheet,
                 weaponImages: {
-                    weapon1: tempCharacterSheet.weapon1.img,
-                    weapon2: tempCharacterSheet.weapon2.img
+                    weapon1: stagedCharacterSheet.weapon1.img,
+                    weapon2: stagedCharacterSheet.weapon2.img
                 },
                 isRanged: {
-                    weapon1: tempCharacterSheet.weapon1.isRanged,
-                    weapon2: tempCharacterSheet.weapon2.isRanged
+                    weapon1: stagedCharacterSheet.weapon1.isRanged,
+                    weapon2: stagedCharacterSheet.weapon2.isRanged
                 }
             });
             showScreen(document.getElementById('player-waiting-screen'));
@@ -2587,8 +2589,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('confirm-selection-btn').onclick = () => {
             const selectedCard = document.querySelector('.char-card.selected');
             if (selectedCard) {
-                tempCharacterSheet.tokenName = selectedCard.dataset.name;
-                tempCharacterSheet.tokenImg = selectedCard.dataset.img;
+                stagedCharacterSheet.tokenName = selectedCard.dataset.name;
+                stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
                 initializeCharacterSheet();
                 showScreen(document.getElementById('character-sheet-screen'));
             }
@@ -2599,7 +2601,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isWeaponType = e.target.id.startsWith('sheet-weapon') && e.target.id.endsWith('-type');
                 if (isWeaponType) {
                     const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
-                    tempCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+                    stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
                     updateCharacterSheet(null, e);
                     if (e.target.value !== 'Desarmado') {
                         showWeaponImageSelectionModal(weaponSlot);
