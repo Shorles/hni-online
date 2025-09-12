@@ -143,19 +143,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function getFighter(state, key) {
         if (!state || !key) return null;
     
-        // Busca primeiro os dados da ficha do personagem, que é a fonte principal de informações estáticas
         const playerLobbyData = state.connectedPlayers?.[key];
         const sheet = playerLobbyData?.characterSheet;
-    
-        // Busca os dados de combate (HP, status, etc.) se estiver no modo aventura
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
-            // Se encontrou em combate, retorna uma fusão dos dados de combate com a ficha
             return { ...fighterInBattle, sheet: sheet || fighterInBattle.sheet };
         }
     
-        // Se não está em combate, mas existe na lista de players, constrói o objeto a partir da ficha
         if (sheet) {
             const constituicao = sheet.finalAttributes?.constituicao || 0;
             const mente = sheet.finalAttributes?.mente || 0;
@@ -179,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
     
-        return null; // Retorna nulo se não encontrar em lugar nenhum
+        return null;
     }
     
     // --- LÓGICA DA LOJA ---
@@ -2399,7 +2394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
 
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
-        document.getElementById('ingame-sheet-token').style.backgroundImage = `url("${fighter.sheet.tokenImg || fighter.img}")`;
+        document.getElementById('ingame-sheet-token').style.backgroundImage = `url("${fighter.sheet.tokenImg}")`;
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
         document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
         document.getElementById('ingame-sheet-xp-needed').textContent = fighter.xpNeeded || 100;
@@ -2408,19 +2403,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const inventory = fighter.inventory || {};
         const equipment = fighter.sheet.equipment;
         
-        document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = equipment.weapon1.img ? `url("${equipment.weapon1.img}")` : 'none';
-        document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = equipment.weapon2.img ? `url("${equipment.weapon2.img}")` : 'none';
-        
-        const armorType = equipment.armor || 'Nenhuma';
-        const shieldType = equipment.shield || 'Nenhum';
-        const armorImgDiv = document.getElementById('ingame-sheet-armor-image');
-        const armorImgName = armorType === 'Mediana' ? 'Armadura Mediana' : `Armadura ${armorType}`;
-        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorImgName}.png")`.replace(/ /g, '%20') : 'none';
-        const shieldImgDiv = document.getElementById('ingame-sheet-shield-image');
-        const shieldImgName = shieldType === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldType}`;
-        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldImgName}.png")`.replace(/ /g, '%20') : 'none';
-
-
         const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
         const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
         const armorSelect = document.getElementById('ingame-sheet-armor-type');
@@ -2465,20 +2447,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!myFighterData) return;
 
             const inventory = myFighterData.inventory || {};
-            
-            // Lógica de restrição primeiro
             let weapon1ItemName = weapon1Select.value;
             let weapon2ItemName = weapon2Select.value;
             let shieldItemName = shieldSelect.value;
 
             const weapon1Item = inventory[weapon1ItemName] || {};
+            const weapon2Item = inventory[weapon2ItemName] || {};
             const weapon1BaseType = weapon1Item.baseType || (weapon1ItemName === 'Desarmado' ? 'Desarmado' : null);
+            const weapon2BaseType = weapon2Item.baseType || (weapon2ItemName === 'Desarmado' ? 'Desarmado' : null);
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
+            const weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
             const canWield2HInOneHand = (myFighterData.sheet.finalAttributes.forca || 0) >= 4;
 
-            if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-                if (weapon2ItemName !== 'Desarmado') weapon2ItemName = 'Desarmado';
-                if (shieldItemName !== 'Nenhum') shieldItemName = 'Nenhum';
+            if ((weapon1Data.hand === 2 || weapon2Data.hand === 2) && !canWield2HInOneHand) {
+                if(weapon1Data.hand === 2) {
+                    weapon2ItemName = 'Desarmado';
+                    shieldItemName = 'Nenhum';
+                } else { // weapon2 is 2H
+                    weapon1ItemName = 'Desarmado';
+                    shieldItemName = 'Nenhum';
+                }
             }
             if (weapon2ItemName !== 'Desarmado' && shieldItemName !== 'Nenhum') {
                 shieldItemName = 'Nenhum';
@@ -2488,11 +2476,9 @@ document.addEventListener('DOMContentLoaded', () => {
             weapon2Select.value = weapon2ItemName;
             shieldSelect.value = shieldItemName;
             
-            // Agora popula as listas com base nas restrições
             populateSelect(weapon1Select, 'weapon', 'Desarmado', weapon2Select.value);
             populateSelect(weapon2Select, 'weapon', 'Desarmado', weapon1Select.value);
 
-            // Re-lê os valores finais para garantir que as imagens e disabled states estejam corretos
             const finalWeapon1Name = weapon1Select.value;
             const finalWeapon2Name = weapon2Select.value;
             const finalWeapon1Item = inventory[finalWeapon1Name] || {};
@@ -2504,16 +2490,16 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = finalWeapon2Item.img ? `url("${finalWeapon2Item.img}")` : 'none';
             
             weapon2Select.disabled = !canEditEquipment || (finalWeapon1Data.hand === 2 && !canWield2HInOneHand) || shieldSelect.value !== 'Nenhum';
-            shieldSelect.disabled = !canEditEquipment || weapon2Select.value !== 'Desarmado';
+            shieldSelect.disabled = !canEditEquipment || weapon2Select.value !== 'Desarmado' || (finalWeapon1Data.hand === 2 && !canWield2HInOneHand);
 
             renderIngameInventory(fighter);
         };
         
-        populateSelect(armorSelect, 'armor', 'Nenhuma');
-        populateSelect(shieldSelect, 'shield', 'Nenhum');
+        populateSelect(armorSelect, 'armor', 'Nenhuma', null);
+        populateSelect(shieldSelect, 'shield', 'Nenhum', null);
         
-        weapon1Select.value = equipment.weapon1.name || 'Desarmado';
-        weapon2Select.value = equipment.weapon2.name || 'Desarmado';
+        weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
+        weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
         
