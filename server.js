@@ -1444,26 +1444,32 @@ io.on('connection', (socket) => {
 
                     if (playerInfo && playerInfo.characterSheet && shopItem && shopItem.quantity > 0) {
                         const isFreeItem = shopItem.price === 0;
-                        const totalCost = isFreeItem ? 0 : shopItem.price * action.quantity;
+                        const quantityToTake = isFreeItem ? 1 : action.quantity;
+                        const totalCost = isFreeItem ? 0 : shopItem.price * quantityToTake;
+                        
 
-                        if (playerInfo.characterSheet.money >= totalCost && action.quantity <= shopItem.quantity) {
+                        if (playerInfo.characterSheet.money >= totalCost && quantityToTake <= shopItem.quantity) {
                             
                             playerInfo.characterSheet.money -= totalCost;
                             
                             if (isFreeItem) {
                                 shopItem.quantity = 0; // Remove all stock for free items
                             } else {
-                                shopItem.quantity -= action.quantity;
+                                shopItem.quantity -= quantityToTake;
                             }
 
                             // Adiciona o item ao inventário do jogador
                             const playerInv = playerInfo.characterSheet.inventory;
                             if (playerInv[shopItem.name]) {
-                                playerInv[shopItem.name].quantity += action.quantity;
+                                playerInv[shopItem.name].quantity += quantityToTake;
                             } else {
-                                // Clonar o itemData para evitar problemas de referência
                                 const newItemData = JSON.parse(JSON.stringify(shopItem.itemData));
-                                playerInv[shopItem.name] = { ...newItemData, name: shopItem.name, quantity: action.quantity };
+                                playerInv[shopItem.name] = { 
+                                    ...newItemData, 
+                                    name: shopItem.name, 
+                                    baseType: shopItem.name, // Garante que baseType exista
+                                    quantity: quantityToTake 
+                                };
                             }
 
                             if (shopItem.quantity <= 0) {
@@ -1473,7 +1479,7 @@ io.on('connection', (socket) => {
                             // Atualiza a lista pública de itens
                             theaterState.shop.playerItems = Object.values(theaterState.shop.gmItems);
                             
-                            logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${action.quantity}x ${shopItem.name}.`);
+                            logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${quantityToTake}x ${shopItem.name}.`);
                         }
                     }
                  }

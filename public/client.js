@@ -526,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
         if (amIPlayerAndFinalized) {
-            const myFighterData = getFighter(gameState, myPlayerKey); // Usa a função corrigida
+            const myFighterData = getFighter(gameState, myPlayerKey); 
             if (myFighterData && myFighterData.sheet) {
                 const tokenImg = myFighterData.sheet.tokenImg || myFighterData.img;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
@@ -2422,7 +2422,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentValue = selectEl.value;
             selectEl.innerHTML = '';
             
-            // Itens disponíveis = todos no inventário que são do tipo certo E não estão equipados em outro slot
             const items = Object.values(inventory).filter(item => 
                 item.type === itemType && item.name !== equippedElsewhere
             );
@@ -2439,7 +2438,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectEl.appendChild(opt);
             });
             
-            // Adiciona a opção atualmente equipada de volta se ela não estiver na lista (para evitar que desapareça)
             if (currentValue !== nullOption && !items.some(item => item.name === currentValue)) {
                  const currentItem = inventory[currentValue];
                  if (currentItem) {
@@ -2459,34 +2457,34 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!myFighterData) return;
 
             const inventory = myFighterData.inventory || {};
-            const weapon1ItemName = weapon1Select.value;
-            const weapon2ItemName = weapon2Select.value;
-            const shieldItemName = shieldSelect.value;
             
-            const weapon1Item = inventory[weapon1ItemName] || {};
-            const weapon2Item = inventory[weapon2ItemName] || {};
-            
-            const weapon1BaseType = weapon1Item.baseType || (weapon1ItemName === 'Desarmado' ? 'Desarmado' : null);
-            const weapon2BaseType = weapon2Item.baseType || (weapon2ItemName === 'Desarmado' ? 'Desarmado' : null);
+            // Lógica de restrição primeiro
+            let weapon1ItemName = weapon1Select.value;
+            let weapon2ItemName = weapon2Select.value;
+            let shieldItemName = shieldSelect.value;
 
+            const weapon1Item = inventory[weapon1ItemName] || {};
+            const weapon1BaseType = weapon1Item.baseType || (weapon1ItemName === 'Desarmado' ? 'Desarmado' : null);
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
-            
             const canWield2HInOneHand = (myFighterData.sheet.finalAttributes.forca || 0) >= 4;
 
-            // Lógica de restrição primeiro
             if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-                if (weapon2Select.value !== 'Desarmado') weapon2Select.value = 'Desarmado';
-                if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
+                if (weapon2ItemName !== 'Desarmado') weapon2ItemName = 'Desarmado';
+                if (shieldItemName !== 'Nenhum') shieldItemName = 'Nenhum';
             }
-            if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
-                shieldSelect.value = 'Nenhum';
+            if (weapon2ItemName !== 'Desarmado' && shieldItemName !== 'Nenhum') {
+                shieldItemName = 'Nenhum';
             }
+            
+            weapon1Select.value = weapon1ItemName;
+            weapon2Select.value = weapon2ItemName;
+            shieldSelect.value = shieldItemName;
             
             // Agora popula as listas com base nas restrições
             populateSelect(weapon1Select, 'weapon', 'Desarmado', weapon2Select.value);
             populateSelect(weapon2Select, 'weapon', 'Desarmado', weapon1Select.value);
 
-            // Re-lê os valores para garantir que as imagens e disabled states estejam corretos
+            // Re-lê os valores finais para garantir que as imagens e disabled states estejam corretos
             const finalWeapon1Name = weapon1Select.value;
             const finalWeapon2Name = weapon2Select.value;
             const finalWeapon1Item = inventory[finalWeapon1Name] || {};
@@ -2503,19 +2501,23 @@ document.addEventListener('DOMContentLoaded', () => {
             renderIngameInventory(fighter);
         };
         
+        // Popula as listas de armadura/escudo primeiro
         populateSelect(armorSelect, 'armor', 'Nenhuma');
         populateSelect(shieldSelect, 'shield', 'Nenhum');
-        
-        armorSelect.value = equipment.armor || 'Nenhuma';
-        shieldSelect.value = equipment.shield || 'Nenhum';
+
+        // Define os valores iniciais dos equipamentos
         weapon1Select.value = equipment.weapon1.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2.name || 'Desarmado';
+        armorSelect.value = equipment.armor || 'Nenhuma';
+        shieldSelect.value = equipment.shield || 'Nenhum';
         
+        // Adiciona os listeners de eventos
         weapon1Select.onchange = updateWeaponAndShieldingLogic;
         weapon2Select.onchange = updateWeaponAndShieldingLogic;
         shieldSelect.onchange = updateWeaponAndShieldingLogic;
         armorSelect.onchange = () => renderIngameInventory(fighter);
         
+        // Roda a lógica de atualização uma vez para inicializar o estado correto
         updateWeaponAndShieldingLogic();
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
