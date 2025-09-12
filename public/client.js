@@ -169,11 +169,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
     
-    // --- LÓGICA DA LOJA (MOVENDO PARA O ESCOPO CORRETO) ---
-    // A declaração das funções precisa vir antes de serem chamadas.
-    
+    // --- LÓGICA DA LOJA ---
     let renderShopModal, renderGmShopPanel, renderPlayerShopPanel, toggleShop;
-
+    
     // =================================================================
     // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
     // =================================================================
