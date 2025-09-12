@@ -71,7 +71,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 .gm-links-container { display: flex; gap: 30px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; width: 90%; max-width: 1100px; }
 .gm-links-container > div {
-    background-color: rgba(0,0,0,0.3);
+    background-color: rgba(0, 0, 0, 0.3);
     padding: 15px;
     border-radius: 8px;
     flex: 1; 
@@ -975,7 +975,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     margin-bottom: 15px;
     padding-bottom: 10px;
     border-bottom: 1px solid #a18a59;
-    position: relative;
 }
 
 .shop-layout {
@@ -1000,12 +999,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     flex: 2;
 }
 
-.shop-selection-panel h3, .shop-staging-panel h3 {
-    text-align: center;
-    margin-top: 0;
-    color: #ffc107;
-}
-
 .shop-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -1023,18 +1016,16 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 .shop-tab-btn.active {
     background-color: #a18a59;
-    border-color: #ffeb3b;
+    color: #000;
 }
 
 .shop-item-grid {
     display: none;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
     gap: 10px;
     overflow-y: auto;
     flex-grow: 1;
-    padding: 10px;
-    background-color: rgba(0,0,0,0.2);
-    border-radius: 5px;
+    padding: 5px;
 }
 .shop-item-grid.active {
     display: grid;
@@ -1044,50 +1035,38 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     background-color: #3e321c;
     border: 2px solid #555;
     border-radius: 5px;
-    padding: 10px;
+    padding: 5px;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    align-items: center;
 }
 .shop-item-card:hover {
     border-color: #ffeb3b;
 }
 
 .shop-item-card img {
-    width: 60px;
-    height: 60px;
+    width: 50px;
+    height: 50px;
     object-fit: contain;
-    margin-bottom: 5px;
 }
 .shop-item-card .shop-item-name {
     font-size: 0.8em;
-    line-height: 1.2;
     margin-top: 5px;
-    word-break: break-word;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .shop-item-card.player-view:hover {
     transform: scale(1.05);
 }
-.shop-item-price {
-    font-size: 0.9em;
-    color: #ffeb3b;
-    margin-top: 5px;
-}
 
 #shop-staging-area, #shop-player-view-area {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 10px;
     overflow-y: auto;
     flex-grow: 1;
     align-content: start;
-    padding: 10px;
-    background-color: rgba(0,0,0,0.2);
-    border-radius: 5px;
 }
 
 .staged-item-card {
@@ -1097,7 +1076,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     padding: 8px;
     position: relative;
     text-align: center;
-    cursor: pointer;
 }
 .staged-item-card img {
     width: 60px;
@@ -1113,11 +1091,4 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     padding: 10px;
     font-size: 1.2em;
     background-color: #28a745;
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-#shop-publish-btn:hover {
-    background-color: #218838;
 }
