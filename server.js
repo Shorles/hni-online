@@ -151,7 +151,7 @@ function createNewTheaterState(gmId, initialScenario) {
     const theaterState = {
         mode: 'theater', gmId: gmId, log: [{ text: "Modo Cenário iniciado."}],
         scenarioStates: {}, publicState: {},
-        shop: { gmItems: {}, playerItems: [], isOpen: false } // NOVO: Adiciona estado da loja
+        shop: { gmItems: {}, playerItems: [], isOpen: false }
     };
     const initialScenarioPath = `mapas/${initialScenario}`;
     theaterState.currentScenario = initialScenarioPath;
@@ -1417,8 +1417,10 @@ io.on('connection', (socket) => {
                  if (isGm) {
                      switch(action.type) {
                         case 'gmUpdatesShop':
-                            if (theaterState.shop) {
+                            if (theaterState.shop && action.items) {
                                 theaterState.shop.gmItems = action.items;
+                                // Não precisa de update para os players, é só o GM editando
+                                shouldUpdate = false; 
                             }
                             break;
                         case 'gmPublishesShop':
@@ -1440,28 +1442,38 @@ io.on('connection', (socket) => {
                     const playerInfo = lobbyState.connectedPlayers[socket.id];
                     const shopItem = theaterState.shop.gmItems[action.itemId];
 
-                    if (playerInfo && shopItem && shopItem.quantity > 0) {
-                        const totalCost = shopItem.price * action.quantity;
+                    if (playerInfo && playerInfo.characterSheet && shopItem && shopItem.quantity > 0) {
+                        const isFreeItem = shopItem.price === 0;
+                        const totalCost = isFreeItem ? 0 : shopItem.price * action.quantity;
+
                         if (playerInfo.characterSheet.money >= totalCost && action.quantity <= shopItem.quantity) {
-                            // Deduz dinheiro do jogador
+                            
                             playerInfo.characterSheet.money -= totalCost;
                             
-                            // Reduz a quantidade na loja
-                            shopItem.quantity -= action.quantity;
-                            if (shopItem.quantity <= 0) {
-                                delete theaterState.shop.gmItems[action.itemId];
+                            if (isFreeItem) {
+                                shopItem.quantity = 0; // Remove all stock for free items
+                            } else {
+                                shopItem.quantity -= action.quantity;
                             }
-                            // Atualiza a visão dos players
-                            theaterState.shop.playerItems = Object.values(theaterState.shop.gmItems);
 
                             // Adiciona o item ao inventário do jogador
                             const playerInv = playerInfo.characterSheet.inventory;
                             if (playerInv[shopItem.name]) {
                                 playerInv[shopItem.name].quantity += action.quantity;
                             } else {
-                                playerInv[shopItem.name] = { ...shopItem.itemData, name: shopItem.name, quantity: action.quantity };
+                                // Clonar o itemData para evitar problemas de referência
+                                const newItemData = JSON.parse(JSON.stringify(shopItem.itemData));
+                                playerInv[shopItem.name] = { ...newItemData, name: shopItem.name, quantity: action.quantity };
                             }
-                            logMessage(theaterState, `${playerInfo.characterName} comprou ${action.quantity}x ${shopItem.name}.`);
+
+                            if (shopItem.quantity <= 0) {
+                                delete theaterState.shop.gmItems[action.itemId];
+                            }
+                            
+                            // Atualiza a lista pública de itens
+                            theaterState.shop.playerItems = Object.values(theaterState.shop.gmItems);
+                            
+                            logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${action.quantity}x ${shopItem.name}.`);
                         }
                     }
                  }

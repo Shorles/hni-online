@@ -220,11 +220,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const state = currentGameState.shop;
         if (!state) return;
+        
+        const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
 
         const allGameItems = {
-            'Armas': Object.entries(GAME_RULES.weapons).map(([name, data]) => ({ name, type: 'weapon', ...data })),
-            'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })),
-            'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })),
+            'Armas': Object.entries(GAME_RULES.weapons).map(([name, data]) => ({ name, type: 'weapon', ...data })).filter(item => !nonItems.includes(item.name)),
+            'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })).filter(item => !nonItems.includes(item.name)),
+            'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })).filter(item => !nonItems.includes(item.name)),
             'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: 'item', ...data })),
         };
         
@@ -335,6 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         itemData: itemData // Store original data
                     };
                     renderStagedItemsForGm(document.getElementById('shop-staging-area'));
+                    socket.emit('playerAction', { type: 'gmUpdatesShop', items: shopStagedItems });
                 }
             }},
             { text: 'Cancelar', closes: true }
@@ -382,6 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.querySelector('button').onclick = () => {
                 delete shopStagedItems[stagedItem.id];
                 renderStagedItemsForGm(container);
+                socket.emit('playerAction', { type: 'gmUpdatesShop', items: shopStagedItems });
             };
             container.appendChild(card);
         });
@@ -432,10 +436,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
+            const priceHtml = shopItem.price === 0 
+                ? `<div class="shop-item-price free">Grátis</div>`
+                : `<div class="shop-item-price">Preço: ${shopItem.price}</div>`;
+
             card.innerHTML = `
                 <img src="${imgPath || '/images/itens/default.png'}" alt="${shopItem.name}">
                 <div class="shop-item-name">${shopItem.name}</div>
-                <div class="shop-item-price">Preço: ${shopItem.price}</div>
+                ${priceHtml}
             `;
             
             card.onclick = () => showBuyItemModal(shopItem, myMoney);
@@ -444,24 +452,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showBuyItemModal(shopItem, myMoney) {
+        const isFree = shopItem.price === 0;
+        
         const content = `
             <div style="text-align: center;">
                 <p>${shopItem.itemData.description || 'Um item valioso.'}</p>
-                <p><strong>Preço:</strong> ${shopItem.price} moedas cada</p>
                 <p><strong>Disponível:</strong> ${shopItem.quantity}</p>
-                <div class="npc-config-grid" style="grid-template-columns: auto 1fr; max-width: 250px; margin: 20px auto;">
-                    <label for="buy-quantity">Quantidade:</label>
-                    <input type="number" id="buy-quantity" value="1" min="1" max="${shopItem.quantity}">
-                </div>
-                <p><strong>Custo Total:</strong> <span id="total-cost">${shopItem.price}</span> moedas</p>
+                ${isFree ? '' : `
+                    <p><strong>Preço:</strong> ${shopItem.price} moedas cada</p>
+                    <div class="npc-config-grid" style="grid-template-columns: auto 1fr; max-width: 250px; margin: 20px auto;">
+                        <label for="buy-quantity">Quantidade:</label>
+                        <input type="number" id="buy-quantity" value="1" min="1" max="${shopItem.quantity}">
+                    </div>
+                    <p><strong>Custo Total:</strong> <span id="total-cost">${shopItem.price}</span> moedas</p>
+                `}
             </div>
         `;
         
         const buyBtn = {
-            text: 'Comprar',
+            text: isFree ? 'Pegar' : 'Comprar',
             closes: true,
             onClick: () => {
-                const quantity = parseInt(document.getElementById('buy-quantity').value, 10);
+                const quantity = isFree ? 1 : parseInt(document.getElementById('buy-quantity').value, 10);
                 if (quantity > 0) {
                     socket.emit('playerAction', {
                         type: 'playerBuysItem',
@@ -472,34 +484,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        if (myMoney < shopItem.price) {
+        if (!isFree && myMoney < shopItem.price) {
             buyBtn.className = 'disabled-btn';
         }
 
-        showCustomModal(`Comprar ${shopItem.name}`, content, [
+        showCustomModal(`${isFree ? 'Pegar' : 'Comprar'} ${shopItem.name}`, content, [
             buyBtn,
             { text: 'Cancelar', closes: true, className: 'btn-danger' }
         ]);
-
-        const quantityInput = document.getElementById('buy-quantity');
-        const totalCostSpan = document.getElementById('total-cost');
-        const buyButtonInModal = document.querySelector('.modal-button-container button:first-child');
         
-        const updateTotal = () => {
-            const quantity = parseInt(quantityInput.value, 10) || 0;
-            const total = quantity * shopItem.price;
-            totalCostSpan.textContent = total;
-            if (total > myMoney || quantity <= 0 || quantity > shopItem.quantity) {
-                buyButtonInModal.classList.add('disabled-btn');
-                buyButtonInModal.disabled = true;
-            } else {
-                buyButtonInModal.classList.remove('disabled-btn');
-                buyButtonInModal.disabled = false;
-            }
-        };
-        
-        quantityInput.oninput = updateTotal;
-        updateTotal(); // Initial call
+        if (!isFree) {
+            const quantityInput = document.getElementById('buy-quantity');
+            const totalCostSpan = document.getElementById('total-cost');
+            const buyButtonInModal = document.querySelector('.modal-button-container button:first-child');
+            
+            const updateTotal = () => {
+                const quantity = parseInt(quantityInput.value, 10) || 0;
+                const total = quantity * shopItem.price;
+                totalCostSpan.textContent = total;
+                if (total > myMoney || quantity <= 0 || quantity > shopItem.quantity) {
+                    buyButtonInModal.classList.add('disabled-btn');
+                    buyButtonInModal.disabled = true;
+                } else {
+                    buyButtonInModal.classList.remove('disabled-btn');
+                    buyButtonInModal.disabled = false;
+                }
+            };
+            
+            quantityInput.oninput = updateTotal;
+            updateTotal(); // Initial call
+        }
     }
 
     // =================================================================
@@ -524,9 +538,11 @@ document.addEventListener('DOMContentLoaded', () => {
         playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
         if (amIPlayerAndFinalized) {
             const myFighterData = getFighter(gameState, myPlayerKey);
-            if (myFighterData) {
-                const tokenImg = myFighterData.sheet.tokenImg || myFighterData.img;
-                const charName = myFighterData.sheet.name || myFighterData.nome;
+            // Correção #1: Garantir que a ficha (sheet) seja usada para buscar os dados do widget
+            const myPlayerSheet = myPlayerData.characterSheet;
+            if (myFighterData && myPlayerSheet) {
+                const tokenImg = myPlayerSheet.tokenImg || myFighterData.img;
+                const charName = myPlayerSheet.name || myFighterData.nome;
                 document.getElementById('player-info-token').style.backgroundImage = `url("${tokenImg}")`;
                 document.getElementById('player-info-name').textContent = charName;
             }
