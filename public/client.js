@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function renderGmShopPanel(container) {
-        container.innerHTML = ''; // Limpa o conteúdo anterior
+        container.innerHTML = '';
 
         const state = currentGameState.shop;
         if (!state) return;
@@ -378,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPlayerShopPanel(container) {
-        container.innerHTML = ''; // Limpa o conteúdo anterior
+        container.innerHTML = '';
         const state = currentGameState.shop;
         if (!state || !state.playerItems) return;
 
@@ -2042,19 +2042,19 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const weapon1Select = document.getElementById(`${prefix}-weapon1-type`);
         const weapon2Select = document.getElementById(`${prefix}-weapon2-type`);
-        const weapon1Type = weapon1Select.value;
-        const weapon2Type = weapon2Select.value;
-
+        const weapon1Name = weapon1Select.value;
+        const weapon2Name = weapon2Select.value;
+        
         let weapon1, weapon2;
 
         if (isCreation) {
-            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type), type: weapon1Type, ...stagedCharacterSheet.weapon1 };
-            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type), type: weapon2Type, ...stagedCharacterSheet.weapon2 };
+            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Name), type: weapon1Name, ...stagedCharacterSheet.weapon1 };
+            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Name), type: weapon2Name, ...stagedCharacterSheet.weapon2 };
         } else {
-            const w1Item = myFighter.inventory[weapon1Type] || { baseType: 'Desarmado', img: null, isRanged: false };
-            const w2Item = myFighter.inventory[weapon2Type] || { baseType: 'Desarmado', img: null, isRanged: false };
-            weapon1 = { name: weapon1Type, type: w1Item.baseType, img: w1Item.img, isRanged: w1Item.isRanged };
-            weapon2 = { name: weapon2Type, type: w2Item.baseType, img: w2Item.img, isRanged: w2Item.isRanged };
+            const w1Item = myFighter.inventory[weapon1Name] || { name: 'Desarmado', baseType: 'Desarmado', img: null, isRanged: false };
+            const w2Item = myFighter.inventory[weapon2Name] || { name: 'Desarmado', baseType: 'Desarmado', img: null, isRanged: false };
+            weapon1 = { name: w1Item.name, type: w1Item.baseType, img: w1Item.img, isRanged: w1Item.isRanged };
+            weapon2 = { name: w2Item.name, type: w2Item.baseType, img: w2Item.img, isRanged: w2Item.isRanged };
         }
 
         const data = {
@@ -2080,6 +2080,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         if (isCreation) {
+            data.equipment.weapon1.type = document.getElementById('sheet-weapon1-type').value;
+            data.equipment.weapon2.type = document.getElementById('sheet-weapon2-type').value;
             ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente'].forEach(attr => {
                 data.baseAttributes[attr] = parseInt(document.getElementById(`sheet-base-attr-${attr}`).value) || 0;
             });
@@ -2433,7 +2435,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 Object.values(inventory).forEach(item => {
                     if (item.type === itemType) {
-                        // Permite a opção se ela já estiver selecionada OU se não estiver equipada no outro slot
                         if (item.name === selectEl.value || item.name !== equippedElsewhereName) {
                             const opt = document.createElement('option');
                             opt.value = item.name;
@@ -2481,13 +2482,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             renderIngameInventory(fighter);
         };
-
+        
+        // CORREÇÃO DA ORDEM LÓGICA
+        // 1. Definir os valores dos selects com base no equipamento atual
         weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
         
+        // 2. Chamar a função de atualização que irá popular os selects e aplicar a lógica
         updateEquipmentUIAndLogic();
+        
+        // 3. Adicionar os listeners para futuras mudanças
         allEquipmentSelectors.forEach(sel => sel.onchange = updateEquipmentUIAndLogic);
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');

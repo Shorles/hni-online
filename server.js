@@ -933,14 +933,13 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
         }
 
         let finalName = item.name;
-        // CORREÇÃO: Lógica para criar nomes únicos para itens duplicados.
         if (inventory[finalName]) {
             let count = 2;
             while (inventory[`${item.name} (${count})`]) {
                 count++;
             }
             finalName = `${item.name} (${count})`;
-            item.name = finalName; // Atualiza o nome no objeto de equipamento também.
+            item.name = finalName; 
         }
 
         inventory[finalName] = { type, name: finalName, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
@@ -952,7 +951,6 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
 
     addItem(newEquipment.weapon1, 'weapon', 'weapon1');
     addItem(newEquipment.weapon2, 'weapon', 'weapon2');
-    // CORREÇÃO: Adicionada verificação para não adicionar "Nenhuma" ou "Nenhum" ao inventário
     if (newEquipment.armor && newEquipment.armor !== 'Nenhuma') {
         addItem({ name: newEquipment.armor, type: 'armor' }, 'armor', null);
     }
