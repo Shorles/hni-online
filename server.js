@@ -931,19 +931,22 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
         if (!baseType || ['Desarmado', 'Nenhuma', 'Nenhum'].includes(baseType)) {
             return;
         }
-
+    
         let finalName = item.name;
+        // CORREÇÃO: Lógica para criar nomes únicos para itens duplicados.
         if (inventory[finalName]) {
             let count = 2;
-            while (inventory[`${item.name} (${count})`]) {
+            let potentialName = `${item.name.replace(/ \(\d+\)$/, '')} (${count})`; // Remove old count if exists
+            while (inventory[potentialName]) {
                 count++;
+                potentialName = `${item.name.replace(/ \(\d+\)$/, '')} (${count})`;
             }
-            finalName = `${item.name} (${count})`;
-            item.name = finalName; 
+            finalName = potentialName;
+            item.name = finalName; // Atualiza o nome no objeto de equipamento também.
         }
-
+    
         inventory[finalName] = { type, name: finalName, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
-
+    
         if (item.isRanged && slotKey) {
             ammunition[slotKey] = 15;
         }
@@ -951,6 +954,7 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
 
     addItem(newEquipment.weapon1, 'weapon', 'weapon1');
     addItem(newEquipment.weapon2, 'weapon', 'weapon2');
+
     if (newEquipment.armor && newEquipment.armor !== 'Nenhuma') {
         addItem({ name: newEquipment.armor, type: 'armor' }, 'armor', null);
     }

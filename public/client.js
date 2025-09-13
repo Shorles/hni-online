@@ -2424,7 +2424,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentW2 = weapon2Select.value;
             const currentArmor = armorSelect.value;
             const currentShield = shieldSelect.value;
-
+            
             const populateSelect = (selectEl, itemType, nullOption, equippedElsewhereName) => {
                 selectEl.innerHTML = '';
                 
@@ -2459,7 +2459,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const weapon1BaseType = weapon1Item.baseType || (weapon1Select.value === 'Desarmado' ? 'Desarmado' : null);
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
             const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
-
+            
             if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
                 if (weapon2Select.value !== 'Desarmado') weapon2Select.value = 'Desarmado';
                 if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
@@ -2467,7 +2467,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
                  shieldSelect.value = 'Nenhum';
             }
-
+            
             const finalWeapon1Item = inventory[weapon1Select.value] || {};
             const finalWeapon2Item = inventory[weapon2Select.value] || {};
             
@@ -2482,18 +2482,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             renderIngameInventory(fighter);
         };
-        
-        // CORREÇÃO DA ORDEM LÓGICA
-        // 1. Definir os valores dos selects com base no equipamento atual
+
         weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
         
-        // 2. Chamar a função de atualização que irá popular os selects e aplicar a lógica
         updateEquipmentUIAndLogic();
         
-        // 3. Adicionar os listeners para futuras mudanças
         allEquipmentSelectors.forEach(sel => sel.onchange = updateEquipmentUIAndLogic);
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
