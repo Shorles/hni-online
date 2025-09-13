@@ -928,7 +928,8 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
 
     const addItem = (item, type, slotKey) => {
         const baseType = item.type;
-        if (!baseType || ['Desarmado', 'Nenhuma', 'Nenhum'].includes(baseType)) {
+        // CORREÇÃO: Adicionada verificação para o nome do item também.
+        if (!baseType || ['Desarmado', 'Nenhuma', 'Nenhum'].includes(baseType) || ['Nenhuma', 'Nenhum'].includes(item.name)) {
             return;
         }
 
