@@ -139,7 +139,7 @@ function createNewAdventureState(gmId, connectedPlayers) {
             const newFighter = createNewFighterState({ 
                 id: sId, 
                 isPlayer: true,
-                ...playerData.characterSheet,
+                sheetData: playerData.characterSheet, // Passa a ficha completa aninhada
             });
             adventureState.fighters.players[sId] = newFighter;
         }
@@ -180,12 +180,16 @@ function filterPublicTheaterState(scenarioState) {
 
 
 function createNewFighterState(data) {
+    // CORREÇÃO: Usa 'data.sheetData' para jogadores para garantir que a ficha completa seja usada.
+    // Para NPCs, 'data' já é o objeto de dados correto.
+    const sourceData = data.isPlayer ? data.sheetData : data;
+
     const fighter = {
         id: data.id || `npc-${uuidv4()}`,
-        nome: data.name || data.tokenName,
-        img: data.tokenImg || data.img,
+        nome: sourceData.name || sourceData.tokenName,
+        img: sourceData.tokenImg || sourceData.img, // Usa tokenImg da ficha para a imagem do lutador
         status: 'active',
-        scale: data.scale !== undefined ? parseFloat(data.scale) : 1.0,
+        scale: sourceData.scale !== undefined ? parseFloat(sourceData.scale) : 1.0,
         isPlayer: !!data.isPlayer,
         pa: 3,
         hasTakenFirstTurn: false,
@@ -193,24 +197,24 @@ function createNewFighterState(data) {
         cooldowns: {}
     };
 
-    if (fighter.isPlayer && data.finalAttributes) {
-        const constituicao = data.finalAttributes.constituicao || 0;
-        const mente = data.finalAttributes.mente || 0;
+    if (fighter.isPlayer && sourceData.finalAttributes) {
+        const constituicao = sourceData.finalAttributes.constituicao || 0;
+        const mente = sourceData.finalAttributes.mente || 0;
         
         fighter.hpMax = 20 + (constituicao * 5);
         fighter.mahouMax = 10 + (mente * 5);
-        fighter.hp = data.hp !== undefined ? data.hp : fighter.hpMax;
-        fighter.mahou = data.mahou !== undefined ? data.mahou : fighter.mahouMax;
+        fighter.hp = sourceData.hp !== undefined ? sourceData.hp : fighter.hpMax;
+        fighter.mahou = sourceData.mahou !== undefined ? sourceData.mahou : fighter.mahouMax;
 
-        fighter.sheet = data;
+        fighter.sheet = sourceData; // Atribui a ficha completa e correta
 
-        fighter.level = data.level || 1;
-        fighter.xp = data.xp || 0;
-        fighter.xpNeeded = data.xpNeeded || 100;
-        fighter.money = data.money !== undefined ? data.money : 200;
+        fighter.level = sourceData.level || 1;
+        fighter.xp = sourceData.xp || 0;
+        fighter.xpNeeded = sourceData.xpNeeded || 100;
+        fighter.money = sourceData.money !== undefined ? sourceData.money : 200;
 
-        fighter.inventory = data.inventory || {};
-        fighter.ammunition = data.ammunition || {};
+        fighter.inventory = sourceData.inventory || {};
+        fighter.ammunition = sourceData.ammunition || {};
 
     } else { // NPC
         fighter.level = 1;
@@ -1139,7 +1143,11 @@ io.on('connection', (socket) => {
                 
                 if (room.activeMode === 'adventure' && room.gameModes.adventure.fighters.players[socket.id]) {
                     const existingFighter = room.gameModes.adventure.fighters.players[socket.id];
-                    const updatedFighter = createNewFighterState({ ...characterData, id: socket.id, isPlayer: true });
+                    const updatedFighter = createNewFighterState({ 
+                        id: socket.id, 
+                        isPlayer: true,
+                        sheetData: characterData // Passa a ficha completa aninhada
+                    });
                     updatedFighter.pa = existingFighter.pa;
                     updatedFighter.status = existingFighter.status;
                     updatedFighter.activeEffects = existingFighter.activeEffects;
