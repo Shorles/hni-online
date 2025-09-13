@@ -525,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (amIPlayerAndFinalized) {
             const myFighterData = getFighter(gameState, myPlayerKey);
             if (myFighterData && myFighterData.sheet) {
-                // CORREÇÃO: Busca a imagem do token no local correto (sheet.tokenImg).
                 const tokenImg = myFighterData.sheet.tokenImg;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
                 if(tokenImg) {
@@ -2402,7 +2401,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
         const tokenImg = fighter.sheet.tokenImg;
-        // CORREÇÃO 1: A linha abaixo, que aplica a imagem do token, foi restaurada.
         document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
         document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
@@ -2419,25 +2417,75 @@ document.addEventListener('DOMContentLoaded', () => {
         const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
         allEquipmentSelectors.forEach(sel => sel.onchange = null);
 
-        const updateEquipmentVisuals = () => {
+        const updateAllEquipment = (eventSource) => {
             const inventory = fighter.inventory || {};
             
-            const selectedW1 = weapon1Select.value;
-            const selectedW2 = weapon2Select.value;
-
-            const weapon1Item = inventory[selectedW1] || {};
-            const weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
-            const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
-            const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
+            // --- Rule Enforcement ---
+            let selectedW1 = weapon1Select.value;
+            let weapon1Item = inventory[selectedW1] || {};
+            let weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
+            let weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
             
-            weapon2Select.disabled = !canEditEquipment || (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldSelect.value !== 'Nenhum';
-            shieldSelect.disabled = !canEditEquipment || selectedW2 !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
+            let selectedW2 = weapon2Select.value;
+            let weapon2Item = inventory[selectedW2] || {};
+            let weapon2BaseType = weapon2Item.baseType || (selectedW2 === 'Desarmado' ? 'Desarmado' : null);
+            let weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
 
-            const finalWeapon1Item = inventory[selectedW1] || {};
-            const finalWeapon2Item = inventory[selectedW2] || {};
-            document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalWeapon1Item.img ? `url("${finalWeapon1Item.img}")` : 'none';
-            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = finalWeapon2Item.img ? `url("${finalWeapon2Item.img}")` : 'none';
+            const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
+            let changed = false;
 
+            // Rule: 2H weapon in hand 1 clears hand 2 and shield (if not strong enough)
+            if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
+                if (weapon2Select.value !== 'Desarmado') { weapon2Select.value = 'Desarmado'; changed = true; }
+                if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
+            }
+            // Rule: 2H weapon in hand 2 clears hand 1 and shield (if not strong enough)
+            if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
+                if (weapon1Select.value !== 'Desarmado') { weapon1Select.value = 'Desarmado'; changed = true; }
+                if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
+            }
+            
+            // Rule: Equipping a second weapon unequips the shield
+            if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
+                shieldSelect.value = 'Nenhum';
+                changed = true;
+            }
+
+            // Rule: Equipping a shield unequips the second weapon
+            if (shieldSelect.value !== 'Nenhum' && weapon2Select.value !== 'Desarmado') {
+                 weapon2Select.value = 'Desarmado';
+                 changed = true;
+            }
+
+            // Prevent unique item duplication
+            if (weapon1Select.value !== 'Desarmado' && weapon1Select.value === weapon2Select.value) {
+                if (eventSource === weapon1Select) {
+                    weapon2Select.value = 'Desarmado';
+                } else {
+                    weapon1Select.value = 'Desarmado';
+                }
+                changed = true;
+            }
+
+            if (changed) {
+                // If a change was enforced, re-run the whole logic to ensure consistency
+                updateAllEquipment(null); 
+                return;
+            }
+
+            // --- Visual Updates based on the now-enforced state ---
+            const finalW1 = weapon1Select.value;
+            const finalW2 = weapon2Select.value;
+            const finalShield = shieldSelect.value;
+            const finalW1Item = inventory[finalW1] || {};
+            const finalW1BaseType = finalW1Item.baseType || (finalW1 === 'Desarmado' ? 'Desarmado' : null);
+            const finalW1Data = GAME_RULES.weapons[finalW1BaseType] || {};
+
+            weapon2Select.disabled = !canEditEquipment || (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
+            shieldSelect.disabled = !canEditEquipment || finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
+
+            document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
+            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
             renderIngameInventory(fighter);
         };
 
@@ -2473,22 +2521,10 @@ document.addEventListener('DOMContentLoaded', () => {
         shieldSelect.value = equipment.shield || 'Nenhum';
         
         allEquipmentSelectors.forEach(sel => {
-            sel.onchange = (event) => {
-                const changedSelect = event.target;
-                
-                if (weapon1Select.value !== 'Desarmado' && weapon1Select.value === weapon2Select.value) {
-                    if (changedSelect === weapon1Select) {
-                        weapon2Select.value = 'Desarmado';
-                    } else if (changedSelect === weapon2Select) {
-                        weapon1Select.value = 'Desarmado';
-                    }
-                }
-                
-                updateEquipmentVisuals();
-            };
+            sel.onchange = (event) => updateAllEquipment(event.target);
         });
 
-        updateEquipmentVisuals();
+        updateAllEquipment(null); // Initial sync
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
@@ -2573,13 +2609,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
     
         if (!hasChanged) {
-            document.getElementById('ingame-sheet-modal').classList.add('hidden');
+            ingameSheetModal.classList.add('hidden');
             return;
         }
     
         if (currentGameState.mode === 'adventure') {
             if (myFighter.pa < 3) {
                 showInfoModal("Ação Bloqueada", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações não foram salvas.");
+                ingameSheetModal.classList.add('hidden');
                 return;
             }
     
@@ -2589,16 +2626,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 [
                     { text: 'Sim, Gastar 3 PA', closes: true, onClick: () => {
                         socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
-                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
+                        ingameSheetModal.classList.add('hidden');
                     }},
                     { text: 'Não, Cancelar', closes: true, onClick: () => {
-                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
+                        ingameSheetModal.classList.add('hidden');
                     }}
                 ]
             );
         } else {
             socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
-            document.getElementById('ingame-sheet-modal').classList.add('hidden');
+            ingameSheetModal.classList.add('hidden');
         }
     }
 
@@ -2962,7 +2999,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', scaleGame);
 
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
-        // CORREÇÃO 2: O botão 'X' agora fecha a janela diretamente, sem salvar.
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
             ingameSheetModal.classList.add('hidden');
         });
