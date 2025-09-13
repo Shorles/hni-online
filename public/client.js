@@ -148,12 +148,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
-            // CORREÇÃO: Apenas combina os dados de batalha com a ficha do lobby.
-            // Não sobrescreve mais as propriedades 'img' e 'nome', evitando inconsistências.
-            return { ...fighterInBattle, sheet: sheet || fighterInBattle.sheet };
+            // CORREÇÃO: A lógica agora garante que a 'sheet' do lobby, que é a fonte definitiva
+            // de informações visuais como o tokenImg, sempre sobrescreva a 'sheet' que vem com
+            // os dados da batalha, que pode ser incompleta.
+            return { ...fighterInBattle, sheet: sheet };
         }
     
         if (sheet) {
+            // Este bloco é para quando o jogador está no lobby ou em um modo
+            // onde ele não é um "fighter" ativo, mas precisamos dos dados da sua ficha.
             const constituicao = sheet.finalAttributes?.constituicao || 0;
             const mente = sheet.finalAttributes?.mente || 0;
             const hpMax = 20 + (constituicao * 5);
@@ -2434,30 +2437,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
             let changed = false;
 
-            // Rule: 2H weapon in hand 1 clears hand 2 and shield (if not strong enough)
             if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
                 if (weapon2Select.value !== 'Desarmado') { weapon2Select.value = 'Desarmado'; changed = true; }
                 if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
             }
-            // Rule: 2H weapon in hand 2 clears hand 1 and shield (if not strong enough)
             if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
                 if (weapon1Select.value !== 'Desarmado') { weapon1Select.value = 'Desarmado'; changed = true; }
                 if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
             }
             
-            // Rule: Equipping a second weapon unequips the shield
             if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
                 shieldSelect.value = 'Nenhum';
                 changed = true;
             }
 
-            // Rule: Equipping a shield unequips the second weapon
             if (shieldSelect.value !== 'Nenhum' && weapon2Select.value !== 'Desarmado') {
                  weapon2Select.value = 'Desarmado';
                  changed = true;
             }
 
-            // Prevent unique item duplication
             if (weapon1Select.value !== 'Desarmado' && weapon1Select.value === weapon2Select.value) {
                 if (eventSource === weapon1Select) {
                     weapon2Select.value = 'Desarmado';
@@ -2468,7 +2466,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (changed) {
-                // If a change was enforced, re-run the whole logic to ensure consistency
                 updateAllEquipment(null); 
                 return;
             }
