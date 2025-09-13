@@ -2385,7 +2385,6 @@ document.addEventListener('DOMContentLoaded', () => {
             populateIngameSheet(myFighterData);
             modal.classList.remove('hidden');
         } else {
-            modal.classList.add('hidden');
             handleEquipmentChangeConfirmation();
         }
     }
@@ -2402,7 +2401,6 @@ document.addEventListener('DOMContentLoaded', () => {
         loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
 
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
-        // CORREÇÃO: Busca a imagem do token no local correto (sheet.tokenImg).
         const tokenImg = fighter.sheet.tokenImg;
         document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
@@ -2421,13 +2419,37 @@ document.addEventListener('DOMContentLoaded', () => {
         allEquipmentSelectors.forEach(sel => sel.onchange = null);
 
         // CORREÇÃO: Lógica de atualização da ficha em jogo refatorada para evitar bugs de estado.
-        const updateAllEquipmentSelects = () => {
+        const updateEquipmentVisuals = () => {
             const inventory = fighter.inventory || {};
             
-            const populateSelect = (selectEl, itemType, nullOption) => {
-                const currentValue = selectEl.value; 
+            // Get current selections from DOM
+            const selectedW1 = weapon1Select.value;
+            const selectedW2 = weapon2Select.value;
+
+            // Update images and disable states based on current selections
+            const weapon1Item = inventory[selectedW1] || {};
+            const weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
+            const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
+            const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
+            
+            // Logic for disabling slots
+            weapon2Select.disabled = !canEditEquipment || (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldSelect.value !== 'Nenhum';
+            shieldSelect.disabled = !canEditEquipment || selectedW2 !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
+
+            // Update images
+            const finalWeapon1Item = inventory[selectedW1] || {};
+            const finalWeapon2Item = inventory[selectedW2] || {};
+            document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalWeapon1Item.img ? `url("${finalWeapon1Item.img}")` : 'none';
+            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = finalWeapon2Item.img ? `url("${finalWeapon2Item.img}")` : 'none';
+
+            // Re-render inventory to show/hide equipped items
+            renderIngameInventory(fighter);
+        };
+
+        const populateAllSelects = () => {
+            const inventory = fighter.inventory || {};
+            const populate = (selectEl, itemType, nullOption) => {
                 selectEl.innerHTML = '';
-                
                 const items = Object.values(inventory).filter(item => item.type === itemType);
     
                 const noneOpt = document.createElement('option');
@@ -2441,59 +2463,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
                     selectEl.appendChild(opt);
                 });
-                
-                selectEl.value = currentValue;
             };
-
-            populateSelect(weapon1Select, 'weapon', 'Desarmado');
-            populateSelect(weapon2Select, 'weapon', 'Desarmado');
-            populateSelect(armorSelect, 'armor', 'Nenhuma');
-            populateSelect(shieldSelect, 'shield', 'Nenhum');
-
-            weapon1Select.value = document.getElementById('ingame-sheet-weapon1-type').value || 'Desarmado';
-            weapon2Select.value = document.getElementById('ingame-sheet-weapon2-type').value || 'Desarmado';
-            armorSelect.value = document.getElementById('ingame-sheet-armor-type').value || 'Nenhuma';
-            shieldSelect.value = document.getElementById('ingame-sheet-shield-type').value || 'Nenhum';
-
-            const weapon1Item = inventory[weapon1Select.value] || {};
-            const weapon1BaseType = weapon1Item.baseType || (weapon1Select.value === 'Desarmado' ? 'Desarmado' : null);
-            const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
-            const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
-            
-            if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-                if (weapon2Select.value !== 'Desarmado') weapon2Select.value = 'Desarmado';
-                if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
-            }
-            if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
-                shieldSelect.value = 'Nenhum';
-            }
-
-            const finalWeapon1Item = inventory[weapon1Select.value] || {};
-            const finalWeapon2Item = inventory[weapon2Select.value] || {};
-            
-            document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalWeapon1Item.img ? `url("${finalWeapon1Item.img}")` : 'none';
-            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = finalWeapon2Item.img ? `url("${finalWeapon2Item.img}")` : 'none';
-
-            allEquipmentSelectors.forEach(sel => sel.disabled = !canEditEquipment);
-            if(canEditEquipment) {
-                weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldSelect.value !== 'Nenhum';
-                shieldSelect.disabled = weapon2Select.value !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
-            }
-            
-            renderIngameInventory(fighter);
+            populate(weapon1Select, 'weapon', 'Desarmado');
+            populate(weapon2Select, 'weapon', 'Desarmado');
+            populate(armorSelect, 'armor', 'Nenhuma');
+            populate(shieldSelect, 'shield', 'Nenhum');
         };
         
-        updateAllEquipmentSelects(); // Popula as opções
+        // --- Execution Flow ---
+        // 1. Populate dropdowns with all available options
+        populateAllSelects();
         
-        // Define os valores iniciais DEPOIS de popular
+        // 2. Set the initial equipped items from the character's data
         weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
-        
-        updateAllEquipmentSelects(); // Atualiza a lógica (imagens, disabled status) com base nos valores corretos
-        
-        allEquipmentSelectors.forEach(sel => sel.onchange = updateAllEquipmentSelects);
+
+        // 3. Set the onchange handlers for all equipment selectors
+        allEquipmentSelectors.forEach(sel => {
+            sel.onchange = (event) => {
+                const changedSelect = event.target;
+                
+                // Conflict resolution for dual wielding unique items
+                if (weapon1Select.value !== 'Desarmado' && weapon1Select.value === weapon2Select.value) {
+                    if (changedSelect === weapon1Select) {
+                        weapon2Select.value = 'Desarmado'; // Unequip the other slot
+                    } else if (changedSelect === weapon2Select) {
+                        weapon1Select.value = 'Desarmado';
+                    }
+                }
+                
+                // After resolving potential conflicts, update all visuals
+                updateEquipmentVisuals();
+            };
+        });
+
+        // 4. Run the visual update once to sync the initial state (disabled inputs, images, inventory)
+        updateEquipmentVisuals();
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
