@@ -148,6 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
+            // CORREÇÃO: Apenas combina os dados de batalha com a ficha do lobby.
+            // Não sobrescreve mais as propriedades 'img' e 'nome', evitando inconsistências.
             return { ...fighterInBattle, sheet: sheet || fighterInBattle.sheet };
         }
     
@@ -202,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function renderGmShopPanel(container) {
-        container.innerHTML = '';
+        container.innerHTML = ''; // Limpa o conteúdo anterior
 
         const state = currentGameState.shop;
         if (!state) return;
@@ -378,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPlayerShopPanel(container) {
-        container.innerHTML = '';
+        container.innerHTML = ''; // Limpa o conteúdo anterior
         const state = currentGameState.shop;
         if (!state || !state.playerItems) return;
 
@@ -523,6 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (amIPlayerAndFinalized) {
             const myFighterData = getFighter(gameState, myPlayerKey);
             if (myFighterData && myFighterData.sheet) {
+                // CORREÇÃO: Busca a imagem do token no local correto (sheet.tokenImg).
                 const tokenImg = myFighterData.sheet.tokenImg;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
                 if(tokenImg) {
@@ -2042,19 +2045,19 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const weapon1Select = document.getElementById(`${prefix}-weapon1-type`);
         const weapon2Select = document.getElementById(`${prefix}-weapon2-type`);
-        const weapon1Name = weapon1Select.value;
-        const weapon2Name = weapon2Select.value;
-        
+        const weapon1Type = weapon1Select.value;
+        const weapon2Type = weapon2Select.value;
+
         let weapon1, weapon2;
 
         if (isCreation) {
-            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Name), type: weapon1Name, ...stagedCharacterSheet.weapon1 };
-            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Name), type: weapon2Name, ...stagedCharacterSheet.weapon2 };
+            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type), type: weapon1Type, ...stagedCharacterSheet.weapon1 };
+            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type), type: weapon2Type, ...stagedCharacterSheet.weapon2 };
         } else {
-            const w1Item = myFighter.inventory[weapon1Name] || { name: 'Desarmado', baseType: 'Desarmado', img: null, isRanged: false };
-            const w2Item = myFighter.inventory[weapon2Name] || { name: 'Desarmado', baseType: 'Desarmado', img: null, isRanged: false };
-            weapon1 = { name: w1Item.name, type: w1Item.baseType, img: w1Item.img, isRanged: w1Item.isRanged };
-            weapon2 = { name: w2Item.name, type: w2Item.baseType, img: w2Item.img, isRanged: w2Item.isRanged };
+            const w1Item = myFighter.inventory[weapon1Type] || { baseType: 'Desarmado', img: null, isRanged: false };
+            const w2Item = myFighter.inventory[weapon2Type] || { baseType: 'Desarmado', img: null, isRanged: false };
+            weapon1 = { name: weapon1Type, type: w1Item.baseType, img: w1Item.img, isRanged: w1Item.isRanged };
+            weapon2 = { name: weapon2Type, type: w2Item.baseType, img: w2Item.img, isRanged: w2Item.isRanged };
         }
 
         const data = {
@@ -2080,8 +2083,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         if (isCreation) {
-            data.equipment.weapon1.type = document.getElementById('sheet-weapon1-type').value;
-            data.equipment.weapon2.type = document.getElementById('sheet-weapon2-type').value;
             ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente'].forEach(attr => {
                 data.baseAttributes[attr] = parseInt(document.getElementById(`sheet-base-attr-${attr}`).value) || 0;
             });
@@ -2401,6 +2402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
 
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
+        // CORREÇÃO: Busca a imagem do token no local correto (sheet.tokenImg).
         const tokenImg = fighter.sheet.tokenImg;
         document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
@@ -2409,7 +2411,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ingame-sheet-money').textContent = fighter.money !== undefined ? fighter.money : 0;
     
         const equipment = fighter.sheet.equipment;
-        const inventory = fighter.inventory || {};
         
         const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
         const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
@@ -2419,42 +2420,41 @@ document.addEventListener('DOMContentLoaded', () => {
         const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
         allEquipmentSelectors.forEach(sel => sel.onchange = null);
 
-        const updateEquipmentUIAndLogic = () => {
-            const currentW1 = weapon1Select.value;
-            const currentW2 = weapon2Select.value;
-            const currentArmor = armorSelect.value;
-            const currentShield = shieldSelect.value;
+        // CORREÇÃO: Lógica de atualização da ficha em jogo refatorada para evitar bugs de estado.
+        const updateAllEquipmentSelects = () => {
+            const inventory = fighter.inventory || {};
             
-            const populateSelect = (selectEl, itemType, nullOption, equippedElsewhereName) => {
+            const populateSelect = (selectEl, itemType, nullOption) => {
+                const currentValue = selectEl.value; 
                 selectEl.innerHTML = '';
                 
+                const items = Object.values(inventory).filter(item => item.type === itemType);
+    
                 const noneOpt = document.createElement('option');
                 noneOpt.value = nullOption;
                 noneOpt.textContent = nullOption;
                 selectEl.appendChild(noneOpt);
-
-                Object.values(inventory).forEach(item => {
-                    if (item.type === itemType) {
-                        if (item.name === selectEl.value || item.name !== equippedElsewhereName) {
-                            const opt = document.createElement('option');
-                            opt.value = item.name;
-                            opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
-                            selectEl.appendChild(opt);
-                        }
-                    }
+    
+                items.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.name;
+                    opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
+                    selectEl.appendChild(opt);
                 });
+                
+                selectEl.value = currentValue;
             };
-            
-            populateSelect(weapon1Select, 'weapon', 'Desarmado', currentW2);
-            populateSelect(weapon2Select, 'weapon', 'Desarmado', currentW1);
-            populateSelect(armorSelect, 'armor', 'Nenhuma', null);
-            populateSelect(shieldSelect, 'shield', 'Nenhum', null);
-            
-            weapon1Select.value = currentW1;
-            weapon2Select.value = currentW2;
-            armorSelect.value = currentArmor;
-            shieldSelect.value = currentShield;
-            
+
+            populateSelect(weapon1Select, 'weapon', 'Desarmado');
+            populateSelect(weapon2Select, 'weapon', 'Desarmado');
+            populateSelect(armorSelect, 'armor', 'Nenhuma');
+            populateSelect(shieldSelect, 'shield', 'Nenhum');
+
+            weapon1Select.value = document.getElementById('ingame-sheet-weapon1-type').value || 'Desarmado';
+            weapon2Select.value = document.getElementById('ingame-sheet-weapon2-type').value || 'Desarmado';
+            armorSelect.value = document.getElementById('ingame-sheet-armor-type').value || 'Nenhuma';
+            shieldSelect.value = document.getElementById('ingame-sheet-shield-type').value || 'Nenhum';
+
             const weapon1Item = inventory[weapon1Select.value] || {};
             const weapon1BaseType = weapon1Item.baseType || (weapon1Select.value === 'Desarmado' ? 'Desarmado' : null);
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
@@ -2465,9 +2465,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
             }
             if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
-                 shieldSelect.value = 'Nenhum';
+                shieldSelect.value = 'Nenhum';
             }
-            
+
             const finalWeapon1Item = inventory[weapon1Select.value] || {};
             const finalWeapon2Item = inventory[weapon2Select.value] || {};
             
@@ -2482,15 +2482,18 @@ document.addEventListener('DOMContentLoaded', () => {
             
             renderIngameInventory(fighter);
         };
-
+        
+        updateAllEquipmentSelects(); // Popula as opções
+        
+        // Define os valores iniciais DEPOIS de popular
         weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
         
-        updateEquipmentUIAndLogic();
+        updateAllEquipmentSelects(); // Atualiza a lógica (imagens, disabled status) com base nos valores corretos
         
-        allEquipmentSelectors.forEach(sel => sel.onchange = updateEquipmentUIAndLogic);
+        allEquipmentSelectors.forEach(sel => sel.onchange = updateAllEquipmentSelects);
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
