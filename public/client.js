@@ -148,13 +148,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
-            const finalSheet = sheet || fighterInBattle.sheet;
-            return { 
-                ...fighterInBattle, 
-                sheet: finalSheet,
-                img: finalSheet?.tokenImg || fighterInBattle.img, 
-                nome: finalSheet?.name || fighterInBattle.nome,
-            };
+            // CORREÇÃO: Apenas combina os dados de batalha com a ficha do lobby.
+            // Não sobrescreve mais as propriedades 'img' e 'nome', evitando inconsistências.
+            return { ...fighterInBattle, sheet: sheet || fighterInBattle.sheet };
         }
     
         if (sheet) {
@@ -529,7 +525,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (amIPlayerAndFinalized) {
             const myFighterData = getFighter(gameState, myPlayerKey);
             if (myFighterData && myFighterData.sheet) {
-                const tokenImg = myFighterData.sheet.tokenImg || myFighterData.img;
+                // CORREÇÃO: Busca a imagem do token no local correto (sheet.tokenImg).
+                const tokenImg = myFighterData.sheet.tokenImg;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
                 if(tokenImg) {
                     document.getElementById('player-info-token').style.backgroundImage = `url("${tokenImg}")`;
@@ -2405,7 +2402,8 @@ document.addEventListener('DOMContentLoaded', () => {
         loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
 
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
-        const tokenImg = fighter.sheet.tokenImg || fighter.img;
+        // CORREÇÃO: Busca a imagem do token no local correto (sheet.tokenImg).
+        const tokenImg = fighter.sheet.tokenImg;
         document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
         document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
@@ -2418,38 +2416,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
         const armorSelect = document.getElementById('ingame-sheet-armor-type');
         const shieldSelect = document.getElementById('ingame-sheet-shield-type');
-
+    
         const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
-        allEquipmentSelectors.forEach(sel => sel.onchange = null); // Remove old listeners
+        allEquipmentSelectors.forEach(sel => sel.onchange = null);
 
-        weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
-        weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
-        armorSelect.value = equipment.armor || 'Nenhuma';
-        shieldSelect.value = equipment.shield || 'Nenhum';
-        
+        // CORREÇÃO: Lógica de atualização da ficha em jogo refatorada para evitar bugs de estado.
         const updateAllEquipmentSelects = () => {
             const inventory = fighter.inventory || {};
-
-            const equippedW1 = weapon1Select.value;
-            const equippedW2 = weapon2Select.value;
-            const equippedArmor = armorSelect.value;
-            const equippedShield = shieldSelect.value;
             
-            const populateSelect = (selectEl, itemType, nullOption, equippedElsewhere) => {
+            const populateSelect = (selectEl, itemType, nullOption) => {
+                const currentValue = selectEl.value; 
                 selectEl.innerHTML = '';
+                
                 const items = Object.values(inventory).filter(item => item.type === itemType);
-
+    
                 const noneOpt = document.createElement('option');
                 noneOpt.value = nullOption;
                 noneOpt.textContent = nullOption;
                 selectEl.appendChild(noneOpt);
-
+    
                 items.forEach(item => {
                     const opt = document.createElement('option');
                     opt.value = item.name;
                     opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
                     selectEl.appendChild(opt);
                 });
+                
+                selectEl.value = currentValue;
             };
 
             populateSelect(weapon1Select, 'weapon', 'Desarmado');
@@ -2457,13 +2450,13 @@ document.addEventListener('DOMContentLoaded', () => {
             populateSelect(armorSelect, 'armor', 'Nenhuma');
             populateSelect(shieldSelect, 'shield', 'Nenhum');
 
-            weapon1Select.value = equippedW1;
-            weapon2Select.value = equippedW2;
-            armorSelect.value = equippedArmor;
-            shieldSelect.value = equippedShield;
+            weapon1Select.value = document.getElementById('ingame-sheet-weapon1-type').value || 'Desarmado';
+            weapon2Select.value = document.getElementById('ingame-sheet-weapon2-type').value || 'Desarmado';
+            armorSelect.value = document.getElementById('ingame-sheet-armor-type').value || 'Nenhuma';
+            shieldSelect.value = document.getElementById('ingame-sheet-shield-type').value || 'Nenhum';
 
-            const weapon1Item = inventory[equippedW1] || {};
-            const weapon1BaseType = weapon1Item.baseType || (equippedW1 === 'Desarmado' ? 'Desarmado' : null);
+            const weapon1Item = inventory[weapon1Select.value] || {};
+            const weapon1BaseType = weapon1Item.baseType || (weapon1Select.value === 'Desarmado' ? 'Desarmado' : null);
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
             const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
             
@@ -2489,8 +2482,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             renderIngameInventory(fighter);
         };
-
-        updateAllEquipmentSelects();
+        
+        updateAllEquipmentSelects(); // Popula as opções
+        
+        // Define os valores iniciais DEPOIS de popular
+        weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
+        weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
+        armorSelect.value = equipment.armor || 'Nenhuma';
+        shieldSelect.value = equipment.shield || 'Nenhum';
+        
+        updateAllEquipmentSelects(); // Atualiza a lógica (imagens, disabled status) com base nos valores corretos
+        
         allEquipmentSelectors.forEach(sel => sel.onchange = updateAllEquipmentSelects);
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
