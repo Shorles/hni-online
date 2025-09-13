@@ -928,19 +928,19 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
 
     const addItem = (item, type, slotKey) => {
         const baseType = item.type;
-        // CORREÇÃO: Adicionada verificação para o nome do item também.
-        if (!baseType || ['Desarmado', 'Nenhuma', 'Nenhum'].includes(baseType) || ['Nenhuma', 'Nenhum'].includes(item.name)) {
+        if (!baseType || ['Desarmado', 'Nenhuma', 'Nenhum'].includes(baseType)) {
             return;
         }
 
         let finalName = item.name;
+        // CORREÇÃO: Lógica para criar nomes únicos para itens duplicados.
         if (inventory[finalName]) {
             let count = 2;
             while (inventory[`${item.name} (${count})`]) {
                 count++;
             }
             finalName = `${item.name} (${count})`;
-            item.name = finalName; 
+            item.name = finalName; // Atualiza o nome no objeto de equipamento também.
         }
 
         inventory[finalName] = { type, name: finalName, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
@@ -952,8 +952,13 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
 
     addItem(newEquipment.weapon1, 'weapon', 'weapon1');
     addItem(newEquipment.weapon2, 'weapon', 'weapon2');
-    addItem({ name: newEquipment.armor, type: 'armor' }, 'armor', null);
-    addItem({ name: newEquipment.shield, type: 'shield' }, 'shield', null);
+    // CORREÇÃO: Adicionada verificação para não adicionar "Nenhuma" ou "Nenhum" ao inventário
+    if (newEquipment.armor && newEquipment.armor !== 'Nenhuma') {
+        addItem({ name: newEquipment.armor, type: 'armor' }, 'armor', null);
+    }
+    if (newEquipment.shield && newEquipment.shield !== 'Nenhum') {
+        addItem({ name: newEquipment.shield, type: 'shield' }, 'shield', null);
+    }
 
     if (addStartingItems) {
         const hpPotion = "Poção de HP menor";

@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 id: key,
                 nome: sheet.name,
-                img: sheet.tokenImg, // Para consistência, usamos tokenImg como a imagem principal fora da batalha.
+                img: sheet.tokenImg,
                 isPlayer: true,
                 sheet: sheet,
                 hp: sheet.hp !== undefined ? sheet.hp : hpMax,
@@ -523,7 +523,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (amIPlayerAndFinalized) {
             const myFighterData = getFighter(gameState, myPlayerKey);
             if (myFighterData && myFighterData.sheet) {
-                // CORREÇÃO: Busca a imagem do token no local correto (sheet.tokenImg).
                 const tokenImg = myFighterData.sheet.tokenImg;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
                 if(tokenImg) {
@@ -2421,6 +2420,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const updateEquipmentUIAndLogic = () => {
             const currentW1 = weapon1Select.value;
             const currentW2 = weapon2Select.value;
+            const currentArmor = armorSelect.value;
+            const currentShield = shieldSelect.value;
 
             const populateSelect = (selectEl, itemType, nullOption, equippedElsewhereName) => {
                 selectEl.innerHTML = '';
@@ -2432,6 +2433,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 Object.values(inventory).forEach(item => {
                     if (item.type === itemType) {
+                        // Permite a opção se ela já estiver selecionada OU se não estiver equipada no outro slot
                         if (item.name === selectEl.value || item.name !== equippedElsewhereName) {
                             const opt = document.createElement('option');
                             opt.value = item.name;
@@ -2441,7 +2443,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             };
-
+            
             populateSelect(weapon1Select, 'weapon', 'Desarmado', currentW2);
             populateSelect(weapon2Select, 'weapon', 'Desarmado', currentW1);
             populateSelect(armorSelect, 'armor', 'Nenhuma', null);
@@ -2449,7 +2451,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             weapon1Select.value = currentW1;
             weapon2Select.value = currentW2;
-
+            armorSelect.value = currentArmor;
+            shieldSelect.value = currentShield;
+            
             const weapon1Item = inventory[weapon1Select.value] || {};
             const weapon1BaseType = weapon1Item.baseType || (weapon1Select.value === 'Desarmado' ? 'Desarmado' : null);
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
@@ -2482,7 +2486,7 @@ document.addEventListener('DOMContentLoaded', () => {
         weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
-
+        
         updateEquipmentUIAndLogic();
         allEquipmentSelectors.forEach(sel => sel.onchange = updateEquipmentUIAndLogic);
     
