@@ -521,7 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
         if (amIPlayerAndFinalized) {
-            const myFighterData = getFighter(gameState, myPlayerKey); 
+            const myFighterData = getFighter(gameState, myPlayerKey);
             if (myFighterData && myFighterData.sheet) {
                 const tokenImg = myFighterData.sheet.tokenImg;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
@@ -2301,7 +2301,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let content = `
             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
+                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img || ''}'); margin: 0; flex-shrink: 0;"></div>
                 <div>
                     <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
                     <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
@@ -2409,11 +2409,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const shieldSelect = document.getElementById('ingame-sheet-shield-type');
     
         const populateSelect = (selectEl, itemType, nullOption, equippedElsewhere) => {
-            const currentValue = selectEl.value; // Salva o valor atual antes de limpar
+            const currentValue = selectEl.value; 
             selectEl.innerHTML = '';
             
+            const nonSelectable = ['Desarmado', 'Nenhuma', 'Nenhum'];
             const items = Object.values(inventory).filter(item => 
-                item.type === itemType && item.name !== equippedElsewhere
+                item.type === itemType && item.name !== equippedElsewhere && !nonSelectable.includes(item.name)
             );
     
             const noneOpt = document.createElement('option');
@@ -2446,7 +2447,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const myFighterData = getFighter(currentGameState, myPlayerKey);
             if (!myFighterData) return;
 
-            const inventory = myFighterData.inventory || {};
             let weapon1ItemName = weapon1Select.value;
             let weapon2ItemName = weapon2Select.value;
             let shieldItemName = shieldSelect.value;
@@ -2462,11 +2462,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if ((weapon1Data.hand === 2 || weapon2Data.hand === 2) && !canWield2HInOneHand) {
                 if(weapon1Data.hand === 2) {
                     weapon2ItemName = 'Desarmado';
-                    shieldItemName = 'Nenhum';
-                } else { // weapon2 is 2H
+                } else { 
                     weapon1ItemName = 'Desarmado';
-                    shieldItemName = 'Nenhum';
                 }
+                 shieldItemName = 'Nenhum';
             }
             if (weapon2ItemName !== 'Desarmado' && shieldItemName !== 'Nenhum') {
                 shieldItemName = 'Nenhum';
@@ -2478,18 +2477,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             populateSelect(weapon1Select, 'weapon', 'Desarmado', weapon2Select.value);
             populateSelect(weapon2Select, 'weapon', 'Desarmado', weapon1Select.value);
-            
+
             const finalWeapon1Item = inventory[weapon1Select.value] || {};
-            const finalWeapon2Item = inventory[weapon2Select.value] || {};
             const finalWeapon1BaseType = finalWeapon1Item.baseType || (finalWeapon1Item.name === 'Desarmado' ? 'Desarmado' : null);
             const finalWeapon1Data = GAME_RULES.weapons[finalWeapon1BaseType] || {};
 
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalWeapon1Item.img ? `url("${finalWeapon1Item.img}")` : 'none';
-            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = finalWeapon2Item.img ? `url("${finalWeapon2Item.img}")` : 'none';
+            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[weapon2Select.value] || {}).img ? `url("${(inventory[weapon2Select.value] || {}).img}")` : 'none';
             
             weapon2Select.disabled = !canEditEquipment || (finalWeapon1Data.hand === 2 && !canWield2HInOneHand) || shieldSelect.value !== 'Nenhum';
             shieldSelect.disabled = !canEditEquipment || weapon2Select.value !== 'Desarmado' || (finalWeapon1Data.hand === 2 && !canWield2HInOneHand);
-            
+
             const armorType = armorSelect.value || 'Nenhuma';
             const shieldTypeFinal = shieldSelect.value || 'Nenhum';
             const armorImgName = armorType === 'Mediana' ? 'Armadura Mediana' : `Armadura ${armorType}`;
@@ -2500,23 +2498,19 @@ document.addEventListener('DOMContentLoaded', () => {
             renderIngameInventory(fighter);
         };
         
-        // Define os valores iniciais ANTES de popular, para garantir que estejam disponíveis na lista
+        populateSelect(armorSelect, 'armor', 'Nenhuma', null);
+        populateSelect(shieldSelect, 'shield', 'Nenhum', null);
+        
         weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
-
-        // Agora popula as listas
-        populateSelect(armorSelect, 'armor', 'Nenhuma', null);
-        populateSelect(shieldSelect, 'shield', 'Nenhum', null);
         
-        // Adiciona os listeners de eventos
         weapon1Select.onchange = updateWeaponAndShieldingLogic;
         weapon2Select.onchange = updateWeaponAndShieldingLogic;
         shieldSelect.onchange = updateWeaponAndShieldingLogic;
-        armorSelect.onchange = () => renderIngameInventory(fighter);
+        armorSelect.onchange = updateWeaponAndShieldingLogic; // Também precisa atualizar o inventário
         
-        // Roda a lógica de atualização uma vez para inicializar o estado correto
         updateWeaponAndShieldingLogic();
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
