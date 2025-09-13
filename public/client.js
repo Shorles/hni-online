@@ -2402,6 +2402,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
         const tokenImg = fighter.sheet.tokenImg;
+        // CORREÇÃO 1: A linha abaixo, que aplica a imagem do token, foi restaurada.
         document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
         document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
@@ -2418,31 +2419,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
         allEquipmentSelectors.forEach(sel => sel.onchange = null);
 
-        // CORREÇÃO: Lógica de atualização da ficha em jogo refatorada para evitar bugs de estado.
         const updateEquipmentVisuals = () => {
             const inventory = fighter.inventory || {};
             
-            // Get current selections from DOM
             const selectedW1 = weapon1Select.value;
             const selectedW2 = weapon2Select.value;
 
-            // Update images and disable states based on current selections
             const weapon1Item = inventory[selectedW1] || {};
             const weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
             const weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
             const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
             
-            // Logic for disabling slots
             weapon2Select.disabled = !canEditEquipment || (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldSelect.value !== 'Nenhum';
             shieldSelect.disabled = !canEditEquipment || selectedW2 !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
 
-            // Update images
             const finalWeapon1Item = inventory[selectedW1] || {};
             const finalWeapon2Item = inventory[selectedW2] || {};
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalWeapon1Item.img ? `url("${finalWeapon1Item.img}")` : 'none';
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = finalWeapon2Item.img ? `url("${finalWeapon2Item.img}")` : 'none';
 
-            // Re-render inventory to show/hide equipped items
             renderIngameInventory(fighter);
         };
 
@@ -2470,36 +2465,29 @@ document.addEventListener('DOMContentLoaded', () => {
             populate(shieldSelect, 'shield', 'Nenhum');
         };
         
-        // --- Execution Flow ---
-        // 1. Populate dropdowns with all available options
         populateAllSelects();
         
-        // 2. Set the initial equipped items from the character's data
         weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
         weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
         armorSelect.value = equipment.armor || 'Nenhuma';
         shieldSelect.value = equipment.shield || 'Nenhum';
-
-        // 3. Set the onchange handlers for all equipment selectors
+        
         allEquipmentSelectors.forEach(sel => {
             sel.onchange = (event) => {
                 const changedSelect = event.target;
                 
-                // Conflict resolution for dual wielding unique items
                 if (weapon1Select.value !== 'Desarmado' && weapon1Select.value === weapon2Select.value) {
                     if (changedSelect === weapon1Select) {
-                        weapon2Select.value = 'Desarmado'; // Unequip the other slot
+                        weapon2Select.value = 'Desarmado';
                     } else if (changedSelect === weapon2Select) {
                         weapon1Select.value = 'Desarmado';
                     }
                 }
                 
-                // After resolving potential conflicts, update all visuals
                 updateEquipmentVisuals();
             };
         });
 
-        // 4. Run the visual update once to sync the initial state (disabled inputs, images, inventory)
         updateEquipmentVisuals();
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
@@ -2584,7 +2572,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
     
-        if (!hasChanged) return;
+        if (!hasChanged) {
+            document.getElementById('ingame-sheet-modal').classList.add('hidden');
+            return;
+        }
     
         if (currentGameState.mode === 'adventure') {
             if (myFighter.pa < 3) {
@@ -2598,12 +2589,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 [
                     { text: 'Sim, Gastar 3 PA', closes: true, onClick: () => {
                         socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
+                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
                     }},
-                    { text: 'Não, Cancelar', closes: true, className: 'btn-danger' }
+                    { text: 'Não, Cancelar', closes: true, onClick: () => {
+                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
+                    }}
                 ]
             );
         } else {
             socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
+            document.getElementById('ingame-sheet-modal').classList.add('hidden');
         }
     }
 
@@ -2967,7 +2962,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', scaleGame);
 
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
-        document.getElementById('ingame-sheet-close-btn').addEventListener('click', toggleIngameSheet);
+        // CORREÇÃO 2: O botão 'X' agora fecha a janela diretamente, sem salvar.
+        document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
+            ingameSheetModal.classList.add('hidden');
+        });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
         document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
