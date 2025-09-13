@@ -147,16 +147,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const sheet = playerLobbyData?.characterSheet;
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
+        // DEBUG LOG
+        console.log(`[DEBUG-CLIENT CHECKPOINT 4] getFighter for key ${key}:`, {
+            hasPlayerLobbyData: !!playerLobbyData,
+            sheetFromLobby: sheet,
+            hasFighterInBattle: !!fighterInBattle,
+            sheetFromBattle: fighterInBattle?.sheet,
+            tokenImgInLobbySheet: sheet?.tokenImg
+        });
+
         if (fighterInBattle) {
-            // CORREÇÃO: A lógica agora garante que a 'sheet' do lobby, que é a fonte definitiva
-            // de informações visuais como o tokenImg, sempre sobrescreva a 'sheet' que vem com
-            // os dados da batalha, que pode ser incompleta.
             return { ...fighterInBattle, sheet: sheet };
         }
     
         if (sheet) {
-            // Este bloco é para quando o jogador está no lobby ou em um modo
-            // onde ele não é um "fighter" ativo, mas precisamos dos dados da sua ficha.
             const constituicao = sheet.finalAttributes?.constituicao || 0;
             const mente = sheet.finalAttributes?.mente || 0;
             const hpMax = 20 + (constituicao * 5);
@@ -530,6 +534,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (myFighterData && myFighterData.sheet) {
                 const tokenImg = myFighterData.sheet.tokenImg;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
+                
+                console.log(`[DEBUG-CLIENT CHECKPOINT 5] renderGame: Tentando renderizar o widget. tokenImg =`, tokenImg);
+
                 if(tokenImg) {
                     document.getElementById('player-info-token').style.backgroundImage = `url("${tokenImg}")`;
                 } else {
@@ -2944,6 +2951,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedCard) {
                 stagedCharacterSheet.tokenName = selectedCard.dataset.name;
                 stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
+                console.log(`[DEBUG-CLIENT CHECKPOINT 1] Token selecionado. tokenImg =`, stagedCharacterSheet.tokenImg);
                 initializeCharacterSheet();
                 showScreen(document.getElementById('character-sheet-screen'));
             }

@@ -136,6 +136,7 @@ function createNewAdventureState(gmId, connectedPlayers) {
     for (const sId in connectedPlayers) {
         const playerData = connectedPlayers[sId];
         if (playerData.characterFinalized && playerData.role === 'player') {
+            console.log(`[DEBUG-SERVER CHECKPOINT 3.1] createNewAdventureState: Criando fighter para ${playerData.characterName}. characterSheet.tokenImg =`, playerData.characterSheet.tokenImg);
             const newFighter = createNewFighterState({ 
                 id: sId, 
                 isPlayer: true,
@@ -180,14 +181,12 @@ function filterPublicTheaterState(scenarioState) {
 
 
 function createNewFighterState(data) {
-    // CORREÇÃO: Usa 'data.sheetData' para jogadores para garantir que a ficha completa seja usada.
-    // Para NPCs, 'data' já é o objeto de dados correto.
     const sourceData = data.isPlayer ? data.sheetData : data;
 
     const fighter = {
         id: data.id || `npc-${uuidv4()}`,
         nome: sourceData.name || sourceData.tokenName,
-        img: sourceData.tokenImg || sourceData.img, // Usa tokenImg da ficha para a imagem do lutador
+        img: sourceData.tokenImg || sourceData.img,
         status: 'active',
         scale: sourceData.scale !== undefined ? parseFloat(sourceData.scale) : 1.0,
         isPlayer: !!data.isPlayer,
@@ -196,6 +195,8 @@ function createNewFighterState(data) {
         activeEffects: [],
         cooldowns: {}
     };
+
+    console.log(`[DEBUG-SERVER CHECKPOINT 3.2] createNewFighterState: Fighter criado. Nome: ${fighter.nome}, Imagem (fighter.img): ${fighter.img}`);
 
     if (fighter.isPlayer && sourceData.finalAttributes) {
         const constituicao = sourceData.finalAttributes.constituicao || 0;
@@ -206,7 +207,7 @@ function createNewFighterState(data) {
         fighter.hp = sourceData.hp !== undefined ? sourceData.hp : fighter.hpMax;
         fighter.mahou = sourceData.mahou !== undefined ? sourceData.mahou : fighter.mahouMax;
 
-        fighter.sheet = sourceData; // Atribui a ficha completa e correta
+        fighter.sheet = sourceData;
 
         fighter.level = sourceData.level || 1;
         fighter.xp = sourceData.xp || 0;
@@ -1109,6 +1110,8 @@ io.on('connection', (socket) => {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (playerInfo) {
                 const characterData = action.characterData;
+                console.log(`[DEBUG-SERVER CHECKPOINT 2] Recebido 'playerFinalizesCharacter'. characterData.tokenImg =`, characterData.tokenImg);
+
                 characterData.equipment.weapon1.isRanged = action.isRanged.weapon1;
                 characterData.equipment.weapon1.img = action.weaponImages.weapon1;
                 characterData.equipment.weapon2.isRanged = action.isRanged.weapon2;
@@ -1146,7 +1149,7 @@ io.on('connection', (socket) => {
                     const updatedFighter = createNewFighterState({ 
                         id: socket.id, 
                         isPlayer: true,
-                        sheetData: characterData // Passa a ficha completa aninhada
+                        sheetData: characterData
                     });
                     updatedFighter.pa = existingFighter.pa;
                     updatedFighter.status = existingFighter.status;
