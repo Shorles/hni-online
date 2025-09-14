@@ -1484,17 +1484,15 @@ io.on('connection', (socket) => {
                                 shopItem.quantity -= quantityToTake;
                             }
 
-                            // Adiciona o item ao inventário do jogador
                             const playerInv = playerInfo.characterSheet.inventory;
                             const itemData = shopItem.itemData;
                             const newItem = {
                                 ...itemData,
                                 name: itemData.name,
-                                baseType: itemData.name, // Garante que baseType exista para armas/armaduras
+                                baseType: itemData.baseType || itemData.name, // AJUSTE: Usa o baseType correto para armas, ou o nome para outros itens
                                 quantity: quantityToTake
                             };
 
-                            // Encontra uma imagem padrão se não houver
                             if (!newItem.img) {
                                 if(newItem.type === 'weapon' && ALL_WEAPON_IMAGES[newItem.name]?.melee[0]) {
                                    newItem.img = ALL_WEAPON_IMAGES[newItem.name].melee[0];
@@ -1511,7 +1509,6 @@ io.on('connection', (socket) => {
                                 delete theaterState.shop.gmItems[action.itemId];
                             }
                             
-                            // Atualiza a lista pública de itens
                             theaterState.shop.playerItems = Object.values(theaterState.shop.gmItems);
                             
                             logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${quantityToTake}x ${shopItem.name}.`);

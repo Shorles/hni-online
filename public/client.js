@@ -205,14 +205,61 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function renderGmShopPanel(container) {
         container.innerHTML = ''; // Limpa o conteúdo anterior
-
+    
         const state = currentGameState.shop;
         if (!state) return;
-        
+    
         const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
-
+    
+        // AJUSTE 2: Lógica para criar itens de arma individuais baseados nas imagens
+        const meleeWeapons = [];
+        const rangedWeapons = [];
+        const magicWeapons = [];
+    
+        Object.entries(ALL_WEAPON_IMAGES).forEach(([weaponType, imageSets]) => {
+            const weaponData = GAME_RULES.weapons[weaponType];
+            if (!weaponData || weaponType === 'Desarmado') return;
+    
+            const isMagicWeapon = weaponType === 'Cetro' || weaponType === 'Cajado';
+    
+            if (imageSets.melee && imageSets.melee.length > 0) {
+                imageSets.melee.forEach(imgPath => {
+                    const itemName = imgPath.split('/').pop().split('.')[0];
+                    const itemToAdd = {
+                        name: itemName,
+                        type: 'weapon',
+                        baseType: weaponType,
+                        img: imgPath,
+                        isRanged: false,
+                        ...weaponData
+                    };
+                    if (isMagicWeapon) {
+                        magicWeapons.push(itemToAdd);
+                    } else {
+                        meleeWeapons.push(itemToAdd);
+                    }
+                });
+            }
+    
+            if (imageSets.ranged && imageSets.ranged.length > 0) {
+                imageSets.ranged.forEach(imgPath => {
+                    const itemName = imgPath.split('/').pop().split('.')[0];
+                    rangedWeapons.push({
+                        name: itemName,
+                        type: 'weapon',
+                        baseType: weaponType,
+                        img: imgPath,
+                        isRanged: true,
+                        ...weaponData
+                    });
+                });
+            }
+        });
+    
         const allGameItems = {
-            'Armas': Object.entries(GAME_RULES.weapons).map(([name, data]) => ({ name, type: 'weapon', ...data })).filter(item => !nonItems.includes(item.name)),
+            'Armas Corpo a Corpo': meleeWeapons,
+            'Armas de Distância': rangedWeapons,
+            'Armas Mágicas': magicWeapons,
             'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })).filter(item => !nonItems.includes(item.name)),
             'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })).filter(item => !nonItems.includes(item.name)),
             'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: 'item', ...data })),
@@ -258,13 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.title = itemData.description || itemData.name;
                 
                 let imgPath = itemData.img;
-                if (!imgPath) {
-                    if(itemData.type === 'weapon') {
-                       const weaponTypeImages = ALL_WEAPON_IMAGES[itemData.name];
-                       if (weaponTypeImages && weaponTypeImages.melee.length > 0) {
-                           imgPath = weaponTypeImages.melee[0];
-                       }
-                    } else if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
+                if (!imgPath) { // Fallback para armaduras/escudos sem imagem definida em all_weapon_images
+                    if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
                         const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                         imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                     } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
@@ -2382,11 +2424,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isHidden) {
             const myFighterData = getFighter(currentGameState, myPlayerKey);
             if (!myFighterData) return;
-            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment));
+            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment)); // AJUSTE 1: Captura o estado original
             populateIngameSheet(myFighterData);
             modal.classList.remove('hidden');
         } else {
-            handleEquipmentChangeConfirmation();
+            handleEquipmentChangeConfirmation(); // AJUSTE 1: Chama a nova função de confirmação ao fechar
         }
     }
     
@@ -2580,6 +2622,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
     }
     
+    // AJUSTE 1: Nova função para lidar com a confirmação de troca de equipamento
     function handleEquipmentChangeConfirmation() {
         const myFighter = getFighter(currentGameState, myPlayerKey);
         if (!myFighter) return;
@@ -2613,6 +2656,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (myFighter.pa < 3) {
                 showInfoModal("Ação Bloqueada", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações não foram salvas.");
                 ingameSheetModal.classList.add('hidden');
+                // Não precisa reverter, pois o estado do jogo não foi alterado e a ficha será repopulada na próxima vez que abrir.
                 return;
             }
     
@@ -2997,7 +3041,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
-            ingameSheetModal.classList.add('hidden');
+            // AJUSTE 1: Usa a nova função de confirmação ao fechar pelo botão
+            handleEquipmentChangeConfirmation();
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());

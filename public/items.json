@@ -60,5 +60,77 @@
       "hp_formula": "2D6+4",
       "mahou_formula": "2D4+4"
     }
+  },
+  "Ampulheta": {
+    "img": "/images/itens/Ampulheta.png",
+    "description": "Uma antiga ampulheta que parece ter parado no tempo."
+  },
+  "Amuleto": {
+    "img": "/images/itens/Amuleto.png",
+    "description": "Um amuleto com inscrições indecifráveis."
+  },
+  "Anel": {
+    "img": "/images/itens/Anel.png",
+    "description": "Um anel simples, mas com um brilho peculiar."
+  },
+  "Barbante": {
+    "img": "/images/itens/Barbante.png",
+    "description": "Um rolo de barbante, sempre útil."
+  },
+  "Bussola": {
+    "img": "/images/itens/Bussola.png",
+    "description": "Uma bússola que aponta para um lugar desconhecido."
+  },
+  "Cadeado": {
+    "img": "/images/itens/Cadeado.png",
+    "description": "Um cadeado antigo e enferrujado, sem chave."
+  },
+  "Cantil": {
+    "img": "/images/itens/Cantil.png",
+    "description": "Um cantil para armazenar líquidos."
+  },
+  "Chave A": {
+    "img": "/images/itens/ChaveA.png",
+    "description": "Uma chave ornamentada com um 'A' gravado."
+  },
+  "Chave B": {
+    "img": "/images/itens/ChaveB.png",
+    "description": "Uma chave de ferro com um 'B' gravado."
+  },
+  "Chave C": {
+    "img": "/images/itens/ChaveC.png",
+    "description": "Uma chave de bronze com um 'C' gravado."
+  },
+  "Chaveiro": {
+    "img": "/images/itens/Chaveiro.png",
+    "description": "Um chaveiro com várias chaves pequenas e inúteis."
+  },
+  "Colar": {
+    "img": "/images/itens/Colar.png",
+    "description": "Um colar com uma gema que perdeu seu brilho."
+  },
+  "Corda": {
+    "img": "/images/itens/Corda.png",
+    "description": "Vários metros de corda resistente."
+  },
+  "Coroa": {
+    "img": "/images/itens/Coroa.png",
+    "description": "Uma coroa que pertenceu a um rei esquecido."
+  },
+  "Cubo Musical": {
+    "img": "/images/itens/CuboMusical.png",
+    "description": "Um cubo que emite uma melodia suave quando manipulado."
+  },
+  "Espelho": {
+    "img": "/images/itens/Espelho.png",
+    "description": "Um pequeno espelho de mão com uma moldura de prata."
+  },
+  "Estatueta": {
+    "img": "/images/itens/Estatueta.png",
+    "description": "Uma estatueta de uma divindade desconhecida."
+  },
+  "Gancho": {
+    "img": "/images/itens/Gancho.png",
+    "description": "Um gancho de metal, útil para escaladas."
   }
 }
