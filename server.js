@@ -136,7 +136,6 @@ function createNewAdventureState(gmId, connectedPlayers) {
     for (const sId in connectedPlayers) {
         const playerData = connectedPlayers[sId];
         if (playerData.characterFinalized && playerData.role === 'player') {
-            console.log(`[DEBUG-SERVER CHECKPOINT 3.1] createNewAdventureState: Criando fighter para ${playerData.characterName}. characterSheet.tokenImg =`, playerData.characterSheet.tokenImg);
             const newFighter = createNewFighterState({ 
                 id: sId, 
                 isPlayer: true,
@@ -195,8 +194,6 @@ function createNewFighterState(data) {
         activeEffects: [],
         cooldowns: {}
     };
-
-    console.log(`[DEBUG-SERVER CHECKPOINT 3.2] createNewFighterState: Fighter criado. Nome: ${fighter.nome}, Imagem (fighter.img): ${fighter.img}`);
 
     if (fighter.isPlayer && sourceData.finalAttributes) {
         const constituicao = sourceData.finalAttributes.constituicao || 0;
@@ -364,7 +361,7 @@ function calculateMagicDefense(fighter) {
     return { value: total, details };
 }
 
-function getBtaBreakdown(fighter) {
+function getBtaBreakdown(fighter, weaponKey = null) {
     const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
     let total = agiBreakdown.value;
     const details = { ...agiBreakdown.details };
@@ -374,9 +371,21 @@ function getBtaBreakdown(fighter) {
     const w1Data = GAME_RULES.weapons[weapon1.type] || { bta: 0 };
     const w2Data = GAME_RULES.weapons[weapon2.type] || { bta: 0 };
 
-    let weaponBtaMod = w1Data.bta;
-    if (weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado') {
-        weaponBtaMod = Math.min(w1Data.bta, w2Data.bta);
+    let weaponBtaMod = 0;
+
+    // CORREÇÃO: Lógica ajustada para usar o bônus da arma específica do ataque.
+    if (weaponKey) {
+        // Se uma arma específica for fornecida (durante um ataque), use o BTA dela.
+        const weaponForAttack = fighter.sheet.equipment[weaponKey];
+        const weaponDataForAttack = GAME_RULES.weapons[weaponForAttack.type] || { bta: 0 };
+        weaponBtaMod = weaponDataForAttack.bta;
+    } else {
+        // Se nenhuma arma for especificada, calcula um BTA "genérico" (usa o menor se dual-wielding).
+        // Isso pode ser útil para exibições na ficha de personagem, por exemplo.
+        weaponBtaMod = w1Data.bta;
+        if (weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado') {
+            weaponBtaMod = Math.min(w1Data.bta, w2Data.bta);
+        }
     }
     
     if (weaponBtaMod !== 0) {
@@ -610,7 +619,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         }
 
         const hitRoll = rollD20();
-        const btaBreakdown = getBtaBreakdown(attacker);
+        const btaBreakdown = getBtaBreakdown(attacker, weaponKey); // CORREÇÃO: Passa a arma específica para o cálculo
         const bta = btaBreakdown.value;
         const attackRoll = hitRoll + bta;
         const weaponType = weapon.type;
@@ -1110,8 +1119,6 @@ io.on('connection', (socket) => {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
             if (playerInfo) {
                 const characterData = action.characterData;
-                console.log(`[DEBUG-SERVER CHECKPOINT 2] Recebido 'playerFinalizesCharacter'. characterData.tokenImg =`, characterData.tokenImg);
-
                 characterData.equipment.weapon1.isRanged = action.isRanged.weapon1;
                 characterData.equipment.weapon1.img = action.weaponImages.weapon1;
                 characterData.equipment.weapon2.isRanged = action.isRanged.weapon2;
@@ -1149,7 +1156,7 @@ io.on('connection', (socket) => {
                     const updatedFighter = createNewFighterState({ 
                         id: socket.id, 
                         isPlayer: true,
-                        sheetData: characterData
+                        sheetData: characterData // Passa a ficha completa aninhada
                     });
                     updatedFighter.pa = existingFighter.pa;
                     updatedFighter.status = existingFighter.status;
