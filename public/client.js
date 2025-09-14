@@ -1,17 +1,3 @@
-Compreendido. Este é um bug de lógica de estado muito importante. A funcionalidade de custo de PA para troca de equipamento em combate deve ser restaurada sem reintroduzir os bugs anteriores.
-
-Analisei o fluxo novamente e identifiquei a falha exata. Na minha última correção, para resolver o bug do token, eu alterei o evento do botão 'X' da ficha para fechar a janela diretamente, em vez de passar pela lógica de confirmação. Isso foi um erro que quebrou a funcionalidade que você descreveu.
-
-A correção envolve duas etapas:
-1.  Fazer com que o botão 'X' da ficha em jogo acione a mesma lógica de fechamento que o clique no widget do personagem.
-2.  Reforçar a lógica da função `handleEquipmentChangeConfirmation` para garantir que ela verifique o PA, mostre as mensagens corretas e feche a janela em todos os cenários (seja confirmando a troca, cancelando ou por falta de PA).
-
-Implementei essas correções no `client.js`. A nova lógica é robusta e isolada, garantindo que não afete as outras funcionalidades que já estão corretas. Apenas este arquivo precisou ser alterado.
-
-Aqui está o `client.js` modificado:
-
---- START OF FILE client.js ---
-```javascript
 // client.js
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -162,6 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
+            // CORREÇÃO: Usa a ficha do lobby SE ELA EXISTIR (para jogadores),
+            // caso contrário, usa a ficha que já veio com os dados da batalha (correto para NPCs).
             return { ...fighterInBattle, sheet: lobbySheet || fighterInBattle.sheet };
         }
     
@@ -1765,6 +1753,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
+        // CORREÇÃO: Não apaga mais o objeto inteiro, preservando tokenName e tokenImg.
+        // stagedCharacterSheet = {}; 
         stagedCharacterSheet.spells = []; 
         stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
         stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
@@ -2591,42 +2581,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleEquipmentChangeConfirmation() {
-        const modal = ingameSheetModal;
         const myFighter = getFighter(currentGameState, myPlayerKey);
-    
-        if (!myFighter) {
-            modal.classList.add('hidden');
-            return;
-        }
-    
+        if (!myFighter) return;
+        
         const inventory = myFighter.inventory || {};
+        
         const getFullItem = (itemName, itemType) => {
             if (itemName === 'Desarmado' || itemName === 'Nenhuma' || itemName === 'Nenhum') {
                 return { name: itemName, type: itemName, img: null, isRanged: false };
             }
             const item = inventory[itemName];
-            if (!item) return { name: itemName, type: itemType, img: null, isRanged: false };
+            if (!item) return { name: itemName, type: itemType, img: null, isRanged: false }; // Fallback
             return { name: item.name, type: item.baseType, img: item.img, isRanged: item.isRanged };
         };
-    
+
         const newEquipment = {
             weapon1: getFullItem(document.getElementById('ingame-sheet-weapon1-type').value, 'weapon'),
             weapon2: getFullItem(document.getElementById('ingame-sheet-weapon2-type').value, 'weapon'),
             armor: document.getElementById('ingame-sheet-armor-type').value,
             shield: document.getElementById('ingame-sheet-shield-type').value,
         };
-    
+
         const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
     
         if (!hasChanged) {
-            modal.classList.add('hidden');
+            ingameSheetModal.classList.add('hidden');
             return;
         }
     
-        if (currentGameState.mode === 'adventure' && currentGameState.activeCharacterKey === myPlayerKey) {
+        if (currentGameState.mode === 'adventure') {
             if (myFighter.pa < 3) {
                 showInfoModal("Ação Bloqueada", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações não foram salvas.");
-                modal.classList.add('hidden');
+                ingameSheetModal.classList.add('hidden');
                 return;
             }
     
@@ -2634,27 +2620,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 "Confirmar Mudança de Equipamento",
                 "Trocar de equipamento durante o combate custará 3 Pontos de Ação. Deseja continuar?",
                 [
-                    {
-                        text: 'Sim, Gastar 3 PA',
-                        closes: true,
-                        onClick: () => {
-                            socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
-                            modal.classList.add('hidden');
-                        }
-                    },
-                    {
-                        text: 'Não, Cancelar',
-                        closes: true,
-                        className: 'btn-danger',
-                        onClick: () => {
-                            modal.classList.add('hidden');
-                        }
-                    }
+                    { text: 'Sim, Gastar 3 PA', closes: true, onClick: () => {
+                        socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
+                        ingameSheetModal.classList.add('hidden');
+                    }},
+                    { text: 'Não, Cancelar', closes: true, onClick: () => {
+                        ingameSheetModal.classList.add('hidden');
+                    }}
                 ]
             );
         } else {
             socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
-            modal.classList.add('hidden');
+            ingameSheetModal.classList.add('hidden');
         }
     }
 
@@ -2966,6 +2943,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedCard) {
                 stagedCharacterSheet.tokenName = selectedCard.dataset.name;
                 stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
+                console.log(`[DEBUG-CLIENT CHECKPOINT 1] Token selecionado. tokenImg =`, stagedCharacterSheet.tokenImg);
                 initializeCharacterSheet();
                 showScreen(document.getElementById('character-sheet-screen'));
             }
@@ -3018,7 +2996,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', scaleGame);
 
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
-        document.getElementById('ingame-sheet-close-btn').addEventListener('click', toggleIngameSheet);
+        document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
+            ingameSheetModal.classList.add('hidden');
+        });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
         document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
