@@ -1381,20 +1381,29 @@ io.on('connection', (socket) => {
                     case 'changeEquipment':
                         const playerFighter = getFighter(adventureState, socket.id);
                         if (playerFighter) {
-                             if (room.activeMode === 'adventure' && adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
-                                playerFighter.pa -= 3;
+                             if (room.activeMode === 'adventure') {
+                                // Server-side validation for combat equipment change
+                                if (adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
+                                    playerFighter.pa -= 3;
+                                    playerFighter.sheet.equipment = action.newEquipment;
+                                    recalculateFighterStats(playerFighter);
+                                    if (lobbyState.connectedPlayers[socket.id]) {
+                                        lobbyState.connectedPlayers[socket.id].characterSheet.equipment = action.newEquipment;
+                                    }
+                                    logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
+                                } else {
+                                    // This case should ideally not be reached if client-side checks are working
+                                    logMessage(adventureState, `Falha na tentativa de ${playerFighter.nome} de trocar equipamento. (Turno/PA inválido)`, 'miss');
+                                    shouldUpdate = false; // Don't send an update, the action failed
+                                }
+                            } else {
+                                // This case handles changes outside of adventure mode (e.g., in theater mode)
                                 playerFighter.sheet.equipment = action.newEquipment;
                                 recalculateFighterStats(playerFighter);
                                 if (lobbyState.connectedPlayers[socket.id]) {
                                     lobbyState.connectedPlayers[socket.id].characterSheet.equipment = action.newEquipment;
                                 }
-                                logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
-                            } else if (room.activeMode !== 'adventure') {
-                                playerFighter.sheet.equipment = action.newEquipment;
-                                recalculateFighterStats(playerFighter);
-                                logMessage(adventureState, `${playerFighter.nome} trocou de equipamento fora de combate.`);
-                            } else {
-                                shouldUpdate = false;
+                                logMessage(activeState, `${playerFighter.nome} trocou de equipamento fora de combate.`);
                             }
                         }
                         break;
@@ -1473,48 +1482,54 @@ io.on('connection', (socket) => {
                         const quantityToTake = isFreeItem ? 1 : action.quantity;
                         const totalCost = isFreeItem ? 0 : shopItem.price * quantityToTake;
                         
-
                         if (playerInfo.characterSheet.money >= totalCost && quantityToTake <= shopItem.quantity) {
-                            
                             playerInfo.characterSheet.money -= totalCost;
                             
                             if (isFreeItem) {
-                                shopItem.quantity = 0; // Remove all stock for free items
+                                shopItem.quantity = 0;
                             } else {
                                 shopItem.quantity -= quantityToTake;
                             }
-
-                            // Adiciona o item ao inventário do jogador
+                
                             const playerInv = playerInfo.characterSheet.inventory;
                             const itemData = shopItem.itemData;
-                            const newItem = {
-                                ...itemData,
-                                name: itemData.name,
-                                baseType: itemData.name, // Garante que baseType exista para armas/armaduras
-                                quantity: quantityToTake
-                            };
-
-                            // Encontra uma imagem padrão se não houver
-                            if (!newItem.img) {
-                                if(newItem.type === 'weapon' && ALL_WEAPON_IMAGES[newItem.name]?.melee[0]) {
-                                   newItem.img = ALL_WEAPON_IMAGES[newItem.name].melee[0];
+                            const itemCategory = itemData.type;
+                
+                            // CORREÇÃO: Lógica para adicionar itens ao inventário
+                            if (['weapon', 'armor', 'shield'].includes(itemCategory)) {
+                                // Equipamentos são únicos, não empilháveis
+                                for (let i = 0; i < quantityToTake; i++) {
+                                    let baseName = itemData.name;
+                                    let finalName = baseName;
+                                    let count = 2;
+                                    while (playerInv[finalName]) {
+                                        finalName = `${baseName.replace(/ \(\d+\)$/, '')} (${count++})`;
+                                    }
+                                    playerInv[finalName] = {
+                                        ...itemData, // Contém type, baseType, img, isRanged, etc.
+                                        name: finalName,
+                                        quantity: 1
+                                    };
+                                }
+                            } else {
+                                // Itens empilháveis (poções, etc.)
+                                if (playerInv[itemData.name]) {
+                                    playerInv[itemData.name].quantity += quantityToTake;
+                                } else {
+                                    playerInv[itemData.name] = {
+                                        ...itemData,
+                                        name: itemData.name,
+                                        quantity: quantityToTake
+                                    };
                                 }
                             }
-                            
-                            if (playerInv[newItem.name]) {
-                                playerInv[newItem.name].quantity += quantityToTake;
-                            } else {
-                                playerInv[newItem.name] = newItem;
-                            }
-
+                
                             if (shopItem.quantity <= 0) {
                                 delete theaterState.shop.gmItems[action.itemId];
                             }
                             
-                            // Atualiza a lista pública de itens
                             theaterState.shop.playerItems = Object.values(theaterState.shop.gmItems);
-                            
-                            logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${quantityToTake}x ${shopItem.name}.`);
+                            logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${quantityToTake}x ${itemData.name}.`);
                         }
                     }
                  }
