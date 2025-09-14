@@ -147,15 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const sheet = playerLobbyData?.characterSheet;
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
-        // DEBUG LOG
-        console.log(`[DEBUG-CLIENT CHECKPOINT 4] getFighter for key ${key}:`, {
-            hasPlayerLobbyData: !!playerLobbyData,
-            sheetFromLobby: sheet,
-            hasFighterInBattle: !!fighterInBattle,
-            sheetFromBattle: fighterInBattle?.sheet,
-            tokenImgInLobbySheet: sheet?.tokenImg
-        });
-
         if (fighterInBattle) {
             return { ...fighterInBattle, sheet: sheet };
         }
@@ -1762,7 +1753,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
-        stagedCharacterSheet = {};
+        // CORREÇÃO: Não apaga mais o objeto inteiro, preservando tokenName e tokenImg.
+        // stagedCharacterSheet = {}; 
         stagedCharacterSheet.spells = []; 
         stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
         stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
