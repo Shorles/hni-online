@@ -1381,20 +1381,29 @@ io.on('connection', (socket) => {
                     case 'changeEquipment':
                         const playerFighter = getFighter(adventureState, socket.id);
                         if (playerFighter) {
-                             if (room.activeMode === 'adventure' && adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
-                                playerFighter.pa -= 3;
+                             if (room.activeMode === 'adventure') {
+                                // Server-side validation for combat equipment change
+                                if (adventureState.activeCharacterKey === socket.id && playerFighter.pa >= 3) {
+                                    playerFighter.pa -= 3;
+                                    playerFighter.sheet.equipment = action.newEquipment;
+                                    recalculateFighterStats(playerFighter);
+                                    if (lobbyState.connectedPlayers[socket.id]) {
+                                        lobbyState.connectedPlayers[socket.id].characterSheet.equipment = action.newEquipment;
+                                    }
+                                    logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
+                                } else {
+                                    // This case should ideally not be reached if client-side checks are working
+                                    logMessage(adventureState, `Falha na tentativa de ${playerFighter.nome} de trocar equipamento. (Turno/PA inválido)`, 'miss');
+                                    shouldUpdate = false; // Don't send an update, the action failed
+                                }
+                            } else {
+                                // This case handles changes outside of adventure mode (e.g., in theater mode)
                                 playerFighter.sheet.equipment = action.newEquipment;
                                 recalculateFighterStats(playerFighter);
                                 if (lobbyState.connectedPlayers[socket.id]) {
                                     lobbyState.connectedPlayers[socket.id].characterSheet.equipment = action.newEquipment;
                                 }
-                                logMessage(adventureState, `${playerFighter.nome} gasta 3 PA para trocar de equipamento.`, 'info');
-                            } else if (room.activeMode !== 'adventure') {
-                                playerFighter.sheet.equipment = action.newEquipment;
-                                recalculateFighterStats(playerFighter);
-                                logMessage(adventureState, `${playerFighter.nome} trocou de equipamento fora de combate.`);
-                            } else {
-                                shouldUpdate = false;
+                                logMessage(activeState, `${playerFighter.nome} trocou de equipamento fora de combate.`);
                             }
                         }
                         break;
