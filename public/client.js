@@ -144,33 +144,35 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!state || !key) return null;
     
         const playerLobbyData = state.connectedPlayers?.[key];
-        const sheet = playerLobbyData?.characterSheet;
+        const lobbySheet = playerLobbyData?.characterSheet;
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
-            return { ...fighterInBattle, sheet: sheet };
+            // CORREÇÃO: Usa a ficha do lobby SE ELA EXISTIR (para jogadores),
+            // caso contrário, usa a ficha que já veio com os dados da batalha (correto para NPCs).
+            return { ...fighterInBattle, sheet: lobbySheet || fighterInBattle.sheet };
         }
     
-        if (sheet) {
-            const constituicao = sheet.finalAttributes?.constituicao || 0;
-            const mente = sheet.finalAttributes?.mente || 0;
+        if (lobbySheet) {
+            const constituicao = lobbySheet.finalAttributes?.constituicao || 0;
+            const mente = lobbySheet.finalAttributes?.mente || 0;
             const hpMax = 20 + (constituicao * 5);
             const mahouMax = 10 + (mente * 5);
     
             return {
                 id: key,
-                nome: sheet.name,
-                img: sheet.tokenImg,
+                nome: lobbySheet.name,
+                img: lobbySheet.tokenImg,
                 isPlayer: true,
-                sheet: sheet,
-                hp: sheet.hp !== undefined ? sheet.hp : hpMax,
+                sheet: lobbySheet,
+                hp: lobbySheet.hp !== undefined ? lobbySheet.hp : hpMax,
                 hpMax: hpMax,
-                mahou: sheet.mahou !== undefined ? sheet.mahou : mahouMax,
+                mahou: lobbySheet.mahou !== undefined ? lobbySheet.mahou : mahouMax,
                 mahouMax: mahouMax,
-                money: sheet.money,
-                inventory: sheet.inventory,
-                ammunition: sheet.ammunition,
-                ...sheet
+                money: lobbySheet.money,
+                inventory: lobbySheet.inventory,
+                ammunition: lobbySheet.ammunition,
+                ...lobbySheet
             };
         }
     
@@ -526,8 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tokenImg = myFighterData.sheet.tokenImg;
                 const charName = myFighterData.sheet.name || myFighterData.nome;
                 
-                console.log(`[DEBUG-CLIENT CHECKPOINT 5] renderGame: Tentando renderizar o widget. tokenImg =`, tokenImg);
-
                 if(tokenImg) {
                     document.getElementById('player-info-token').style.backgroundImage = `url("${tokenImg}")`;
                 } else {
