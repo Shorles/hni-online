@@ -2582,7 +2582,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function handleEquipmentChangeConfirmation() {
         const myFighter = getFighter(currentGameState, myPlayerKey);
-        if (!myFighter) return;
+        if (!myFighter) {
+            ingameSheetModal.classList.add('hidden');
+            return;
+        }
         
         const inventory = myFighter.inventory || {};
         
@@ -2624,7 +2627,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
                         ingameSheetModal.classList.add('hidden');
                     }},
-                    { text: 'Não, Cancelar', closes: true, onClick: () => {
+                    { text: 'Não, Cancelar', closes: true, className: 'btn-danger', onClick: () => {
                         ingameSheetModal.classList.add('hidden');
                     }}
                 ]
@@ -2943,7 +2946,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedCard) {
                 stagedCharacterSheet.tokenName = selectedCard.dataset.name;
                 stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
-                console.log(`[DEBUG-CLIENT CHECKPOINT 1] Token selecionado. tokenImg =`, stagedCharacterSheet.tokenImg);
                 initializeCharacterSheet();
                 showScreen(document.getElementById('character-sheet-screen'));
             }
