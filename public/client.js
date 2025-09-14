@@ -1,21 +1,3 @@
-Compreendido. Você está certo, a próxima etapa é corrigir o `client.js` para resolver os dois problemas restantes:
-
-1.  **Catálogo da Loja do GM:** A interface não mostrava todas as aparências de armas individuais.
-2.  **Duplicação de Itens na Ficha:** A lógica de exibição do equipamento na ficha permitia equipar o mesmo item duas vezes.
-
-Analisei o `client.js` estável que você forneceu e realizei as seguintes correções com o máximo de cuidado:
-
-*   **Loja do GM (`renderGmShopPanel`):** A função foi completamente reescrita para a categoria "Armas". Ela agora lê todas as imagens de armas do `ALL_WEAPON_IMAGES`, cria um card de item para **cada aparência individual**, e as organiza nas subcategorias "Armas Mágicas", "Armas Corpo a Corpo" e "Armas de Longa Distância", exatamente como você pediu.
-*   **Ficha em Jogo (`updateIngameSheetEquipmentUI`):** A lógica foi aprimorada. Agora, quando você equipa uma arma no primeiro slot, essa arma específica é removida da lista de opções do segundo slot (e vice-versa). Isso impede que a mesma instância de item seja equipada em ambas as mãos, corrigindo o bug de duplicação.
-*   **Preservação das Regras:** Todas as outras lógicas, como as restrições de Força para armas de duas mãos, o custo de PA para troca de equipamento e os cálculos de combate, não foram alteradas.
-
-Com este arquivo e o `server.js` anterior, todos os problemas que você relatou devem estar resolvidos.
-
----
-
-### Arquivo Modificado 2/2: `client.js`
-
-```javascript
 // client.js
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2995,7 +2977,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedCard) {
                 stagedCharacterSheet.tokenName = selectedCard.dataset.name;
                 stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
-                console.log(`[DEBUG-CLIENT CHECKPOINT 1] Token selecionado. tokenImg =`, stagedCharacterSheet.tokenImg);
                 initializeCharacterSheet();
                 showScreen(document.getElementById('character-sheet-screen'));
             }
