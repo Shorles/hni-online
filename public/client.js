@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function renderGmShopPanel(container) {
-        container.innerHTML = ''; // Limpa o conteúdo anterior
+        container.innerHTML = '';
     
         const state = currentGameState.shop;
         if (!state) return;
@@ -419,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPlayerShopPanel(container) {
-        container.innerHTML = ''; // Limpa o conteúdo anterior
+        container.innerHTML = '';
         const state = currentGameState.shop;
         if (!state || !state.playerItems) return;
 
@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             quantityInput.oninput = updateTotal;
-            updateTotal(); // Initial call
+            updateTotal();
         }
     }
 
@@ -659,6 +659,116 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- LÓGICA DO MODO AVENTURA ---
+    // CORREÇÃO: Todas as funções relacionadas ao modo aventura foram agrupadas aqui para garantir o escopo correto.
+    function renderActionButtons(state) {
+        actionButtonsWrapper.innerHTML = '';
+        if (state.phase !== 'battle' || !!state.winner) return;
+        const activeFighter = getFighter(state, state.activeCharacterKey);
+        if (!activeFighter) return;
+
+        const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
+        const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
+        
+        const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
+        const finalCanControl = canControl && !isStunned;
+        
+        let attackButtonAdded = false;
+
+        const createButton = (text, onClick, disabled = false, className = 'action-btn', ammoCount = null) => {
+            const btn = document.createElement('button');
+            btn.className = className;
+            btn.textContent = text;
+            btn.disabled = disabled;
+            btn.onclick = onClick;
+            if (ammoCount !== null && ammoCount !== undefined) {
+                const ammoEl = document.createElement('span');
+                ammoEl.className = 'attack-ammo-counter';
+                ammoEl.textContent = ammoCount;
+                btn.appendChild(ammoEl);
+                if (ammoCount <= 0) btn.disabled = true;
+            }
+            return btn;
+        };
+
+        const createAttackButton = (weaponKey) => {
+            const weapon = activeFighter.sheet.equipment[weaponKey];
+            if (weapon && weapon.type !== 'Desarmado') {
+                const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
+                const btn = createButton(
+                    `Atacar com ${weapon.name} (2 PA)`,
+                    () => startAttackSequence(weaponKey),
+                    !finalCanControl,
+                    'action-btn',
+                    ammo
+                );
+                actionButtonsWrapper.appendChild(btn);
+                attackButtonAdded = true;
+            }
+        };
+
+        createAttackButton('weapon1');
+        createAttackButton('weapon2');
+        
+        if (!attackButtonAdded) {
+            const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
+            actionButtonsWrapper.appendChild(btn);
+        }
+
+        const weapon1 = activeFighter.sheet.equipment.weapon1;
+        const weapon2 = activeFighter.sheet.equipment.weapon2;
+        const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
+        
+        if (isDualWielding) {
+            let ammo1 = weapon1.isRanged ? activeFighter.ammunition?.['weapon1'] : Infinity;
+            let ammo2 = weapon2.isRanged ? activeFighter.ammunition?.['weapon2'] : Infinity;
+            let dualDisabled = ammo1 <= 0 || ammo2 <= 0;
+
+            const btn = createButton('Ataque Duplo (3 PA)', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
+            actionButtonsWrapper.appendChild(btn);
+        }
+
+        const fighterSpells = activeFighter.sheet?.spells || [];
+        if (fighterSpells.length > 0) {
+            fighterSpells.forEach(spellName => {
+                const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+                const spell = allSpells.find(s => s.name === spellName);
+                if (spell && spell.inCombat) {
+                    const paCost = spell.costPA || 2;
+                    const spellBtn = createButton(`${spell.name} (${paCost} PA)`, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
+                    spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
+                    actionButtonsWrapper.appendChild(spellBtn);
+                }
+            });
+        }
+        
+        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !finalCanControl, 'action-btn flee-btn'));
+        actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !finalCanControl, 'end-turn-btn'));
+    }
+
+    function startAttackSequence(weaponChoice) {
+        const attacker = getFighter(currentGameState, currentGameState.activeCharacterKey);
+        if (!attacker) return;
+        
+        targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: weaponChoice };
+        isTargeting = true;
+        document.getElementById('targeting-indicator').classList.remove('hidden');
+    }
+    
+    function startSpellSequence(spell) {
+        if (spell.targetType === 'self') {
+            socket.emit('playerAction', {
+                type: 'use_spell',
+                attackerKey: currentGameState.activeCharacterKey,
+                spellName: spell.name,
+                targetKey: currentGameState.activeCharacterKey 
+            });
+        } else {
+            targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
+            isTargeting = true;
+            document.getElementById('targeting-indicator').classList.remove('hidden');
+        }
+    }
+
     function handleAdventureMode(gameState) {
         if (isGm) {
             switch (gameState.phase) {
@@ -1118,1090 +1228,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return container;
     }
     
-    function startAttackSequence(weaponChoice) {
-        const attacker = getFighter(currentGameState, currentGameState.activeCharacterKey);
-        if (!attacker) return;
-        
-        targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: weaponChoice };
-        isTargeting = true;
-        document.getElementById('targeting-indicator').classList.remove('hidden');
-    }
-    
-    function startSpellSequence(spell) {
-        if (spell.targetType === 'self') {
-            socket.emit('playerAction', {
-                type: 'use_spell',
-                attackerKey: currentGameState.activeCharacterKey,
-                spellName: spell.name,
-                targetKey: currentGameState.activeCharacterKey 
-            });
-        } else {
-            targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
-            isTargeting = true;
-            document.getElementById('targeting-indicator').classList.remove('hidden');
-        }
-    }
-
-    function renderInitiativeUI(state) {
-        initiativeUI.classList.remove('hidden');
-        const playerRollBtn = document.getElementById('player-roll-initiative-btn');
-        const gmRollBtn = document.getElementById('gm-roll-initiative-btn');
-        playerRollBtn.classList.add('hidden');
-        gmRollBtn.classList.add('hidden');
-        const myFighter = getFighter(state, myPlayerKey);
-        if (myRole === 'player' && myFighter && myFighter.status === 'active' && !state.initiativeRolls[myPlayerKey]) {
-            playerRollBtn.classList.remove('hidden'); 
-            playerRollBtn.disabled = false;
-            playerRollBtn.onclick = () => { playerRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative' }); };
-        }
-        if (isGm) {
-            const npcsNeedToRoll = Object.values(state.fighters.npcs).some(npc => npc.status === 'active' && !state.initiativeRolls[npc.id]);
-            if (npcsNeedToRoll) {
-                gmRollBtn.classList.remove('hidden'); 
-                gmRollBtn.disabled = false;
-                gmRollBtn.onclick = () => { gmRollBtn.disabled = true; socket.emit('playerAction', { type: 'roll_initiative', isGmRoll: true }); };
-            }
-        }
-    }
-
-    function renderTurnOrderUI(state) {
-        if (state.phase !== 'battle' && state.phase !== 'initiative_roll') {
-            turnOrderSidebar.classList.add('hidden');
-            return;
-        }
-        turnOrderSidebar.innerHTML = '';
-        turnOrderSidebar.classList.remove('hidden');
-        const orderedFighters = state.turnOrder
-            .map(id => getFighter(state, id))
-            .filter(f => f && f.status === 'active');
-        
-        const activeIndex = orderedFighters.findIndex(f => f.id === state.activeCharacterKey);
-        const sortedVisibleFighters = activeIndex === -1 ? orderedFighters : orderedFighters.slice(activeIndex).concat(orderedFighters.slice(0, activeIndex));
-
-        sortedVisibleFighters.forEach((fighter, index) => {
-            const card = document.createElement('div');
-            card.className = 'turn-order-card';
-            if (index === 0) card.classList.add('active-turn-indicator');
-            const img = document.createElement('img');
-            img.src = fighter.img;
-            img.alt = fighter.nome;
-            img.title = fighter.nome;
-            card.appendChild(img);
-            turnOrderSidebar.appendChild(card);
-        });
-    }
-
-    function renderWaitingPlayers(state) {
-        waitingPlayersSidebar.innerHTML = '';
-        const waiting = state.waitingPlayers || {};
-        if (Object.keys(waiting).length === 0) {
-            waitingPlayersSidebar.classList.add('hidden');
-            return;
-        }
-        waitingPlayersSidebar.classList.remove('hidden');
-        for (const playerId in waiting) {
-            const character = waiting[playerId];
-            const card = document.createElement('div');
-            card.className = 'waiting-player-card';
-            card.innerHTML = `<img src="${character.img}" alt="${character.nome}"><p>${character.nome}</p>`;
-            if (isGm) {
-                card.classList.add('gm-clickable');
-                card.title = `Clique para admitir ${character.nome} na batalha`;
-                card.onclick = () => {
-                    socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted: true });
-                };
-            }
-            waitingPlayersSidebar.appendChild(card);
-        }
-    }
-
-    function showPartSelectionModal(targetFighter) {
-        let modalContentHtml = '<div class="target-part-selection">';
-        targetFighter.parts.forEach(part => {
-            const isDisabled = part.status === 'down';
-            modalContentHtml += `<button class="target-part-btn" data-part-key="${part.key}" ${isDisabled ? 'disabled' : ''}>${part.name} (${part.hp}/${part.hpMax})</button>`;
-        });
-        modalContentHtml += '</div>';
-        showInfoModal(`Selecione qual parte de ${targetFighter.nome} atacar:`, modalContentHtml, false);
-        document.querySelectorAll('.target-part-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const partKey = e.currentTarget.dataset.partKey;
-                actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
-                socket.emit('playerAction', { 
-                    ...targetingAction,
-                    targetKey: targetFighter.id,
-                    targetPartKey: partKey
-                });
-                cancelTargeting();
-                modal.classList.add('hidden');
-            });
-        });
-    }
-
-    function handleTargetClick(event) {
-        if (isFreeMoveModeActive || !isTargeting || !targetingAction) return;
-        const targetContainer = event.target.closest('.char-container.targetable');
-        if (!targetContainer) return;
-        const targetKey = targetContainer.dataset.key;
-        const targetFighter = getFighter(currentGameState, targetKey);
-        
-        if (targetFighter && targetFighter.isMultiPart) {
-            showPartSelectionModal(targetFighter);
-        } else {
-            actionButtonsWrapper.querySelectorAll('button').forEach(b => b.disabled = true);
-            socket.emit('playerAction', { ...targetingAction, targetKey: targetKey });
-            cancelTargeting();
-        }
-    }
-    
-    function showCheatModal() {
-        let content = `<div class="cheat-menu"><button id="cheat-add-npc-btn" class="mode-btn">Adicionar Inimigo em Slot</button></div>`;
-        showInfoModal('Cheats', content, false);
-        document.getElementById('cheat-add-npc-btn').addEventListener('click', handleCheatAddNpc);
-    }
-    
-    function handleCheatAddNpc() {
-        if (!currentGameState || !currentGameState.npcSlots) return;
-        const { npcSlots } = currentGameState;
-        let content = `<p>Selecione o slot para adicionar/substituir:</p><div class="npc-selection-container">`;
-        let hasAvailableSlots = false;
-        for (let i = 0; i < MAX_NPCS; i++) {
-            const npcId = npcSlots[i];
-            const npc = getFighter(currentGameState, npcId);
-            if (!npc || npc.status === 'down' || npc.status === 'fled') {
-                hasAvailableSlots = true;
-                content += `<div class="npc-card cheat-npc-slot" data-slot-index="${i}">${npc ? `<img src="${npc.img}" style="filter: grayscale(100%);">` : ''}<div class="char-name">${npc ? `${npc.nome} (Vago)` : `Slot Vazio ${i + 1}`}</div></div>`;
-            } else {
-                 content += `<div class="npc-card disabled"><img src="${npc.img}"><div class="char-name">${npc.nome} (Ocupado)</div></div>`;
-            }
-        }
-        content += `</div>`;
-        if (!hasAvailableSlots) {
-             showInfoModal('Erro', 'Todos os slots de inimigos estão ocupados por combatentes ativos.');
-             return;
-        }
-        showInfoModal('Selecionar Slot', content, false);
-        document.querySelectorAll('.cheat-npc-slot').forEach(card => {
-            card.addEventListener('click', (e) => {
-                const slotIndex = e.currentTarget.dataset.slotIndex;
-                if (slotIndex !== undefined) selectNpcForSlot(slotIndex);
-            });
-        });
-    }
-
-    function selectNpcForSlot(slotIndex) {
-        let content = `<p>Selecione o novo inimigo para o Slot ${parseInt(slotIndex, 10) + 1}:</p><div class="npc-selection-container" style="max-height: 300px;">`;
-        (ALL_CHARACTERS.npcs || []).forEach(npcData => {
-            content += `<div class="npc-card cheat-npc-card" data-name="${npcData.name}" data-img="${npcData.img}" data-scale="${npcData.scale || 1.0}"><img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div></div>`;
-        });
-        content += `</div>`;
-        showInfoModal('Selecionar Novo Inimigo', content, false);
-        document.querySelectorAll('.cheat-npc-card').forEach(card => {
-            card.addEventListener('click', () => {
-                modal.classList.add('hidden');
-                const fullNpcData = ALL_CHARACTERS.npcs.find(npc => npc.name === card.dataset.name) || {};
-                showNpcConfigModal({ baseData: fullNpcData, slotIndex: parseInt(slotIndex, 10) });
-            });
-        });
-    }
-
-    function makeFightersDraggable(isDraggable) {
-        document.querySelectorAll('#fight-screen .char-container').forEach(fighter => {
-            if (isDraggable) fighter.addEventListener('mousedown', onFighterMouseDown);
-            else fighter.removeEventListener('mousedown', onFighterMouseDown);
-        });
-        document.body.classList.toggle('is-draggable', isDraggable);
-    }
-    function onFighterMouseDown(e) {
-        if (!isFreeMoveModeActive || e.button !== 0) return;
-        draggedFighter.element = e.currentTarget;
-        const rect = draggedFighter.element.getBoundingClientRect(), gameScale = getGameScale();
-        draggedFighter.offsetX = (e.clientX - rect.left) / gameScale;
-        draggedFighter.offsetY = (e.clientY - rect.top) / gameScale;
-        window.addEventListener('mousemove', onFighterMouseMove);
-        window.addEventListener('mouseup', onFighterMouseUp);
-    }
-    function onFighterMouseMove(e) {
-        if (!draggedFighter.element) return;
-        e.preventDefault();
-        const gameWrapperRect = gameWrapper.getBoundingClientRect(), gameScale = getGameScale();
-        const x = (e.clientX - gameWrapperRect.left) / gameScale - draggedFighter.offsetX;
-        const y = (e.clientY - gameWrapperRect.top) / gameScale - draggedFighter.offsetY;
-        draggedFighter.element.style.left = `${x}px`;
-        draggedFighter.element.style.top = `${y}px`;
-    }
-    function onFighterMouseUp() {
-        if (draggedFighter.element) {
-            socket.emit('playerAction', { type: 'gmMovesFighter', fighterId: draggedFighter.element.id, position: { left: draggedFighter.element.style.left, top: draggedFighter.element.style.top } });
-        }
-        draggedFighter.element = null;
-        window.removeEventListener('mousemove', onFighterMouseMove);
-        window.removeEventListener('mouseup', onFighterMouseUp);
-    }
-    function showHelpModal() {
-        const content = `<div style="text-align: left; font-size: 1.2em; line-height: 1.8;">
-            <p><b>P:</b> Abrir menu de Cheats (GM).</p>
-            <p><b>M:</b> Ativar/Desativar modo de depuração de combate (GM).</p>
-            <p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p>
-            <p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p>
-            <p><b>I:</b> Abrir/Fechar loja (GM - Modo Cenário).</p>
-        </div>`;
-        showInfoModal("Atalhos do Teclado", content);
-    }
-    
-    // --- LÓGICA DO MODO CENÁRIO ---
-    function initializeTheaterMode() {
-        localWorldScale = 1.0;
-        theaterWorldContainer.style.transform = "scale(1)";
-        theaterBackgroundViewport.scrollLeft = 0;
-        theaterBackgroundViewport.scrollTop = 0;
-        theaterCharList.innerHTML = '';
-        const createMini = (data) => {
-            const mini = document.createElement('div');
-            mini.className = 'theater-char-mini';
-            mini.style.backgroundImage = `url("${data.img}")`;
-            mini.title = data.name;
-            mini.draggable = true;
-            mini.addEventListener('dragstart', (e) => {
-                if (isGm) e.dataTransfer.setData('application/json', JSON.stringify({ charName: data.name, img: data.img, isFlipped: false, scale: 1.0 }));
-            });
-            theaterCharList.appendChild(mini);
-        };
-        [...(ALL_CHARACTERS.players || []), ...(ALL_CHARACTERS.npcs || []), ...(ALL_CHARACTERS.dynamic || [])].forEach(createMini);
-    }
-
-    function renderTheaterMode(state) {
-        if (isDragging) return;
-        const dataToRender = isGm ? state.scenarioStates?.[state.currentScenario] : state.publicState;
-        if (!dataToRender || !dataToRender.scenario) return;
-
-        const scenarioUrl = `/images/${dataToRender.scenario}`;
-        if (!theaterBackgroundImage.src.includes(dataToRender.scenario)) {
-            const img = new Image();
-            img.onload = () => {
-                theaterBackgroundImage.src = img.src;
-                theaterWorldContainer.style.width = `${img.naturalWidth}px`;
-                theaterWorldContainer.style.height = `${img.naturalHeight}px`;
-                if (isGm) socket.emit('playerAction', { type: 'update_scenario_dims', width: img.naturalWidth, height: img.naturalHeight });
-            };
-            img.src = scenarioUrl;
-        }
-        
-        document.getElementById('theater-gm-panel').classList.toggle('hidden', !isGm);
-        document.getElementById('toggle-gm-panel-btn').classList.toggle('hidden', !isGm);
-        document.getElementById('theater-publish-btn').classList.toggle('hidden', !isGm || !dataToRender.isStaging);
-        
-        if (isGm) theaterGlobalScale.value = dataToRender.globalTokenScale || 1.0;
-        
-        theaterTokenContainer.innerHTML = '';
-        const fragment = document.createDocumentFragment();
-        (dataToRender.tokenOrder || []).forEach((tokenId, index) => {
-            const tokenData = dataToRender.tokens[tokenId];
-            if (!tokenData) return;
-            const tokenEl = document.createElement('img');
-            tokenEl.id = tokenId;
-            tokenEl.className = 'theater-token';
-            tokenEl.src = tokenData.img;
-            tokenEl.style.left = `${tokenData.x}px`;
-            tokenEl.style.top = `${tokenData.y}px`;
-            tokenEl.style.zIndex = index;
-            tokenEl.dataset.scale = tokenData.scale || 1.0;
-            tokenEl.dataset.flipped = String(!!tokenData.isFlipped);
-            tokenEl.title = tokenData.charName;
-            
-            if (isGm && tokenData.isHidden) {
-                tokenEl.classList.add('hidden-token');
-            }
-            
-            const globalTokenScale = dataToRender.globalTokenScale || 1.0;
-            const baseScale = parseFloat(tokenEl.dataset.scale);
-            const isFlipped = tokenEl.dataset.flipped === 'true';
-            tokenEl.style.transform = `scale(${baseScale * globalTokenScale}) ${isFlipped ? 'scaleX(-1)' : ''}`;
-            
-            if (isGm) {
-                if (selectedTokens.has(tokenId)) tokenEl.classList.add('selected');
-                tokenEl.addEventListener('mouseenter', () => hoveredTokenId = tokenId);
-                tokenEl.addEventListener('mouseleave', () => hoveredTokenId = null);
-            }
-            fragment.appendChild(tokenEl);
-        });
-        theaterTokenContainer.appendChild(fragment);
-    }
-    
-    function setupTheaterEventListeners() {
-        const viewport = theaterBackgroundViewport;
-        viewport.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return;
-            dragStartPos = { x: e.clientX, y: e.clientY };
-            if (isGm) {
-                const tokenElement = e.target.closest('.theater-token');
-                if (isGroupSelectMode && !tokenElement) {
-                    isSelectingBox = true;
-                    selectionBoxStartPos = { x: e.clientX, y: e.clientY };
-                    const gameScale = getGameScale(), viewportRect = viewport.getBoundingClientRect();
-                    const startX = (e.clientX - viewportRect.left) / gameScale, startY = (e.clientY - viewportRect.top) / gameScale;
-                    Object.assign(selectionBox.style, { left: `${startX}px`, top: `${startY}px`, width: '0px', height: '0px' });
-                    selectionBox.classList.remove('hidden');
-                    return;
-                }
-                if (tokenElement) {
-                    isDragging = true;
-                    if (!e.ctrlKey && !selectedTokens.has(tokenElement.id)) {
-                        selectedTokens.clear();
-                    }
-                    if (e.ctrlKey) {
-                        selectedTokens.has(tokenElement.id) ? selectedTokens.delete(tokenElement.id) : selectedTokens.add(tokenElement.id);
-                    } else {
-                        selectedTokens.add(tokenElement.id);
-                    }
-                    dragOffsets.clear();
-                    selectedTokens.forEach(id => {
-                        const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[id];
-                        if (tokenData) dragOffsets.set(id, { startX: tokenData.x, startY: tokenData.y });
-                    });
-                    renderTheaterMode(currentGameState);
-                } else if (!isGroupSelectMode) {
-                    selectedTokens.clear();
-                    renderTheaterMode(currentGameState);
-                    isPanning = true;
-                }
-            } else {
-                isPanning = true;
-            }
-        });
-        window.addEventListener('mousemove', (e) => {
-            if (isGm && isDragging) {
-                e.preventDefault();
-                requestAnimationFrame(() => {
-                    const gameScale = getGameScale();
-                    const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
-                    const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
-                    selectedTokens.forEach(id => {
-                        const tokenEl = document.getElementById(id);
-                        const initialPos = dragOffsets.get(id);
-                        if (tokenEl && initialPos) {
-                            tokenEl.style.left = `${initialPos.startX + deltaX}px`;
-                            tokenEl.style.top = `${initialPos.startY + deltaY}px`;
-                        }
-                    });
-                });
-            } else if (isGm && isSelectingBox) {
-                e.preventDefault();
-                const gameScale = getGameScale(), viewportRect = viewport.getBoundingClientRect();
-                const currentX = (e.clientX - viewportRect.left) / gameScale, currentY = (e.clientY - viewportRect.top) / gameScale;
-                const startX = (selectionBoxStartPos.x - viewportRect.left) / gameScale, startY = (selectionBoxStartPos.y - viewportRect.top) / gameScale;
-                Object.assign(selectionBox.style, { left: `${Math.min(currentX, startX)}px`, top: `${Math.min(currentY, startY)}px`, width: `${Math.abs(currentX - startX)}px`, height: `${Math.abs(currentY - startY)}px` });
-            } else if (isPanning) {
-                e.preventDefault();
-                viewport.scrollLeft -= e.movementX;
-                viewport.scrollTop -= e.movementY;
-            }
-        });
-        window.addEventListener('mouseup', (e) => {
-            if (isGm && isDragging) {
-                isDragging = false;
-                const gameScale = getGameScale();
-                const deltaX = (e.clientX - dragStartPos.x) / gameScale / localWorldScale;
-                const deltaY = (e.clientY - dragStartPos.y) / gameScale / localWorldScale;
-                const scenarioState = currentGameState.scenarioStates[currentGameState.currentScenario];
-                const scenarioWidth = scenarioState.scenarioWidth;
-                const scenarioHeight = scenarioState.scenarioHeight;
-
-                selectedTokens.forEach(id => {
-                    const initialPos = dragOffsets.get(id);
-                    if (initialPos) {
-                        const finalX = initialPos.startX + deltaX;
-                        const finalY = initialPos.startY + deltaY;
-                        const isHidden = scenarioWidth ? (finalX < 0 || finalX > scenarioWidth || finalY < 0 || finalY > scenarioHeight) : false;
-                        socket.emit('playerAction', { type: 'updateToken', token: { id, x: finalX, y: finalY, isHidden: isHidden } });
-                    }
-                });
-            } else if (isGm && isSelectingBox) {
-                const boxRect = selectionBox.getBoundingClientRect();
-                isSelectingBox = false;
-                selectionBox.classList.add('hidden');
-                if (!e.ctrlKey) selectedTokens.clear();
-                document.querySelectorAll('.theater-token').forEach(token => {
-                    const tokenRect = token.getBoundingClientRect();
-                    if (boxRect.left < tokenRect.right && boxRect.right > tokenRect.left && boxRect.top < tokenRect.bottom && boxRect.bottom > tokenRect.top) {
-                        if(e.ctrlKey) {
-                             selectedTokens.has(token.id) ? selectedTokens.delete(token.id) : selectedTokens.add(token.id);
-                        } else {
-                            selectedTokens.add(token.id);
-                        }
-                    }
-                });
-                renderTheaterMode(currentGameState);
-            }
-            isPanning = false;
-        });
-        viewport.addEventListener('drop', (e) => {
-            e.preventDefault(); 
-            if (!isGm) return;
-            try {
-                const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                const tokenWidth = 200, gameScale = getGameScale(), viewportRect = viewport.getBoundingClientRect();
-                const finalX = ((e.clientX - viewportRect.left) / gameScale + viewport.scrollLeft) / localWorldScale - (tokenWidth / 2);
-                const finalY = ((e.clientY - viewportRect.top) / gameScale + viewport.scrollTop) / localWorldScale - (tokenWidth / 2);
-                socket.emit('playerAction', { type: 'updateToken', token: { id: `token-${Date.now()}`, charName: data.charName, img: data.img, x: finalX, y: finalY, scale: 1.0, isFlipped: false, isHidden: false }});
-            } catch (error) { console.error("Drop error:", error); }
-        });
-        viewport.addEventListener('dragover', (e) => e.preventDefault());
-        viewport.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            if (isGm && hoveredTokenId && selectedTokens.has(hoveredTokenId)) {
-                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[hoveredTokenId];
-                if (tokenData) {
-                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.15 : 0.15); 
-                    selectedTokens.forEach(id => socket.emit('playerAction', { type: 'updateToken', token: { id, scale: Math.max(0.1, newScale) }}));
-                }
-            } else {
-                const zoomIntensity = 0.1, scrollDirection = e.deltaY < 0 ? 1 : -1; 
-                const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
-                const rect = viewport.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
-                const worldX = (mouseX + viewport.scrollLeft) / localWorldScale, worldY = (mouseY + viewport.scrollTop) / localWorldScale;
-                localWorldScale = newScale;
-                theaterWorldContainer.style.transform = `scale(${localWorldScale})`;
-                viewport.scrollLeft = worldX * localWorldScale - mouseX;
-                viewport.scrollTop = worldY * localWorldScale - mouseY;
-            }
-        }, { passive: false });
-        
-        theaterGlobalScale.addEventListener('input', (e) => {
-             if (isGm) socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
-        });
-    }
-    
-    function initializeGlobalKeyListeners() {
-        window.addEventListener('keydown', (e) => {
-            if (!currentGameState) return;
-
-            const focusedEl = document.activeElement;
-            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(focusedEl.tagName)) {
-                 if (e.key === 'Escape' && shopModal.classList.contains('active')) {
-                    toggleShop();
-                }
-                return;
-            }
-
-            if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape') {
-                cancelTargeting();
-                return;
-            }
-            
-            if (e.key.toLowerCase() === 'p' && isGm && currentGameState.mode === 'adventure') {
-                e.preventDefault();
-                showCheatModal();
-            }
-
-            if (e.key.toLowerCase() === 'm' && isGm) {
-                e.preventDefault();
-                isGmDebugModeActive = !isGmDebugModeActive;
-                showInfoModal("Modo Depuração", `Modo de depuração de combate ${isGmDebugModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
-            }
-
-            if (e.key.toLowerCase() === 't') {
-                e.preventDefault();
-                coordsModeActive = !coordsModeActive;
-                coordsDisplay.classList.toggle('hidden', !coordsModeActive);
-            }
-            
-            if (isGm && currentGameState.mode === 'adventure' && e.key.toLowerCase() === 'j') {
-                e.preventDefault();
-                isFreeMoveModeActive = !isFreeMoveModeActive;
-                makeFightersDraggable(isFreeMoveModeActive);
-                showInfoModal("Modo de Movimento", `Modo de movimento livre ${isFreeMoveModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
-            }
-            
-            if (currentGameState.mode === 'theater' && e.key.toLowerCase() === 'i') {
-                e.preventDefault();
-                toggleShop();
-            }
-
-            if (currentGameState.mode !== 'theater' || !isGm) return;
-            
-            if(e.key.toLowerCase() === 'g') {
-                e.preventDefault();
-                isGroupSelectMode = !isGroupSelectMode;
-                theaterBackgroundViewport.classList.toggle('group-select-mode', isGroupSelectMode);
-                if (!isGroupSelectMode) {
-                    isSelectingBox = false;
-                    selectionBox.classList.add('hidden');
-                }
-            }
-
-            const targetId = hoveredTokenId || (selectedTokens.size === 1 ? selectedTokens.values().next().value : null);
-            if (e.key.toLowerCase() === 'f' && targetId) {
-                e.preventDefault();
-                const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[targetId];
-                if (tokenData) socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, isFlipped: !tokenData.isFlipped } });
-            } else if (e.key.toLowerCase() === 'o' && targetId) {
-                e.preventDefault();
-                socket.emit('playerAction', { type: 'updateToken', token: { id: targetId, scale: 1.0 } });
-            } else if (e.key === 'Delete' && selectedTokens.size > 0) {
-                e.preventDefault();
-                socket.emit('playerAction', { type: 'updateToken', token: { remove: true, ids: Array.from(selectedTokens) } });
-                selectedTokens.clear();
-            } else if (selectedTokens.size === 1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                e.preventDefault();
-                const tokenId = selectedTokens.values().next().value;
-                const currentOrder = [...currentGameState.scenarioStates[currentGameState.currentScenario].tokenOrder];
-                const currentIndex = currentOrder.indexOf(tokenId);
-                
-                if (e.key === 'ArrowUp' && currentIndex < currentOrder.length - 1) {
-                    [currentOrder[currentIndex], currentOrder[currentIndex + 1]] = [currentOrder[currentIndex + 1], currentOrder[currentIndex]];
-                    socket.emit('playerAction', { type: 'updateTokenOrder', order: currentOrder });
-                } else if (e.key === 'ArrowDown' && currentIndex > 0) {
-                    [currentOrder[currentIndex], currentOrder[currentIndex - 1]] = [currentOrder[currentIndex - 1], currentOrder[currentIndex]];
-                    socket.emit('playerAction', { type: 'updateTokenOrder', order: currentOrder });
-                }
-            }
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            if (!coordsModeActive) return;
-            const gameWrapperRect = gameWrapper.getBoundingClientRect();
-            const gameScale = getGameScale();
-            const mouseX = e.clientX;
-            const mouseY = e.clientY;
-            const gameX = Math.round((mouseX - gameWrapperRect.left) / gameScale);
-            const gameY = Math.round((mouseY - gameWrapperRect.top) / gameScale);
-            coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
-        });
-    }
-    
-    function showScenarioSelectionModal(){
-        let contentHtml = '<div class="category-tabs">';
-        const categories = Object.keys(ALL_SCENARIOS);
-        categories.forEach((category, index) => {
-            contentHtml += `<button class="category-tab-btn ${index === 0 ? "active" : ""}" data-category="${category}">${category.replace(/_/g, " ")}</button>`;
-        });
-        contentHtml += '</div>';
-    
-        categories.forEach((category, index) => {
-            contentHtml += `<div class="scenarios-grid ${index === 0 ? "active" : ""}" id="grid-${category}">`;
-            ALL_SCENARIOS[category].forEach(path => {
-                const name = path.split('/').pop().replace('.png', '').replace('.jpg', '');
-                contentHtml += `<div class="scenario-card" data-path="${path}"><img src="images/mapas/${path}" alt="${name}"><div class="scenario-name">${name}</div></div>`;
-            });
-            contentHtml += '</div>';
-        });
-    
-        showCustomModal("Mudar Cenário", contentHtml, []);
-    
-        document.querySelectorAll(".category-tab-btn").forEach(btn => {
-            btn.addEventListener("click", () => {
-                document.querySelectorAll(".category-tab-btn, .scenarios-grid").forEach(el => el.classList.remove("active"));
-                btn.classList.add("active");
-                document.getElementById(`grid-${btn.dataset.category}`).classList.add("active");
-            });
-        });
-        document.querySelectorAll(".scenario-card").forEach(card => {
-            card.addEventListener("click", () => {
-                const path = card.dataset.path;
-                socket.emit("playerAction", { type: 'changeScenario', scenario: path });
-                modal.classList.add("hidden");
-            });
-        });
-    }
-    
-    // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
-    function initializeCharacterSheet() {
-        stagedCharacterSheet.spells = []; 
-        stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
-        stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
-
-        const raceSelect = document.getElementById('sheet-race-select');
-        raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(race => `<option value="${race}">${race}</option>`).join('');
-
-        const createEquipmentOptions = (type) => {
-            return Object.entries(GAME_RULES[type])
-                .map(([name, data]) => `<option value="${name}">${name} (${data.cost} moedas)</option>`)
-                .join('');
-        };
-
-        const weapon1Select = document.getElementById('sheet-weapon1-type');
-        const weapon2Select = document.getElementById('sheet-weapon2-type');
-        weapon1Select.innerHTML = createEquipmentOptions('weapons');
-        weapon2Select.innerHTML = createEquipmentOptions('weapons');
-
-        document.getElementById('sheet-armor-type').innerHTML = createEquipmentOptions('armors');
-        document.getElementById('sheet-shield-type').innerHTML = createEquipmentOptions('shields');
-
-        document.querySelectorAll('.number-input-wrapper input').forEach(input => input.readOnly = true);
-        
-        document.querySelectorAll('.arrow-btn').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const wrapper = e.target.closest('.number-input-wrapper');
-                const input = wrapper.querySelector('input');
-                let value = parseInt(input.value, 10);
-                if (e.target.classList.contains('up-arrow')) {
-                    if (e.target.disabled) return;
-                    value++;
-                } else {
-                    value--;
-                }
-                const min = input.min !== '' ? parseInt(input.min, 10) : -Infinity;
-                const max = input.max !== '' ? parseInt(input.max, 10) : Infinity;
-                input.value = Math.max(min, Math.min(max, value));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-        });
-        
-        updateCharacterSheet();
-    }
-    
-    function updateCharacterSheet(loadedData = null) {
-        if (!GAME_RULES.races) return; 
-        
-        document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
-        
-        const weapon1Select = document.getElementById('sheet-weapon1-type');
-        const weapon2Select = document.getElementById('sheet-weapon2-type');
-        const shieldSelect = document.getElementById('sheet-shield-type');
-        const armorSelect = document.getElementById('sheet-armor-type');
-        
-        const selectedRace = loadedData ? loadedData.race : document.getElementById('sheet-race-select').value;
-        const raceData = GAME_RULES.races[selectedRace];
-        const baseAttributes = loadedData ? loadedData.baseAttributes : {
-            forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0, agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
-            protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0, constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
-            inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0, mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
-        };
-        const elements = loadedData ? loadedData.elements : {
-            fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0, agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
-            terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0, vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
-            luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0, escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
-        };
-        
-        let finalAttributes = { ...baseAttributes };
-        if (raceData && raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
-        if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
-        
-        const canWield2HInOneHand = finalAttributes.forca >= 4;
-
-        let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
-        let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
-
-        if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-            if (weapon2Select.value !== 'Desarmado') {
-                weapon2Select.value = 'Desarmado';
-                stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
-            }
-            if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
-        }
-        if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
-            if (weapon1Select.value !== 'Desarmado') {
-                weapon1Select.value = 'Desarmado';
-                stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
-            }
-            if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
-        }
-
-        if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
-            shieldSelect.value = 'Nenhum';
-        }
-        
-        const weapon1Type = weapon1Select.value;
-        const weapon2Type = weapon2Select.value;
-        const shieldType = shieldSelect.value;
-        const armorType = armorSelect.value;
-        weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
-        weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
-        let armorData = GAME_RULES.armors[armorType] || {};
-        let shieldData = GAME_RULES.shields[shieldType] || {};
-
-        weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
-        shieldSelect.disabled = weapon2Type !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
-
-        const imgPath1 = stagedCharacterSheet.weapon1.img;
-        document.getElementById('sheet-weapon1-image').style.backgroundImage = imgPath1 ? `url("${imgPath1}")` : 'none';
-        const imgPath2 = stagedCharacterSheet.weapon2.img;
-        document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
-
-        const armorImgDiv = document.getElementById('sheet-armor-image');
-        const armorImgName = armorType === 'Mediana' ? 'Armadura Mediana' : `Armadura ${armorType}`;
-        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorImgName}.png")`.replace(/ /g, '%20') : 'none';
-        
-        const shieldImgDiv = document.getElementById('sheet-shield-image');
-        const shieldImgName = shieldType === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldType}`;
-        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldImgName}.png")`.replace(/ /g, '%20') : 'none';
-
-
-        let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
-        if (cost > 200 && event && event.target && event.type === 'change') {
-            alert("Dinheiro insuficiente!");
-            const changedElement = event.target;
-            changedElement.value = (changedElement.id.includes('weapon')) ? "Desarmado" : (changedElement.id.includes('armor') ? "Nenhuma" : "Nenhum");
-            return updateCharacterSheet();
-        }
-        
-        document.getElementById('sheet-money-copper').textContent = 200 - cost;
-        
-        let maxAttrPoints = 5 + (raceData.bon?.escolha || 0);
-        const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
-        const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
-        document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
-        document.querySelectorAll('#attribute-points-header ~ .attributes-grid .up-arrow').forEach(btn => btn.disabled = attrPointsRemaining <= 0);
-
-        const maxElemPoints = 2;
-        const totalElemPoints = Object.values(elements).reduce((sum, val) => sum + val, 0);
-        const elemPointsRemaining = maxElemPoints - totalElemPoints;
-        document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
-        document.querySelectorAll('.elements-grid .up-arrow').forEach(btn => btn.disabled = elemPointsRemaining <= 0);
-
-        let infoText = '';
-        if ((weapon1Data.hand === 2 || weapon2Data.hand === 2) && !canWield2HInOneHand) {
-            infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
-        }
-
-        let bta = finalAttributes.agilidade;
-        let weaponBtaMod = weapon1Data.bta || 0;
-        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-             weaponBtaMod = Math.min(weapon1Data.bta || 0, weapon2Data.bta || 0);
-        }
-        bta += weaponBtaMod;
-        bta += (armorData.esq_mod || 0);
-        bta += (shieldData.esq_mod || 0);
-        document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
-        
-        let btdAttribute = finalAttributes.forca;
-        if ((weapon1Type !== 'Desarmado' && stagedCharacterSheet.weapon1.isRanged) || 
-            (weapon2Type !== 'Desarmado' && stagedCharacterSheet.weapon2.isRanged)) {
-            btdAttribute = finalAttributes.agilidade;
-        }
-
-        let btd = btdAttribute + (weapon1Data.btd || 0);
-        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
-        document.getElementById('sheet-btd').textContent = btd >= 0 ? `+${btd}` : btd;
-
-        let btm = finalAttributes.inteligencia + (weapon1Data.btm || 0);
-        document.getElementById('sheet-btm').textContent = btm >= 0 ? `+${btm}` : btm;
-
-        let esq = 10 + finalAttributes.agilidade;
-        let weaponEsqMod = weapon1Data.esq_mod || 0;
-        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
-            weaponEsqMod = Math.min(weapon1Data.esq_mod || 0, weapon2Data.esq_mod || 0);
-        }
-        esq += weaponEsqMod;
-        esq += (armorData.esq_mod || 0);
-        esq += (shieldData.esq_mod || 0);
-        document.getElementById('sheet-esq').textContent = esq;
-        
-        finalAttributes.protecao += (armorData.protection || 0);
-        finalAttributes.protecao += (shieldData.protection_bonus || 0);
-        
-        const hpMax = 20 + (finalAttributes.constituicao * 5);
-        const mahouMax = 10 + (finalAttributes.mente * 5);
-        document.getElementById('sheet-hp-max').textContent = hpMax;
-        document.getElementById('sheet-hp-current').textContent = hpMax;
-        document.getElementById('sheet-mahou-max').textContent = mahouMax;
-        document.getElementById('sheet-mahou-current').textContent = mahouMax;
-        
-        Object.keys(finalAttributes).forEach(attr => { document.getElementById(`sheet-final-attr-${attr}`).textContent = finalAttributes[attr]; });
-        document.getElementById('race-info-box').textContent = raceData.text;
-        document.getElementById('equipment-info-text').textContent = infoText;
-        
-        Object.keys(elements).forEach(elem => {
-            const display = document.getElementById(`advanced-${elem}`);
-            display.textContent = elements[elem] >= 2 ? GAME_RULES.advancedElements[elem] : '';
-        });
-        
-        const spellGrid = document.getElementById('spell-selection-grid');
-        spellGrid.innerHTML = '';
-        const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
-        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
-        const availableSpells = allSpells.filter(s => availableElements.includes(s.element));
-        
-        availableSpells.forEach(spell => {
-            const card = document.createElement('div');
-            card.className = 'spell-card';
-            card.dataset.spellName = spell.name;
-            const spellType = spell.inCombat ? '(Combate)' : '(Utilitário)';
-            card.innerHTML = `<h4>${spell.name} <small>${spellType}</small></h4><p>${spell.description}</p>`;
-            if (stagedCharacterSheet.spells.includes(spell.name)) {
-                card.classList.add('selected');
-            }
-            card.addEventListener('click', () => {
-                if (stagedCharacterSheet.spells.includes(spell.name)) {
-                    stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(s => s !== spell.name);
-                } else if (stagedCharacterSheet.spells.length < 2) {
-                    stagedCharacterSheet.spells.push(spell.name);
-                } else {
-                    alert("Você pode escolher no máximo 2 magias iniciais.");
-                }
-                updateCharacterSheet();
-            });
-            spellGrid.appendChild(card);
-        });
-        
-        document.getElementById('sheet-spells-selected-count').textContent = stagedCharacterSheet.spells.length;
-    }
-
-    function showWeaponImageSelectionModal(weaponSlot) {
-        const weaponType = document.getElementById(`sheet-${weaponSlot}-type`).value;
-        const images = ALL_WEAPON_IMAGES[weaponType];
-        
-        if (!images || (images.melee.length === 0 && images.ranged.length === 0)) {
-            stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-            updateCharacterSheet();
-            return;
-        }
-
-        const modalBody = document.getElementById('weapon-image-modal-body');
-        modalBody.innerHTML = '';
-
-        const createSection = (title, imageList, isRanged) => {
-            if (imageList.length > 0) {
-                const categoryDiv = document.createElement('div');
-                categoryDiv.className = 'weapon-image-category';
-                categoryDiv.innerHTML = `<h4>${title}</h4>`;
-                
-                const grid = document.createElement('div');
-                grid.className = 'weapon-image-grid';
-                
-                imageList.forEach(imgPath => {
-                    const card = document.createElement('div');
-                    card.className = 'weapon-image-card';
-                    card.innerHTML = `<img src="${imgPath}" alt="weapon image">`;
-                    card.onclick = () => {
-                        stagedCharacterSheet[weaponSlot] = { img: imgPath, isRanged: isRanged };
-                        weaponImageModal.classList.add('hidden');
-                        updateCharacterSheet();
-                    };
-                    grid.appendChild(card);
-                });
-                
-                categoryDiv.appendChild(grid);
-                modalBody.appendChild(categoryDiv);
-            }
-        };
-
-        createSection('Armas Corpo a Corpo', images.melee, false);
-        createSection('Armas de Longa Distância', images.ranged, true);
-        
-        weaponImageModal.classList.remove('hidden');
-    }
-
-    function getCharacterSheetData(context) {
-        const isCreation = context === 'creation';
-        const prefix = isCreation ? 'sheet' : 'ingame-sheet';
-        const myFighter = isCreation ? null : getFighter(currentGameState, myPlayerKey);
-
-        const finalAttributes = {};
-        const attrSelector = isCreation ? '#character-sheet-screen .final-attributes .attr-item' : '#ingame-sheet-attributes .attr-item';
-        document.querySelectorAll(attrSelector).forEach(item => {
-            const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const value = parseInt(item.querySelector('span').textContent, 10);
-            finalAttributes[label] = value;
-        });
-        
-        const weapon1Select = document.getElementById(`${prefix}-weapon1-type`);
-        const weapon2Select = document.getElementById(`${prefix}-weapon2-type`);
-        const weapon1Type = weapon1Select.value;
-        const weapon2Type = weapon2Select.value;
-
-        let weapon1, weapon2;
-
-        if (isCreation) {
-            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type), type: weapon1Type, ...stagedCharacterSheet.weapon1 };
-            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type), type: weapon2Type, ...stagedCharacterSheet.weapon2 };
-        } else {
-            const w1Item = myFighter.inventory[weapon1Type] || { baseType: 'Desarmado', img: null, isRanged: false };
-            const w2Item = myFighter.inventory[weapon2Type] || { baseType: 'Desarmado', img: null, isRanged: false };
-            weapon1 = { name: weapon1Type, type: w1Item.baseType, img: w1Item.img, isRanged: w1Item.isRanged };
-            weapon2 = { name: weapon2Type, type: w2Item.baseType, img: w2Item.img, isRanged: w2Item.isRanged };
-        }
-
-        const data = {
-            name: isCreation ? document.getElementById('sheet-name').value : myFighter.sheet.name,
-            tokenName: isCreation ? stagedCharacterSheet.tokenName : myFighter.sheet.tokenName,
-            tokenImg: isCreation ? stagedCharacterSheet.tokenImg : myFighter.sheet.tokenImg,
-            class: isCreation ? document.getElementById('sheet-class').value : myFighter.sheet.class,
-            race: isCreation ? document.getElementById('sheet-race-select').value : myFighter.sheet.race,
-            money: parseInt(document.getElementById(isCreation ? 'sheet-money-copper' : 'ingame-sheet-money')?.textContent || '0', 10),
-            level: myFighter?.level || 1,
-            xp: myFighter?.xp || 0,
-            xpNeeded: myFighter?.xpNeeded || 100,
-            baseAttributes: {},
-            finalAttributes: finalAttributes,
-            elements: {},
-            equipment: {
-                weapon1: weapon1,
-                weapon2: weapon2,
-                armor: document.getElementById(`${prefix}-armor-type`).value,
-                shield: document.getElementById(`${prefix}-shield-type`).value,
-            },
-            spells: isCreation ? [...stagedCharacterSheet.spells] : [...myFighter.sheet.spells]
-        };
-
-        if (isCreation) {
-            ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente'].forEach(attr => {
-                data.baseAttributes[attr] = parseInt(document.getElementById(`sheet-base-attr-${attr}`).value) || 0;
-            });
-            ['fogo', 'agua', 'terra', 'vento', 'luz', 'escuridao'].forEach(elem => {
-                data.elements[elem] = parseInt(document.getElementById(`sheet-elem-${elem}`).value) || 0;
-            });
-        } else {
-            data.baseAttributes = myFighter.sheet.baseAttributes;
-            data.elements = myFighter.sheet.elements;
-            data.inventory = myFighter.inventory;
-            data.ammunition = myFighter.ammunition;
-            data.hp = myFighter.hp;
-            data.mahou = myFighter.mahou;
-        }
-
-        return data;
-    }
-    
-    function encryptData(data) {
-        try {
-            const jsonString = JSON.stringify(data);
-            return btoa(unescape(encodeURIComponent(jsonString)));
-        } catch (e) {
-            console.error("Erro ao codificar dados:", e);
-            return null;
-        }
-    }
-    
-    function decryptData(encodedData) {
-        try {
-            const jsonString = decodeURIComponent(escape(atob(encodedData)));
-            return JSON.parse(jsonString);
-        } catch (e) {
-            console.error("Erro ao decodificar dados:", e);
-            return null;
-        }
-    }
-
-    function handleSaveCharacter(context) {
-        const sheetData = getCharacterSheetData(context);
-        const characterName = sheetData.name || sheetData.tokenName;
-        if (!characterName) {
-            alert("Por favor, dê um nome ao seu personagem antes de salvar.");
-            return;
-        }
-        const encryptedData = encryptData(sheetData);
-        if (!encryptedData) return;
-
-        const blob = new Blob([encryptedData], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${characterName.replace(/\s+/g, '_')}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-    
-    function handleLoadCharacter(event, context) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const decryptedData = decryptData(e.target.result);
-                if (!decryptedData) throw new Error("Arquivo inválido ou corrompido.");
-                
-                if (context === 'creation') {
-                    initializeCharacterSheet();
-                    if (!GAME_RULES.races[decryptedData.race]) {
-                        throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida nas regras atuais do jogo.`);
-                    }
-                    stagedCharacterSheet.tokenName = decryptedData.tokenName || '';
-                    stagedCharacterSheet.tokenImg = decryptedData.tokenImg || '';
-                    stagedCharacterSheet.spells = decryptedData.spells || [];
-                    stagedCharacterSheet.weapon1 = decryptedData.equipment?.weapon1 || { img: null, isRanged: false, type: 'Desarmado' };
-                    stagedCharacterSheet.weapon2 = decryptedData.equipment?.weapon2 || { img: null, isRanged: false, type: 'Desarmado' };
-                    
-                    document.getElementById('sheet-name').value = decryptedData.name || '';
-                    document.getElementById('sheet-class').value = decryptedData.class || '';
-                    document.getElementById('sheet-race-select').value = decryptedData.race || 'Humano';
-
-                    Object.keys(decryptedData.baseAttributes || {}).forEach(attr => {
-                        const input = document.getElementById(`sheet-base-attr-${attr}`);
-                        if (input) input.value = decryptedData.baseAttributes[attr];
-                    });
-                    Object.keys(decryptedData.elements || {}).forEach(elem => {
-                         const input = document.getElementById(`sheet-elem-${elem}`);
-                         if (input) input.value = decryptedData.elements[elem];
-                    });
-                    
-                    const w1 = stagedCharacterSheet.weapon1;
-                    const w2 = stagedCharacterSheet.weapon2;
-                    document.getElementById('sheet-weapon1-name').value = (w1.name && w1.name !== w1.type) ? w1.name : '';
-                    document.getElementById('sheet-weapon1-type').value = w1.type || 'Desarmado';
-                    document.getElementById('sheet-weapon2-name').value = (w2.name && w2.name !== w2.type) ? w2.name : '';
-                    document.getElementById('sheet-weapon2-type').value = w2.type || 'Desarmado';
-                    document.getElementById('sheet-armor-type').value = decryptedData.equipment?.armor || 'Nenhuma';
-                    document.getElementById('sheet-shield-type').value = decryptedData.equipment?.shield || 'Nenhum';
-
-                    updateCharacterSheet();
-                    showScreen(document.getElementById('character-sheet-screen'));
-                } else if (context === 'ingame') {
-                    socket.emit('playerAction', {
-                        type: 'playerLoadsCharacterIngame',
-                        characterData: decryptedData
-                    });
-                    showInfoModal("Sucesso", "Personagem carregado! A ficha será atualizada em breve.");
-                    toggleIngameSheet(); 
-                }
-            } catch (error) {
-                alert(`Erro ao carregar a ficha: ${error.message}`);
-            } finally {
-                event.target.value = '';
-            }
-        };
-        reader.readAsText(file);
-    }
-
-    function handleConfirmCharacter() {
-        if (stagedCharacterSheet.spells.length > 2) {
-            alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
-            return;
-        }
-
-        const attrPointsRemaining = parseInt(document.getElementById('sheet-points-attr-remaining').textContent, 10);
-        const elemPointsRemaining = parseInt(document.getElementById('sheet-points-elem-remaining').textContent, 10);
-
-        let warnings = [];
-        if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
-        if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
-        if(stagedCharacterSheet.spells.length === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
-
-        const sendData = () => {
-            const finalSheet = getCharacterSheetData('creation');
-
-            socket.emit('playerAction', { 
-                type: 'playerFinalizesCharacter', 
-                characterData: finalSheet,
-                weaponImages: {
-                    weapon1: stagedCharacterSheet.weapon1.img,
-                    weapon2: stagedCharacterSheet.weapon2.img
-                },
-                isRanged: {
-                    weapon1: stagedCharacterSheet.weapon1.isRanged,
-                    weapon2: stagedCharacterSheet.weapon2.isRanged
-                }
-            });
-            showScreen(document.getElementById('player-waiting-screen'));
-            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
-        };
-
-        if(warnings.length > 0) {
-            let warningText = "Os seguintes itens não foram completados:<br><ul>" + warnings.map(w => `<li>${w}</li>`).join('') + "</ul>Deseja continuar mesmo assim?";
-            showCustomModal("Aviso", warningText, [
-                { text: 'Sim, continuar', closes: true, onClick: sendData },
-                { text: 'Não, voltar', closes: true, className: 'btn-danger' }
-            ]);
-        } else {
-            sendData();
-        }
-    }
-    
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
     function toggleIngameSheet() {
         const modal = document.getElementById('ingame-sheet-modal');
@@ -2217,6 +1243,142 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             handleEquipmentChangeConfirmation();
         }
+    }
+    
+    function renderIngameInventory(fighter) {
+        if (!fighter || !fighter.sheet) return;
+    
+        const inventory = fighter.inventory || {};
+        const inventoryGrid = document.getElementById('inventory-grid');
+        inventoryGrid.innerHTML = '';
+        const MAX_SLOTS = 24;
+    
+        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
+        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
+        const armor = document.getElementById('ingame-sheet-armor-type').value;
+        const shield = document.getElementById('ingame-sheet-shield-type').value;
+        const equippedItemNames = [weapon1, weapon2, armor, shield];
+    
+        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
+    
+        const isAdventureMode = currentGameState.mode === 'adventure';
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
+        const canInteract = !isAdventureMode || isMyTurn;
+    
+        itemsToDisplay.forEach(item => {
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            
+            const itemDetails = ALL_ITEMS[item.name];
+            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
+            
+            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
+            if (imgPath) {
+                slot.style.backgroundImage = `url("${imgPath}")`;
+            } else {
+                 slot.style.backgroundImage = 'none';
+            }
+    
+            if (item.quantity > 1) {
+                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
+            }
+            
+            if (canInteract) {
+                slot.classList.add('item');
+                slot.addEventListener('click', () => showItemContextMenu(item));
+            } else {
+                slot.style.cursor = 'not-allowed';
+            }
+    
+            inventoryGrid.appendChild(slot);
+        });
+    
+        const filledSlots = itemsToDisplay.length;
+        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
+            const emptySlot = document.createElement('div');
+            emptySlot.className = 'inventory-slot';
+            inventoryGrid.appendChild(emptySlot);
+        }
+    }
+
+    function showItemContextMenu(item) {
+        const itemDetails = ALL_ITEMS[item.name] || {};
+        const effectiveDetails = {
+            ...itemDetails,
+            img: item.img || itemDetails.img,
+            description: itemDetails.description || `Tipo: ${item.type}`,
+            isUsable: itemDetails.isUsable || false
+        };
+    
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        if (!myFighter) return;
+    
+        let content = `
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
+                <div>
+                    <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
+                    <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
+                </div>
+            </div>`;
+    
+        const buttons = [];
+    
+        if (effectiveDetails.isUsable) {
+            const useItemAction = () => {
+                if (currentGameState.mode === 'adventure') {
+                    if (myFighter.pa < (effectiveDetails.costPA || 3)) {
+                        showInfoModal("Ação Bloqueada", `Você não tem ${effectiveDetails.costPA || 3} Pontos de Ação (PA) suficientes para usar este item.`);
+                        return;
+                    }
+                    showCustomModal("Confirmar Ação", `Usar ${item.name} custará ${effectiveDetails.costPA || 3} Pontos de Ação. Deseja continuar?`, [
+                        { text: "Sim, Usar", closes: true, onClick: () => {
+                            socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                            ingameSheetModal.classList.add('hidden');
+                        }},
+                        { text: "Não", closes: true, className: "btn-secondary" }
+                    ]);
+                } else {
+                    // Uso fora de combate não requer confirmação de PA
+                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                    ingameSheetModal.classList.add('hidden');
+                }
+            };
+    
+            buttons.push({
+                text: 'Usar',
+                closes: true, // Fecha o modal de contexto, mas pode abrir o de confirmação
+                onClick: useItemAction
+            });
+        }
+        
+        buttons.push({
+            text: 'Descartar',
+            closes: false, 
+            className: 'btn-danger',
+            onClick: () => {
+                showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
+                    {
+                        text: 'Sim, Descartar',
+                        closes: true,
+                        className: 'btn-danger',
+                        onClick: () => {
+                             socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
+                             const fighter = getFighter(currentGameState, myPlayerKey);
+                             if(fighter && fighter.sheet.inventory[item.name]) {
+                                delete fighter.sheet.inventory[item.name];
+                                renderIngameInventory(fighter);
+                             }
+                        }
+                    },
+                    { text: 'Não', closes: true, className: 'btn-secondary' }
+                ]);
+            }
+        });
+    
+        buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
+        
+        showCustomModal(item.name, content, buttons);
     }
     
     function populateIngameSheet(fighter) {
