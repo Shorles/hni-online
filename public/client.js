@@ -1118,92 +1118,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return container;
     }
     
-    // AJUSTE 2: Exibir custo de PA nos botões
-    function renderActionButtons(state) {
-        actionButtonsWrapper.innerHTML = '';
-        if (state.phase !== 'battle' || !!state.winner) return;
-        const activeFighter = getFighter(state, state.activeCharacterKey);
-        if (!activeFighter) return;
-
-        const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
-        const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
-        
-        const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
-        const finalCanControl = canControl && !isStunned;
-        
-        let attackButtonAdded = false;
-
-        const createButton = (text, onClick, disabled = false, className = 'action-btn', ammoCount = null) => {
-            const btn = document.createElement('button');
-            btn.className = className;
-            btn.textContent = text;
-            btn.disabled = disabled;
-            btn.onclick = onClick;
-            if (ammoCount !== null && ammoCount !== undefined) {
-                const ammoEl = document.createElement('span');
-                ammoEl.className = 'attack-ammo-counter';
-                ammoEl.textContent = ammoCount;
-                btn.appendChild(ammoEl);
-                if (ammoCount <= 0) btn.disabled = true;
-            }
-            return btn;
-        };
-
-        const createAttackButton = (weaponKey) => {
-            const weapon = activeFighter.sheet.equipment[weaponKey];
-            if (weapon && weapon.type !== 'Desarmado') {
-                const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
-                const btn = createButton(
-                    `Atacar com ${weapon.name} (2 PA)`,
-                    () => startAttackSequence(weaponKey),
-                    !finalCanControl,
-                    'action-btn',
-                    ammo
-                );
-                actionButtonsWrapper.appendChild(btn);
-                attackButtonAdded = true;
-            }
-        };
-
-        createAttackButton('weapon1');
-        createAttackButton('weapon2');
-        
-        if (!attackButtonAdded) {
-            const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
-            actionButtonsWrapper.appendChild(btn);
-        }
-
-        const weapon1 = activeFighter.sheet.equipment.weapon1;
-        const weapon2 = activeFighter.sheet.equipment.weapon2;
-        const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
-        
-        if (isDualWielding) {
-            let ammo1 = weapon1.isRanged ? activeFighter.ammunition?.['weapon1'] : Infinity;
-            let ammo2 = weapon2.isRanged ? activeFighter.ammunition?.['weapon2'] : Infinity;
-            let dualDisabled = ammo1 <= 0 || ammo2 <= 0;
-
-            const btn = createButton('Ataque Duplo (3 PA)', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
-            actionButtonsWrapper.appendChild(btn);
-        }
-
-        const fighterSpells = activeFighter.sheet?.spells || [];
-        if (fighterSpells.length > 0) {
-            fighterSpells.forEach(spellName => {
-                const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
-                const spell = allSpells.find(s => s.name === spellName);
-                if (spell && spell.inCombat) {
-                    const paCost = spell.costPA || 2;
-                    const spellBtn = createButton(`${spell.name} (${paCost} PA)`, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
-                    spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
-                    actionButtonsWrapper.appendChild(spellBtn);
-                }
-            });
-        }
-        
-        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !finalCanControl, 'action-btn flee-btn'));
-        actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !finalCanControl, 'end-turn-btn'));
-    }
-
     function startAttackSequence(weaponChoice) {
         const attacker = getFighter(currentGameState, currentGameState.activeCharacterKey);
         if (!attacker) return;
@@ -1638,11 +1552,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && hoveredTokenId && selectedTokens.has(hoveredTokenId)) {
                 const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[hoveredTokenId];
                 if (tokenData) {
-                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.15 : 0.15); // Aumentado para 0.15
+                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.15 : 0.15); 
                     selectedTokens.forEach(id => socket.emit('playerAction', { type: 'updateToken', token: { id, scale: Math.max(0.1, newScale) }}));
                 }
             } else {
-                const zoomIntensity = 0.1, scrollDirection = e.deltaY < 0 ? 1 : -1; // Aumentado para 0.1
+                const zoomIntensity = 0.1, scrollDirection = e.deltaY < 0 ? 1 : -1; 
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
                 const rect = viewport.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
@@ -2290,88 +2204,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-    // AJUSTE 1: Lógica de confirmação de uso de item
-    function showItemContextMenu(item) {
-        const itemDetails = ALL_ITEMS[item.name] || {};
-        const effectiveDetails = {
-            ...itemDetails,
-            img: item.img || itemDetails.img,
-            description: itemDetails.description || `Tipo: ${item.type}`,
-            isUsable: itemDetails.isUsable || false
-        };
-    
-        const myFighter = getFighter(currentGameState, myPlayerKey);
-        if (!myFighter) return;
-    
-        let content = `
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
-                <div>
-                    <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
-                    <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
-                </div>
-            </div>`;
-    
-        const buttons = [];
-    
-        if (effectiveDetails.isUsable) {
-            const useItemAction = () => {
-                if (currentGameState.mode === 'adventure') {
-                    if (myFighter.pa < (effectiveDetails.costPA || 3)) {
-                        showInfoModal("Ação Bloqueada", `Você não tem ${effectiveDetails.costPA || 3} Pontos de Ação (PA) suficientes para usar este item.`);
-                        return;
-                    }
-                    showCustomModal("Confirmar Ação", `Usar ${item.name} custará ${effectiveDetails.costPA || 3} Pontos de Ação. Deseja continuar?`, [
-                        { text: "Sim, Usar", closes: true, onClick: () => {
-                            socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                            ingameSheetModal.classList.add('hidden');
-                        }},
-                        { text: "Não", closes: true, className: "btn-secondary" }
-                    ]);
-                } else {
-                    // Uso fora de combate não requer confirmação de PA
-                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                    ingameSheetModal.classList.add('hidden');
-                }
-            };
-    
-            buttons.push({
-                text: 'Usar',
-                closes: true, // Fecha o modal de contexto, mas pode abrir o de confirmação
-                onClick: useItemAction
-            });
-        }
-        
-        buttons.push({
-            text: 'Descartar',
-            closes: false, 
-            className: 'btn-danger',
-            onClick: () => {
-                showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
-                    {
-                        text: 'Sim, Descartar',
-                        closes: true,
-                        className: 'btn-danger',
-                        onClick: () => {
-                             socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
-                             const fighter = getFighter(currentGameState, myPlayerKey);
-                             if(fighter && fighter.sheet.inventory[item.name]) {
-                                delete fighter.sheet.inventory[item.name];
-                                renderIngameInventory(fighter);
-                             }
-                        }
-                    },
-                    { text: 'Não', closes: true, className: 'btn-secondary' }
-                ]);
-            }
-        });
-    
-        buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
-        
-        showCustomModal(item.name, content, buttons);
-    }
-
-
     function toggleIngameSheet() {
         const modal = document.getElementById('ingame-sheet-modal');
         if (!modal || !currentGameState) return;
@@ -2388,12 +2220,69 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // CORREÇÃO: Movi a função renderIngameInventory para fora de toggleIngameSheet, para o escopo correto.
+    function renderIngameInventory(fighter) {
+        if (!fighter || !fighter.sheet) return;
+    
+        const inventory = fighter.inventory || {};
+        const inventoryGrid = document.getElementById('inventory-grid');
+        inventoryGrid.innerHTML = '';
+        const MAX_SLOTS = 24;
+    
+        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
+        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
+        const armor = document.getElementById('ingame-sheet-armor-type').value;
+        const shield = document.getElementById('ingame-sheet-shield-type').value;
+        const equippedItemNames = [weapon1, weapon2, armor, shield];
+    
+        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
+    
+        const isAdventureMode = currentGameState.mode === 'adventure';
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
+        const canInteract = !isAdventureMode || isMyTurn;
+    
+        itemsToDisplay.forEach(item => {
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            
+            const itemDetails = ALL_ITEMS[item.name];
+            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
+            
+            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
+            if (imgPath) {
+                slot.style.backgroundImage = `url("${imgPath}")`;
+            } else {
+                 slot.style.backgroundImage = 'none';
+            }
+    
+            if (item.quantity > 1) {
+                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
+            }
+            
+            if (canInteract) {
+                slot.classList.add('item');
+                slot.addEventListener('click', () => showItemContextMenu(item));
+            } else {
+                slot.style.cursor = 'not-allowed';
+            }
+    
+            inventoryGrid.appendChild(slot);
+        });
+    
+        const filledSlots = itemsToDisplay.length;
+        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
+            const emptySlot = document.createElement('div');
+            emptySlot.className = 'inventory-slot';
+            inventoryGrid.appendChild(emptySlot);
+        }
+    }
+    
     function populateIngameSheet(fighter) {
         if (!fighter || !fighter.sheet) return;
     
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canEdit = !isAdventureMode || isMyTurn; // Pode editar fora de combate ou no seu turno
+        const canEdit = !isAdventureMode || isMyTurn;
         
         const loadBtn = document.getElementById('ingame-sheet-load-btn');
         loadBtn.disabled = isAdventureMode;
@@ -2417,13 +2306,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
         allEquipmentSelectors.forEach(sel => {
             sel.onchange = null;
-            sel.disabled = !canEdit; // AJUSTE: Desativa os seletores se não puder editar
+            sel.disabled = !canEdit;
         });
 
         const updateAllEquipment = (eventSource) => {
             const inventory = fighter.inventory || {};
             
-            // --- Rule Enforcement ---
             let selectedW1 = weapon1Select.value;
             let weapon1Item = inventory[selectedW1] || {};
             let weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
@@ -2470,7 +2358,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // --- Visual Updates based on the now-enforced state ---
             const finalW1 = weapon1Select.value;
             const finalW2 = weapon2Select.value;
             const finalShield = shieldSelect.value;
@@ -2523,7 +2410,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sel.onchange = (event) => updateAllEquipment(event.target);
         });
 
-        updateAllEquipment(null); // Initial sync
+        updateAllEquipment(null); 
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
