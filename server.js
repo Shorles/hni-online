@@ -1104,14 +1104,38 @@ io.on('connection', (socket) => {
             }
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
+                    // Restore the battle state (NPCs, positions, round, etc.)
                     room.gameModes.adventure = room.adventureCache;
-                    room.adventureCache = null; 
+                    room.adventureCache = null;
+
+                    // CRITICAL: Resynchronize player data with the latest from the lobby
+                    const adventureState = room.gameModes.adventure;
+                    for (const playerId in adventureState.fighters.players) {
+                        const adventureFighter = adventureState.fighters.players[playerId];
+                        const lobbyPlayer = lobbyState.connectedPlayers[playerId];
+
+                        if (adventureFighter && lobbyPlayer && lobbyPlayer.characterSheet) {
+                            // Update the entire sheet to reflect any changes (inventory, equipment, etc.)
+                            adventureFighter.sheet = lobbyPlayer.characterSheet;
+                            
+                            // Also update stats that might have changed outside of combat
+                            adventureFighter.money = lobbyPlayer.characterSheet.money;
+                            adventureFighter.inventory = lobbyPlayer.characterSheet.inventory;
+                            adventureFighter.ammunition = lobbyPlayer.characterSheet.ammunition;
+                            
+                            // Recalculate derived stats like esquiva based on the new sheet
+                            recalculateFighterStats(adventureFighter);
+                        }
+                    }
+                    logMessage(adventureState, "Continuando a aventura com as fichas dos jogadores atualizadas.");
+
                 } else { 
+                    // Start a completely new battle
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                     room.adventureCache = null; 
+                    logMessage(room.gameModes.adventure, "Mestre iniciou uma nova batalha.");
                 }
                 room.activeMode = 'adventure';
-                logMessage(room.gameModes.adventure, "Mestre iniciou o modo Aventura.");
             }
         }
         
