@@ -659,116 +659,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- LÓGICA DO MODO AVENTURA ---
-    // CORREÇÃO: Todas as funções relacionadas ao modo aventura foram agrupadas aqui para garantir o escopo correto.
-    function renderActionButtons(state) {
-        actionButtonsWrapper.innerHTML = '';
-        if (state.phase !== 'battle' || !!state.winner) return;
-        const activeFighter = getFighter(state, state.activeCharacterKey);
-        if (!activeFighter) return;
-
-        const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
-        const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
-        
-        const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
-        const finalCanControl = canControl && !isStunned;
-        
-        let attackButtonAdded = false;
-
-        const createButton = (text, onClick, disabled = false, className = 'action-btn', ammoCount = null) => {
-            const btn = document.createElement('button');
-            btn.className = className;
-            btn.textContent = text;
-            btn.disabled = disabled;
-            btn.onclick = onClick;
-            if (ammoCount !== null && ammoCount !== undefined) {
-                const ammoEl = document.createElement('span');
-                ammoEl.className = 'attack-ammo-counter';
-                ammoEl.textContent = ammoCount;
-                btn.appendChild(ammoEl);
-                if (ammoCount <= 0) btn.disabled = true;
-            }
-            return btn;
-        };
-
-        const createAttackButton = (weaponKey) => {
-            const weapon = activeFighter.sheet.equipment[weaponKey];
-            if (weapon && weapon.type !== 'Desarmado') {
-                const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
-                const btn = createButton(
-                    `Atacar com ${weapon.name} (2 PA)`,
-                    () => startAttackSequence(weaponKey),
-                    !finalCanControl,
-                    'action-btn',
-                    ammo
-                );
-                actionButtonsWrapper.appendChild(btn);
-                attackButtonAdded = true;
-            }
-        };
-
-        createAttackButton('weapon1');
-        createAttackButton('weapon2');
-        
-        if (!attackButtonAdded) {
-            const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
-            actionButtonsWrapper.appendChild(btn);
-        }
-
-        const weapon1 = activeFighter.sheet.equipment.weapon1;
-        const weapon2 = activeFighter.sheet.equipment.weapon2;
-        const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
-        
-        if (isDualWielding) {
-            let ammo1 = weapon1.isRanged ? activeFighter.ammunition?.['weapon1'] : Infinity;
-            let ammo2 = weapon2.isRanged ? activeFighter.ammunition?.['weapon2'] : Infinity;
-            let dualDisabled = ammo1 <= 0 || ammo2 <= 0;
-
-            const btn = createButton('Ataque Duplo (3 PA)', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
-            actionButtonsWrapper.appendChild(btn);
-        }
-
-        const fighterSpells = activeFighter.sheet?.spells || [];
-        if (fighterSpells.length > 0) {
-            fighterSpells.forEach(spellName => {
-                const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
-                const spell = allSpells.find(s => s.name === spellName);
-                if (spell && spell.inCombat) {
-                    const paCost = spell.costPA || 2;
-                    const spellBtn = createButton(`${spell.name} (${paCost} PA)`, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
-                    spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
-                    actionButtonsWrapper.appendChild(spellBtn);
-                }
-            });
-        }
-        
-        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !finalCanControl, 'action-btn flee-btn'));
-        actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !finalCanControl, 'end-turn-btn'));
-    }
-
-    function startAttackSequence(weaponChoice) {
-        const attacker = getFighter(currentGameState, currentGameState.activeCharacterKey);
-        if (!attacker) return;
-        
-        targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: weaponChoice };
-        isTargeting = true;
-        document.getElementById('targeting-indicator').classList.remove('hidden');
-    }
-    
-    function startSpellSequence(spell) {
-        if (spell.targetType === 'self') {
-            socket.emit('playerAction', {
-                type: 'use_spell',
-                attackerKey: currentGameState.activeCharacterKey,
-                spellName: spell.name,
-                targetKey: currentGameState.activeCharacterKey 
-            });
-        } else {
-            targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
-            isTargeting = true;
-            document.getElementById('targeting-indicator').classList.remove('hidden');
-        }
-    }
-
     function handleAdventureMode(gameState) {
         if (isGm) {
             switch (gameState.phase) {
@@ -1244,7 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
             handleEquipmentChangeConfirmation();
         }
     }
-    
+
     function renderIngameInventory(fighter) {
         if (!fighter || !fighter.sheet) return;
     
@@ -1339,7 +1229,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         { text: "Não", closes: true, className: "btn-secondary" }
                     ]);
                 } else {
-                    // Uso fora de combate não requer confirmação de PA
                     socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
                     ingameSheetModal.classList.add('hidden');
                 }
@@ -1347,7 +1236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
             buttons.push({
                 text: 'Usar',
-                closes: true, // Fecha o modal de contexto, mas pode abrir o de confirmação
+                closes: true,
                 onClick: useItemAction
             });
         }
@@ -1629,6 +1518,502 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
+    // --- LÓGICA DA FICHA DE PERSONAGEM (CRIAÇÃO) ---
+    function initializeCharacterSheet() {
+        stagedCharacterSheet.spells = []; 
+        stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
+        stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
+
+        const raceSelect = document.getElementById('sheet-race-select');
+        raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(race => `<option value="${race}">${race}</option>`).join('');
+
+        const createEquipmentOptions = (type) => {
+            return Object.entries(GAME_RULES[type])
+                .map(([name, data]) => `<option value="${name}">${name} (${data.cost} moedas)</option>`)
+                .join('');
+        };
+
+        const weapon1Select = document.getElementById('sheet-weapon1-type');
+        const weapon2Select = document.getElementById('sheet-weapon2-type');
+        weapon1Select.innerHTML = createEquipmentOptions('weapons');
+        weapon2Select.innerHTML = createEquipmentOptions('weapons');
+
+        document.getElementById('sheet-armor-type').innerHTML = createEquipmentOptions('armors');
+        document.getElementById('sheet-shield-type').innerHTML = createEquipmentOptions('shields');
+
+        document.querySelectorAll('.number-input-wrapper input').forEach(input => input.readOnly = true);
+        
+        document.querySelectorAll('.arrow-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const wrapper = e.target.closest('.number-input-wrapper');
+                const input = wrapper.querySelector('input');
+                let value = parseInt(input.value, 10);
+                if (e.target.classList.contains('up-arrow')) {
+                    if (e.target.disabled) return;
+                    value++;
+                } else {
+                    value--;
+                }
+                const min = input.min !== '' ? parseInt(input.min, 10) : -Infinity;
+                const max = input.max !== '' ? parseInt(input.max, 10) : Infinity;
+                input.value = Math.max(min, Math.min(max, value));
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        });
+        
+        updateCharacterSheet();
+    }
+    
+    function updateCharacterSheet(loadedData = null) {
+        if (!GAME_RULES.races) return; 
+        
+        document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+        
+        const weapon1Select = document.getElementById('sheet-weapon1-type');
+        const weapon2Select = document.getElementById('sheet-weapon2-type');
+        const shieldSelect = document.getElementById('sheet-shield-type');
+        const armorSelect = document.getElementById('sheet-armor-type');
+        
+        const selectedRace = loadedData ? loadedData.race : document.getElementById('sheet-race-select').value;
+        const raceData = GAME_RULES.races[selectedRace];
+        const baseAttributes = loadedData ? loadedData.baseAttributes : {
+            forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0, agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
+            protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0, constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
+            inteligencia: parseInt(document.getElementById('sheet-base-attr-inteligencia').value) || 0, mente: parseInt(document.getElementById('sheet-base-attr-mente').value) || 0,
+        };
+        const elements = loadedData ? loadedData.elements : {
+            fogo: parseInt(document.getElementById('sheet-elem-fogo').value) || 0, agua: parseInt(document.getElementById('sheet-elem-agua').value) || 0,
+            terra: parseInt(document.getElementById('sheet-elem-terra').value) || 0, vento: parseInt(document.getElementById('sheet-elem-vento').value) || 0,
+            luz: parseInt(document.getElementById('sheet-elem-luz').value) || 0, escuridao: parseInt(document.getElementById('sheet-elem-escuridao').value) || 0,
+        };
+        
+        let finalAttributes = { ...baseAttributes };
+        if (raceData && raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') finalAttributes[attr] += raceData.bon[attr]; });
+        if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
+        
+        const canWield2HInOneHand = finalAttributes.forca >= 4;
+
+        let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
+        let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
+
+        if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
+            if (weapon2Select.value !== 'Desarmado') {
+                weapon2Select.value = 'Desarmado';
+                stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
+            }
+            if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
+        }
+        if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
+            if (weapon1Select.value !== 'Desarmado') {
+                weapon1Select.value = 'Desarmado';
+                stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
+            }
+            if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
+        }
+
+        if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
+            shieldSelect.value = 'Nenhum';
+        }
+        
+        const weapon1Type = weapon1Select.value;
+        const weapon2Type = weapon2Select.value;
+        const shieldType = shieldSelect.value;
+        const armorType = armorSelect.value;
+        weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
+        weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
+        let armorData = GAME_RULES.armors[armorType] || {};
+        let shieldData = GAME_RULES.shields[shieldType] || {};
+
+        weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
+        shieldSelect.disabled = weapon2Type !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
+
+        const imgPath1 = stagedCharacterSheet.weapon1.img;
+        document.getElementById('sheet-weapon1-image').style.backgroundImage = imgPath1 ? `url("${imgPath1}")` : 'none';
+        const imgPath2 = stagedCharacterSheet.weapon2.img;
+        document.getElementById('sheet-weapon2-image').style.backgroundImage = imgPath2 ? `url("${imgPath2}")` : 'none';
+
+        const armorImgDiv = document.getElementById('sheet-armor-image');
+        const armorImgName = armorType === 'Mediana' ? 'Armadura Mediana' : `Armadura ${armorType}`;
+        armorImgDiv.style.backgroundImage = (armorType !== 'Nenhuma') ? `url("/images/armas/${armorImgName}.png")`.replace(/ /g, '%20') : 'none';
+        
+        const shieldImgDiv = document.getElementById('sheet-shield-image');
+        const shieldImgName = shieldType === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldType}`;
+        shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldImgName}.png")`.replace(/ /g, '%20') : 'none';
+
+
+        let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
+        if (cost > 200 && event && event.target && event.type === 'change') {
+            alert("Dinheiro insuficiente!");
+            const changedElement = event.target;
+            changedElement.value = (changedElement.id.includes('weapon')) ? "Desarmado" : (changedElement.id.includes('armor') ? "Nenhuma" : "Nenhum");
+            return updateCharacterSheet();
+        }
+        
+        document.getElementById('sheet-money-copper').textContent = 200 - cost;
+        
+        let maxAttrPoints = 5 + (raceData.bon?.escolha || 0);
+        const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
+        const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
+        document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
+        document.querySelectorAll('#attribute-points-header ~ .attributes-grid .up-arrow').forEach(btn => btn.disabled = attrPointsRemaining <= 0);
+
+        const maxElemPoints = 2;
+        const totalElemPoints = Object.values(elements).reduce((sum, val) => sum + val, 0);
+        const elemPointsRemaining = maxElemPoints - totalElemPoints;
+        document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
+        document.querySelectorAll('.elements-grid .up-arrow').forEach(btn => btn.disabled = elemPointsRemaining <= 0);
+
+        let infoText = '';
+        if ((weapon1Data.hand === 2 || weapon2Data.hand === 2) && !canWield2HInOneHand) {
+            infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
+        }
+
+        let bta = finalAttributes.agilidade;
+        let weaponBtaMod = weapon1Data.bta || 0;
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+             weaponBtaMod = Math.min(weapon1Data.bta || 0, weapon2Data.bta || 0);
+        }
+        bta += weaponBtaMod;
+        bta += (armorData.esq_mod || 0);
+        bta += (shieldData.esq_mod || 0);
+        document.getElementById('sheet-bta').textContent = bta >= 0 ? `+${bta}` : bta;
+        
+        let btdAttribute = finalAttributes.forca;
+        if ((weapon1Type !== 'Desarmado' && stagedCharacterSheet.weapon1.isRanged) || 
+            (weapon2Type !== 'Desarmado' && stagedCharacterSheet.weapon2.isRanged)) {
+            btdAttribute = finalAttributes.agilidade;
+        }
+
+        let btd = btdAttribute + (weapon1Data.btd || 0);
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') btd -= 1;
+        document.getElementById('sheet-btd').textContent = btd >= 0 ? `+${btd}` : btd;
+
+        let btm = finalAttributes.inteligencia + (weapon1Data.btm || 0);
+        document.getElementById('sheet-btm').textContent = btm >= 0 ? `+${btm}` : btm;
+
+        let esq = 10 + finalAttributes.agilidade;
+        let weaponEsqMod = weapon1Data.esq_mod || 0;
+        if (weapon1Type !== 'Desarmado' && weapon2Type !== 'Desarmado') {
+            weaponEsqMod = Math.min(weapon1Data.esq_mod || 0, weapon2Data.esq_mod || 0);
+        }
+        esq += weaponEsqMod;
+        esq += (armorData.esq_mod || 0);
+        esq += (shieldData.esq_mod || 0);
+        document.getElementById('sheet-esq').textContent = esq;
+        
+        finalAttributes.protecao += (armorData.protection || 0);
+        finalAttributes.protecao += (shieldData.protection_bonus || 0);
+        
+        const hpMax = 20 + (finalAttributes.constituicao * 5);
+        const mahouMax = 10 + (finalAttributes.mente * 5);
+        document.getElementById('sheet-hp-max').textContent = hpMax;
+        document.getElementById('sheet-hp-current').textContent = hpMax;
+        document.getElementById('sheet-mahou-max').textContent = mahouMax;
+        document.getElementById('sheet-mahou-current').textContent = mahouMax;
+        
+        Object.keys(finalAttributes).forEach(attr => { document.getElementById(`sheet-final-attr-${attr}`).textContent = finalAttributes[attr]; });
+        document.getElementById('race-info-box').textContent = raceData.text;
+        document.getElementById('equipment-info-text').textContent = infoText;
+        
+        Object.keys(elements).forEach(elem => {
+            const display = document.getElementById(`advanced-${elem}`);
+            display.textContent = elements[elem] >= 2 ? GAME_RULES.advancedElements[elem] : '';
+        });
+        
+        const spellGrid = document.getElementById('spell-selection-grid');
+        spellGrid.innerHTML = '';
+        const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
+        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+        const availableSpells = allSpells.filter(s => availableElements.includes(s.element));
+        
+        availableSpells.forEach(spell => {
+            const card = document.createElement('div');
+            card.className = 'spell-card';
+            card.dataset.spellName = spell.name;
+            const spellType = spell.inCombat ? '(Combate)' : '(Utilitário)';
+            card.innerHTML = `<h4>${spell.name} <small>${spellType}</small></h4><p>${spell.description}</p>`;
+            if (stagedCharacterSheet.spells.includes(spell.name)) {
+                card.classList.add('selected');
+            }
+            card.addEventListener('click', () => {
+                if (stagedCharacterSheet.spells.includes(spell.name)) {
+                    stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(s => s !== spell.name);
+                } else if (stagedCharacterSheet.spells.length < 2) {
+                    stagedCharacterSheet.spells.push(spell.name);
+                } else {
+                    alert("Você pode escolher no máximo 2 magias iniciais.");
+                }
+                updateCharacterSheet();
+            });
+            spellGrid.appendChild(card);
+        });
+        
+        document.getElementById('sheet-spells-selected-count').textContent = stagedCharacterSheet.spells.length;
+    }
+
+    function showWeaponImageSelectionModal(weaponSlot) {
+        const weaponType = document.getElementById(`sheet-${weaponSlot}-type`).value;
+        const images = ALL_WEAPON_IMAGES[weaponType];
+        
+        if (!images || (images.melee.length === 0 && images.ranged.length === 0)) {
+            stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+            updateCharacterSheet();
+            return;
+        }
+
+        const modalBody = document.getElementById('weapon-image-modal-body');
+        modalBody.innerHTML = '';
+
+        const createSection = (title, imageList, isRanged) => {
+            if (imageList.length > 0) {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'weapon-image-category';
+                categoryDiv.innerHTML = `<h4>${title}</h4>`;
+                
+                const grid = document.createElement('div');
+                grid.className = 'weapon-image-grid';
+                
+                imageList.forEach(imgPath => {
+                    const card = document.createElement('div');
+                    card.className = 'weapon-image-card';
+                    card.innerHTML = `<img src="${imgPath}" alt="weapon image">`;
+                    card.onclick = () => {
+                        stagedCharacterSheet[weaponSlot] = { img: imgPath, isRanged: isRanged };
+                        weaponImageModal.classList.add('hidden');
+                        updateCharacterSheet();
+                    };
+                    grid.appendChild(card);
+                });
+                
+                categoryDiv.appendChild(grid);
+                modalBody.appendChild(categoryDiv);
+            }
+        };
+
+        createSection('Armas Corpo a Corpo', images.melee, false);
+        createSection('Armas de Longa Distância', images.ranged, true);
+        
+        weaponImageModal.classList.remove('hidden');
+    }
+
+    function getCharacterSheetData(context) {
+        const isCreation = context === 'creation';
+        const prefix = isCreation ? 'sheet' : 'ingame-sheet';
+        const myFighter = isCreation ? null : getFighter(currentGameState, myPlayerKey);
+
+        const finalAttributes = {};
+        const attrSelector = isCreation ? '#character-sheet-screen .final-attributes .attr-item' : '#ingame-sheet-attributes .attr-item';
+        document.querySelectorAll(attrSelector).forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const value = parseInt(item.querySelector('span').textContent, 10);
+            finalAttributes[label] = value;
+        });
+        
+        const weapon1Select = document.getElementById(`${prefix}-weapon1-type`);
+        const weapon2Select = document.getElementById(`${prefix}-weapon2-type`);
+        const weapon1Type = weapon1Select.value;
+        const weapon2Type = weapon2Select.value;
+
+        let weapon1, weapon2;
+
+        if (isCreation) {
+            weapon1 = { name: (document.getElementById('sheet-weapon1-name').value.trim() || weapon1Type), type: weapon1Type, ...stagedCharacterSheet.weapon1 };
+            weapon2 = { name: (document.getElementById('sheet-weapon2-name').value.trim() || weapon2Type), type: weapon2Type, ...stagedCharacterSheet.weapon2 };
+        } else {
+            const w1Item = myFighter.inventory[weapon1Type] || { baseType: 'Desarmado', img: null, isRanged: false };
+            const w2Item = myFighter.inventory[weapon2Type] || { baseType: 'Desarmado', img: null, isRanged: false };
+            weapon1 = { name: weapon1Type, type: w1Item.baseType, img: w1Item.img, isRanged: w1Item.isRanged };
+            weapon2 = { name: weapon2Type, type: w2Item.baseType, img: w2Item.img, isRanged: w2Item.isRanged };
+        }
+
+        const data = {
+            name: isCreation ? document.getElementById('sheet-name').value : myFighter.sheet.name,
+            tokenName: isCreation ? stagedCharacterSheet.tokenName : myFighter.sheet.tokenName,
+            tokenImg: isCreation ? stagedCharacterSheet.tokenImg : myFighter.sheet.tokenImg,
+            class: isCreation ? document.getElementById('sheet-class').value : myFighter.sheet.class,
+            race: isCreation ? document.getElementById('sheet-race-select').value : myFighter.sheet.race,
+            money: parseInt(document.getElementById(isCreation ? 'sheet-money-copper' : 'ingame-sheet-money')?.textContent || '0', 10),
+            level: myFighter?.level || 1,
+            xp: myFighter?.xp || 0,
+            xpNeeded: myFighter?.xpNeeded || 100,
+            baseAttributes: {},
+            finalAttributes: finalAttributes,
+            elements: {},
+            equipment: {
+                weapon1: weapon1,
+                weapon2: weapon2,
+                armor: document.getElementById(`${prefix}-armor-type`).value,
+                shield: document.getElementById(`${prefix}-shield-type`).value,
+            },
+            spells: isCreation ? [...stagedCharacterSheet.spells] : [...myFighter.sheet.spells]
+        };
+
+        if (isCreation) {
+            ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente'].forEach(attr => {
+                data.baseAttributes[attr] = parseInt(document.getElementById(`sheet-base-attr-${attr}`).value) || 0;
+            });
+            ['fogo', 'agua', 'terra', 'vento', 'luz', 'escuridao'].forEach(elem => {
+                data.elements[elem] = parseInt(document.getElementById(`sheet-elem-${elem}`).value) || 0;
+            });
+        } else {
+            data.baseAttributes = myFighter.sheet.baseAttributes;
+            data.elements = myFighter.sheet.elements;
+            data.inventory = myFighter.inventory;
+            data.ammunition = myFighter.ammunition;
+            data.hp = myFighter.hp;
+            data.mahou = myFighter.mahou;
+        }
+
+        return data;
+    }
+    
+    function encryptData(data) {
+        try {
+            const jsonString = JSON.stringify(data);
+            return btoa(unescape(encodeURIComponent(jsonString)));
+        } catch (e) {
+            console.error("Erro ao codificar dados:", e);
+            return null;
+        }
+    }
+    
+    function decryptData(encodedData) {
+        try {
+            const jsonString = decodeURIComponent(escape(atob(encodedData)));
+            return JSON.parse(jsonString);
+        } catch (e) {
+            console.error("Erro ao decodificar dados:", e);
+            return null;
+        }
+    }
+
+    function handleSaveCharacter(context) {
+        const sheetData = getCharacterSheetData(context);
+        const characterName = sheetData.name || sheetData.tokenName;
+        if (!characterName) {
+            alert("Por favor, dê um nome ao seu personagem antes de salvar.");
+            return;
+        }
+        const encryptedData = encryptData(sheetData);
+        if (!encryptedData) return;
+
+        const blob = new Blob([encryptedData], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${characterName.replace(/\s+/g, '_')}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    function handleLoadCharacter(event, context) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const decryptedData = decryptData(e.target.result);
+                if (!decryptedData) throw new Error("Arquivo inválido ou corrompido.");
+                
+                if (context === 'creation') {
+                    initializeCharacterSheet();
+                    if (!GAME_RULES.races[decryptedData.race]) {
+                        throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida nas regras atuais do jogo.`);
+                    }
+                    stagedCharacterSheet.tokenName = decryptedData.tokenName || '';
+                    stagedCharacterSheet.tokenImg = decryptedData.tokenImg || '';
+                    stagedCharacterSheet.spells = decryptedData.spells || [];
+                    stagedCharacterSheet.weapon1 = decryptedData.equipment?.weapon1 || { img: null, isRanged: false, type: 'Desarmado' };
+                    stagedCharacterSheet.weapon2 = decryptedData.equipment?.weapon2 || { img: null, isRanged: false, type: 'Desarmado' };
+                    
+                    document.getElementById('sheet-name').value = decryptedData.name || '';
+                    document.getElementById('sheet-class').value = decryptedData.class || '';
+                    document.getElementById('sheet-race-select').value = decryptedData.race || 'Humano';
+
+                    Object.keys(decryptedData.baseAttributes || {}).forEach(attr => {
+                        const input = document.getElementById(`sheet-base-attr-${attr}`);
+                        if (input) input.value = decryptedData.baseAttributes[attr];
+                    });
+                    Object.keys(decryptedData.elements || {}).forEach(elem => {
+                         const input = document.getElementById(`sheet-elem-${elem}`);
+                         if (input) input.value = decryptedData.elements[elem];
+                    });
+                    
+                    const w1 = stagedCharacterSheet.weapon1;
+                    const w2 = stagedCharacterSheet.weapon2;
+                    document.getElementById('sheet-weapon1-name').value = (w1.name && w1.name !== w1.type) ? w1.name : '';
+                    document.getElementById('sheet-weapon1-type').value = w1.type || 'Desarmado';
+                    document.getElementById('sheet-weapon2-name').value = (w2.name && w2.name !== w2.type) ? w2.name : '';
+                    document.getElementById('sheet-weapon2-type').value = w2.type || 'Desarmado';
+                    document.getElementById('sheet-armor-type').value = decryptedData.equipment?.armor || 'Nenhuma';
+                    document.getElementById('sheet-shield-type').value = decryptedData.equipment?.shield || 'Nenhum';
+
+                    updateCharacterSheet();
+                    showScreen(document.getElementById('character-sheet-screen'));
+                } else if (context === 'ingame') {
+                    socket.emit('playerAction', {
+                        type: 'playerLoadsCharacterIngame',
+                        characterData: decryptedData
+                    });
+                    showInfoModal("Sucesso", "Personagem carregado! A ficha será atualizada em breve.");
+                    toggleIngameSheet(); 
+                }
+            } catch (error) {
+                alert(`Erro ao carregar a ficha: ${error.message}`);
+            } finally {
+                event.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function handleConfirmCharacter() {
+        if (stagedCharacterSheet.spells.length > 2) {
+            alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
+            return;
+        }
+
+        const attrPointsRemaining = parseInt(document.getElementById('sheet-points-attr-remaining').textContent, 10);
+        const elemPointsRemaining = parseInt(document.getElementById('sheet-points-elem-remaining').textContent, 10);
+
+        let warnings = [];
+        if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
+        if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
+        if(stagedCharacterSheet.spells.length === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
+
+        const sendData = () => {
+            const finalSheet = getCharacterSheetData('creation');
+
+            socket.emit('playerAction', { 
+                type: 'playerFinalizesCharacter', 
+                characterData: finalSheet,
+                weaponImages: {
+                    weapon1: stagedCharacterSheet.weapon1.img,
+                    weapon2: stagedCharacterSheet.weapon2.img
+                },
+                isRanged: {
+                    weapon1: stagedCharacterSheet.weapon1.isRanged,
+                    weapon2: stagedCharacterSheet.weapon2.isRanged
+                }
+            });
+            showScreen(document.getElementById('player-waiting-screen'));
+            document.getElementById('player-waiting-message').innerText = "Personagem enviado! Aguardando o Mestre...";
+        };
+
+        if(warnings.length > 0) {
+            let warningText = "Os seguintes itens não foram completados:<br><ul>" + warnings.map(w => `<li>${w}</li>`).join('') + "</ul>Deseja continuar mesmo assim?";
+            showCustomModal("Aviso", warningText, [
+                { text: 'Sim, continuar', closes: true, onClick: sendData },
+                { text: 'Não, voltar', closes: true, className: 'btn-danger' }
+            ]);
+        } else {
+            sendData();
+        }
+    }
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
