@@ -5,13 +5,14 @@
       "element": "fogo",
       "description": "Cria uma pequena chama na mão do usuário para acender objetos.",
       "costMahou": 1,
-      "costPA": 0,
-      "inCombat": false
+      "costPA": 1,
+      "inCombat": false,
+      "targetType": "utility"
     },
     {
       "name": "Baforada Dracônica",
       "element": "fogo",
-      "description": "Dispara chamas pela boca, causando 1D6 + nível do usuário em dano.",
+      "description": "Dispara chamas pela boca, causando 1D8 + nível do usuário em dano.",
       "costMahou": 1,
       "costPA": 2,
       "cooldown": 1,
@@ -20,19 +21,36 @@
       "requiresHitRoll": true,
       "effect": {
         "type": "direct_damage",
-        "damageFormula": "1D6",
+        "calculation": "magical",
+        "damageFormula": "1D8",
         "damageBonus": "level",
-        "damageAttribute": "inteligencia",
         "animation": "projectile_fire"
+      }
+    },
+    {
+      "name": "Armamento de Fogo",
+      "element": "fogo",
+      "description": "Adiciona 1D4 de dano de fogo ao ataque básico por 3 turnos.",
+      "costMahou": 1,
+      "costPA": 1,
+      "cooldown": 2,
+      "targetType": "self",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "weapon_buff",
+        "duration": 3,
+        "damageFormula": "1D4",
+        "animation": "self_fire_aura"
       }
     },
     {
       "name": "Afogamento",
       "element": "agua",
-      "description": "Causa 3 de dano fixo por turno durante 3 turnos (85% de chance por turno).",
+      "description": "Causa 3 de dano fixo por turno durante 3 turnos (chance de 85% por turno).",
       "costMahou": 1,
       "costPA": 2,
-      "cooldown": 2,
+      "cooldown": 1,
       "targetType": "single_enemy",
       "inCombat": true,
       "requiresHitRoll": false,
@@ -49,8 +67,32 @@
       "element": "agua",
       "description": "Gera uma pequena quantidade de água potável.",
       "costMahou": 1,
-      "costPA": 0,
-      "inCombat": false
+      "costPA": 1,
+      "inCombat": false,
+      "targetType": "utility"
+    },
+    {
+      "name": "Golpe Aquático",
+      "element": "agua",
+      "description": "Adiciona 1D4 de dano de água ao ataque básico por 2 turnos. 50% de chance de reduzir a Proteção do alvo em 1.",
+      "costMahou": 1,
+      "costPA": 2,
+      "cooldown": 2,
+      "targetType": "self",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "weapon_buff",
+        "duration": 2,
+        "damageFormula": "1D4",
+        "secondaryEffect": {
+          "type": "debuff",
+          "chance": 0.50,
+          "duration": 1,
+          "modifiers": [{ "attribute": "protecao", "value": -1 }]
+        },
+        "animation": "self_water_aura"
+      }
     },
     {
       "name": "Golpe Rochoso",
@@ -77,8 +119,32 @@
       "element": "terra",
       "description": "Eleva um pedaço de terra ou rocha para alcançar lugares altos.",
       "costMahou": 3,
-      "costPA": 0,
-      "inCombat": false
+      "costPA": 1,
+      "inCombat": false,
+      "targetType": "utility"
+    },
+    {
+      "name": "Pedrada",
+      "element": "terra",
+      "description": "Arremessa uma pedra que causa 1D8+1 de dano. 20% de chance de causar sangramento (2 de dano por 3 turnos).",
+      "costMahou": 1,
+      "costPA": 2,
+      "cooldown": 2,
+      "targetType": "single_enemy",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "direct_damage",
+        "calculation": "magical",
+        "damageFormula": "1D8+1",
+        "secondaryEffect": {
+          "type": "dot",
+          "chance": 0.20,
+          "damage": 2,
+          "duration": 3
+        },
+        "animation": "projectile_rock"
+      }
     },
     {
       "name": "Aceleração",
@@ -104,16 +170,35 @@
       "element": "vento",
       "description": "Cria um tubo de vento para disparar pessoas ou objetos a distância.",
       "costMahou": 3,
-      "costPA": 0,
-      "inCombat": false
+      "costPA": 1,
+      "inCombat": false,
+      "targetType": "utility"
+    },
+    {
+      "name": "Lâmina de Vento",
+      "element": "vento",
+      "description": "Aumenta o dano de todo golpe básico em +3 durante 3 turnos.",
+      "costMahou": 1,
+      "costPA": 2,
+      "cooldown": 2,
+      "targetType": "self",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "btd_buff",
+        "duration": 3,
+        "value": 3,
+        "animation": "self_wind_aura"
+      }
     },
     {
       "name": "Iluminar",
       "element": "luz",
       "description": "Cria um globo flutuante de luz que dura 1 hora.",
       "costMahou": 1,
-      "costPA": 0,
-      "inCombat": false
+      "costPA": 1,
+      "inCombat": false,
+      "targetType": "utility"
     },
     {
       "name": "Flash",
@@ -134,17 +219,41 @@
       }
     },
     {
+      "name": "Lâmina Luminosa",
+      "element": "luz",
+      "description": "Adiciona 1D4 de dano ao ataque básico por 3 turnos. 50% de chance de aplicar -3 no acerto do alvo.",
+      "costMahou": 1,
+      "costPA": 2,
+      "cooldown": 0,
+      "targetType": "self",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "weapon_buff",
+        "duration": 3,
+        "damageFormula": "1D4",
+        "secondaryEffect": {
+          "type": "bta_debuff",
+          "chance": 0.50,
+          "duration": 1,
+          "value": -3
+        },
+        "animation": "self_light_aura"
+      }
+    },
+    {
       "name": "Desfazer Ilusão Mínima",
       "element": "escuridao",
       "description": "Capaz de dissolver ilusões de grau 1.",
-      "costMahou": 2,
-      "costPA": 0,
-      "inCombat": false
+      "costMahou": 1,
+      "costPA": 1,
+      "inCombat": false,
+      "targetType": "utility"
     },
     {
       "name": "Dreno de Energia",
       "element": "escuridao",
-      "description": "Causa 1D6+1 de dano no Mahou do adversário e recupera 1 de Mahou do usuário.",
+      "description": "Causa 1D6+1 de dano no Mahou do adversário e recupera 1 de Mahou do usuário. 20% de chance de resistir.",
       "costMahou": 0,
       "costPA": 2,
       "cooldown": 2,
@@ -153,11 +262,34 @@
       "requiresHitRoll": true,
       "effect": {
         "type": "resource_damage",
+        "calculation": "magical",
         "resource": "mahou",
         "damageFormula": "1D6+1",
-        "damageAttribute": "inteligencia",
         "resistChance": 0.20,
         "animation": "target_purple_aura"
+      }
+    },
+    {
+      "name": "Sombra Afiada",
+      "element": "escuridao",
+      "description": "Adiciona 1D4 ao ataque básico por 3 turnos. 20% de chance de reduzir -3 de Proteção do alvo.",
+      "costMahou": 1,
+      "costPA": 2,
+      "cooldown": 2,
+      "targetType": "self",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "weapon_buff",
+        "duration": 3,
+        "damageFormula": "1D4",
+         "secondaryEffect": {
+          "type": "debuff",
+          "chance": 0.20,
+          "duration": 1,
+          "modifiers": [{ "attribute": "protecao", "value": -3 }]
+        },
+        "animation": "self_dark_aura"
       }
     }
   ],

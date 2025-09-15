@@ -192,7 +192,8 @@ function createNewFighterState(data) {
         pa: 3,
         hasTakenFirstTurn: false,
         activeEffects: [],
-        cooldowns: {}
+        cooldowns: {},
+        marks: {}
     };
 
     if (fighter.isPlayer && sourceData.finalAttributes) {
@@ -744,7 +745,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: spell.effect.animation });
     }
     
-    const isPureMagic = spell.effect?.damageAttribute === 'inteligencia';
+    const isMagicalCalculation = spell.effect?.calculation === 'magical';
 
     if (spell.requiresHitRoll === false) {
         const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hit: true, autoHit: true };
@@ -757,13 +758,13 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     const hitRoll = rollD20();
     let attackBonus, attackBonusBreakdown, targetDefense, targetDefenseBreakdown;
 
-    if (isPureMagic) {
+    if (isMagicalCalculation) {
         const btmData = getBtmBreakdown(attacker);
         attackBonus = btmData.value;
         attackBonusBreakdown = btmData.details;
         targetDefense = target.magicDefense;
         targetDefenseBreakdown = target.magicDefenseBreakdown;
-    } else {
+    } else { // Physical calculation for spells
         const btaData = getBtaBreakdown(attacker);
         attackBonus = btaData.value;
         attackBonusBreakdown = btaData.details;
@@ -775,7 +776,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     
     let debugInfo = { 
         attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, 
-        hitRoll, attackBonus, attackBonusBreakdown, attackRoll, targetDefense, targetDefenseBreakdown, isPureMagic
+        hitRoll, attackBonus, attackBonusBreakdown, attackRoll, targetDefense, targetDefenseBreakdown, isMagicalCalculation
     };
 
     if (hitRoll === 1) {
@@ -817,11 +818,21 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             }
             
             const critDamage = debugInfo.isCrit ? damageRoll : 0;
-            const btmBreakdown = getBtmBreakdown(attacker);
-            const btm = btmBreakdown.value;
+            
+            let damageBonus, damageBonusBreakdown;
+            if (spell.effect.calculation === 'magical') {
+                const btmData = getBtmBreakdown(attacker);
+                damageBonus = btmData.value;
+                damageBonusBreakdown = btmData.details;
+            } else { // Physical spell
+                const btdData = getBtdBreakdown(attacker, 'weapon1'); // Assume weapon1 for calculation base
+                damageBonus = btdData.value;
+                damageBonusBreakdown = btdData.details;
+            }
+
             const targetProtectionBreakdown = getProtectionBreakdown(target);
             const targetProtection = targetProtectionBreakdown.value;
-            const totalDamage = damageRoll + levelBonus + critDamage + btm + effectModifier;
+            const totalDamage = damageRoll + levelBonus + critDamage + damageBonus + effectModifier;
             const finalDamage = Math.max(1, totalDamage - targetProtection);
             
             target.hp = Math.max(0, target.hp - finalDamage);
@@ -831,7 +842,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
-            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, btm, btmBreakdown: btmBreakdown.details, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
+            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
             io.to(roomId).emit('spellResolved', { debugInfo });
             break;
         

@@ -63,7 +63,7 @@
   },
   "Ampulheta": {
     "img": "/images/itens/Ampulheta.png",
-    "description": "Uma antiga ampulheta que parece ter parado no tempo."
+    "description": "Uma antiga ampulheta em bom estado."
   },
   "Amuleto": {
     "img": "/images/itens/Amuleto.png",
@@ -83,7 +83,7 @@
   },
   "Cadeado": {
     "img": "/images/itens/Cadeado.png",
-    "description": "Um cadeado antigo e enferrujado, sem chave."
+    "description": "Um cadeado antigo e enferrujado, com uma chave."
   },
   "Cantil": {
     "img": "/images/itens/Cantil.png",
@@ -91,19 +91,19 @@
   },
   "Chave A": {
     "img": "/images/itens/ChaveA.png",
-    "description": "Uma chave ornamentada com um 'A' gravado."
+    "description": "Uma chave de bronze."
   },
   "Chave B": {
     "img": "/images/itens/ChaveB.png",
-    "description": "Uma chave de ferro com um 'B' gravado."
+    "description": "Uma chave de prata."
   },
   "Chave C": {
     "img": "/images/itens/ChaveC.png",
-    "description": "Uma chave de bronze com um 'C' gravado."
+    "description": "Uma chave de ouro."
   },
   "Chaveiro": {
     "img": "/images/itens/Chaveiro.png",
-    "description": "Um chaveiro com várias chaves pequenas e inúteis."
+    "description": "Um chaveiro com várias chaves pequenas."
   },
   "Colar": {
     "img": "/images/itens/Colar.png",
@@ -123,7 +123,7 @@
   },
   "Espelho": {
     "img": "/images/itens/Espelho.png",
-    "description": "Um pequeno espelho de mão com uma moldura de prata."
+    "description": "Um pequeno espelho de mão com uma moldura de bronze."
   },
   "Estatueta": {
     "img": "/images/itens/Estatueta.png",
@@ -139,7 +139,7 @@
   },
   "Garrafa": {
     "img": "/images/itens/Garrafa.png",
-    "description": "Uma garrafa resistente, talvez para uma mensagem ou uma poção."
+    "description": "Uma garrafa de vidro, talvez para uma mensagem ou uma poção."
   },
   "Moeda": {
     "img": "/images/itens/Moeda.png",
@@ -151,7 +151,7 @@
   },
   "Tinteiro": {
     "img": "/images/itens/Tinteiro.png",
-    "description": "Um tinteiro com um pouco de tinta seca no fundo."
+    "description": "Uma pena e um tinteiro com um pouco de tinta no fundo."
   },
   "Runa A": {
     "img": "/images/itens/RunaA.png",

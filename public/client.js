@@ -139,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isTargeting = false;
         targetingAction = null;
         document.getElementById('targeting-indicator').classList.add('hidden');
+        document.querySelectorAll('.char-container.target-highlight').forEach(el => el.classList.remove('target-highlight'));
     }
     function getFighter(state, key) {
         if (!state || !key) return null;
@@ -1074,6 +1075,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(container.classList.contains('targetable')) {
             container.addEventListener('click', handleTargetClick);
+            container.addEventListener('mouseover', handleTargetMouseOver);
+            container.addEventListener('mouseout', handleTargetMouseOut);
         }
         
         if (isGm) {
@@ -1230,7 +1233,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetKey: currentGameState.activeCharacterKey 
             });
         } else {
-            targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name };
+            targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name, spell: spell };
             isTargeting = true;
             document.getElementById('targeting-indicator').classList.remove('hidden');
         }
@@ -1348,6 +1351,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    function handleTargetMouseOver(event) {
+        if (!isTargeting || !targetingAction || targetingAction.type !== 'use_spell') return;
+        
+        const targetContainer = event.target.closest('.char-container.targetable');
+        if (!targetContainer) return;
+    
+        const targetKey = targetContainer.dataset.key;
+        const { spell } = targetingAction;
+    
+        document.querySelectorAll('.char-container.target-highlight').forEach(el => el.classList.remove('target-highlight'));
+    
+        if (spell.targetType === 'adjacent_enemy') {
+            const targetIndex = currentGameState.npcSlots.indexOf(targetKey);
+            if (targetIndex !== -1) {
+                const affectedIndexes = [targetIndex];
+                if (targetIndex > 0) affectedIndexes.push(targetIndex - 1);
+                if (targetIndex < 3) affectedIndexes.push(targetIndex + 1);
+                
+                affectedIndexes.forEach(index => {
+                    const npcId = currentGameState.npcSlots[index];
+                    if (npcId) {
+                        const el = document.getElementById(npcId);
+                        if(el) el.classList.add('target-highlight');
+                    }
+                });
+            }
+        } else if (spell.targetType === 'all_enemies') {
+             document.querySelectorAll('.npc-char-container').forEach(el => el.classList.add('target-highlight'));
+        } else {
+            targetContainer.classList.add('target-highlight');
+        }
+    }
+    
+    function handleTargetMouseOut() {
+        if (isTargeting) {
+            document.querySelectorAll('.char-container.target-highlight').forEach(el => el.classList.remove('target-highlight'));
+        }
+    }
+
+
     function showCheatModal() {
         let content = `<div class="cheat-menu"><button id="cheat-add-npc-btn" class="mode-btn">Adicionar Inimigo em Slot</button></div>`;
         showInfoModal('Cheats', content, false);
@@ -2630,9 +2673,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(spellData) {
                     const card = document.createElement('div');
                     card.className = 'spell-card ingame-spell';
+                    if (!spellData.inCombat) card.classList.add('usable-outside-combat');
                     card.dataset.spellName = spellData.name;
                     const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
                     card.innerHTML = `<h4>${spellData.name} <small>${spellType}</small></h4><p>${spellData.description}</p>`;
+                    if (!spellData.inCombat && currentGameState.mode === 'theater') {
+                        card.addEventListener('click', () => handleUtilitySpellClick(spellData));
+                    }
                     spellsGrid.appendChild(card);
                 }
             });
@@ -2659,6 +2706,37 @@ document.addEventListener('DOMContentLoaded', () => {
         ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
     }
     
+    function handleUtilitySpellClick(spell) {
+        let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
+        Object.values(currentGameState.connectedPlayers).forEach(player => {
+            if(player.role === 'player' && player.characterSheet) {
+                 content += `<button class="utility-spell-target-btn" data-player-id="${player.id}">
+                    <div class="utility-spell-token" style="background-image: url('${player.characterSheet.tokenImg}')"></div>
+                    <span>${player.characterName}</span>
+                </button>`;
+            }
+        });
+        content += `</div>`;
+
+        showCustomModal(`Usar ${spell.name}`, content, [
+            { text: 'Cancelar', closes: true, className: 'btn-danger'}
+        ]);
+
+        document.querySelectorAll('.utility-spell-target-btn').forEach(btn => {
+            btn.onclick = () => {
+                const targetId = btn.dataset.playerId;
+                socket.emit('playerAction', {
+                    type: 'useUtilitySpell',
+                    casterId: myPlayerKey,
+                    targetId: targetId,
+                    spellName: spell.name
+                });
+                 modal.classList.add('hidden');
+                 ingameSheetModal.classList.add('hidden');
+            };
+        });
+    }
+
     function handleEquipmentChangeConfirmation() {
         const myFighter = getFighter(currentGameState, myPlayerKey);
         if (!myFighter) return;
