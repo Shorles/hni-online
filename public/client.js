@@ -314,7 +314,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 
+                let handInfo = '';
+                if (itemData.type === 'weapon' && itemData.hand) {
+                    handInfo = `<div class="shop-item-hand">${itemData.hand} Mão${itemData.hand > 1 ? 's' : ''}</div>`;
+                }
+
                 card.innerHTML = `
+                    ${handInfo}
                     <img src="${imgPath || ''}" alt="${itemData.name}" onerror="this.style.display='none'">
                     <div class="shop-item-name">${itemData.name}</div>
                 `;
@@ -1155,7 +1161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (weapon && weapon.type !== 'Desarmado') {
                 const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
                 const btn = createButton(
-                    `Atacar com ${weapon.name}`,
+                    `Atacar com ${weapon.name} (2 PA)`,
                     () => startAttackSequence(weaponKey),
                     !finalCanControl,
                     'action-btn',
@@ -1170,7 +1176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createAttackButton('weapon2');
         
         if (!attackButtonAdded) {
-            const btn = createButton('Atacar Desarmado', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
+            const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
             actionButtonsWrapper.appendChild(btn);
         }
 
@@ -1193,7 +1199,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
-                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
+                    const costPA = spell.costPA !== undefined ? spell.costPA : 2;
+                    const btnText = `${spell.name} (${costPA} PA)`;
+                    const spellBtn = createButton(btnText, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
                     spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
                     actionButtonsWrapper.appendChild(spellBtn);
                 }
@@ -2358,10 +2366,7 @@ document.addEventListener('DOMContentLoaded', () => {
             description: itemDetails.description || `Tipo: ${item.type}`,
             isUsable: itemDetails.isUsable || false
         };
-
-        const myFighter = getFighter(currentGameState, myPlayerKey);
-        if (!myFighter) return;
-
+    
         let content = `
             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
                 <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
@@ -2370,28 +2375,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
                 </div>
             </div>`;
-
+    
         const buttons = [];
-
+    
         if (effectiveDetails.isUsable) {
-            let canUse = true;
-            let reason = '';
-            if (currentGameState.mode === 'adventure') {
-                if (currentGameState.activeCharacterKey !== myPlayerKey) {
-                    canUse = false;
-                    reason = ' (Não é seu turno)';
-                } else if (myFighter.pa < effectiveDetails.costPA) {
-                    canUse = false;
-                    reason = ` (PA insuficiente: ${myFighter.pa}/${effectiveDetails.costPA})`;
-                }
-            }
+            const costPA = effectiveDetails.costPA || 3;
             buttons.push({
-                text: `Usar${reason}`,
-                closes: canUse,
-                className: canUse ? '' : 'disabled-btn',
+                text: `Usar`,
+                closes: false,
                 onClick: () => {
-                    if (canUse) {
+                    const myFighter = getFighter(currentGameState, myPlayerKey);
+                    if (!myFighter) return;
+    
+                    if (currentGameState.mode === 'adventure') {
+                        if (currentGameState.activeCharacterKey !== myPlayerKey) {
+                            showInfoModal("Ação Bloqueada", "Você só pode usar itens no seu turno.");
+                            return;
+                        }
+                        if (myFighter.pa < costPA) {
+                            showInfoModal("PA Insuficiente", `Você precisa de ${costPA} PA para usar este item, mas só tem ${myFighter.pa}.`);
+                            return;
+                        }
+                        showCustomModal(
+                            "Confirmar Uso de Item",
+                            `Usar <strong>${item.name}</strong> custará ${costPA} Pontos de Ação. Deseja continuar?`,
+                            [
+                                { text: 'Sim, Confirmar', closes: true, onClick: () => {
+                                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                                    document.getElementById('ingame-sheet-modal').classList.add('hidden');
+                                }},
+                                { text: 'Cancelar', closes: true, className: 'btn-danger' }
+                            ]
+                        );
+                    } else {
                         socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                        modal.classList.add('hidden');
                         document.getElementById('ingame-sheet-modal').classList.add('hidden');
                     }
                 }
@@ -2421,7 +2439,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ]);
             }
         });
-
+    
         buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
         
         showCustomModal(item.name, content, buttons);

@@ -995,6 +995,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 .shop-selection-panel {
     flex: 3;
+    min-width: 0; /* Ajuda o flexbox a respeitar o tamanho */
 }
 .shop-staging-panel {
     flex: 2;
@@ -1026,12 +1027,17 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     border-color: #ffeb3b;
 }
 
+.shop-item-grids-container {
+    flex-grow: 1;
+    min-height: 0; /* Importante para que a barra de rolagem funcione */
+    overflow-y: auto; /* Adiciona a barra de rolagem vertical */
+    padding-right: 5px; /* Espaço para a barra de rolagem */
+}
+
 .shop-item-grid {
     display: none;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 10px;
-    overflow-y: auto;
-    flex-grow: 1;
     padding: 10px;
     background-color: rgba(0,0,0,0.2);
     border-radius: 5px;
@@ -1052,9 +1058,22 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
+    position: relative;
 }
 .shop-item-card:hover {
     border-color: #ffeb3b;
+}
+
+.shop-item-hand {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 0.7em;
+    background-color: rgba(0,0,0,0.6);
+    color: #ffc107;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: bold;
 }
 
 .shop-item-card img {
