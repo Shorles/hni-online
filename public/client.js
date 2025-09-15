@@ -148,6 +148,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
+            // CORREÇÃO: Usa a ficha do lobby SE ELA EXISTIR (para jogadores),
+            // caso contrário, usa a ficha que já veio com os dados da batalha (correto para NPCs).
             return { ...fighterInBattle, sheet: lobbySheet || fighterInBattle.sheet };
         }
     
@@ -189,6 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'gmClosesShop' });
         }
     }
+
     function renderShopModal() {
         const shopModalContent = document.getElementById('shop-modal-content');
         if (!shopModalContent) return;
@@ -199,8 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPlayerShopPanel(shopModalContent);
         }
     }
+    
     function renderGmShopPanel(container) {
-        container.innerHTML = '';
+        container.innerHTML = ''; // Limpa o conteúdo anterior
     
         const state = currentGameState.shop;
         if (!state) return;
@@ -300,12 +304,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.title = itemData.description || itemData.name;
                 
                 let imgPath = itemData.img;
-                if (!imgPath) { 
+                if (!imgPath) { // Fallback para armaduras/escudos sem imagem definida em all_weapon_images
                     if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
                         const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                         imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                     } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                         const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldImgName}`;
+                         const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
                          imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                     }
                 }
@@ -334,6 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.querySelector('#shop-close-btn').onclick = toggleShop;
     }
+
     function showAddItemToShopModal(itemData) {
         const itemId = itemData.name.replace(/\s+/g, '-');
         const existingItem = shopStagedItems[itemId];
@@ -358,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         name: itemData.name,
                         price: price,
                         quantity: quantity,
-                        itemData: itemData 
+                        itemData: itemData // Store original data
                     };
                     renderStagedItemsForGm(document.getElementById('shop-staging-area'));
                     socket.emit('playerAction', { type: 'gmUpdatesShop', items: shopStagedItems });
@@ -367,6 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { text: 'Cancelar', closes: true }
         ]);
     }
+
     function renderStagedItemsForGm(container) {
         if (!container) return;
         container.innerHTML = '';
@@ -413,8 +419,9 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(card);
         });
     }
+
     function renderPlayerShopPanel(container) {
-        container.innerHTML = '';
+        container.innerHTML = ''; // Limpa o conteúdo anterior
         const state = currentGameState.shop;
         if (!state || !state.playerItems) return;
 
@@ -453,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                     imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                 } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldImgName}`;
+                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
                      imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                 }
             }
@@ -470,6 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
             playerViewArea.appendChild(card);
         });
     }
+
     function showBuyItemModal(shopItem, myMoney) {
         const isFree = shopItem.price === 0;
         
@@ -531,9 +539,128 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             quantityInput.oninput = updateTotal;
-            updateTotal();
+            updateTotal(); // Initial call
         }
     }
+
+    // =================================================================
+    // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
+    // =================================================================
+    function renderGame(gameState) {
+        oldGameState = currentGameState;
+        currentGameState = gameState;
+
+        if (!gameState || !gameState.mode || !gameState.connectedPlayers) {
+            showScreen(document.getElementById('loading-screen'));
+            return;
+        }
+
+        scaleGame(); 
+
+        if (gameState.mode === 'adventure' && gameState.customPositions) customFighterPositions = gameState.customPositions;
+        
+        const myPlayerData = gameState.connectedPlayers?.[socket.id];
+        const amIPlayerAndFinalized = myRole === 'player' && myPlayerData && myPlayerData.characterFinalized;
+
+        playerInfoWidget.classList.toggle('hidden', !amIPlayerAndFinalized);
+        if (amIPlayerAndFinalized) {
+            const myFighterData = getFighter(gameState, myPlayerKey);
+            if (myFighterData && myFighterData.sheet) {
+                const tokenImg = myFighterData.sheet.tokenImg;
+                const charName = myFighterData.sheet.name || myFighterData.nome;
+                
+                if(tokenImg) {
+                    document.getElementById('player-info-token').style.backgroundImage = `url("${tokenImg}")`;
+                } else {
+                    document.getElementById('player-info-token').style.backgroundImage = 'none';
+                }
+                document.getElementById('player-info-name').textContent = charName;
+            }
+        }
+        
+        if (myRole === 'player' && myPlayerData && !myPlayerData.characterFinalized) {
+             const currentScreen = document.querySelector('.screen.active');
+             if (currentScreen.id !== 'character-sheet-screen' && currentScreen.id !== 'player-initial-choice-screen' && currentScreen.id !== 'selection-screen') {
+                 showScreen(document.getElementById('player-waiting-screen'));
+             }
+             return;
+        }
+        
+        if (gameState.mode === 'adventure' && gameState.scenario) gameWrapper.style.backgroundImage = `url('/images/${gameState.scenario}')`;
+        else if (gameState.mode === 'lobby') gameWrapper.style.backgroundImage = `url('/images/mapas/cenarios externos/externo (1).png')`;
+        else gameWrapper.style.backgroundImage = 'none';
+
+        document.getElementById('turn-order-sidebar').classList.add('hidden');
+        floatingButtonsContainer.classList.add('hidden');
+        document.getElementById('waiting-players-sidebar').classList.add('hidden');
+        document.getElementById('back-to-lobby-btn').classList.add('hidden');
+
+        if (isGm && (gameState.mode === 'adventure' || gameState.mode === 'theater')) {
+            floatingButtonsContainer.classList.remove('hidden');
+            document.getElementById('back-to-lobby-btn').classList.remove('hidden');
+            const switchBtn = document.getElementById('floating-switch-mode-btn');
+            if (gameState.mode === 'adventure') {
+                switchBtn.innerHTML = '🎭';
+                switchBtn.title = 'Mudar para Modo Cenário';
+            } else {
+                switchBtn.innerHTML = '⚔️';
+                switchBtn.title = 'Mudar para Modo Aventura';
+            }
+        }
+
+        switch(gameState.mode) {
+            case 'lobby':
+                defeatAnimationPlayed.clear();
+                stagedNpcSlots.fill(null);
+                selectedSlotIndex = null;
+                isShopOpen = false;
+                if(shopModal) shopModal.classList.add('hidden');
+                if (isGm) {
+                    showScreen(document.getElementById('gm-initial-lobby'));
+                    updateGmLobbyUI(gameState);
+                } else {
+                    const myPlayer = gameState.connectedPlayers[socket.id];
+                    if (myPlayer && myPlayer.characterFinalized) {
+                        showScreen(document.getElementById('player-waiting-screen'));
+                        document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre iniciar o jogo...";
+                    }
+                }
+                break;
+            case 'adventure':
+                isShopOpen = false;
+                if(shopModal) shopModal.classList.add('hidden');
+                handleAdventureMode(gameState);
+                break;
+            case 'theater':
+                if (!oldGameState || oldGameState.mode !== 'theater') initializeTheaterMode();
+                showScreen(document.getElementById('theater-screen'));
+                renderTheaterMode(gameState);
+                if (gameState.shop) {
+                    if (isGm) {
+                        shopStagedItems = gameState.shop.gmItems;
+                        if(isShopOpen) renderShopModal();
+                    } else {
+                        if (gameState.shop.isOpen) {
+                            if (!isShopOpen) {
+                                isShopOpen = true;
+                                shopModal.classList.remove('hidden');
+                                shopModal.classList.add('active');
+                            }
+                            renderShopModal();
+                        } else {
+                            isShopOpen = false;
+                            shopModal.classList.add('hidden');
+                            shopModal.classList.remove('active');
+                        }
+                    }
+                }
+                break;
+            default:
+                showScreen(document.getElementById('loading-screen'));
+        }
+    }
+    
+    // --- LÓGICA DO MODO AVENTURA ---
     function handleAdventureMode(gameState) {
         if (isGm) {
             switch (gameState.phase) {
@@ -579,6 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+    
     function updateGmLobbyUI(state) {
         const playerListEl = document.getElementById('gm-lobby-player-list');
         if (!playerListEl || !state || !state.connectedPlayers) return;
@@ -592,6 +720,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
     function renderPlayerTokenSelection() {
         const charListContainer = document.getElementById('character-list-container');
         const confirmBtn = document.getElementById('confirm-selection-btn');
@@ -617,6 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
             charListContainer.appendChild(card);
         });
     }
+    
     function renderNpcSelectionForGm() {
         const npcArea = document.getElementById('npc-selection-area');
         npcArea.innerHTML = '';
@@ -661,6 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('playerAction', { type: 'gmStartBattle', npcs: finalNpcs });
         };
     }
+
     function renderNpcStagingArea() {
         const stagingArea = document.getElementById('npc-staging-area');
         stagingArea.innerHTML = '';
@@ -698,6 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
             stagingArea.appendChild(slot);
         }
     }
+
     function showNpcConfigModal(config) {
         let npcData, isLiveConfig, isMidBattleAdd;
 
@@ -834,6 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('npc-cfg-armor').value = current.equip.armor;
         document.getElementById('npc-cfg-shield').value = current.equip.shield;
     }
+
     function showGMBuffModal(fighter) {
         if (!fighter) return;
         const attributes = ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente'];
@@ -864,6 +997,41 @@ document.addEventListener('DOMContentLoaded', () => {
             { text: 'Cancelar', closes: true }
         ]);
     }
+
+    function updateAdventureUI(state) {
+        if (!state || !state.fighters) return;
+        
+        fightSceneCharacters.innerHTML = '';
+        document.getElementById('round-info').textContent = `ROUND ${state.currentRound}`;
+        document.getElementById('fight-log').innerHTML = (state.log || [])
+            .filter(entry => entry.type !== 'debug' || isGm)
+            .map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
+        
+        const PLAYER_POSITIONS = [ { left: '150px', top: '450px' }, { left: '250px', top: '350px' }, { left: '350px', top: '250px' }, { left: '450px', top: '150px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '1050px', top: '300px' } ];
+        
+        Object.keys(state.fighters.players).forEach((key, index) => {
+            const player = state.fighters.players[key];
+             if (player.status === 'fled') return;
+             const position = state.customPositions[player.id] || PLAYER_POSITIONS[index];
+             const el = createFighterElement(player, 'player', state, position);
+             if (el) fightSceneCharacters.appendChild(el);
+        });
+
+        (state.npcSlots || []).forEach((npcId, index) => {
+            const npc = getFighter(state, npcId);
+            if (npc && npc.status !== 'fled') {
+                const position = state.customPositions[npc.id] || NPC_POSITIONS[index];
+                const el = createFighterElement(npc, 'npc', state, position);
+                if (el) fightSceneCharacters.appendChild(el);
+            }
+        });
+        
+        renderActionButtons(state);
+        renderTurnOrderUI(state);
+        renderWaitingPlayers(state);
+    }
+    
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
@@ -951,6 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = `${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
+    
     function renderActionButtons(state) {
         actionButtonsWrapper.innerHTML = '';
         if (state.phase !== 'battle' || !!state.winner) return;
@@ -986,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (weapon && weapon.type !== 'Desarmado') {
                 const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
                 const btn = createButton(
-                    `Atacar com ${weapon.name} (2 PA)`,
+                    `Atacar com ${weapon.name}`,
                     () => startAttackSequence(weaponKey),
                     !finalCanControl,
                     'action-btn',
@@ -1001,7 +1170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createAttackButton('weapon2');
         
         if (!attackButtonAdded) {
-            const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
+            const btn = createButton('Atacar Desarmado', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
             actionButtonsWrapper.appendChild(btn);
         }
 
@@ -1024,8 +1193,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
-                    const paCost = spell.costPA || 2;
-                    const spellBtn = createButton(`${spell.name} (${paCost} PA)`, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
+                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
                     spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
                     actionButtonsWrapper.appendChild(spellBtn);
                 }
@@ -1035,6 +1203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !finalCanControl, 'action-btn flee-btn'));
         actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !finalCanControl, 'end-turn-btn'));
     }
+
     function startAttackSequence(weaponChoice) {
         const attacker = getFighter(currentGameState, currentGameState.activeCharacterKey);
         if (!attacker) return;
@@ -1043,6 +1212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isTargeting = true;
         document.getElementById('targeting-indicator').classList.remove('hidden');
     }
+    
     function startSpellSequence(spell) {
         if (spell.targetType === 'self') {
             socket.emit('playerAction', {
@@ -1057,6 +1227,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('targeting-indicator').classList.remove('hidden');
         }
     }
+
     function renderInitiativeUI(state) {
         initiativeUI.classList.remove('hidden');
         const playerRollBtn = document.getElementById('player-roll-initiative-btn');
@@ -1078,6 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
     function renderTurnOrderUI(state) {
         if (state.phase !== 'battle' && state.phase !== 'initiative_roll') {
             turnOrderSidebar.classList.add('hidden');
@@ -1104,6 +1276,7 @@ document.addEventListener('DOMContentLoaded', () => {
             turnOrderSidebar.appendChild(card);
         });
     }
+
     function renderWaitingPlayers(state) {
         waitingPlayersSidebar.innerHTML = '';
         const waiting = state.waitingPlayers || {};
@@ -1127,6 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
             waitingPlayersSidebar.appendChild(card);
         }
     }
+
     function showPartSelectionModal(targetFighter) {
         let modalContentHtml = '<div class="target-part-selection">';
         targetFighter.parts.forEach(part => {
@@ -1149,6 +1323,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
     function handleTargetClick(event) {
         if (isFreeMoveModeActive || !isTargeting || !targetingAction) return;
         const targetContainer = event.target.closest('.char-container.targetable');
@@ -1164,11 +1339,13 @@ document.addEventListener('DOMContentLoaded', () => {
             cancelTargeting();
         }
     }
+    
     function showCheatModal() {
         let content = `<div class="cheat-menu"><button id="cheat-add-npc-btn" class="mode-btn">Adicionar Inimigo em Slot</button></div>`;
         showInfoModal('Cheats', content, false);
         document.getElementById('cheat-add-npc-btn').addEventListener('click', handleCheatAddNpc);
     }
+    
     function handleCheatAddNpc() {
         if (!currentGameState || !currentGameState.npcSlots) return;
         const { npcSlots } = currentGameState;
@@ -1197,6 +1374,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
     function selectNpcForSlot(slotIndex) {
         let content = `<p>Selecione o novo inimigo para o Slot ${parseInt(slotIndex, 10) + 1}:</p><div class="npc-selection-container" style="max-height: 300px;">`;
         (ALL_CHARACTERS.npcs || []).forEach(npcData => {
@@ -1212,6 +1390,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
     function makeFightersDraggable(isDraggable) {
         document.querySelectorAll('#fight-screen .char-container').forEach(fighter => {
             if (isDraggable) fighter.addEventListener('mousedown', onFighterMouseDown);
@@ -1255,6 +1434,8 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>`;
         showInfoModal("Atalhos do Teclado", content);
     }
+    
+    // --- LÓGICA DO MODO CENÁRIO ---
     function initializeTheaterMode() {
         localWorldScale = 1.0;
         theaterWorldContainer.style.transform = "scale(1)";
@@ -1274,6 +1455,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         [...(ALL_CHARACTERS.players || []), ...(ALL_CHARACTERS.npcs || []), ...(ALL_CHARACTERS.dynamic || [])].forEach(createMini);
     }
+
     function renderTheaterMode(state) {
         if (isDragging) return;
         const dataToRender = isGm ? state.scenarioStates?.[state.currentScenario] : state.publicState;
@@ -1331,6 +1513,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         theaterTokenContainer.appendChild(fragment);
     }
+    
     function setupTheaterEventListeners() {
         const viewport = theaterBackgroundViewport;
         viewport.addEventListener('mousedown', (e) => {
@@ -1455,11 +1638,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isGm && hoveredTokenId && selectedTokens.has(hoveredTokenId)) {
                 const tokenData = currentGameState.scenarioStates[currentGameState.currentScenario].tokens[hoveredTokenId];
                 if (tokenData) {
-                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.15 : 0.15); 
+                    const newScale = (tokenData.scale || 1.0) + (e.deltaY > 0 ? -0.15 : 0.15); // Aumentado para 0.15
                     selectedTokens.forEach(id => socket.emit('playerAction', { type: 'updateToken', token: { id, scale: Math.max(0.1, newScale) }}));
                 }
             } else {
-                const zoomIntensity = 0.1, scrollDirection = e.deltaY < 0 ? 1 : -1; 
+                const zoomIntensity = 0.1, scrollDirection = e.deltaY < 0 ? 1 : -1; // Aumentado para 0.1
                 const newScale = Math.max(0.2, Math.min(localWorldScale + (zoomIntensity * scrollDirection), 5));
                 const rect = viewport.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
@@ -1475,6 +1658,7 @@ document.addEventListener('DOMContentLoaded', () => {
              if (isGm) socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
         });
     }
+    
     function initializeGlobalKeyListeners() {
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
@@ -1573,8 +1757,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // CORREÇÃO: Todas as funções abaixo foram movidas para o escopo principal para evitar ReferenceError.
-    
     function showScenarioSelectionModal(){
         let contentHtml = '<div class="category-tabs">';
         const categories = Object.keys(ALL_SCENARIOS);
@@ -1610,7 +1792,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
+        // CORREÇÃO: Não apaga mais o objeto inteiro, preservando tokenName e tokenImg.
+        // stagedCharacterSheet = {}; 
         stagedCharacterSheet.spells = []; 
         stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
         stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
@@ -1841,6 +2026,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('sheet-spells-selected-count').textContent = stagedCharacterSheet.spells.length;
     }
+
     function showWeaponImageSelectionModal(weaponSlot) {
         const weaponType = document.getElementById(`sheet-${weaponSlot}-type`).value;
         const images = ALL_WEAPON_IMAGES[weaponType];
@@ -1885,6 +2071,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         weaponImageModal.classList.remove('hidden');
     }
+
     function getCharacterSheetData(context) {
         const isCreation = context === 'creation';
         const prefix = isCreation ? 'sheet' : 'ingame-sheet';
@@ -1955,6 +2142,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return data;
     }
+    
     function encryptData(data) {
         try {
             const jsonString = JSON.stringify(data);
@@ -1964,6 +2152,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return null;
         }
     }
+    
     function decryptData(encodedData) {
         try {
             const jsonString = decodeURIComponent(escape(atob(encodedData)));
@@ -1973,6 +2162,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return null;
         }
     }
+
     function handleSaveCharacter(context) {
         const sheetData = getCharacterSheetData(context);
         const characterName = sheetData.name || sheetData.tokenName;
@@ -1993,6 +2183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
+    
     function handleLoadCharacter(event, context) {
         const file = event.target.files[0];
         if (!file) return;
@@ -2054,6 +2245,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsText(file);
     }
+
     function handleConfirmCharacter() {
         if (stagedCharacterSheet.spells.length > 2) {
             alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
@@ -2097,83 +2289,414 @@ document.addEventListener('DOMContentLoaded', () => {
             sendData();
         }
     }
-    function initialize() {
-        showScreen(document.getElementById('loading-screen'));
+    
+    // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-        document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
-        document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
-        
-        document.getElementById('new-char-btn').addEventListener('click', () => {
-            showScreen(document.getElementById('selection-screen'));
-            renderPlayerTokenSelection();
-        });
-        document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
-        document.getElementById('load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'creation'));
-
-        document.getElementById('confirm-selection-btn').onclick = () => {
-            const selectedCard = document.querySelector('.char-card.selected');
-            if (selectedCard) {
-                stagedCharacterSheet.tokenName = selectedCard.dataset.name;
-                stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
-                initializeCharacterSheet();
-                showScreen(document.getElementById('character-sheet-screen'));
+    function renderIngameInventory(fighter) {
+        if (!fighter || !fighter.sheet) return;
+    
+        const inventory = fighter.inventory || {};
+        const inventoryGrid = document.getElementById('inventory-grid');
+        inventoryGrid.innerHTML = '';
+        const MAX_SLOTS = 24;
+    
+        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
+        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
+        const armor = document.getElementById('ingame-sheet-armor-type').value;
+        const shield = document.getElementById('ingame-sheet-shield-type').value;
+        const equippedItemNames = [weapon1, weapon2, armor, shield];
+    
+        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
+    
+        // AJUSTE: Verifica se o jogador pode interagir com o inventário
+        const isAdventureMode = currentGameState.mode === 'adventure';
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
+        const canInteract = !isAdventureMode || isMyTurn;
+    
+        itemsToDisplay.forEach(item => {
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            
+            const itemDetails = ALL_ITEMS[item.name];
+            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
+            
+            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
+            if (imgPath) {
+                slot.style.backgroundImage = `url("${imgPath}")`;
+            } else {
+                 slot.style.backgroundImage = 'none';
             }
+    
+            if (item.quantity > 1) {
+                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
+            }
+            
+            // AJUSTE: Adiciona a classe 'item' e o event listener apenas se a interação for permitida
+            if (canInteract) {
+                slot.classList.add('item');
+                slot.addEventListener('click', () => showItemContextMenu(item));
+            } else {
+                slot.style.cursor = 'not-allowed';
+            }
+    
+            inventoryGrid.appendChild(slot);
+        });
+    
+        const filledSlots = itemsToDisplay.length;
+        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
+            const emptySlot = document.createElement('div');
+            emptySlot.className = 'inventory-slot';
+            inventoryGrid.appendChild(emptySlot);
+        }
+    }
+
+    function showItemContextMenu(item) {
+        const itemDetails = ALL_ITEMS[item.name] || {};
+        const effectiveDetails = {
+            ...itemDetails,
+            img: item.img || itemDetails.img,
+            description: itemDetails.description || `Tipo: ${item.type}`,
+            isUsable: itemDetails.isUsable || false
         };
 
-        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
-            el.addEventListener('change', (e) => {
-                const isWeaponType = e.target.id.startsWith('sheet-weapon') && e.target.id.endsWith('-type');
-                if (isWeaponType) {
-                    const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
-                    stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-                    updateCharacterSheet(null, e);
-                    if (e.target.value !== 'Desarmado') {
-                        showWeaponImageSelectionModal(weaponSlot);
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        if (!myFighter) return;
+
+        let content = `
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
+                <div>
+                    <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
+                    <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
+                </div>
+            </div>`;
+
+        const buttons = [];
+
+        if (effectiveDetails.isUsable) {
+            let canUse = true;
+            let reason = '';
+            if (currentGameState.mode === 'adventure') {
+                if (currentGameState.activeCharacterKey !== myPlayerKey) {
+                    canUse = false;
+                    reason = ' (Não é seu turno)';
+                } else if (myFighter.pa < effectiveDetails.costPA) {
+                    canUse = false;
+                    reason = ` (PA insuficiente: ${myFighter.pa}/${effectiveDetails.costPA})`;
+                }
+            }
+            buttons.push({
+                text: `Usar${reason}`,
+                closes: canUse,
+                className: canUse ? '' : 'disabled-btn',
+                onClick: () => {
+                    if (canUse) {
+                        socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
                     }
-                } else {
-                    updateCharacterSheet(null, e);
                 }
             });
-            if (el.tagName !== 'SELECT' && el.type !== 'file') {
-                el.addEventListener('input', (e) => updateCharacterSheet(null, e));
+        }
+        
+        buttons.push({
+            text: 'Descartar',
+            closes: false, 
+            className: 'btn-danger',
+            onClick: () => {
+                showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
+                    {
+                        text: 'Sim, Descartar',
+                        closes: true,
+                        className: 'btn-danger',
+                        onClick: () => {
+                             socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
+                             const fighter = getFighter(currentGameState, myPlayerKey);
+                             if(fighter && fighter.sheet.inventory[item.name]) {
+                                delete fighter.sheet.inventory[item.name];
+                                renderIngameInventory(fighter);
+                             }
+                        }
+                    },
+                    { text: 'Não', closes: true, className: 'btn-secondary' }
+                ]);
             }
         });
 
-        document.getElementById('weapon-image-modal-cancel').onclick = () => {
-             weaponImageModal.classList.add('hidden');
+        buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
+        
+        showCustomModal(item.name, content, buttons);
+    }
+
+
+    function toggleIngameSheet() {
+        const modal = document.getElementById('ingame-sheet-modal');
+        if (!modal || !currentGameState) return;
+    
+        const isHidden = modal.classList.contains('hidden');
+        if (isHidden) {
+            const myFighterData = getFighter(currentGameState, myPlayerKey);
+            if (!myFighterData) return;
+            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment)); // AJUSTE 1: Captura o estado original
+            populateIngameSheet(myFighterData);
+            modal.classList.remove('hidden');
+        } else {
+            handleEquipmentChangeConfirmation(); // AJUSTE 1: Chama a nova função de confirmação ao fechar
+        }
+    }
+    
+    function populateIngameSheet(fighter) {
+        if (!fighter || !fighter.sheet) return;
+    
+        const isAdventureMode = currentGameState.mode === 'adventure';
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
+        const canEditEquipment = !isAdventureMode || isMyTurn;
+        
+        const loadBtn = document.getElementById('ingame-sheet-load-btn');
+        loadBtn.disabled = isAdventureMode;
+        loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
+
+        document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
+        const tokenImg = fighter.sheet.tokenImg;
+        document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
+        document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
+        document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
+        document.getElementById('ingame-sheet-xp-needed').textContent = fighter.xpNeeded || 100;
+        document.getElementById('ingame-sheet-money').textContent = fighter.money !== undefined ? fighter.money : 0;
+    
+        const equipment = fighter.sheet.equipment;
+        
+        const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
+        const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
+        const armorSelect = document.getElementById('ingame-sheet-armor-type');
+        const shieldSelect = document.getElementById('ingame-sheet-shield-type');
+    
+        const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
+        allEquipmentSelectors.forEach(sel => sel.onchange = null);
+
+        // AJUSTE: Desativa os seletores se não for o turno do jogador em combate.
+        weapon1Select.disabled = !canEditEquipment;
+        weapon2Select.disabled = !canEditEquipment;
+        armorSelect.disabled = !canEditEquipment;
+        shieldSelect.disabled = !canEditEquipment;
+    
+        const updateAllEquipment = (eventSource) => {
+            const inventory = fighter.inventory || {};
+            
+            // --- Rule Enforcement ---
+            let selectedW1 = weapon1Select.value;
+            let weapon1Item = inventory[selectedW1] || {};
+            let weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
+            let weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
+            
+            let selectedW2 = weapon2Select.value;
+            let weapon2Item = inventory[selectedW2] || {};
+            let weapon2BaseType = weapon2Item.baseType || (selectedW2 === 'Desarmado' ? 'Desarmado' : null);
+            let weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
+
+            const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
+            let changed = false;
+
+            if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
+                if (weapon2Select.value !== 'Desarmado') { weapon2Select.value = 'Desarmado'; changed = true; }
+                if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
+            }
+            if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
+                if (weapon1Select.value !== 'Desarmado') { weapon1Select.value = 'Desarmado'; changed = true; }
+                if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
+            }
+            
+            if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
+                shieldSelect.value = 'Nenhum';
+                changed = true;
+            }
+
+            if (shieldSelect.value !== 'Nenhum' && weapon2Select.value !== 'Desarmado') {
+                 weapon2Select.value = 'Desarmado';
+                 changed = true;
+            }
+
+            if (weapon1Select.value !== 'Desarmado' && weapon1Select.value === weapon2Select.value) {
+                if (eventSource === weapon1Select) {
+                    weapon2Select.value = 'Desarmado';
+                } else {
+                    weapon1Select.value = 'Desarmado';
+                }
+                changed = true;
+            }
+
+            if (changed) {
+                updateAllEquipment(null); 
+                return;
+            }
+
+            // --- Visual Updates based on the now-enforced state ---
+            const finalW1 = weapon1Select.value;
+            const finalW2 = weapon2Select.value;
+            const finalShield = shieldSelect.value;
+            const finalW1Item = inventory[finalW1] || {};
+            const finalW1BaseType = finalW1Item.baseType || (finalW1 === 'Desarmado' ? 'Desarmado' : null);
+            const finalW1Data = GAME_RULES.weapons[finalW1BaseType] || {};
+
+            // A desativação agora considera o canEditEquipment globalmente.
+            weapon2Select.disabled = !canEditEquipment || (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
+            shieldSelect.disabled = !canEditEquipment || finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
+
+            document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
+            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
+            renderIngameInventory(fighter);
+        };
+
+        const populateAllSelects = () => {
+            const inventory = fighter.inventory || {};
+            const populate = (selectEl, itemType, nullOption) => {
+                selectEl.innerHTML = '';
+                const items = Object.values(inventory).filter(item => item.type === itemType);
+    
+                const noneOpt = document.createElement('option');
+                noneOpt.value = nullOption;
+                noneOpt.textContent = nullOption;
+                selectEl.appendChild(noneOpt);
+    
+                items.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.name;
+                    opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
+                    selectEl.appendChild(opt);
+                });
+            };
+            populate(weapon1Select, 'weapon', 'Desarmado');
+            populate(weapon2Select, 'weapon', 'Desarmado');
+            populate(armorSelect, 'armor', 'Nenhuma');
+            populate(shieldSelect, 'shield', 'Nenhum');
         };
         
-        document.getElementById('sheet-save-btn').addEventListener('click', () => handleSaveCharacter('creation'));
-        document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
-
-        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
-        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
-        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
-        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
+        populateAllSelects();
         
-        floatingSwitchModeBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmSwitchesMode' }));
-        floatingInviteBtn.addEventListener('click', () => {
-             if (myRoomId) {
-                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
-                copyToClipboard(inviteUrl, floatingInviteBtn);
+        weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
+        weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
+        armorSelect.value = equipment.armor || 'Nenhuma';
+        shieldSelect.value = equipment.shield || 'Nenhum';
+        
+        allEquipmentSelectors.forEach(sel => {
+            sel.onchange = (event) => updateAllEquipment(event.target);
+        });
+
+        updateAllEquipment(null); // Initial sync
+    
+        const attributesGrid = document.getElementById('ingame-sheet-attributes');
+        attributesGrid.innerHTML = '';
+        const finalAttributes = fighter.sheet.finalAttributes || {};
+        for (const attr in finalAttributes) {
+            const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1).replace('cao', 'ção');
+            attributesGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${finalAttributes[attr]}</span></div>`;
+        }
+    
+        const elementsGrid = document.getElementById('ingame-sheet-elements');
+        elementsGrid.innerHTML = '';
+        const elements = fighter.sheet.elements || {};
+        for (const elem in elements) {
+            if (elements[elem] > 0) {
+                 const capitalized = elem.charAt(0).toUpperCase() + elem.slice(1).replace('ao', 'ão');
+                elementsGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${elements[elem]}</span></div>`;
+            }
+        }
+        
+        const spellsGrid = document.getElementById('ingame-sheet-spells-grid');
+        spellsGrid.innerHTML = '';
+        const spells = fighter.sheet.spells || [];
+        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+        
+        if (spells.length > 0) {
+            spells.forEach(spellName => {
+                const spellData = allSpells.find(s => s.name === spellName);
+                if(spellData) {
+                    const card = document.createElement('div');
+                    card.className = 'spell-card ingame-spell';
+                    card.dataset.spellName = spellData.name;
+                    const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
+                    card.innerHTML = `<h4>${spellData.name} <small>${spellType}</small></h4><p>${spellData.description}</p>`;
+                    spellsGrid.appendChild(card);
+                }
+            });
+        } else {
+            spellsGrid.innerHTML = `<p style="color: #888; text-align: center; grid-column: 1 / -1;">Nenhuma magia conhecida.</p>`;
+        }
+        
+        const ammoContainer = document.getElementById('ingame-sheet-ammunition');
+        const ammoList = document.getElementById('ingame-sheet-ammo-list');
+        ammoList.innerHTML = '';
+        const ammunition = fighter.ammunition || {};
+        let hasRangedWeapon = false;
+        
+        ['weapon1', 'weapon2'].forEach(slot => {
+            if (fighter.sheet.equipment[slot] && fighter.sheet.equipment[slot].isRanged) {
+                hasRangedWeapon = true;
+                const ammoItem = document.createElement('div');
+                ammoItem.className = 'ammo-item';
+                ammoItem.innerHTML = `<span>${fighter.sheet.equipment[slot].name}:</span><span>${ammunition[slot] || 0}</span>`;
+                ammoList.appendChild(ammoItem);
             }
         });
-        
-        if (floatingHelpBtn) floatingHelpBtn.addEventListener('click', showHelpModal);
 
-        setupTheaterEventListeners();
-        initializeGlobalKeyListeners();
-        window.addEventListener('resize', scaleGame);
-
-        playerInfoWidget.addEventListener('click', toggleIngameSheet);
-        document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
-            handleEquipmentChangeConfirmation();
-        });
-        document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
-        document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
-        document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
+        ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
     }
+    
+    function handleEquipmentChangeConfirmation() {
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        if (!myFighter) return;
+        
+        const inventory = myFighter.inventory || {};
+        
+        const getFullItem = (itemName, itemType) => {
+            if (itemName === 'Desarmado' || itemName === 'Nenhuma' || itemName === 'Nenhum') {
+                return { name: itemName, type: itemName, img: null, isRanged: false };
+            }
+            const item = inventory[itemName];
+            if (!item) return { name: itemName, type: itemType, img: null, isRanged: false }; // Fallback
+            return { name: item.name, type: item.baseType, img: item.img, isRanged: item.isRanged };
+        };
+
+        const newEquipment = {
+            weapon1: getFullItem(document.getElementById('ingame-sheet-weapon1-type').value, 'weapon'),
+            weapon2: getFullItem(document.getElementById('ingame-sheet-weapon2-type').value, 'weapon'),
+            armor: document.getElementById('ingame-sheet-armor-type').value,
+            shield: document.getElementById('ingame-sheet-shield-type').value,
+        };
+
+        const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
+    
+        if (!hasChanged) {
+            ingameSheetModal.classList.add('hidden');
+            return;
+        }
+    
+        if (currentGameState.mode === 'adventure') {
+            if (myFighter.pa < 3) {
+                showInfoModal("Ação Bloqueada", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações não foram salvas.");
+                ingameSheetModal.classList.add('hidden');
+                // Não precisa reverter, pois o estado do jogo não foi alterado e a ficha será repopulada na próxima vez que abrir.
+                return;
+            }
+    
+            showCustomModal(
+                "Confirmar Mudança de Equipamento",
+                "Trocar de equipamento durante o combate custará 3 Pontos de Ação. Deseja continuar?",
+                [
+                    { text: 'Sim, Gastar 3 PA', closes: true, onClick: () => {
+                        socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
+                        ingameSheetModal.classList.add('hidden');
+                    }},
+                    { text: 'Não, Cancelar', closes: true, onClick: () => {
+                        ingameSheetModal.classList.add('hidden');
+                    }}
+                ]
+            );
+        } else {
+            socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
+            ingameSheetModal.classList.add('hidden');
+        }
+    }
+
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
@@ -2464,6 +2987,84 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
-    // Ponto de entrada
+    function initialize() {
+        showScreen(document.getElementById('loading-screen'));
+
+        document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
+        document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
+        
+        document.getElementById('new-char-btn').addEventListener('click', () => {
+            showScreen(document.getElementById('selection-screen'));
+            renderPlayerTokenSelection();
+        });
+        document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
+        document.getElementById('load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'creation'));
+
+        document.getElementById('confirm-selection-btn').onclick = () => {
+            const selectedCard = document.querySelector('.char-card.selected');
+            if (selectedCard) {
+                stagedCharacterSheet.tokenName = selectedCard.dataset.name;
+                stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
+                console.log(`[DEBUG-CLIENT CHECKPOINT 1] Token selecionado. tokenImg =`, stagedCharacterSheet.tokenImg);
+                initializeCharacterSheet();
+                showScreen(document.getElementById('character-sheet-screen'));
+            }
+        };
+
+        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
+            el.addEventListener('change', (e) => {
+                const isWeaponType = e.target.id.startsWith('sheet-weapon') && e.target.id.endsWith('-type');
+                if (isWeaponType) {
+                    const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
+                    stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+                    updateCharacterSheet(null, e);
+                    if (e.target.value !== 'Desarmado') {
+                        showWeaponImageSelectionModal(weaponSlot);
+                    }
+                } else {
+                    updateCharacterSheet(null, e);
+                }
+            });
+            if (el.tagName !== 'SELECT' && el.type !== 'file') {
+                el.addEventListener('input', (e) => updateCharacterSheet(null, e));
+            }
+        });
+
+        document.getElementById('weapon-image-modal-cancel').onclick = () => {
+             weaponImageModal.classList.add('hidden');
+        };
+        
+        document.getElementById('sheet-save-btn').addEventListener('click', () => handleSaveCharacter('creation'));
+        document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
+
+        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
+        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
+        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
+        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
+        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
+        
+        floatingSwitchModeBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmSwitchesMode' }));
+        floatingInviteBtn.addEventListener('click', () => {
+             if (myRoomId) {
+                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
+        });
+        
+        if (floatingHelpBtn) floatingHelpBtn.addEventListener('click', showHelpModal);
+
+        setupTheaterEventListeners();
+        initializeGlobalKeyListeners();
+        window.addEventListener('resize', scaleGame);
+
+        playerInfoWidget.addEventListener('click', toggleIngameSheet);
+        document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
+            handleEquipmentChangeConfirmation();
+        });
+        document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
+        document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
+        document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
+    }
+    
     initialize();
 });
