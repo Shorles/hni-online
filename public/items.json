@@ -132,5 +132,49 @@
   "Gancho": {
     "img": "/images/itens/Gancho.png",
     "description": "Um gancho de metal, útil para escaladas."
+  },
+  "Frasco": {
+    "img": "/images/itens/Frasco.png",
+    "description": "Um frasco de vidro vazio, útil para armazenar líquidos."
+  },
+  "Garrafa": {
+    "img": "/images/itens/Garrafa.png",
+    "description": "Uma garrafa resistente, talvez para uma mensagem ou uma poção."
+  },
+  "Moeda": {
+    "img": "/images/itens/Moeda.png",
+    "description": "Uma moeda antiga de um reino esquecido."
+  },
+  "Pixie Engarrafada": {
+    "img": "/images/itens/PixieEngarrafada.png",
+    "description": "Uma pequena fada luminosa presa dentro de uma garrafa."
+  },
+  "Tinteiro": {
+    "img": "/images/itens/Tinteiro.png",
+    "description": "Um tinteiro com um pouco de tinta seca no fundo."
+  },
+  "Runa A": {
+    "img": "/images/itens/RunaA.png",
+    "description": "Uma pedra com uma runa antiga gravada. Irradia uma leve energia."
+  },
+  "Runa B": {
+    "img": "/images/itens/RunaB.png",
+    "description": "Uma pedra com uma runa diferente. Parece ser parte de um conjunto."
+  },
+  "Runa C": {
+    "img": "/images/itens/RunaC.png",
+    "description": "Uma pedra com a terceira runa de uma série desconhecida."
+  },
+  "Runa D": {
+    "img": "/images/itens/RunaD.png",
+    "description": "Uma pedra com uma runa, talvez a última de uma série desconhecida."
+  },
+  "Pedra": {
+    "img": "/images/itens/Pedra.png",
+    "description": "Uma pedra comum. Talvez sirva para alguma coisa."
+  },
+  "Pau": {
+    "img": "/images/itens/Pau.png",
+    "description": "Um graveto robusto. Poderia ser útil."
   }
 }
