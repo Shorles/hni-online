@@ -148,8 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
-            // CORREÇÃO: Usa a ficha do lobby SE ELA EXISTIR (para jogadores),
-            // caso contrário, usa a ficha que já veio com os dados da batalha (correto para NPCs).
             return { ...fighterInBattle, sheet: lobbySheet || fighterInBattle.sheet };
         }
     
@@ -304,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.title = itemData.description || itemData.name;
                 
                 let imgPath = itemData.img;
-                if (!imgPath) { // Fallback para armaduras/escudos sem imagem definida em all_weapon_images
+                if (!imgPath) { 
                     if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
                         const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                         imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
@@ -363,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         name: itemData.name,
                         price: price,
                         quantity: quantity,
-                        itemData: itemData // Store original data
+                        itemData: itemData 
                     };
                     renderStagedItemsForGm(document.getElementById('shop-staging-area'));
                     socket.emit('playerAction', { type: 'gmUpdatesShop', items: shopStagedItems });
@@ -392,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                     imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                 } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldImgName}`;
+                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
                      imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                 }
             }
@@ -1120,6 +1118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return container;
     }
     
+    // AJUSTE 2: Exibir custo de PA nos botões
     function renderActionButtons(state) {
         actionButtonsWrapper.innerHTML = '';
         if (state.phase !== 'battle' || !!state.winner) return;
@@ -1155,7 +1154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (weapon && weapon.type !== 'Desarmado') {
                 const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
                 const btn = createButton(
-                    `Atacar com ${weapon.name}`,
+                    `Atacar com ${weapon.name} (2 PA)`,
                     () => startAttackSequence(weaponKey),
                     !finalCanControl,
                     'action-btn',
@@ -1170,7 +1169,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createAttackButton('weapon2');
         
         if (!attackButtonAdded) {
-            const btn = createButton('Atacar Desarmado', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
+            const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
             actionButtonsWrapper.appendChild(btn);
         }
 
@@ -1193,7 +1192,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
-                    const spellBtn = createButton(spell.name, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
+                    const paCost = spell.costPA || 2;
+                    const spellBtn = createButton(`${spell.name} (${paCost} PA)`, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
                     spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
                     actionButtonsWrapper.appendChild(spellBtn);
                 }
@@ -1794,8 +1794,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
-        // CORREÇÃO: Não apaga mais o objeto inteiro, preservando tokenName e tokenImg.
-        // stagedCharacterSheet = {}; 
         stagedCharacterSheet.spells = []; 
         stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
         stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
@@ -2292,64 +2290,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-    function renderIngameInventory(fighter) {
-        if (!fighter || !fighter.sheet) return;
-    
-        const inventory = fighter.inventory || {};
-        const inventoryGrid = document.getElementById('inventory-grid');
-        inventoryGrid.innerHTML = '';
-        const MAX_SLOTS = 24;
-    
-        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
-        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
-        const armor = document.getElementById('ingame-sheet-armor-type').value;
-        const shield = document.getElementById('ingame-sheet-shield-type').value;
-        const equippedItemNames = [weapon1, weapon2, armor, shield];
-    
-        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
-    
-        // AJUSTE: Verifica se o jogador pode interagir com o inventário
-        const isAdventureMode = currentGameState.mode === 'adventure';
-        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canInteract = !isAdventureMode || isMyTurn;
-    
-        itemsToDisplay.forEach(item => {
-            const slot = document.createElement('div');
-            slot.className = 'inventory-slot';
-            
-            const itemDetails = ALL_ITEMS[item.name];
-            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
-            
-            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
-            if (imgPath) {
-                slot.style.backgroundImage = `url("${imgPath}")`;
-            } else {
-                 slot.style.backgroundImage = 'none';
-            }
-    
-            if (item.quantity > 1) {
-                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
-            }
-            
-            // AJUSTE: Adiciona a classe 'item' e o event listener apenas se a interação for permitida
-            if (canInteract) {
-                slot.classList.add('item');
-                slot.addEventListener('click', () => showItemContextMenu(item));
-            } else {
-                slot.style.cursor = 'not-allowed';
-            }
-    
-            inventoryGrid.appendChild(slot);
-        });
-    
-        const filledSlots = itemsToDisplay.length;
-        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
-            const emptySlot = document.createElement('div');
-            emptySlot.className = 'inventory-slot';
-            inventoryGrid.appendChild(emptySlot);
-        }
-    }
-
+    // AJUSTE 1: Lógica de confirmação de uso de item
     function showItemContextMenu(item) {
         const itemDetails = ALL_ITEMS[item.name] || {};
         const effectiveDetails = {
@@ -2358,10 +2299,10 @@ document.addEventListener('DOMContentLoaded', () => {
             description: itemDetails.description || `Tipo: ${item.type}`,
             isUsable: itemDetails.isUsable || false
         };
-
+    
         const myFighter = getFighter(currentGameState, myPlayerKey);
         if (!myFighter) return;
-
+    
         let content = `
             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
                 <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
@@ -2370,31 +2311,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
                 </div>
             </div>`;
-
+    
         const buttons = [];
-
+    
         if (effectiveDetails.isUsable) {
-            let canUse = true;
-            let reason = '';
-            if (currentGameState.mode === 'adventure') {
-                if (currentGameState.activeCharacterKey !== myPlayerKey) {
-                    canUse = false;
-                    reason = ' (Não é seu turno)';
-                } else if (myFighter.pa < effectiveDetails.costPA) {
-                    canUse = false;
-                    reason = ` (PA insuficiente: ${myFighter.pa}/${effectiveDetails.costPA})`;
-                }
-            }
-            buttons.push({
-                text: `Usar${reason}`,
-                closes: canUse,
-                className: canUse ? '' : 'disabled-btn',
-                onClick: () => {
-                    if (canUse) {
-                        socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
+            const useItemAction = () => {
+                if (currentGameState.mode === 'adventure') {
+                    if (myFighter.pa < (effectiveDetails.costPA || 3)) {
+                        showInfoModal("Ação Bloqueada", `Você não tem ${effectiveDetails.costPA || 3} Pontos de Ação (PA) suficientes para usar este item.`);
+                        return;
                     }
+                    showCustomModal("Confirmar Ação", `Usar ${item.name} custará ${effectiveDetails.costPA || 3} Pontos de Ação. Deseja continuar?`, [
+                        { text: "Sim, Usar", closes: true, onClick: () => {
+                            socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                            ingameSheetModal.classList.add('hidden');
+                        }},
+                        { text: "Não", closes: true, className: "btn-secondary" }
+                    ]);
+                } else {
+                    // Uso fora de combate não requer confirmação de PA
+                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                    ingameSheetModal.classList.add('hidden');
                 }
+            };
+    
+            buttons.push({
+                text: 'Usar',
+                closes: true, // Fecha o modal de contexto, mas pode abrir o de confirmação
+                onClick: useItemAction
             });
         }
         
@@ -2421,7 +2365,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ]);
             }
         });
-
+    
         buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
         
         showCustomModal(item.name, content, buttons);
@@ -2436,11 +2380,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isHidden) {
             const myFighterData = getFighter(currentGameState, myPlayerKey);
             if (!myFighterData) return;
-            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment)); // AJUSTE 1: Captura o estado original
+            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment));
             populateIngameSheet(myFighterData);
             modal.classList.remove('hidden');
         } else {
-            handleEquipmentChangeConfirmation(); // AJUSTE 1: Chama a nova função de confirmação ao fechar
+            handleEquipmentChangeConfirmation();
         }
     }
     
@@ -2449,7 +2393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canEditEquipment = !isAdventureMode || isMyTurn;
+        const canEdit = !isAdventureMode || isMyTurn; // Pode editar fora de combate ou no seu turno
         
         const loadBtn = document.getElementById('ingame-sheet-load-btn');
         loadBtn.disabled = isAdventureMode;
@@ -2471,14 +2415,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const shieldSelect = document.getElementById('ingame-sheet-shield-type');
     
         const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
-        allEquipmentSelectors.forEach(sel => sel.onchange = null);
+        allEquipmentSelectors.forEach(sel => {
+            sel.onchange = null;
+            sel.disabled = !canEdit; // AJUSTE: Desativa os seletores se não puder editar
+        });
 
-        // AJUSTE: Desativa os seletores se não for o turno do jogador em combate.
-        weapon1Select.disabled = !canEditEquipment;
-        weapon2Select.disabled = !canEditEquipment;
-        armorSelect.disabled = !canEditEquipment;
-        shieldSelect.disabled = !canEditEquipment;
-    
         const updateAllEquipment = (eventSource) => {
             const inventory = fighter.inventory || {};
             
@@ -2537,9 +2478,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const finalW1BaseType = finalW1Item.baseType || (finalW1 === 'Desarmado' ? 'Desarmado' : null);
             const finalW1Data = GAME_RULES.weapons[finalW1BaseType] || {};
 
-            // A desativação agora considera o canEditEquipment globalmente.
-            weapon2Select.disabled = !canEditEquipment || (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
-            shieldSelect.disabled = !canEditEquipment || finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
+            if (canEdit) {
+                weapon2Select.disabled = (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
+                shieldSelect.disabled = finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
+            }
 
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
@@ -2652,7 +2594,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return { name: itemName, type: itemName, img: null, isRanged: false };
             }
             const item = inventory[itemName];
-            if (!item) return { name: itemName, type: itemType, img: null, isRanged: false }; // Fallback
+            if (!item) return { name: itemName, type: itemType, img: null, isRanged: false };
             return { name: item.name, type: item.baseType, img: item.img, isRanged: item.isRanged };
         };
 
@@ -2674,7 +2616,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (myFighter.pa < 3) {
                 showInfoModal("Ação Bloqueada", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações não foram salvas.");
                 ingameSheetModal.classList.add('hidden');
-                // Não precisa reverter, pois o estado do jogo não foi alterado e a ficha será repopulada na próxima vez que abrir.
                 return;
             }
     
@@ -3005,7 +2946,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedCard) {
                 stagedCharacterSheet.tokenName = selectedCard.dataset.name;
                 stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
-                console.log(`[DEBUG-CLIENT CHECKPOINT 1] Token selecionado. tokenImg =`, stagedCharacterSheet.tokenImg);
                 initializeCharacterSheet();
                 showScreen(document.getElementById('character-sheet-screen'));
             }
