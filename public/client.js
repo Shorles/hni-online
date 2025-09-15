@@ -69,8 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerInfoWidget = document.getElementById('player-info-widget');
     const ingameSheetModal = document.getElementById('ingame-sheet-modal');
 
-    // --- DEFINIÇÃO DE TODAS AS FUNÇÕES ---
-
+    // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
         setTimeout(() => {
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
@@ -177,6 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
         return null;
     }
+    
+    // --- LÓGICA DA LOJA ---
     function toggleShop() {
         if (!currentGameState || currentGameState.mode !== 'theater' || !shopModal) return;
         isShopOpen = !isShopOpen;
@@ -533,7 +534,6 @@ document.addEventListener('DOMContentLoaded', () => {
             updateTotal();
         }
     }
-
     function handleAdventureMode(gameState) {
         if (isGm) {
             switch (gameState.phase) {
@@ -579,38 +579,290 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    function updateAdventureUI(state) {
-        if (!state || !state.fighters) return;
-        
-        fightSceneCharacters.innerHTML = '';
-        document.getElementById('round-info').textContent = `ROUND ${state.currentRound}`;
-        document.getElementById('fight-log').innerHTML = (state.log || [])
-            .filter(entry => entry.type !== 'debug' || isGm)
-            .map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
-        
-        const PLAYER_POSITIONS = [ { left: '150px', top: '450px' }, { left: '250px', top: '350px' }, { left: '350px', top: '250px' }, { left: '450px', top: '150px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '1050px', top: '300px' } ];
-        
-        Object.keys(state.fighters.players).forEach((key, index) => {
-            const player = state.fighters.players[key];
-             if (player.status === 'fled') return;
-             const position = state.customPositions[player.id] || PLAYER_POSITIONS[index];
-             const el = createFighterElement(player, 'player', state, position);
-             if (el) fightSceneCharacters.appendChild(el);
+    function updateGmLobbyUI(state) {
+        const playerListEl = document.getElementById('gm-lobby-player-list');
+        if (!playerListEl || !state || !state.connectedPlayers) return;
+        playerListEl.innerHTML = '';
+        const connectedPlayers = Object.values(state.connectedPlayers);
+        if (connectedPlayers.length === 0) { playerListEl.innerHTML = '<li>Aguardando jogadores...</li>'; } 
+        else {
+            connectedPlayers.forEach(p => {
+                const charName = p.characterName || '<i>Criando ficha...</i>';
+                playerListEl.innerHTML += `<li>${p.role === 'player' ? 'Jogador' : 'Espectador'} - Personagem: ${charName}</li>`;
+            });
+        }
+    }
+    function renderPlayerTokenSelection() {
+        const charListContainer = document.getElementById('character-list-container');
+        const confirmBtn = document.getElementById('confirm-selection-btn');
+        charListContainer.innerHTML = '';
+        confirmBtn.disabled = true;
+        let myCurrentSelection = stagedCharacterSheet.tokenImg; 
+
+        (ALL_CHARACTERS.players || []).forEach(data => {
+            const card = document.createElement('div');
+            card.className = 'char-card';
+            card.dataset.name = data.name;
+            card.dataset.img = data.img;
+            card.innerHTML = `<img src="${data.img}" alt="${data.name}"><div class="char-name">${data.name}</div>`;
+            if (myCurrentSelection === data.img) {
+                card.classList.add('selected');
+                confirmBtn.disabled = false;
+            }
+            card.addEventListener('click', () => {
+                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                confirmBtn.disabled = false;
+            });
+            charListContainer.appendChild(card);
+        });
+    }
+    function renderNpcSelectionForGm() {
+        const npcArea = document.getElementById('npc-selection-area');
+        npcArea.innerHTML = '';
+        (ALL_CHARACTERS.npcs || []).forEach(npcData => {
+            const card = document.createElement('div');
+            card.className = 'npc-card';
+            card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
+            card.addEventListener('click', () => {
+                let targetSlot = selectedSlotIndex;
+                if (targetSlot === null) {
+                    targetSlot = stagedNpcSlots.findIndex(slot => slot === null);
+                }
+
+                if (targetSlot !== -1 && targetSlot !== null) {
+                    stagedNpcSlots[targetSlot] = { 
+                        ...npcData, 
+                        id: `npc-staged-${Date.now()}-${targetSlot}`,
+                        customStats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
+                        equipment: { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
+                        spells: []
+                    };
+                    selectedSlotIndex = null;
+                    renderNpcStagingArea();
+                } else if (stagedNpcSlots.every(slot => slot !== null)) {
+                     showInfoModal("Aviso", "Todos os slots estão cheios. Remova um inimigo para adicionar outro.");
+                } else {
+                     showInfoModal("Aviso", "Primeiro, clique em um slot vago abaixo para posicionar o inimigo.");
+                }
+            });
+            npcArea.appendChild(card);
         });
 
-        (state.npcSlots || []).forEach((npcId, index) => {
-            const npc = getFighter(state, npcId);
-            if (npc && npc.status !== 'fled') {
-                const position = state.customPositions[npc.id] || NPC_POSITIONS[index];
-                const el = createFighterElement(npc, 'npc', state, position);
-                if (el) fightSceneCharacters.appendChild(el);
+        renderNpcStagingArea();
+
+        document.getElementById('gm-start-battle-btn').onclick = () => {
+            const finalNpcs = stagedNpcSlots.filter(npc => npc !== null);
+
+            if (finalNpcs.length === 0) {
+                showInfoModal("Aviso", "Adicione pelo menos um inimigo para a batalha.");
+                return;
             }
-        });
+            socket.emit('playerAction', { type: 'gmStartBattle', npcs: finalNpcs });
+        };
+    }
+    function renderNpcStagingArea() {
+        const stagingArea = document.getElementById('npc-staging-area');
+        stagingArea.innerHTML = '';
+        for (let i = 0; i < MAX_NPCS; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'npc-slot';
+            const npc = stagedNpcSlots[i];
+
+            if (npc) {
+                slot.innerHTML = `<img src="${npc.img}" alt="${npc.name}"><button class="remove-staged-npc" data-index="${i}">X</button>`;
+                slot.title = `Clique para configurar ${npc.name}`;
+                slot.addEventListener('click', () => showNpcConfigModal({ slotIndex: i }));
+                
+                slot.querySelector('.remove-staged-npc').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    stagedNpcSlots[i] = null;
+                    if (selectedSlotIndex === i) selectedSlotIndex = null;
+                    renderNpcStagingArea();
+                });
+            } else {
+                slot.classList.add('empty-slot');
+                slot.innerHTML = `<span>Slot ${i + 1}</span>`;
+                slot.dataset.index = i;
+                slot.title = 'Clique para selecionar este slot';
+                slot.addEventListener('click', (e) => {
+                    const index = parseInt(e.currentTarget.dataset.index, 10);
+                    selectedSlotIndex = (selectedSlotIndex === index) ? null : index;
+                    renderNpcStagingArea();
+                });
+            }
+
+            if (selectedSlotIndex === i) {
+                slot.classList.add('selected-slot');
+            }
+            stagingArea.appendChild(slot);
+        }
+    }
+    function showNpcConfigModal(config) {
+        let npcData, isLiveConfig, isMidBattleAdd;
+
+        if (config.fighter) {
+            npcData = config.fighter; isLiveConfig = true; isMidBattleAdd = false;
+        } else if (config.slotIndex !== undefined && !config.baseData) {
+            npcData = stagedNpcSlots[config.slotIndex]; isLiveConfig = false; isMidBattleAdd = false;
+        } else if (config.baseData && config.slotIndex !== undefined) {
+            npcData = config.baseData; isLiveConfig = false; isMidBattleAdd = true;
+        } else { return; }
+    
+        if (!npcData) return;
+
+        const weaponOptions = Object.keys(GAME_RULES.weapons).map(w => `<option value="${w}">${w}</option>`).join('');
+        const armorOptions = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
+        const shieldOptions = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
         
-        renderActionButtons(state);
-        renderTurnOrderUI(state);
-        renderWaitingPlayers(state);
+        const spellsByElement = {};
+        [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])].forEach(spell => {
+            if (!spellsByElement[spell.element]) {
+                spellsByElement[spell.element] = [];
+            }
+            spellsByElement[spell.element].push(spell);
+        });
+
+        let current;
+        if (isLiveConfig) {
+            current = { stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes }, equip: npcData.sheet.equipment, spells: npcData.sheet.spells };
+        } else if(isMidBattleAdd) {
+             current = { stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 }, equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' }, spells: [] };
+        } else {
+             current = { stats: npcData.customStats, equip: npcData.equipment, spells: npcData.spells };
+        }
+        
+        let hpInputHtml = '';
+        if (npcData.isMultiPart) {
+            hpInputHtml = npcData.parts.map(part => {
+                const currentHp = (isLiveConfig && part.hpMax) ? part.hpMax : 10;
+                return `<label>${part.name} HP:</label><input type="number" data-part-key="${part.key}" id="npc-cfg-hp-${part.key}" value="${currentHp}">`;
+            }).join('');
+        } else {
+            hpInputHtml = `<label>HP:</label><input type="number" id="npc-cfg-hp" value="${current.stats.hp}">`;
+        }
+
+        let spellsHtml = '<div class="npc-config-spells">';
+        for (const element in spellsByElement) {
+            spellsHtml += `<h5 class="spell-element-title">${element.charAt(0).toUpperCase() + element.slice(1)}</h5>`;
+            spellsByElement[element].forEach(spell => {
+                spellsHtml += `
+                    <div class="spell-checkbox">
+                       <input type="checkbox" id="npc-spell-${spell.name.replace(/\s+/g, '-')}" value="${spell.name}" ${current.spells.includes(spell.name) ? 'checked' : ''}>
+                       <label for="npc-spell-${spell.name.replace(/\s+/g, '-')}">${spell.name}</label>
+                    </div>
+                `;
+            });
+        }
+        spellsHtml += '</div>';
+
+        let content = `<div class="npc-config-container">
+            <div class="npc-config-col">
+                <h4>Atributos Principais</h4>
+                <div class="npc-config-grid">
+                    ${hpInputHtml}
+                    <label>Mahou:</label><input type="number" id="npc-cfg-mahou" value="${current.stats.mahou}">
+                    <label>Força:</label><input type="number" id="npc-cfg-forca" value="${current.stats.forca}">
+                    <label>Agilidade:</label><input type="number" id="npc-cfg-agilidade" value="${current.stats.agilidade}">
+                    <label>Proteção:</label><input type="number" id="npc-cfg-protecao" value="${current.stats.protecao}">
+                    <label>Constituição:</label><input type="number" id="npc-cfg-constituicao" value="${current.stats.constituicao}">
+                    <label>Inteligência:</label><input type="number" id="npc-cfg-inteligencia" value="${current.stats.inteligencia}">
+                    <label>Mente:</label><input type="number" id="npc-cfg-mente" value="${current.stats.mente}">
+                </div>
+                <h4>Equipamentos</h4>
+                <div class="npc-config-equip">
+                    <label>Arma 1:</label><select id="npc-cfg-weapon1">${weaponOptions}</select>
+                    <label>Arma 2:</label><select id="npc-cfg-weapon2">${weaponOptions}</select>
+                    <label>Armadura:</label><select id="npc-cfg-armor">${armorOptions}</select>
+                    <label>Escudo:</label><select id="npc-cfg-shield">${shieldOptions}</select>
+                </div>
+            </div>
+            <div class="npc-config-col">
+                <h4>Magias</h4>
+                ${spellsHtml}
+            </div>
+        </div>`;
+        
+        showCustomModal(`Configurar ${npcData.nome || npcData.name}`, content, [
+            { text: 'Confirmar', closes: true, onClick: () => {
+                const updatedStats = {
+                    mahou: parseInt(document.getElementById('npc-cfg-mahou').value, 10),
+                    forca: parseInt(document.getElementById('npc-cfg-forca').value, 10),
+                    agilidade: parseInt(document.getElementById('npc-cfg-agilidade').value, 10),
+                    protecao: parseInt(document.getElementById('npc-cfg-protecao').value, 10),
+                    constituicao: parseInt(document.getElementById('npc-cfg-constituicao').value, 10),
+                    inteligencia: parseInt(document.getElementById('npc-cfg-inteligencia').value, 10),
+                    mente: parseInt(document.getElementById('npc-cfg-mente').value, 10),
+                };
+
+                if (npcData.isMultiPart) {
+                    updatedStats.parts = npcData.parts.map(part => ({
+                        key: part.key,
+                        name: part.name,
+                        hp: parseInt(document.getElementById(`npc-cfg-hp-${part.key}`).value, 10)
+                    }));
+                } else {
+                    updatedStats.hp = parseInt(document.getElementById('npc-cfg-hp').value, 10);
+                }
+
+                const updatedEquipment = {
+                    weapon1: { type: document.getElementById('npc-cfg-weapon1').value },
+                    weapon2: { type: document.getElementById('npc-cfg-weapon2').value },
+                    armor: document.getElementById('npc-cfg-armor').value,
+                    shield: document.getElementById('npc-cfg-shield').value,
+                };
+                const selectedSpells = [];
+                document.querySelectorAll('.npc-config-spells input[type="checkbox"]:checked').forEach(cb => {
+                    selectedSpells.push(cb.value);
+                });
+
+                if (isLiveConfig) {
+                    socket.emit('playerAction', { type: 'gmConfiguresLiveNpc', fighterId: npcData.id, stats: updatedStats, equipment: updatedEquipment, spells: selectedSpells });
+                } else if (isMidBattleAdd) {
+                    socket.emit('playerAction', { type: 'gmSetsNpcInSlot', slotIndex: config.slotIndex, npcData: npcData, customStats: updatedStats, equipment: updatedEquipment, spells: selectedSpells });
+                } else {
+                    stagedNpcSlots[config.slotIndex].customStats = updatedStats;
+                    stagedNpcSlots[config.slotIndex].equipment = updatedEquipment;
+                    stagedNpcSlots[config.slotIndex].spells = selectedSpells;
+                }
+            }},
+            { text: 'Cancelar', closes: true, className: 'btn-danger' }
+        ]);
+
+        document.getElementById('npc-cfg-weapon1').value = current.equip.weapon1.type;
+        document.getElementById('npc-cfg-weapon2').value = current.equip.weapon2.type;
+        document.getElementById('npc-cfg-armor').value = current.equip.armor;
+        document.getElementById('npc-cfg-shield').value = current.equip.shield;
+    }
+    function showGMBuffModal(fighter) {
+        if (!fighter) return;
+        const attributes = ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente'];
+        let content = `<div class="npc-config-grid" style="grid-template-columns: auto 1fr; max-width: 300px; margin: auto;">`;
+        attributes.forEach(attr => {
+            const currentEffect = (fighter.activeEffects || []).find(e => e.attribute === attr);
+            const currentValue = currentEffect ? currentEffect.value : 0;
+            content += `
+                <label style="text-transform: capitalize;">${attr}:</label>
+                <input type="number" id="buff-${attr}" value="${currentValue}" style="width: 60px;">
+            `;
+        });
+        content += '</div>';
+
+        showCustomModal(`Aplicar Buff/Debuff em ${fighter.nome}`, content, [
+            { text: 'Confirmar', closes: true, onClick: () => {
+                attributes.forEach(attr => {
+                    const input = document.getElementById(`buff-${attr}`);
+                    const value = parseInt(input.value, 10) || 0;
+                    socket.emit('playerAction', {
+                        type: 'gmAppliesBuff',
+                        fighterId: fighter.id,
+                        attribute: attr,
+                        value: value
+                    });
+                });
+            }},
+            { text: 'Cancelar', closes: true }
+        ]);
     }
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
@@ -1320,6 +1572,9 @@ document.addEventListener('DOMContentLoaded', () => {
             coordsDisplay.innerHTML = `X: ${gameX}<br>Y: ${gameY}`;
         });
     }
+    
+    // CORREÇÃO: Todas as funções abaixo foram movidas para o escopo principal para evitar ReferenceError.
+    
     function showScenarioSelectionModal(){
         let contentHtml = '<div class="category-tabs">';
         const categories = Object.keys(ALL_SCENARIOS);
@@ -1354,6 +1609,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+    
     function initializeCharacterSheet() {
         stagedCharacterSheet.spells = []; 
         stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
@@ -1398,6 +1654,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateCharacterSheet();
     }
+    
     function updateCharacterSheet(loadedData = null) {
         if (!GAME_RULES.races) return; 
         
@@ -1840,7 +2097,84 @@ document.addEventListener('DOMContentLoaded', () => {
             sendData();
         }
     }
-    
+    function initialize() {
+        showScreen(document.getElementById('loading-screen'));
+
+        document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
+        document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
+        
+        document.getElementById('new-char-btn').addEventListener('click', () => {
+            showScreen(document.getElementById('selection-screen'));
+            renderPlayerTokenSelection();
+        });
+        document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
+        document.getElementById('load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'creation'));
+
+        document.getElementById('confirm-selection-btn').onclick = () => {
+            const selectedCard = document.querySelector('.char-card.selected');
+            if (selectedCard) {
+                stagedCharacterSheet.tokenName = selectedCard.dataset.name;
+                stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
+                initializeCharacterSheet();
+                showScreen(document.getElementById('character-sheet-screen'));
+            }
+        };
+
+        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
+            el.addEventListener('change', (e) => {
+                const isWeaponType = e.target.id.startsWith('sheet-weapon') && e.target.id.endsWith('-type');
+                if (isWeaponType) {
+                    const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
+                    stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
+                    updateCharacterSheet(null, e);
+                    if (e.target.value !== 'Desarmado') {
+                        showWeaponImageSelectionModal(weaponSlot);
+                    }
+                } else {
+                    updateCharacterSheet(null, e);
+                }
+            });
+            if (el.tagName !== 'SELECT' && el.type !== 'file') {
+                el.addEventListener('input', (e) => updateCharacterSheet(null, e));
+            }
+        });
+
+        document.getElementById('weapon-image-modal-cancel').onclick = () => {
+             weaponImageModal.classList.add('hidden');
+        };
+        
+        document.getElementById('sheet-save-btn').addEventListener('click', () => handleSaveCharacter('creation'));
+        document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
+
+        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
+        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
+        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
+        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
+        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
+        
+        floatingSwitchModeBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmSwitchesMode' }));
+        floatingInviteBtn.addEventListener('click', () => {
+             if (myRoomId) {
+                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
+                copyToClipboard(inviteUrl, floatingInviteBtn);
+            }
+        });
+        
+        if (floatingHelpBtn) floatingHelpBtn.addEventListener('click', showHelpModal);
+
+        setupTheaterEventListeners();
+        initializeGlobalKeyListeners();
+        window.addEventListener('resize', scaleGame);
+
+        playerInfoWidget.addEventListener('click', toggleIngameSheet);
+        document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
+            handleEquipmentChangeConfirmation();
+        });
+        document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
+        document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
+        document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
+    }
+
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
         GAME_RULES = data.rules;
@@ -2130,83 +2464,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
-    function initialize() {
-        showScreen(document.getElementById('loading-screen'));
-
-        document.getElementById('join-as-player-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'player' }));
-        document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
-        
-        document.getElementById('new-char-btn').addEventListener('click', () => {
-            showScreen(document.getElementById('selection-screen'));
-            renderPlayerTokenSelection();
-        });
-        document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
-        document.getElementById('load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'creation'));
-
-        document.getElementById('confirm-selection-btn').onclick = () => {
-            const selectedCard = document.querySelector('.char-card.selected');
-            if (selectedCard) {
-                stagedCharacterSheet.tokenName = selectedCard.dataset.name;
-                stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
-                initializeCharacterSheet();
-                showScreen(document.getElementById('character-sheet-screen'));
-            }
-        };
-
-        document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
-            el.addEventListener('change', (e) => {
-                const isWeaponType = e.target.id.startsWith('sheet-weapon') && e.target.id.endsWith('-type');
-                if (isWeaponType) {
-                    const weaponSlot = e.target.id.includes('weapon1') ? 'weapon1' : 'weapon2';
-                    stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-                    updateCharacterSheet(null, e);
-                    if (e.target.value !== 'Desarmado') {
-                        showWeaponImageSelectionModal(weaponSlot);
-                    }
-                } else {
-                    updateCharacterSheet(null, e);
-                }
-            });
-            if (el.tagName !== 'SELECT' && el.type !== 'file') {
-                el.addEventListener('input', (e) => updateCharacterSheet(null, e));
-            }
-        });
-
-        document.getElementById('weapon-image-modal-cancel').onclick = () => {
-             weaponImageModal.classList.add('hidden');
-        };
-        
-        document.getElementById('sheet-save-btn').addEventListener('click', () => handleSaveCharacter('creation'));
-        document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
-
-        document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
-        document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
-        backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
-        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
-        document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
-        
-        floatingSwitchModeBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmSwitchesMode' }));
-        floatingInviteBtn.addEventListener('click', () => {
-             if (myRoomId) {
-                const inviteUrl = `${window.location.origin}?room=${myRoomId}`;
-                copyToClipboard(inviteUrl, floatingInviteBtn);
-            }
-        });
-        
-        if (floatingHelpBtn) floatingHelpBtn.addEventListener('click', showHelpModal);
-
-        setupTheaterEventListeners();
-        initializeGlobalKeyListeners();
-        window.addEventListener('resize', scaleGame);
-
-        playerInfoWidget.addEventListener('click', toggleIngameSheet);
-        document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
-            handleEquipmentChangeConfirmation();
-        });
-        document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
-        document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
-        document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
-    }
-    
+    // Ponto de entrada
     initialize();
 });
