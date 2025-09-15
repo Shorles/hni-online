@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                         imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                     } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                         const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
+                         const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldImgName}`;
                          imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                     }
                 }
@@ -390,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                     imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                 } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
+                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldImgName}`;
                      imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                 }
             }
@@ -458,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                     imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                 } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
+                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldImgName}`;
                      imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                 }
             }
@@ -1117,7 +1117,93 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = `${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
-    
+
+    // CORREÇÃO: Movi renderActionButtons, startAttackSequence e startSpellSequence para o escopo global do DOMContentLoaded
+    function renderActionButtons(state) {
+        actionButtonsWrapper.innerHTML = '';
+        if (state.phase !== 'battle' || !!state.winner) return;
+        const activeFighter = getFighter(state, state.activeCharacterKey);
+        if (!activeFighter) return;
+
+        const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
+        const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
+        
+        const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
+        const finalCanControl = canControl && !isStunned;
+        
+        let attackButtonAdded = false;
+
+        const createButton = (text, onClick, disabled = false, className = 'action-btn', ammoCount = null) => {
+            const btn = document.createElement('button');
+            btn.className = className;
+            btn.textContent = text;
+            btn.disabled = disabled;
+            btn.onclick = onClick;
+            if (ammoCount !== null && ammoCount !== undefined) {
+                const ammoEl = document.createElement('span');
+                ammoEl.className = 'attack-ammo-counter';
+                ammoEl.textContent = ammoCount;
+                btn.appendChild(ammoEl);
+                if (ammoCount <= 0) btn.disabled = true;
+            }
+            return btn;
+        };
+
+        const createAttackButton = (weaponKey) => {
+            const weapon = activeFighter.sheet.equipment[weaponKey];
+            if (weapon && weapon.type !== 'Desarmado') {
+                const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
+                const btn = createButton(
+                    `Atacar com ${weapon.name} (2 PA)`,
+                    () => startAttackSequence(weaponKey),
+                    !finalCanControl,
+                    'action-btn',
+                    ammo
+                );
+                actionButtonsWrapper.appendChild(btn);
+                attackButtonAdded = true;
+            }
+        };
+
+        createAttackButton('weapon1');
+        createAttackButton('weapon2');
+        
+        if (!attackButtonAdded) {
+            const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
+            actionButtonsWrapper.appendChild(btn);
+        }
+
+        const weapon1 = activeFighter.sheet.equipment.weapon1;
+        const weapon2 = activeFighter.sheet.equipment.weapon2;
+        const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
+        
+        if (isDualWielding) {
+            let ammo1 = weapon1.isRanged ? activeFighter.ammunition?.['weapon1'] : Infinity;
+            let ammo2 = weapon2.isRanged ? activeFighter.ammunition?.['weapon2'] : Infinity;
+            let dualDisabled = ammo1 <= 0 || ammo2 <= 0;
+
+            const btn = createButton('Ataque Duplo (3 PA)', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
+            actionButtonsWrapper.appendChild(btn);
+        }
+
+        const fighterSpells = activeFighter.sheet?.spells || [];
+        if (fighterSpells.length > 0) {
+            fighterSpells.forEach(spellName => {
+                const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+                const spell = allSpells.find(s => s.name === spellName);
+                if (spell && spell.inCombat) {
+                    const paCost = spell.costPA || 2;
+                    const spellBtn = createButton(`${spell.name} (${paCost} PA)`, () => startSpellSequence(spell), !finalCanControl, 'action-btn spell-btn');
+                    spellBtn.title = `${spell.description} (Custo: ${spell.costMahou} Mahou)`;
+                    actionButtonsWrapper.appendChild(spellBtn);
+                }
+            });
+        }
+        
+        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !finalCanControl, 'action-btn flee-btn'));
+        actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !finalCanControl, 'end-turn-btn'));
+    }
+
     function startAttackSequence(weaponChoice) {
         const attacker = getFighter(currentGameState, currentGameState.activeCharacterKey);
         if (!attacker) return;
@@ -2203,7 +2289,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
-
     function toggleIngameSheet() {
         const modal = document.getElementById('ingame-sheet-modal');
         if (!modal || !currentGameState) return;
@@ -2217,63 +2302,6 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
         } else {
             handleEquipmentChangeConfirmation();
-        }
-    }
-    
-    // CORREÇÃO: Movi a função renderIngameInventory para fora de toggleIngameSheet, para o escopo correto.
-    function renderIngameInventory(fighter) {
-        if (!fighter || !fighter.sheet) return;
-    
-        const inventory = fighter.inventory || {};
-        const inventoryGrid = document.getElementById('inventory-grid');
-        inventoryGrid.innerHTML = '';
-        const MAX_SLOTS = 24;
-    
-        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
-        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
-        const armor = document.getElementById('ingame-sheet-armor-type').value;
-        const shield = document.getElementById('ingame-sheet-shield-type').value;
-        const equippedItemNames = [weapon1, weapon2, armor, shield];
-    
-        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
-    
-        const isAdventureMode = currentGameState.mode === 'adventure';
-        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canInteract = !isAdventureMode || isMyTurn;
-    
-        itemsToDisplay.forEach(item => {
-            const slot = document.createElement('div');
-            slot.className = 'inventory-slot';
-            
-            const itemDetails = ALL_ITEMS[item.name];
-            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
-            
-            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
-            if (imgPath) {
-                slot.style.backgroundImage = `url("${imgPath}")`;
-            } else {
-                 slot.style.backgroundImage = 'none';
-            }
-    
-            if (item.quantity > 1) {
-                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
-            }
-            
-            if (canInteract) {
-                slot.classList.add('item');
-                slot.addEventListener('click', () => showItemContextMenu(item));
-            } else {
-                slot.style.cursor = 'not-allowed';
-            }
-    
-            inventoryGrid.appendChild(slot);
-        });
-    
-        const filledSlots = itemsToDisplay.length;
-        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
-            const emptySlot = document.createElement('div');
-            emptySlot.className = 'inventory-slot';
-            inventoryGrid.appendChild(emptySlot);
         }
     }
     
