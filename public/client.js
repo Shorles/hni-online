@@ -211,7 +211,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
     
-        // AJUSTE 2: Lógica para criar itens de arma individuais baseados nas imagens
         const meleeWeapons = [];
         const rangedWeapons = [];
         const magicWeapons = [];
@@ -393,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                     imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                 } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
+                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldImgName}`;
                      imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                 }
             }
@@ -2295,23 +2294,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderIngameInventory(fighter) {
         if (!fighter || !fighter.sheet) return;
-
+    
         const inventory = fighter.inventory || {};
         const inventoryGrid = document.getElementById('inventory-grid');
         inventoryGrid.innerHTML = '';
         const MAX_SLOTS = 24;
-
+    
         const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
         const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
         const armor = document.getElementById('ingame-sheet-armor-type').value;
         const shield = document.getElementById('ingame-sheet-shield-type').value;
         const equippedItemNames = [weapon1, weapon2, armor, shield];
-
+    
         const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
-
+    
+        // AJUSTE: Verifica se o jogador pode interagir com o inventário
+        const isAdventureMode = currentGameState.mode === 'adventure';
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
+        const canInteract = !isAdventureMode || isMyTurn;
+    
         itemsToDisplay.forEach(item => {
             const slot = document.createElement('div');
-            slot.className = 'inventory-slot item';
+            slot.className = 'inventory-slot';
             
             const itemDetails = ALL_ITEMS[item.name];
             slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
@@ -2326,7 +2330,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.quantity > 1) {
                 slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
             }
-            slot.addEventListener('click', () => showItemContextMenu(item));
+            
+            // AJUSTE: Adiciona a classe 'item' e o event listener apenas se a interação for permitida
+            if (canInteract) {
+                slot.classList.add('item');
+                slot.addEventListener('click', () => showItemContextMenu(item));
+            } else {
+                slot.style.cursor = 'not-allowed';
+            }
+    
             inventoryGrid.appendChild(slot);
         });
     
@@ -2461,6 +2473,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
         allEquipmentSelectors.forEach(sel => sel.onchange = null);
 
+        // AJUSTE: Desativa os seletores se não for o turno do jogador em combate.
+        weapon1Select.disabled = !canEditEquipment;
+        weapon2Select.disabled = !canEditEquipment;
+        armorSelect.disabled = !canEditEquipment;
+        shieldSelect.disabled = !canEditEquipment;
+    
         const updateAllEquipment = (eventSource) => {
             const inventory = fighter.inventory || {};
             
@@ -2519,6 +2537,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const finalW1BaseType = finalW1Item.baseType || (finalW1 === 'Desarmado' ? 'Desarmado' : null);
             const finalW1Data = GAME_RULES.weapons[finalW1BaseType] || {};
 
+            // A desativação agora considera o canEditEquipment globalmente.
             weapon2Select.disabled = !canEditEquipment || (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
             shieldSelect.disabled = !canEditEquipment || finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
 
@@ -2622,7 +2641,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
     }
     
-    // AJUSTE 1: Nova função para lidar com a confirmação de troca de equipamento
     function handleEquipmentChangeConfirmation() {
         const myFighter = getFighter(currentGameState, myPlayerKey);
         if (!myFighter) return;
@@ -3041,7 +3059,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
-            // AJUSTE 1: Usa a nova função de confirmação ao fechar pelo botão
             handleEquipmentChangeConfirmation();
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
