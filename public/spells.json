@@ -24,7 +24,7 @@
         "calculation": "magical",
         "damageFormula": "1D8",
         "damageBonus": "level",
-        "animation": "projectile_fire"
+        "animationOnCast": "projectile_fire"
       }
     },
     {
@@ -41,7 +41,8 @@
         "type": "weapon_buff",
         "duration": 3,
         "damageFormula": "1D4",
-        "animation": "self_fire_aura"
+        "animationOnCast": "self_fire_aura",
+        "animationOnHit": "impact_fire"
       }
     },
     {
@@ -59,7 +60,7 @@
         "damage": 3,
         "duration": 3,
         "procChance": 0.85,
-        "animation": "target_bubble"
+        "animationOnCast": "target_bubble"
       }
     },
     {
@@ -91,7 +92,8 @@
           "duration": 1,
           "modifiers": [{ "attribute": "protecao", "value": -1 }]
         },
-        "animation": "self_water_aura"
+        "animationOnCast": "self_water_aura",
+        "animationOnHit": "impact_water"
       }
     },
     {
@@ -111,7 +113,7 @@
           { "attribute": "forca", "value": 4 },
           { "attribute": "agilidade", "value": -1 }
         ],
-        "animation": "self_rock"
+        "animationOnCast": "self_rock"
       }
     },
     {
@@ -143,7 +145,7 @@
           "damage": 2,
           "duration": 3
         },
-        "animation": "projectile_rock"
+        "animationOnCast": "projectile_rock"
       }
     },
     {
@@ -162,7 +164,7 @@
         "modifiers": [
           { "attribute": "agilidade", "value": 5 }
         ],
-        "animation": "self_swirl"
+        "animationOnCast": "self_swirl"
       }
     },
     {
@@ -188,7 +190,8 @@
         "type": "btd_buff",
         "duration": 3,
         "value": 3,
-        "animation": "self_wind_aura"
+        "animationOnCast": "self_wind_aura",
+        "animationOnHit": "impact_slash"
       }
     },
     {
@@ -215,7 +218,7 @@
         "status": "stunned",
         "duration": 1,
         "resistChance": 0.15,
-        "animation": "target_flash"
+        "animationOnCast": "target_flash"
       }
     },
     {
@@ -238,7 +241,8 @@
           "duration": 1,
           "value": -3
         },
-        "animation": "self_light_aura"
+        "animationOnCast": "self_light_aura",
+        "animationOnHit": "impact_light"
       }
     },
     {
@@ -266,7 +270,7 @@
         "resource": "mahou",
         "damageFormula": "1D6+1",
         "resistChance": 0.20,
-        "animation": "target_purple_aura"
+        "animationOnCast": "target_purple_aura"
       }
     },
     {
@@ -289,7 +293,8 @@
           "duration": 1,
           "modifiers": [{ "attribute": "protecao", "value": -3 }]
         },
-        "animation": "self_dark_aura"
+        "animationOnCast": "self_dark_aura",
+        "animationOnHit": "impact_dark"
       }
     }
   ],
@@ -316,7 +321,7 @@
           "chance": 0.30,
           "duration": 1
         },
-        "animation": "area_steam"
+        "animationOnCast": "area_steam"
       }
     },
     {
@@ -339,7 +344,8 @@
           "damage": "1D4",
           "duration": 2
         },
-        "animation": "self_fire_aura"
+        "animationOnCast": "self_fire_aura",
+        "animationOnHit": "impact_fire"
       }
     },
     {
@@ -363,7 +369,7 @@
             "duration": 1,
             "chance": 0.25
         },
-        "animation": "area_magma"
+        "animationOnCast": "area_magma"
       }
     },
     {
@@ -390,7 +396,7 @@
             "type": "heal", "formula": "1D4"
           }
         ],
-        "animation": "area_gold_fire"
+        "animationOnCast": "area_gold_fire"
       }
     },
     {
@@ -408,7 +414,7 @@
         "type": "apply_mark",
         "markType": "igneous_curse",
         "calculation": "magical",
-        "animation": "target_dark_fire"
+        "animationOnCast": "target_dark_fire"
       }
     },
     {
@@ -431,7 +437,7 @@
           "duration": 2,
           "value": -2
         },
-        "animation": "area_rain_storm"
+        "animationOnCast": "area_rain_storm"
       }
     },
     {
@@ -455,7 +461,7 @@
             "duration": 1,
             "chance": 0.30
         },
-        "animation": "area_mud"
+        "animationOnCast": "area_mud"
       }
     },
     {
@@ -472,7 +478,7 @@
       "effect": {
         "type": "create_item",
         "itemName": "Poção de HP menor",
-        "animation": "target_heal"
+        "animationOnCast": "target_heal"
       }
     },
     {
@@ -495,7 +501,8 @@
           "damage": "1D4",
           "duration": 5
         },
-        "animation": "self_poison_aura"
+        "animationOnCast": "self_poison_aura",
+        "animationOnHit": "impact_poison"
       }
     },
     {
@@ -519,7 +526,7 @@
             "type": "global_debuff", "duration": 2, "debuff": {"type": "bta_debuff", "value": -2}
           }
         ],
-        "animation": "area_sandstorm"
+        "animationOnCast": "area_sandstorm"
       }
     },
     {
@@ -543,7 +550,7 @@
             "type": "resource_heal", "resource": "pa", "amount": 1
           }
         ],
-        "animation": "area_aurora"
+        "animationOnCast": "area_aurora"
       }
     },
     {
@@ -567,7 +574,7 @@
             "type": "bta_buff", "duration": 1, "value": 2
           }
         ],
-        "animation": "self_vanish"
+        "animationOnCast": "self_vanish"
       }
     },
     {
@@ -585,7 +592,7 @@
         "type": "hot",
         "heal": "1D4",
         "duration": 3,
-        "animation": "target_nature_heal"
+        "animationOnCast": "target_nature_heal"
       }
     },
     {
@@ -604,7 +611,7 @@
         "status": "banished",
         "duration": 3,
         "calculation": "magical",
-        "animation": "target_chains"
+        "animationOnCast": "target_chains"
       }
     },
     {
@@ -623,7 +630,7 @@
         "duration": 1,
         "chance": 0.70,
         "backfire_damage": "1D4",
-        "animation": "area_null_shield"
+        "animationOnCast": "area_null_shield"
       }
     }
   ]
