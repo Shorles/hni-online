@@ -873,9 +873,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const spellCategories = {
             "Magias Grau 1": ALL_SPELLS.grade1 || [],
+            "Magias Avançadas Grau 1": ALL_SPELLS.advanced_grade1 || [],
+            "Magias Combinadas": ALL_SPELLS.grade_combined || [],
             "Magias Grau 2": ALL_SPELLS.grade2 || [],
+            "Magias Avançadas Grau 2": ALL_SPELLS.advanced_grade2 || [],
             "Magias Grau 3": ALL_SPELLS.grade3 || [],
-            "Magias Combinadas": ALL_SPELLS.grade_combined || []
+            "Magias Avançadas Grau 3": ALL_SPELLS.advanced_grade3 || [],
         };
     
         let spellsHtml = '<div class="npc-config-spells">';
@@ -885,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 spellsHtml += `<h5 class="spell-category-title">${categoryName}</h5>`;
     
                 const spellsByElement = spellsInCategory.reduce((acc, spell) => {
-                    const key = spell.combinedElementName || GAME_RULES.advancedElements[spell.element] || spell.element;
+                    const key = spell.combinedElementName || (GAME_RULES.advancedElements[spell.element] ? GAME_RULES.advancedElements[spell.element] : spell.element);
                     if (!acc[key]) acc[key] = [];
                     acc[key].push(spell);
                     return acc;
@@ -1221,7 +1224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterSpells = activeFighter.sheet?.spells || [];
         if (fighterSpells.length > 0) {
             fighterSpells.forEach(spellName => {
-                const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
+                const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade1 || []), ...(ALL_SPELLS.advanced_grade2 || []), ...(ALL_SPELLS.advanced_grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
                     const costPA = spell.costPA !== undefined ? spell.costPA : 2;
@@ -2087,22 +2090,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
         
         const allSpells = [
-            ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade_combined || []),
-            ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])
+            ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.advanced_grade1 || []),
+            ...(ALL_SPELLS.grade_combined || []),
+            ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.advanced_grade2 || []),
+            ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade3 || [])
         ];
         
         const availableSpells = allSpells.filter(spell => {
             if (spell.requiredElements) {
                 return spell.requiredElements.every(reqElem => availableElements.includes(reqElem));
             }
-            // Verifica se é uma magia de elemento avançado
-            const isAdvanced = Object.values(GAME_RULES.advancedElements).includes(spell.element);
-            if (isAdvanced) {
-                // Encontra o elemento base
-                const baseElement = Object.keys(GAME_RULES.advancedElements).find(key => GAME_RULES.advancedElements[key] === spell.element);
-                return elements[baseElement] === 2;
+            if (spell.isAdvanced) {
+                return elements[spell.element] === 2;
             }
-            // Se não, é uma magia de elemento base
             return availableElements.includes(spell.element);
         });
         
@@ -2117,7 +2117,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const colors = getElementColors(null, spell.requiredElements);
                 elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spell.combinedElementName}</span>`;
             } else {
-                const elementName = GAME_RULES.advancedElements[spell.element] || spell.element;
+                const elementName = spell.isAdvanced ? GAME_RULES.advancedElements[spell.element] : spell.element;
                 const color = getElementColors(elementName);
                 const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
                 elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
@@ -2737,7 +2737,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const spellsGrid = document.getElementById('ingame-sheet-spells-grid');
         spellsGrid.innerHTML = '';
         const spells = fighter.sheet.spells || [];
-        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
+        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade1 || []), ...(ALL_SPELLS.advanced_grade2 || []), ...(ALL_SPELLS.advanced_grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
         
         if (spells.length > 0) {
             spells.forEach(spellName => {
@@ -2754,7 +2754,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const colors = getElementColors(null, spellData.requiredElements);
                         elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spellData.combinedElementName}</span>`;
                     } else {
-                        const elementName = GAME_RULES.advancedElements[spellData.element] || spellData.element;
+                        const elementName = spellData.isAdvanced ? GAME_RULES.advancedElements[spellData.element] : spellData.element;
                         const color = getElementColors(elementName);
                         const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
                         elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;

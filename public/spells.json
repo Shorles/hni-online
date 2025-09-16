@@ -300,6 +300,115 @@
   ],
   "grade2": [],
   "grade3": [],
+  "advanced_grade1": [
+    {
+      "name": "Brasa Azul",
+      "element": "fogo",
+      "isAdvanced": true,
+      "description": "Causa 1D10 + nível de dano. 25% de chance de queimadura (1D4 por 3 turnos).",
+      "costMahou": 3,
+      "costPA": 3,
+      "cooldown": 3,
+      "targetType": "single_enemy",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "direct_damage", "calculation": "magical", "damageFormula": "1D10", "damageBonus": "level",
+        "secondaryEffect": { "type": "dot", "chance": 0.25, "damage": "1D4", "duration": 3 },
+        "animationOnCast": "projectile_blue_fire"
+      }
+    },
+    {
+      "name": "Congelamento",
+      "element": "agua",
+      "isAdvanced": true,
+      "description": "Causa 1D6+3 de dano. 50% de chance de fazer o alvo perder o próximo turno.",
+      "costMahou": 2,
+      "costPA": 2,
+      "cooldown": 3,
+      "targetType": "single_enemy",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "direct_damage", "calculation": "magical", "damageFormula": "1D6+3",
+        "secondaryEffect": { "type": "status_effect", "status": "stunned", "duration": 1, "chance": 0.50 },
+        "animationOnCast": "target_ice_burst"
+      }
+    },
+    {
+      "name": "Faísca Elétrica",
+      "element": "vento",
+      "isAdvanced": true,
+      "description": "Causa 1D8+1 de dano, aumenta sua Agilidade em +2 e tem 30% de chance de reduzir a do alvo em -2.",
+      "costMahou": 3,
+      "costPA": 3,
+      "cooldown": 3,
+      "targetType": "single_enemy",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8+1",
+        "selfEffect": { "type": "buff", "duration": 1, "modifiers": [{"attribute": "agilidade", "value": 2}] },
+        "secondaryEffect": { "type": "debuff", "chance": 0.30, "duration": 1, "modifiers": [{"attribute": "agilidade", "value": -2}] },
+        "animationOnCast": "projectile_lightning"
+      }
+    },
+    {
+      "name": "Armadura Metálica",
+      "element": "terra",
+      "isAdvanced": true,
+      "description": "Aumenta em +3 Proteção e +1 Força, mas reduz -1 Agilidade por 3 turnos.",
+      "costMahou": 3,
+      "costPA": 3,
+      "cooldown": 2,
+      "targetType": "self",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "buff", "duration": 3, 
+        "modifiers": [
+            { "attribute": "protecao", "value": 3 },
+            { "attribute": "forca", "value": 1 },
+            { "attribute": "agilidade", "value": -1 }
+        ],
+        "animationOnCast": "self_metal_armor"
+      }
+    },
+    {
+      "name": "Toque Restaurador",
+      "element": "luz",
+      "isAdvanced": true,
+      "description": "Cura 1D6 + Inteligência de HP de um alvo.",
+      "costMahou": 3,
+      "costPA": 3,
+      "cooldown": 2,
+      "targetType": "single_ally",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "heal", "formula": "1D6", "bonusAttribute": "inteligencia",
+        "animationOnCast": "target_heal"
+      }
+    },
+    {
+      "name": "Peso Aumentado",
+      "element": "escuridao",
+      "isAdvanced": true,
+      "description": "Reduz a Agilidade do alvo em -1, -2, -3 e -4 nos próximos 4 turnos.",
+      "costMahou": 3,
+      "costPA": 3,
+      "cooldown": 2,
+      "targetType": "single_enemy",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "stacking_debuff", "duration": 4, "attribute": "agilidade", "value": -1,
+        "animationOnCast": "target_gravity"
+      }
+    }
+  ],
+  "advanced_grade2": [],
+  "advanced_grade3": [],
   "grade_combined": [
     {
       "name": "Cortina Abrasiva",

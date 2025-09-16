@@ -730,7 +730,11 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     const attacker = getFighter(state, attackerKey);
     let primaryTarget = getFighter(state, targetKey);
 
-    const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
+    const allSpells = [
+        ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []),
+        ...(ALL_SPELLS.advanced_grade1 || []), ...(ALL_SPELLS.advanced_grade2 || []), ...(ALL_SPELLS.advanced_grade3 || []),
+        ...(ALL_SPELLS.grade_combined || [])
+    ];
     const spell = allSpells.find(s => s.name === spellName);
 
     if (!attacker || !spell || attacker.status !== 'active') return;
@@ -757,7 +761,6 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         attacker.cooldowns[spellName] = spell.cooldown + 1;
     }
 
-    // **BUG FIX 2: AOE TARGETING LOGIC**
     const targets = [];
     switch (spell.targetType) {
         case 'self':
@@ -798,10 +801,9 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
 
     logMessage(state, `${attacker.nome} usa ${spellName}!`, 'info');
     if (spell.effect?.animationOnCast) {
-        // Use o primeiro alvo como referência para animações em área ou projéteis
         io.to(roomId).emit('visualEffectTriggered', { 
             casterId: attacker.id, 
-            targetId: targets[0].id, 
+            targetId: primaryTarget.id, // A animação primária sempre vai para o alvo clicado
             animation: spell.effect.animationOnCast 
         });
     }
