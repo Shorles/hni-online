@@ -646,15 +646,16 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             let totalDamage = damageRoll + critDamage + btd;
 
             // **BUG FIX 1: ADD WEAPON BUFF DAMAGE**
-            let weaponBuffDamage = 0;
+            const weaponBuffInfo = { total: 0, breakdown: {} };
             const weaponBuffs = attacker.activeEffects.filter(e => e.type === 'weapon_buff');
             if (weaponBuffs.length > 0) {
                 weaponBuffs.forEach(buff => {
                     const buffDamageRoll = rollDice(buff.damageFormula);
-                    weaponBuffDamage += buffDamageRoll;
+                    weaponBuffInfo.total += buffDamageRoll;
+                    weaponBuffInfo.breakdown[`Dano de ${buff.name} (${buff.damageFormula})`] = buffDamageRoll;
                     logMessage(state, `+${buffDamageRoll} de dano de ${buff.name}!`, 'hit');
                 });
-                totalDamage += weaponBuffDamage;
+                totalDamage += weaponBuffInfo.total;
             }
 
             const protectionBreakdown = getProtectionBreakdown(target);
@@ -684,7 +685,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
 
-            Object.assign(debugInfo, { hit: true, isCrit, damageFormula: weaponData.damage, damageRoll, critDamage, btd, btdBreakdown: btdBreakdown.details, weaponBuffDamage, totalDamage, targetProtection, protectionBreakdown: protectionBreakdown.details, finalDamage });
+            Object.assign(debugInfo, { hit: true, isCrit, damageFormula: weaponData.damage, damageRoll, critDamage, btd, btdBreakdown: btdBreakdown.details, weaponBuffInfo, totalDamage, targetProtection, protectionBreakdown: protectionBreakdown.details, finalDamage });
         } else {
             logMessage(state, `${attacker.nome} erra o ataque!`, 'miss');
              Object.assign(debugInfo, { hit: false });
@@ -893,7 +894,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
-            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, btm: damageBonus, btmBreakdown: damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
+            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
             io.to(roomId).emit('spellResolved', { debugInfo });
             break;
         
