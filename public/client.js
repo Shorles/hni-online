@@ -875,9 +875,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const spellCategories = {
             "Magias Grau 1": ALL_SPELLS.grade1 || [],
-            "Magias Combinadas": ALL_SPELLS.grade_combined || [],
             "Magias Grau 2": ALL_SPELLS.grade2 || [],
-            "Magias Grau 3": ALL_SPELLS.grade3 || []
+            "Magias Grau 3": ALL_SPELLS.grade3 || [],
+            "Magias Combinadas": ALL_SPELLS.grade_combined || []
         };
     
         let spellsHtml = '<div class="npc-config-spells">';
@@ -894,7 +894,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, {});
     
                 for (const elementName in spellsByElement) {
-                    spellsHtml += `<h6 class="spell-element-title">${elementName}</h6>`;
+                    const capitalized = elementName.charAt(0).toUpperCase() + elementName.slice(1);
+                    spellsHtml += `<h6 class="spell-element-title">${capitalized}</h6>`;
                     spellsByElement[elementName].forEach(spell => {
                         spellsHtml += `
                             <div class="spell-checkbox">
@@ -2088,7 +2089,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (spell.requiredElements) {
                 return spell.requiredElements.every(reqElem => availableElements.includes(reqElem));
             }
-            return availableElements.includes(spell.element);
+            if (GAME_RULES.advancedElements[spell.element]) { // É magia avançada
+                return elements[spell.element] === 2;
+            }
+            return availableElements.includes(spell.element); // É magia base
         });
         
         availableSpells.forEach(spell => {
@@ -2102,8 +2106,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const colors = getElementColors(null, spell.requiredElements);
                 elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spell.combinedElementName}</span>`;
             } else {
-                const color = getElementColors(spell.element);
-                const capitalizedElement = spell.element.charAt(0).toUpperCase() + spell.element.slice(1);
+                const elementName = GAME_RULES.advancedElements[spell.element] || spell.element;
+                const color = getElementColors(elementName);
+                const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
                 elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
             }
 
@@ -2738,8 +2743,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const colors = getElementColors(null, spellData.requiredElements);
                         elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spellData.combinedElementName}</span>`;
                     } else {
-                        const color = getElementColors(spellData.element);
-                        const capitalizedElement = spellData.element.charAt(0).toUpperCase() + spellData.element.slice(1);
+                        const elementName = GAME_RULES.advancedElements[spellData.element] || spellData.element;
+                        const color = getElementColors(elementName);
+                        const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
                         elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
                     }
 
