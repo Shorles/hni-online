@@ -3047,6 +3047,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${attackData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${attackData.critDamage}</span></div>` : ''}
                         <div class="grid-row"><span>BTD do Atacante:</span> <span>${attackData.btd >= 0 ? '+' : ''}${attackData.btd}</span></div>
                         <div class="debug-breakdown">${formatBreakdown(attackData.btdBreakdown)}</div>
+                        ${attackData.weaponBuffDamage > 0 ? `<div class="grid-row"><span>Dano de Buff de Arma:</span> <span>+${attackData.weaponBuffDamage}</span></div>` : ''}
                         <div class="grid-row"><span>Dano Bruto Total:</span> <span>${attackData.totalDamage}</span></div>
                         <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${attackData.targetProtection}</span></div>
                         <div class="debug-breakdown">${formatBreakdown(attackData.protectionBreakdown)}</div>
@@ -3084,7 +3085,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const buildSpellReport = (spellData) => {
                 if (!spellData) return '<p>Falha ao resolver magia.</p>';
-                 const defenseType = spellData.isPureMagic ? 'Defesa Mágica' : 'Esquiva';
+                 const defenseType = spellData.isMagicalCalculation ? 'Defesa Mágica' : 'Esquiva';
                 let report = `<h4>Cálculo de Acerto (Magia: ${spellData.spellName})</h4>`;
                 if (spellData.autoHit) {
                      report += `<div class="grid-row result"><span>Resultado do Ataque:</span> <span class="debug-result">ACERTO AUTOMÁTICO</span></div>`;
@@ -3102,12 +3103,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (spellData.hit) {
                     if (spellData.finalDamage !== undefined) {
+                        const bonusType = spellData.isMagicalCalculation ? 'BTM' : 'BTD';
                         report += `
                             <div class="grid-row"><span>Rolagem de Dano (${spellData.damageFormula}):</span> <span>${spellData.damageRoll}</span></div>
                             ${spellData.levelBonus ? `<div class="grid-row"><span>Bônus de Nível:</span> <span>+${spellData.levelBonus}</span></div>` : ''}
                             ${spellData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${spellData.critDamage}</span></div>` : ''}
-                            <div class="grid-row"><span>BTM do Atacante:</span> <span>${spellData.btm >= 0 ? '+' : ''}${spellData.btm}</span></div>
-                            <div class="debug-breakdown">${formatBreakdown(spellData.btmBreakdown)}</div>
+                            <div class="grid-row"><span>${bonusType} do Atacante:</span> <span>${spellData.damageBonus >= 0 ? '+' : ''}${spellData.damageBonus}</span></div>
+                            <div class="debug-breakdown">${formatBreakdown(spellData.damageBonusBreakdown)}</div>
                             <div class="grid-row"><span>Dano Bruto Total:</span> <span>${spellData.totalDamage}</span></div>
                             <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${spellData.targetProtection}</span></div>
                             <div class="debug-breakdown">${formatBreakdown(spellData.protectionBreakdown)}</div>

@@ -893,7 +893,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
-            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
+            Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, btm: damageBonus, btmBreakdown: damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
             io.to(roomId).emit('spellResolved', { debugInfo });
             break;
         
@@ -934,7 +934,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             break;
 
         case 'weapon_buff':
-            target.activeEffects.push({
+            attacker.activeEffects.push({
                 name: spell.name,
                 type: 'weapon_buff',
                 duration: spell.effect.duration + 1,
