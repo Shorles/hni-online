@@ -1199,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterSpells = activeFighter.sheet?.spells || [];
         if (fighterSpells.length > 0) {
             fighterSpells.forEach(spellName => {
-                const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+                const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
                 const spell = allSpells.find(s => s.name === spellName);
                 if (spell && spell.inCombat) {
                     const costPA = spell.costPA !== undefined ? spell.costPA : 2;
@@ -1225,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        if (spell.targetType === 'self') {
+        if (spell.targetType === 'self' || spell.targetType === 'all_allies') {
             socket.emit('playerAction', {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
@@ -1890,6 +1890,21 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateCharacterSheet();
     }
+
+    function getElementColors(elementName, requiredElements = []) {
+        const colors = {
+            fogo: '#ff4d4d', agua: '#4da6ff', vento: '#00cc66', terra: '#a67c52',
+            luz: '#ffffff', escuridao: '#b366ff',
+            'Chama Azul': '#007bff', 'Gelo': '#a3d8f4', 'Metal': '#c0c0c0',
+            'Raio': '#ffd700', 'Cura': '#90ee90', 'Gravidade': '#9370db'
+        };
+        if (requiredElements.length === 2) {
+            const color1 = colors[requiredElements[0]] || '#ffffff';
+            const color2 = colors[requiredElements[1]] || '#ffffff';
+            return `linear-gradient(90deg, ${color1} 50%, ${color2} 50%)`;
+        }
+        return `linear-gradient(90deg, ${colors[elementName] || '#ffffff'} 100%, ${colors[elementName] || '#ffffff'} 100%)`;
+    }
     
     function updateCharacterSheet(loadedData = null) {
         if (!GAME_RULES.races) return; 
@@ -2050,18 +2065,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const spellGrid = document.getElementById('spell-selection-grid');
         spellGrid.innerHTML = '';
         const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
-        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
-        const availableSpells = allSpells.filter(s => availableElements.includes(s.element));
+        
+        const allSpells = [
+            ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade_combined || []),
+            ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])
+        ];
+        
+        const availableSpells = allSpells.filter(spell => {
+            if (spell.requiredElements) {
+                return spell.requiredElements.every(reqElem => availableElements.includes(reqElem));
+            }
+            return availableElements.includes(spell.element);
+        });
         
         availableSpells.forEach(spell => {
             const card = document.createElement('div');
             card.className = 'spell-card';
             card.dataset.spellName = spell.name;
             const spellType = spell.inCombat ? '(Combate)' : '(Utilitário)';
-            card.innerHTML = `<h4>${spell.name} <small>${spellType}</small></h4><p>${spell.description}</p>`;
+            
+            let elementHtml;
+            if (spell.combinedElementName) {
+                const colors = getElementColors(null, spell.requiredElements);
+                elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spell.combinedElementName}</span>`;
+            } else {
+                const color = getElementColors(spell.element);
+                const capitalizedElement = spell.element.charAt(0).toUpperCase() + spell.element.slice(1);
+                elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
+            }
+
+            card.innerHTML = `
+                <div class="spell-card-header">
+                    <h4>${spell.name} <small>${spellType}</small></h4>
+                    ${elementHtml}
+                </div>
+                <p>${spell.description}</p>`;
+                
             if (stagedCharacterSheet.spells.includes(spell.name)) {
                 card.classList.add('selected');
             }
+
             card.addEventListener('click', () => {
                 if (stagedCharacterSheet.spells.includes(spell.name)) {
                     stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(s => s !== spell.name);
@@ -2665,7 +2708,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const spellsGrid = document.getElementById('ingame-sheet-spells-grid');
         spellsGrid.innerHTML = '';
         const spells = fighter.sheet.spells || [];
-        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
         
         if (spells.length > 0) {
             spells.forEach(spellName => {
@@ -2676,7 +2719,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!spellData.inCombat) card.classList.add('usable-outside-combat');
                     card.dataset.spellName = spellData.name;
                     const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
-                    card.innerHTML = `<h4>${spellData.name} <small>${spellType}</small></h4><p>${spellData.description}</p>`;
+
+                    let elementHtml;
+                    if (spellData.combinedElementName) {
+                        const colors = getElementColors(null, spellData.requiredElements);
+                        elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spellData.combinedElementName}</span>`;
+                    } else {
+                        const color = getElementColors(spellData.element);
+                        const capitalizedElement = spellData.element.charAt(0).toUpperCase() + spellData.element.slice(1);
+                        elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
+                    }
+
+                    card.innerHTML = `
+                        <div class="spell-card-header">
+                            <h4>${spellData.name} <small>${spellType}</small></h4>
+                            ${elementHtml}
+                        </div>
+                        <p>${spellData.description}</p>`;
+
                     if (!spellData.inCombat && currentGameState.mode === 'theater') {
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
                     }
@@ -2708,9 +2768,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function handleUtilitySpellClick(spell) {
         let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
-        Object.values(currentGameState.connectedPlayers).forEach(player => {
+        Object.keys(currentGameState.connectedPlayers).forEach(playerId => {
+            const player = currentGameState.connectedPlayers[playerId];
             if(player.role === 'player' && player.characterSheet) {
-                 content += `<button class="utility-spell-target-btn" data-player-id="${player.id}">
+                 content += `<button class="utility-spell-target-btn" data-player-id="${playerId}">
                     <div class="utility-spell-token" style="background-image: url('${player.characterSheet.tokenImg}')"></div>
                     <span>${player.characterName}</span>
                 </button>`;

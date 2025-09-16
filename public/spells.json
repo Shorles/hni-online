@@ -294,5 +294,337 @@
     }
   ],
   "grade2": [],
-  "grade3": []
+  "grade3": [],
+  "grade_combined": [
+    {
+      "name": "Cortina Abrasiva",
+      "requiredElements": ["fogo", "agua"],
+      "combinedElementName": "Névoa",
+      "description": "Cria névoa escaldante que causa 1D4 de dano em todos os inimigos, com 30% de chance de fazê-los errar o próximo ataque.",
+      "costMahou": 4,
+      "costPA": 3,
+      "cooldown": 3,
+      "targetType": "all_enemies",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "direct_damage",
+        "calculation": "magical",
+        "damageFormula": "1D4",
+        "secondaryEffect": {
+          "type": "miss_chance",
+          "chance": 0.30,
+          "duration": 1
+        },
+        "animation": "area_steam"
+      }
+    },
+    {
+      "name": "Golpe Incandescente",
+      "requiredElements": ["fogo", "vento"],
+      "combinedElementName": "Calor",
+      "description": "O próximo ataque físico ganha +2D6 de dano de fogo. Se for crítico, aplica queimadura (1D4 por 2 turnos).",
+      "costMahou": 4,
+      "costPA": 3,
+      "cooldown": 2,
+      "targetType": "self",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "weapon_buff",
+        "duration": 1,
+        "damageFormula": "2D6",
+        "onCrit": {
+          "type": "dot",
+          "damage": "1D4",
+          "duration": 2
+        },
+        "animation": "self_fire_aura"
+      }
+    },
+    {
+      "name": "Lanças Magmáticas",
+      "requiredElements": ["fogo", "terra"],
+      "combinedElementName": "Magma",
+      "description": "Causa 2D6 de dano no alvo e adjacentes, com 25% de chance de impedi-los de agir no próximo turno.",
+      "costMahou": 5,
+      "costPA": 4,
+      "cooldown": 3,
+      "targetType": "adjacent_enemy",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "direct_damage",
+        "calculation": "magical",
+        "damageFormula": "2D6",
+        "secondaryEffect": {
+            "type": "status_effect",
+            "status": "stunned",
+            "duration": 1,
+            "chance": 0.25
+        },
+        "animation": "area_magma"
+      }
+    },
+    {
+      "name": "Chama da Vitória",
+      "requiredElements": ["fogo", "luz"],
+      "combinedElementName": "Bênção",
+      "description": "Todos os aliados recebem +2 Força, +2 Acerto por 3 turnos e recuperam 1D4 de HP.",
+      "costMahou": 5,
+      "costPA": 4,
+      "cooldown": 3,
+      "targetType": "all_allies",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "multi_effect",
+        "effects": [
+          {
+            "type": "buff", "duration": 3, "modifiers": [{ "attribute": "forca", "value": 2 }]
+          },
+          {
+            "type": "bta_buff", "duration": 3, "value": 2
+          },
+          {
+            "type": "heal", "formula": "1D4"
+          }
+        ],
+        "animation": "area_gold_fire"
+      }
+    },
+    {
+      "name": "Marca Ígnea Sombria",
+      "requiredElements": ["fogo", "escuridao"],
+      "combinedElementName": "Maldição",
+      "description": "Aplica uma marca cumulativa no alvo. Cada marca aumenta todo o dano recebido por ele em +1.",
+      "costMahou": 5,
+      "costPA": 4,
+      "cooldown": 1,
+      "targetType": "single_enemy",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "apply_mark",
+        "markType": "igneous_curse",
+        "calculation": "magical",
+        "animation": "target_dark_fire"
+      }
+    },
+    {
+      "name": "Dilúvio Cortante",
+      "requiredElements": ["agua", "vento"],
+      "combinedElementName": "Tempestade",
+      "description": "Causa 2D6 de dano em todos os inimigos e aplica -2 no Acerto deles por 2 turnos.",
+      "costMahou": 5,
+      "costPA": 4,
+      "cooldown": 4,
+      "targetType": "all_enemies",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "direct_damage",
+        "calculation": "magical",
+        "damageFormula": "2D6",
+        "secondaryEffect": {
+          "type": "bta_debuff",
+          "duration": 2,
+          "value": -2
+        },
+        "animation": "area_rain_storm"
+      }
+    },
+    {
+      "name": "Armadilha de Lama",
+      "requiredElements": ["agua", "terra"],
+      "combinedElementName": "Barro",
+      "description": "Alvo e adjacentes recebem -3 Agilidade por 2 turnos. 30% de chance de perder a próxima ação.",
+      "costMahou": 4,
+      "costPA": 3,
+      "cooldown": 3,
+      "targetType": "adjacent_enemy",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "debuff",
+        "duration": 2,
+        "modifiers": [{ "attribute": "agilidade", "value": -3 }],
+        "secondaryEffect": {
+            "type": "status_effect",
+            "status": "stunned",
+            "duration": 1,
+            "chance": 0.30
+        },
+        "animation": "area_mud"
+      }
+    },
+    {
+      "name": "Fonte da Vida",
+      "requiredElements": ["agua", "luz"],
+      "combinedElementName": "Poção de Cura",
+      "description": "Cria uma 'Poção de HP menor' no inventário de um aliado.",
+      "costMahou": 5,
+      "costPA": 3,
+      "cooldown": 0,
+      "targetType": "single_ally",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "create_item",
+        "itemName": "Poção de HP menor",
+        "animation": "target_heal"
+      }
+    },
+    {
+      "name": "Corrente Envenenada",
+      "requiredElements": ["agua", "escuridao"],
+      "combinedElementName": "Veneno",
+      "description": "Imbui a arma de um aliado com veneno. Ataques básicos têm 50% de chance de envenenar o alvo (1D4 de dano por 5 turnos).",
+      "costMahou": 4,
+      "costPA": 3,
+      "cooldown": 3,
+      "targetType": "single_ally",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "weapon_buff",
+        "duration": 99, 
+        "onHitEffect": {
+          "type": "dot",
+          "chance": 0.50,
+          "damage": "1D4",
+          "duration": 5
+        },
+        "animation": "self_poison_aura"
+      }
+    },
+    {
+      "name": "Muralha de Areia",
+      "requiredElements": ["vento", "terra"],
+      "combinedElementName": "Areia",
+      "description": "Todos os aliados ganham +2 Proteção por 2 turnos, mas todos no campo (aliados e inimigos) recebem -2 de Acerto.",
+      "costMahou": 3,
+      "costPA": 2,
+      "cooldown": 3,
+      "targetType": "all_allies",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "multi_effect",
+        "effects": [
+          {
+            "type": "buff", "duration": 2, "modifiers": [{"attribute": "protecao", "value": 2}]
+          },
+          {
+            "type": "global_debuff", "duration": 2, "debuff": {"type": "bta_debuff", "value": -2}
+          }
+        ],
+        "animation": "area_sandstorm"
+      }
+    },
+    {
+      "name": "Aurora Inspiradora",
+      "requiredElements": ["vento", "luz"],
+      "combinedElementName": "Aurora",
+      "description": "Todos os aliados recebem +5 Inteligência por 3 turnos e recuperam 1 PA imediatamente.",
+      "costMahou": 4,
+      "costPA": 3,
+      "cooldown": 3,
+      "targetType": "all_allies",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "multi_effect",
+        "effects": [
+          {
+            "type": "buff", "duration": 3, "modifiers": [{"attribute": "inteligencia", "value": 5}]
+          },
+          {
+            "type": "resource_heal", "resource": "pa", "amount": 1
+          }
+        ],
+        "animation": "area_aurora"
+      }
+    },
+    {
+      "name": "Passo Invisível",
+      "requiredElements": ["vento", "escuridao"],
+      "combinedElementName": "Sussurro",
+      "description": "Um aliado se torna inalvejável por 1 turno e seu próximo ataque recebe +2 de Acerto.",
+      "costMahou": 3,
+      "costPA": 3,
+      "cooldown": 3,
+      "targetType": "single_ally",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "multi_effect",
+        "effects": [
+          {
+            "type": "status_effect", "status": "untargetable", "duration": 1
+          },
+          {
+            "type": "bta_buff", "duration": 1, "value": 2
+          }
+        ],
+        "animation": "self_vanish"
+      }
+    },
+    {
+      "name": "Chamado da Vida",
+      "requiredElements": ["terra", "luz"],
+      "combinedElementName": "Natureza",
+      "description": "Em combate, cura 1D4 de HP de um aliado por 3 turnos. Fora de combate, pode purificar alimentos e água.",
+      "costMahou": 4,
+      "costPA": 2,
+      "cooldown": 3,
+      "targetType": "single_ally",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "hot",
+        "heal": "1D4",
+        "duration": 3,
+        "animation": "target_nature_heal"
+      }
+    },
+    {
+      "name": "Correntes Abissais",
+      "requiredElements": ["terra", "escuridao"],
+      "combinedElementName": "Abismo",
+      "description": "Joga um alvo para fora da batalha por 3 turnos.",
+      "costMahou": 5,
+      "costPA": 4,
+      "cooldown": 3,
+      "targetType": "single_target",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "status_effect",
+        "status": "banished",
+        "duration": 3,
+        "calculation": "magical",
+        "animation": "target_chains"
+      }
+    },
+    {
+      "name": "Ruptura Arcana",
+      "requiredElements": ["luz", "escuridao"],
+      "combinedElementName": "Nulificação",
+      "description": "Cancela a próxima magia lançada contra o grupo (70% de chance). Se falhar, o usuário sofre 1D4 de dano.",
+      "costMahou": 5,
+      "costPA": 4,
+      "cooldown": 2,
+      "targetType": "all_allies",
+      "inCombat": true,
+      "requiresHitRoll": false,
+      "effect": {
+        "type": "spell_shield",
+        "duration": 1,
+        "chance": 0.70,
+        "backfire_damage": "1D4",
+        "animation": "area_null_shield"
+      }
+    }
+  ]
 }

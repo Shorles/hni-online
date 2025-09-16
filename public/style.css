@@ -1217,3 +1217,28 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     border: 1px solid #fff;
     box-shadow: 0 0 8px #00e5ff;
 }
+
+/* ESTILOS PARA NOMES DE ELEMENTOS NAS MAGIAS */
+.spell-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 5px;
+}
+.spell-card-header h4 {
+    flex-grow: 1;
+}
+
+.spell-element {
+    font-size: 0.8em;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    
+    /* Truque para o gradiente no texto */
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
