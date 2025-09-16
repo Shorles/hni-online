@@ -854,14 +854,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const armorOptions = Object.keys(GAME_RULES.armors).map(a => `<option value="${a}">${a}</option>`).join('');
         const shieldOptions = Object.keys(GAME_RULES.shields).map(s => `<option value="${s}">${s}</option>`).join('');
         
-        const spellsByElement = {};
-        [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])].forEach(spell => {
-            if (!spellsByElement[spell.element]) {
-                spellsByElement[spell.element] = [];
-            }
-            spellsByElement[spell.element].push(spell);
-        });
-
         let current;
         if (isLiveConfig) {
             current = { stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes }, equip: npcData.sheet.equipment, spells: npcData.sheet.spells };
@@ -881,17 +873,27 @@ document.addEventListener('DOMContentLoaded', () => {
             hpInputHtml = `<label>HP:</label><input type="number" id="npc-cfg-hp" value="${current.stats.hp}">`;
         }
 
+        const spellCategories = {
+            "Magias Grau 1": ALL_SPELLS.grade1 || [],
+            "Magias Grau 2": ALL_SPELLS.grade2 || [],
+            "Magias Grau 3": ALL_SPELLS.grade3 || [],
+            "Magias Combinadas": ALL_SPELLS.grade_combined || []
+        };
+
         let spellsHtml = '<div class="npc-config-spells">';
-        for (const element in spellsByElement) {
-            spellsHtml += `<h5 class="spell-element-title">${element.charAt(0).toUpperCase() + element.slice(1)}</h5>`;
-            spellsByElement[element].forEach(spell => {
-                spellsHtml += `
-                    <div class="spell-checkbox">
-                       <input type="checkbox" id="npc-spell-${spell.name.replace(/\s+/g, '-')}" value="${spell.name}" ${current.spells.includes(spell.name) ? 'checked' : ''}>
-                       <label for="npc-spell-${spell.name.replace(/\s+/g, '-')}">${spell.name}</label>
-                    </div>
-                `;
-            });
+        for (const categoryName in spellCategories) {
+            const spellsInCategory = spellCategories[categoryName];
+            if (spellsInCategory.length > 0) {
+                spellsHtml += `<h5 class="spell-category-title">${categoryName}</h5>`;
+                spellsInCategory.forEach(spell => {
+                    spellsHtml += `
+                        <div class="spell-checkbox">
+                           <input type="checkbox" id="npc-spell-${spell.name.replace(/\s+/g, '-')}" value="${spell.name}" ${current.spells.includes(spell.name) ? 'checked' : ''}>
+                           <label for="npc-spell-${spell.name.replace(/\s+/g, '-')}">${spell.name}</label>
+                        </div>
+                    `;
+                });
+            }
         }
         spellsHtml += '</div>';
 
