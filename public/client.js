@@ -1225,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        if (spell.targetType === 'self' || spell.targetType === 'all_allies') {
+        if (spell.targetType === 'self' || spell.targetType === 'all_allies' || spell.targetType === 'all_enemies') {
             socket.emit('playerAction', {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
@@ -3031,6 +3031,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const buildAttackReport = (attackData) => {
                 if (!attackData) return '<p>Ataque não ocorreu (alvo derrotado).</p>';
+                let weaponBuffHtml = '';
+                if (attackData.weaponBuffInfo && attackData.weaponBuffInfo.total > 0) {
+                    weaponBuffHtml = Object.entries(attackData.weaponBuffInfo.rolls)
+                        .map(([buffName, roll]) => `<div class="grid-row"><span>Rolagem de Dano (${buffName}):</span> <span>${roll}</span></div>`)
+                        .join('');
+                }
+
                 let report = `<h4>Cálculo de Acerto (Arma: ${attackData.weaponUsed})</h4>
                     <div class="grid-row"><span>Rolagem D20:</span> <span>${attackData.hitRoll}</span></div>
                     <div class="grid-row"><span>BTA do Atacante:</span> <span>${attackData.bta >= 0 ? '+' : ''}${attackData.bta}</span></div>
@@ -3047,7 +3054,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${attackData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${attackData.critDamage}</span></div>` : ''}
                         <div class="grid-row"><span>BTD do Atacante:</span> <span>${attackData.btd >= 0 ? '+' : ''}${attackData.btd}</span></div>
                         <div class="debug-breakdown">${formatBreakdown(attackData.btdBreakdown)}</div>
-                        ${attackData.weaponBuffDamage > 0 ? `<div class="grid-row"><span>Dano de Buff de Arma:</span> <span>+${attackData.weaponBuffDamage}</span></div>` : ''}
+                        ${weaponBuffHtml}
                         <div class="grid-row"><span>Dano Bruto Total:</span> <span>${attackData.totalDamage}</span></div>
                         <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${attackData.targetProtection}</span></div>
                         <div class="debug-breakdown">${formatBreakdown(attackData.protectionBreakdown)}</div>
@@ -3074,8 +3081,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ]);
         }
     });
-     socket.on('spellResolved', ({ debugInfo }) => {
-        if (isGm && isGmDebugModeActive && debugInfo) {
+     socket.on('spellResolved', ({ debugReports }) => {
+        if (isGm && isGmDebugModeActive && debugReports && debugReports.length > 0) {
             const formatBreakdown = (breakdown) => {
                 if (!breakdown) return '';
                 return Object.entries(breakdown)
@@ -3086,7 +3093,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const buildSpellReport = (spellData) => {
                 if (!spellData) return '<p>Falha ao resolver magia.</p>';
                  const defenseType = spellData.isMagicalCalculation ? 'Defesa Mágica' : 'Esquiva';
-                let report = `<h4>Cálculo de Acerto (Magia: ${spellData.spellName})</h4>`;
+                let report = `<h4>Cálculo de Acerto (Magia: ${spellData.spellName}) vs <span class="defender-name">${spellData.targetName}</span></h4>`;
                 if (spellData.autoHit) {
                      report += `<div class="grid-row result"><span>Resultado do Ataque:</span> <span class="debug-result">ACERTO AUTOMÁTICO</span></div>`;
                 } else {
@@ -3128,8 +3135,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return report;
             };
 
-            const contentHtml = `<div class="debug-info-grid">${buildSpellReport(debugInfo)}</div>`;
-            const modalTitle = `Relatório de Magia: <span class="attacker-name">${debugInfo.attackerName}</span> usa ${debugInfo.spellName} em <span class="defender-name">${debugInfo.targetName}</span>`;
+            const firstReport = debugReports[0];
+            const modalTitle = `Relatório de Magia: <span class="attacker-name">${firstReport.attackerName}</span> usa ${firstReport.spellName}`;
+            let contentHtml = '<div class="debug-info-grid">';
+            debugReports.forEach((reportData, index) => {
+                if (index > 0) contentHtml += '<hr style="border-width: 2px; margin: 15px 0;">';
+                contentHtml += buildSpellReport(reportData);
+            });
+            contentHtml += '</div>';
 
             showCustomModal(modalTitle, contentHtml, [{ text: 'Fechar', closes: true }]);
         }
