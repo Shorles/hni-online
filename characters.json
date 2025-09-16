@@ -41,6 +41,7 @@
     "Esqueleto Arqueiro": {},
     "Esqueleto": {},
     "Fantasma": {},
+    "Goblin M": {},
     "Goblin F": {},
     "Goblin Xamã": {},
     "Harpia": {},
@@ -53,6 +54,9 @@
     "Serpente Marinha": {"scale": 2.0},
     "Zumbi F": {},
     "Zumbi M": {},
-    "Goblin M": {}
+    "Capiroto": {"scale": 2.0},
+    "Aparição": {},
+    "Cachorrete": {},
+    "Diabrete": {}
   }
 }
