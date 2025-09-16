@@ -497,8 +497,8 @@ function processActiveEffects(state, fighter, roomId) {
                     fighter.hp = Math.max(0, fighter.hp - damage);
                     logMessage(state, `${fighter.nome} sofre ${damage} de dano de ${effect.name}!`, 'hit');
                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `-${damage}`, type: 'damage-hp' });
-                    if (effect.animation) {
-                        io.to(roomId).emit('visualEffectTriggered', { casterId: fighter.id, targetId: fighter.id, animation: effect.animation });
+                    if (effect.animationOnCast) {
+                        io.to(roomId).emit('visualEffectTriggered', { casterId: fighter.id, targetId: fighter.id, animation: effect.animationOnCast });
                     }
                 } else {
                     logMessage(state, `${fighter.nome} resistiu ao efeito de ${effect.name} neste turno.`, 'info');
@@ -653,8 +653,11 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                     const buffDamageRoll = rollDice(buff.damageFormula);
                     weaponBuffInfo.total += buffDamageRoll;
                     weaponBuffInfo.rolls[buff.name] = buffDamageRoll;
-                    weaponBuffInfo.breakdown[`Dano de ${buff.name} (${buff.damageFormula})`] = buffDamageRoll;
+                    weaponBuffInfo.breakdown[`Rolagem de Dano (${buff.name} - ${buff.damageFormula})`] = buffDamageRoll;
                     logMessage(state, `+${buffDamageRoll} de dano de ${buff.name}!`, 'hit');
+                     if (buff.animationOnHit) {
+                        io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: buff.animationOnHit });
+                    }
                 });
                 totalDamage += weaponBuffInfo.total;
             }
@@ -754,6 +757,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         attacker.cooldowns[spellName] = spell.cooldown + 1;
     }
 
+    // **BUG FIX 2: AOE TARGETING LOGIC**
     const targets = [];
     switch (spell.targetType) {
         case 'self':
@@ -793,8 +797,13 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     }
 
     logMessage(state, `${attacker.nome} usa ${spellName}!`, 'info');
-    if(spell.effect?.animation) {
-        io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: primaryTarget.id, animation: spell.effect.animation });
+    if (spell.effect?.animationOnCast) {
+        // Use o primeiro alvo como referência para animações em área ou projéteis
+        io.to(roomId).emit('visualEffectTriggered', { 
+            casterId: attacker.id, 
+            targetId: targets[0].id, 
+            animation: spell.effect.animationOnCast 
+        });
     }
 
     const debugReports = [];
@@ -805,7 +814,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hit: true, autoHit: true };
             applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
             debugReports.push(debugInfo);
-            return;
+            return; // Continua para o próximo alvo
         }
 
         const hitRoll = rollD20();
@@ -942,6 +951,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 type: 'weapon_buff',
                 duration: spell.effect.duration + 1,
                 damageFormula: spell.effect.damageFormula,
+                animationOnHit: spell.effect.animationOnHit,
                 secondaryEffect: spell.effect.secondaryEffect // Can be undefined
             });
             break;
