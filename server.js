@@ -620,7 +620,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         }
 
         const hitRoll = rollD20();
-        const btaBreakdown = getBtaBreakdown(attacker, weaponKey); // CORREÇÃO: Passa a arma específica para o cálculo
+        const btaBreakdown = getBtaBreakdown(attacker, weaponKey);
         const bta = btaBreakdown.value;
         const attackRoll = hitRoll + bta;
         const weaponType = weapon.type;
@@ -644,7 +644,19 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const damageRoll = rollDice(weaponData.damage);
             const critDamage = isCrit ? damageRoll : 0;
             let totalDamage = damageRoll + critDamage + btd;
-            
+
+            // **BUG FIX 1: ADD WEAPON BUFF DAMAGE**
+            let weaponBuffDamage = 0;
+            const weaponBuffs = attacker.activeEffects.filter(e => e.type === 'weapon_buff');
+            if (weaponBuffs.length > 0) {
+                weaponBuffs.forEach(buff => {
+                    const buffDamageRoll = rollDice(buff.damageFormula);
+                    weaponBuffDamage += buffDamageRoll;
+                    logMessage(state, `+${buffDamageRoll} de dano de ${buff.name}!`, 'hit');
+                });
+                totalDamage += weaponBuffDamage;
+            }
+
             const protectionBreakdown = getProtectionBreakdown(target);
             const targetProtection = protectionBreakdown.value;
             const finalDamage = Math.max(1, totalDamage - targetProtection);
@@ -672,7 +684,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
             }
 
-            Object.assign(debugInfo, { hit: true, isCrit, damageFormula: weaponData.damage, damageRoll, critDamage, btd, btdBreakdown: btdBreakdown.details, totalDamage, targetProtection, protectionBreakdown: protectionBreakdown.details, finalDamage });
+            Object.assign(debugInfo, { hit: true, isCrit, damageFormula: weaponData.damage, damageRoll, critDamage, btd, btdBreakdown: btdBreakdown.details, weaponBuffDamage, totalDamage, targetProtection, protectionBreakdown: protectionBreakdown.details, finalDamage });
         } else {
             logMessage(state, `${attacker.nome} erra o ataque!`, 'miss');
              Object.assign(debugInfo, { hit: false });
@@ -711,14 +723,14 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
 
 function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     const attacker = getFighter(state, attackerKey);
-    let target = getFighter(state, targetKey);
+    let primaryTarget = getFighter(state, targetKey);
 
-    const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || [])];
+    const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
     const spell = allSpells.find(s => s.name === spellName);
 
-    if (!attacker || !target || !spell || attacker.status !== 'active' || (spell.targetType !== 'self' && target.status !== 'active')) return;
+    if (!attacker || !spell || attacker.status !== 'active') return;
     
-    const paCost = spell.costPA || 2;
+    const paCost = spell.costPA || 1;
     if (attacker.pa < paCost) {
         logMessage(state, `${attacker.nome} não tem Pontos de Ação suficientes para ${spellName}!`, 'miss');
         return io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
@@ -740,59 +752,98 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         attacker.cooldowns[spellName] = spell.cooldown + 1;
     }
 
-    logMessage(state, `${attacker.nome} usa ${spellName} em ${target.nome}!`, 'info');
-    if(spell.effect?.animation) {
-        io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: target.id, animation: spell.effect.animation });
+    // **BUG FIX 2: AOE TARGETING LOGIC**
+    const targets = [];
+    switch (spell.targetType) {
+        case 'self':
+        case 'all_allies':
+            targets.push(...Object.values(state.fighters.players).filter(p => p.status === 'active'));
+            break;
+        case 'all_enemies':
+            targets.push(...Object.values(state.fighters.npcs).filter(n => n.status === 'active'));
+            break;
+        case 'adjacent_enemy':
+            const primaryTargetIndex = state.npcSlots.indexOf(targetKey);
+            if (primaryTargetIndex !== -1) {
+                const affectedIndexes = new Set([primaryTargetIndex]);
+                if (primaryTargetIndex > 0) affectedIndexes.add(primaryTargetIndex - 1);
+                if (primaryTargetIndex < 3) affectedIndexes.add(primaryTargetIndex + 1);
+                
+                affectedIndexes.forEach(index => {
+                    const npcId = state.npcSlots[index];
+                    const npc = getFighter(state, npcId);
+                    if (npc && npc.status === 'active') targets.push(npc);
+                });
+            }
+            break;
+        default: // single_enemy, single_ally, single_target
+            if (primaryTarget && primaryTarget.status === 'active') {
+                targets.push(primaryTarget);
+            }
+            break;
     }
-    
-    const isMagicalCalculation = spell.effect?.calculation === 'magical';
 
-    if (spell.requiresHitRoll === false) {
-        const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hit: true, autoHit: true };
-        applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
-        io.to(roomId).emit('spellResolved', { debugInfo });
-        setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
+    if (targets.length === 0) {
+        logMessage(state, `${attacker.nome} usa ${spellName}, mas não há alvos válidos.`, 'miss');
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
         return;
     }
 
-    const hitRoll = rollD20();
-    let attackBonus, attackBonusBreakdown, targetDefense, targetDefenseBreakdown;
-
-    if (isMagicalCalculation) {
-        const btmData = getBtmBreakdown(attacker);
-        attackBonus = btmData.value;
-        attackBonusBreakdown = btmData.details;
-        targetDefense = target.magicDefense;
-        targetDefenseBreakdown = target.magicDefenseBreakdown;
-    } else { // Physical calculation for spells
-        const btaData = getBtaBreakdown(attacker);
-        attackBonus = btaData.value;
-        attackBonusBreakdown = btaData.details;
-        targetDefense = target.esquiva;
-        targetDefenseBreakdown = target.esqBreakdown;
+    logMessage(state, `${attacker.nome} usa ${spellName}!`, 'info');
+    if(spell.effect?.animation) {
+        io.to(roomId).emit('visualEffectTriggered', { casterId: attacker.id, targetId: primaryTarget.id, animation: spell.effect.animation });
     }
-    
-    const attackRoll = hitRoll + attackBonus;
-    
-    let debugInfo = { 
-        attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, 
-        hitRoll, attackBonus, attackBonusBreakdown, attackRoll, targetDefense, targetDefenseBreakdown, isMagicalCalculation
-    };
 
-    if (hitRoll === 1) {
-        logMessage(state, `${attacker.nome} erra a magia ${spellName} (Erro Crítico)!`, 'miss');
-        io.to(roomId).emit('spellResolved', { debugInfo: { ...debugInfo, hit: false, isCritFail: true } });
-    } else if (hitRoll === 20 || attackRoll >= targetDefense) {
-        const isCrit = hitRoll === 20;
-        if(isCrit) logMessage(state, `Acerto Crítico com ${spellName}!`, 'crit');
-        else logMessage(state, `${attacker.nome} acerta a magia ${spellName}!`, 'hit');
+    // Processar efeito para cada alvo
+    targets.forEach(target => {
+        const isMagicalCalculation = spell.effect?.calculation === 'magical';
+
+        if (spell.requiresHitRoll === false) {
+            const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hit: true, autoHit: true };
+            applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
+            io.to(roomId).emit('spellResolved', { debugInfo });
+            return; // Continua para o próximo alvo
+        }
+
+        const hitRoll = rollD20();
+        let attackBonus, attackBonusBreakdown, targetDefense, targetDefenseBreakdown;
+
+        if (isMagicalCalculation) {
+            const btmData = getBtmBreakdown(attacker);
+            attackBonus = btmData.value;
+            attackBonusBreakdown = btmData.details;
+            targetDefense = target.magicDefense;
+            targetDefenseBreakdown = target.magicDefenseBreakdown;
+        } else { // Physical calculation for spells
+            const btaData = getBtaBreakdown(attacker);
+            attackBonus = btaData.value;
+            attackBonusBreakdown = btaData.details;
+            targetDefense = target.esquiva;
+            targetDefenseBreakdown = target.esqBreakdown;
+        }
         
-        debugInfo.isCrit = isCrit;
-        applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
-    } else {
-        logMessage(state, `${attacker.nome} erra a magia ${spellName}!`, 'miss');
-        io.to(roomId).emit('spellResolved', { debugInfo: { ...debugInfo, hit: false } });
-    }
+        const attackRoll = hitRoll + attackBonus;
+        
+        let debugInfo = { 
+            attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, 
+            hitRoll, attackBonus, attackBonusBreakdown, attackRoll, targetDefense, targetDefenseBreakdown, isMagicalCalculation
+        };
+
+        if (hitRoll === 1) {
+            logMessage(state, `${attacker.nome} erra a magia ${spellName} em ${target.nome} (Erro Crítico)!`, 'miss');
+            io.to(roomId).emit('spellResolved', { debugInfo: { ...debugInfo, hit: false, isCritFail: true } });
+        } else if (hitRoll === 20 || attackRoll >= targetDefense) {
+            const isCrit = hitRoll === 20;
+            if(isCrit) logMessage(state, `Acerto Crítico com ${spellName} em ${target.nome}!`, 'crit');
+            else logMessage(state, `${attacker.nome} acerta a magia ${spellName} em ${target.nome}!`, 'hit');
+            
+            debugInfo.isCrit = isCrit;
+            applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
+        } else {
+            logMessage(state, `${attacker.nome} erra a magia ${spellName} em ${target.nome}!`, 'miss');
+            io.to(roomId).emit('spellResolved', { debugInfo: { ...debugInfo, hit: false } });
+        }
+    });
     
     setTimeout(() => io.to(roomId).emit('gameUpdate', getFullState(games[roomId])), 1000);
 }
@@ -837,7 +888,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             
             target.hp = Math.max(0, target.hp - finalDamage);
             io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${finalDamage}`, type: 'damage-hp' });
-            logMessage(state, `${spell.name} causa ${finalDamage} de dano!`, 'hit');
+            logMessage(state, `${spell.name} causa ${finalDamage} de dano em ${target.nome}!`, 'hit');
             if(target.hp === 0) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
@@ -851,7 +902,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 let resourceDamage = rollDice(spell.effect.damageFormula);
                 target.mahou = Math.max(0, target.mahou - resourceDamage);
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${resourceDamage}`, type: 'damage-mahou' });
-                logMessage(state, `${spell.name} drena ${resourceDamage} de Mahou!`, 'hit');
+                logMessage(state, `${spell.name} drena ${resourceDamage} de Mahou de ${target.nome}!`, 'hit');
 
                 if (spell.name === 'Dreno de Energia') {
                     attacker.mahou = Math.min(attacker.mahouMax, attacker.mahou + 1);
@@ -880,6 +931,16 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${mod.attribute.toUpperCase()} ${sign}${mod.value}`, type: 'buff' });
             });
             recalculateFighterStats(target);
+            break;
+
+        case 'weapon_buff':
+            target.activeEffects.push({
+                name: spell.name,
+                type: 'weapon_buff',
+                duration: spell.effect.duration + 1,
+                damageFormula: spell.effect.damageFormula,
+                secondaryEffect: spell.effect.secondaryEffect // Can be undefined
+            });
             break;
 
         case 'dot':
