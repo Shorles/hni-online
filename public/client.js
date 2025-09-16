@@ -149,8 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
-            // CORREÇÃO: Usa a ficha do lobby SE ELA EXISTIR (para jogadores),
-            // caso contrário, usa a ficha que já veio com os dados da batalha (correto para NPCs).
             return { ...fighterInBattle, sheet: lobbySheet || fighterInBattle.sheet };
         }
     
@@ -887,7 +885,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 spellsHtml += `<h5 class="spell-category-title">${categoryName}</h5>`;
     
                 const spellsByElement = spellsInCategory.reduce((acc, spell) => {
-                    const key = spell.combinedElementName || spell.element;
+                    const key = spell.combinedElementName || GAME_RULES.advancedElements[spell.element] || spell.element;
                     if (!acc[key]) acc[key] = [];
                     acc[key].push(spell);
                     return acc;
@@ -1103,7 +1101,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-    
+
+        let marksHtml = '<div class="marks-container">';
+        if (fighter.marks) {
+            for(const markType in fighter.marks) {
+                for(let i = 0; i < fighter.marks[markType]; i++) {
+                    marksHtml += `<div class="mark-dot ${markType}"></div>`;
+                }
+            }
+        }
+        marksHtml += '</div>';
+
         let paHtml = '<div class="pa-dots-container">';
         for (let i = 0; i < (fighter.pa || 0); i++) {
             paHtml += '<div class="pa-dot"></div>';
@@ -1139,7 +1147,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
     
-        container.innerHTML = `${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
+        container.innerHTML = `${marksHtml}${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
     
@@ -1859,8 +1867,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
-        // CORREÇÃO: Não apaga mais o objeto inteiro, preservando tokenName e tokenImg.
-        // stagedCharacterSheet = {}; 
         stagedCharacterSheet.spells = []; 
         stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
         stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
@@ -2089,10 +2095,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (spell.requiredElements) {
                 return spell.requiredElements.every(reqElem => availableElements.includes(reqElem));
             }
-            if (GAME_RULES.advancedElements[spell.element]) { // É magia avançada
-                return elements[spell.element] === 2;
+            // Verifica se é uma magia de elemento avançado
+            const isAdvanced = Object.values(GAME_RULES.advancedElements).includes(spell.element);
+            if (isAdvanced) {
+                // Encontra o elemento base
+                const baseElement = Object.keys(GAME_RULES.advancedElements).find(key => GAME_RULES.advancedElements[key] === spell.element);
+                return elements[baseElement] === 2;
             }
-            return availableElements.includes(spell.element); // É magia base
+            // Se não, é uma magia de elemento base
+            return availableElements.includes(spell.element);
         });
         
         availableSpells.forEach(spell => {
