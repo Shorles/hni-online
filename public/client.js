@@ -1225,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        if (spell.targetType === 'self' || spell.targetType === 'all_allies' || spell.targetType === 'all_enemies') {
+        if (spell.targetType === 'self') {
             socket.emit('playerAction', {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
@@ -3031,11 +3031,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const buildAttackReport = (attackData) => {
                 if (!attackData) return '<p>Ataque não ocorreu (alvo derrotado).</p>';
+                
                 let weaponBuffHtml = '';
                 if (attackData.weaponBuffInfo && attackData.weaponBuffInfo.total > 0) {
-                    weaponBuffHtml = Object.entries(attackData.weaponBuffInfo.rolls)
-                        .map(([buffName, roll]) => `<div class="grid-row"><span>Rolagem de Dano (${buffName}):</span> <span>${roll}</span></div>`)
-                        .join('');
+                     weaponBuffHtml = formatBreakdown(attackData.weaponBuffInfo.breakdown);
                 }
 
                 let report = `<h4>Cálculo de Acerto (Arma: ${attackData.weaponUsed})</h4>
@@ -3054,7 +3053,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${attackData.isCrit ? `<div class="grid-row"><span>Dano Crítico (Dobro dos Dados):</span> <span>+${attackData.critDamage}</span></div>` : ''}
                         <div class="grid-row"><span>BTD do Atacante:</span> <span>${attackData.btd >= 0 ? '+' : ''}${attackData.btd}</span></div>
                         <div class="debug-breakdown">${formatBreakdown(attackData.btdBreakdown)}</div>
-                        ${weaponBuffHtml}
+                        ${weaponBuffHtml ? `<h5>Dano Adicional de Buffs:</h5><div class="debug-breakdown">${weaponBuffHtml}</div>` : ''}
                         <div class="grid-row"><span>Dano Bruto Total:</span> <span>${attackData.totalDamage}</span></div>
                         <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${attackData.targetProtection}</span></div>
                         <div class="debug-breakdown">${formatBreakdown(attackData.protectionBreakdown)}</div>
