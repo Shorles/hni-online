@@ -874,11 +874,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const spellCategories = {
             "Magias Grau 1": ALL_SPELLS.grade1 || [],
             "Magias Avançadas Grau 1": ALL_SPELLS.advanced_grade1 || [],
-            "Magias Combinadas": ALL_SPELLS.grade_combined || [],
             "Magias Grau 2": ALL_SPELLS.grade2 || [],
             "Magias Avançadas Grau 2": ALL_SPELLS.advanced_grade2 || [],
             "Magias Grau 3": ALL_SPELLS.grade3 || [],
             "Magias Avançadas Grau 3": ALL_SPELLS.advanced_grade3 || [],
+            "Magias Combinadas": ALL_SPELLS.grade_combined || []
         };
     
         let spellsHtml = '<div class="npc-config-spells">';
@@ -888,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 spellsHtml += `<h5 class="spell-category-title">${categoryName}</h5>`;
     
                 const spellsByElement = spellsInCategory.reduce((acc, spell) => {
-                    const key = spell.combinedElementName || (GAME_RULES.advancedElements[spell.element] ? GAME_RULES.advancedElements[spell.element] : spell.element);
+                    const key = spell.combinedElementName || (spell.isAdvanced ? GAME_RULES.advancedElements[spell.element] : spell.element);
                     if (!acc[key]) acc[key] = [];
                     acc[key].push(spell);
                     return acc;
@@ -1250,7 +1250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        if (spell.targetType === 'self') {
+        if (spell.targetType === 'self' || spell.targetType === 'all_allies' || spell.targetType === 'all_enemies') {
             socket.emit('playerAction', {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
@@ -2105,6 +2105,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return availableElements.includes(spell.element);
         });
+
+        // **BUG FIX 1: Desmarcar magias inválidas**
+        stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(spellName => 
+            availableSpells.some(availableSpell => availableSpell.name === spellName)
+        );
         
         availableSpells.forEach(spell => {
             const card = document.createElement('div');
