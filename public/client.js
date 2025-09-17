@@ -1061,7 +1061,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        updateTargetableStatus(); // **CORREÇÃO: Atualiza os alvos após renderizar**
+        updateTargetableStatus();
         renderActionButtons(state);
         renderTurnOrderUI(state);
         renderWaitingPlayers(state);
@@ -1095,7 +1095,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
         }
         
-        // **CORREÇÃO: Event listeners são adicionados incondicionalmente**
         container.addEventListener('click', handleTargetClick);
         container.addEventListener('mouseover', handleTargetMouseOver);
         container.addEventListener('mouseout', handleTargetMouseOut);
@@ -1424,9 +1423,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const targetKey = targetContainer.dataset.key;
         const { spell } = targetingAction;
+        const activeFighter = getFighter(currentGameState, currentGameState.activeCharacterKey);
+        if (!activeFighter) return;
     
         document.querySelectorAll('.char-container.target-highlight').forEach(el => el.classList.remove('target-highlight'));
-    
+        
+        const alliesSelector = activeFighter.isPlayer ? '.player-char-container' : '.npc-char-container';
+        const enemiesSelector = activeFighter.isPlayer ? '.npc-char-container' : '.player-char-container';
+
         if (spell.targetType === 'adjacent_enemy') {
             const targetIndex = currentGameState.npcSlots.indexOf(targetKey);
             if (targetIndex !== -1) {
@@ -1443,9 +1447,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         } else if (spell.targetType === 'all_enemies') {
-             document.querySelectorAll('.npc-char-container').forEach(el => el.classList.add('target-highlight'));
+             document.querySelectorAll(enemiesSelector).forEach(el => el.classList.add('target-highlight'));
         } else if (spell.targetType === 'all_allies') {
-            document.querySelectorAll('.player-char-container').forEach(el => el.classList.add('target-highlight'));
+            document.querySelectorAll(alliesSelector).forEach(el => el.classList.add('target-highlight'));
         } else {
             targetContainer.classList.add('target-highlight');
         }
