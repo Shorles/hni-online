@@ -298,8 +298,154 @@
       }
     }
   ],
-  "grade2": [],
-  "grade3": [],
+  "grade2": [
+    {
+      "name": "Armamento em Chamas",
+      "element": "fogo",
+      "description": "Adiciona 1D6+2 de dano de fogo ao ataque básico até o fim da luta. 30% de chance de queimadura (1D4 por 1 turno).",
+      "costMahou": 6, "costPA": 6, "cooldown": 2, "targetType": "self", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "weapon_buff", "duration": 99, "damageFormula": "1D6+2", "onHitEffect": { "type": "dot", "chance": 0.30, "damage": "1D4", "duration": 1 }, "animationOnCast": "self_fire_aura", "animationOnHit": "impact_fire" }
+    },
+    {
+      "name": "Explosão Ígnea",
+      "element": "fogo",
+      "description": "Causa 1D8+2 de dano no alvo e adjacentes. 50% de chance de queimadura (1D4 por 3 turnos).",
+      "costMahou": 3, "costPA": 3, "cooldown": 2, "targetType": "adjacent_enemy", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8+2", "secondaryEffect": { "type": "dot", "chance": 0.50, "damage": "1D4", "duration": 3 }, "animationOnCast": "area_magma" }
+    },
+    { "name": "Tocha Viva", "element": "fogo", "description": "Cria uma chama flutuante e controlável que ilumina por 1 hora.", "costMahou": 2, "costPA": 2, "inCombat": false, "targetType": "utility" },
+    {
+      "name": "Onda Curta",
+      "element": "agua",
+      "description": "Causa 1D8+3 de dano no alvo e adjacentes. 50% de chance de afogamento (3 de dano por 3 turnos).",
+      "costMahou": 3, "costPA": 3, "cooldown": 4, "targetType": "adjacent_enemy", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8+3", "secondaryEffect": { "type": "dot", "damage": 3, "duration": 3, "chance": 0.50 }, "animationOnCast": "area_rain_storm" }
+    },
+    {
+      "name": "Armadura de Água",
+      "element": "agua",
+      "description": "Ganha +2 Proteção e +4 Força, mas -2 de Acerto por 3 turnos.",
+      "costMahou": 3, "costPA": 3, "cooldown": 3, "targetType": "self", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "buff", "duration": 3, "modifiers": [ { "attribute": "protecao", "value": 2 }, { "attribute": "forca", "value": 4 }, { "attribute": "bta", "value": -2 } ], "animationOnCast": "self_water_aura" }
+    },
+    { "name": "Purificação", "element": "agua", "description": "Remove veneno de comidas e bebidas.", "costMahou": 2, "costPA": 2, "inCombat": true, "targetType": "utility" },
+    {
+      "name": "Armadura Rochosa",
+      "element": "terra",
+      "description": "Ganha +4 Proteção e +2 Força, mas -2 de Acerto por 3 turnos.",
+      "costMahou": 3, "costPA": 3, "cooldown": 3, "targetType": "self", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "buff", "duration": 3, "modifiers": [ { "attribute": "protecao", "value": 4 }, { "attribute": "forca", "value": 2 }, { "attribute": "bta", "value": -2 } ], "animationOnCast": "self_rock" }
+    },
+    {
+      "name": "Espinhos Terrestre",
+      "element": "terra",
+      "description": "Causa 3D6+3 de dano. 50% de chance de ferimento (1D4 de dano por 2 turnos).",
+      "costMahou": 3, "costPA": 3, "cooldown": 4, "targetType": "single_enemy", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "3D6+3", "secondaryEffect": { "type": "dot", "chance": 0.50, "damage": "1D4", "duration": 2 }, "animationOnCast": "impact_slash" }
+    },
+    {
+      "name": "Muro de Pedra",
+      "element": "terra",
+      "description": "Aumenta a Proteção de todos os aliados em +3 por 3 turnos.",
+      "costMahou": 3, "costPA": 3, "cooldown": 0, "targetType": "all_allies", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "buff", "duration": 3, "modifiers": [{ "attribute": "protecao", "value": 3 }], "animationOnCast": "self_rock" }
+    },
+    {
+      "name": "Rajada de Ar",
+      "element": "vento",
+      "description": "Causa 1D8+1 de dano em todos os adversários.",
+      "costMahou": 3, "costPA": 3, "cooldown": 3, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8+1", "animationOnCast": "area_sandstorm" }
+    },
+    {
+      "name": "Aceleração em Massa",
+      "element": "vento",
+      "description": "Concede +3 de Agilidade para todos os aliados por 3 turnos.",
+      "costMahou": 3, "costPA": 3, "cooldown": 2, "targetType": "all_allies", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "buff", "duration": 3, "modifiers": [{ "attribute": "agilidade", "value": 3 }], "animationOnCast": "self_swirl" }
+    },
+    { "name": "Assobio Veloz", "element": "vento", "description": "Permite comunicação clara a longa distância (50m).", "costMahou": 2, "costPA": 2, "inCombat": false, "targetType": "utility" },
+    {
+      "name": "Luz Protetora",
+      "element": "luz",
+      "description": "Um aliado se torna imune a dano por 1 turno, mas não pode atacar.",
+      "costMahou": 3, "costPA": 3, "cooldown": 3, "targetType": "single_ally", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "status_effect", "status": "invulnerable_and_pacified", "duration": 1, "animationOnCast": "self_light_aura" }
+    },
+    {
+      "name": "Escudo Solar",
+      "element": "luz",
+      "description": "Todos os aliados ganham 50% de chance de anular qualquer ataque por 2 turnos.",
+      "costMahou": 3, "costPA": 3, "cooldown": 3, "targetType": "all_allies", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "spell_shield", "chance": 0.50, "duration": 2, "animationOnCast": "area_aurora" }
+    },
+    { "name": "Sinal Divino", "element": "luz", "description": "Cria um feixe de luz visível a quilômetros por 1 hora.", "costMahou": 2, "costPA": 2, "inCombat": false, "targetType": "utility" },
+    {
+      "name": "Manto Sombrio",
+      "element": "escuridao",
+      "description": "85% de chance de diminuir um atributo aleatório (For, Agi, Pro, Int) do alvo em -6.",
+      "costMahou": 3, "costPA": 3, "cooldown": 3, "targetType": "single_enemy", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "random_debuff", "chance": 0.85, "attributes": ["forca", "agilidade", "protecao", "inteligencia"], "value": -6, "duration": 1, "animationOnCast": "self_dark_aura" }
+    },
+    {
+      "name": "Toque Maldito",
+      "element": "escuridao",
+      "description": "Causa 1D8+3 de dano. 25% de chance de não gastar Mahou.",
+      "costMahou": 3, "costPA": 3, "cooldown": 2, "targetType": "single_enemy", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8+3", "secondaryEffect": { "type": "cost_refund", "chance": 0.25 }, "animationOnCast": "impact_dark" }
+    },
+    { "name": "Olho da Noite", "element": "escuridao", "description": "Permite enxergar no escuro e através de algumas superfícies por 1 hora.", "costMahou": 2, "costPA": 2, "inCombat": false, "targetType": "utility" }
+  ],
+  "grade3": [
+    {
+      "name": "Meteoros Flamejantes", "element": "fogo", "description": "3D8+1 de dano em todos os inimigos. 50% de chance de queimadura (1D6 por 3 turnos).", "costMahou": 7, "costPA": 4, "cooldown": 5, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "3D8+1", "secondaryEffect": { "type": "dot", "chance": 0.50, "damage": "1D6", "duration": 3 }, "animationOnCast": "area_magma" }
+    },
+    {
+      "name": "Arma Infernal", "element": "fogo", "description": "Adiciona 1D10+1 de dano de fogo ao ataque básico.", "costMahou": 6, "costPA": 5, "cooldown": 4, "targetType": "self", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "weapon_buff", "duration": 99, "damageFormula": "1D10+1", "animationOnCast": "self_fire_aura" }
+    },
+    {
+      "name": "Tsunami", "element": "agua", "description": "1D8 de dano em todos os inimigos. 50% de chance de afogamento (2 de dano por 3 turnos).", "costMahou": 7, "costPA": 4, "cooldown": 3, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8", "secondaryEffect": { "type": "dot", "damage": 2, "duration": 3, "chance": 0.50 }, "animationOnCast": "area_rain_storm" }
+    },
+    {
+      "name": "Prisão Aquática", "element": "agua", "description": "Causa 2D6 de dano. 70% de chance de fazer o inimigo perder o próximo turno.", "costMahou": 7, "costPA": 5, "cooldown": 4, "targetType": "single_enemy", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "2D6", "secondaryEffect": { "type": "status_effect", "status": "stunned", "duration": 1, "chance": 0.70 }, "animationOnCast": "target_bubble" }
+    },
+    {
+      "name": "Terremoto", "element": "terra", "description": "1D8 de dano em todos os inimigos. 50% de chance de reduzir a Agilidade de todos em -3.", "costMahou": 6, "costPA": 4, "cooldown": 3, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8", "secondaryEffect": { "type": "debuff", "chance": 0.50, "duration": 2, "modifiers": [{ "attribute": "agilidade", "value": -3 }] }, "animationOnCast": "area_sandstorm" }
+    },
+    {
+      "name": "Colosso de Pedra", "element": "terra", "description": "Causa 3D6+2 de dano e concede +2 de Proteção por 2 turnos.", "costMahou": 7, "costPA": 5, "cooldown": 4, "targetType": "single_enemy", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "3D6+2", "selfEffect": { "type": "buff", "duration": 2, "modifiers": [{ "attribute": "protecao", "value": 2 }] }, "animationOnCast": "projectile_rock" }
+    },
+    {
+      "name": "Furacão", "element": "vento", "description": "Causa 2D6 de dano em todos os inimigos.", "costMahou": 7, "costPA": 4, "cooldown": 3, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "2D6", "animationOnCast": "self_swirl" }
+    },
+    {
+      "name": "Tempestade Cortante", "element": "vento", "description": "Causa 3D6+2 de dano. 50% de chance de aplicar -3 de Proteção por 2 turnos.", "costMahou": 7, "costPA": 5, "cooldown": 4, "targetType": "single_enemy", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "3D6+2", "secondaryEffect": { "type": "debuff", "chance": 0.50, "duration": 2, "modifiers": [{ "attribute": "protecao", "value": -3 }] }, "animationOnCast": "impact_slash" }
+    },
+    {
+      "name": "Explosão Solar", "element": "luz", "description": "1D8 de dano em todos os inimigos. 50% de chance de reduzir -3 no Acerto dos inimigos por 1 turno.", "costMahou": 6, "costPA": 4, "cooldown": 3, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8", "secondaryEffect": { "type": "bta_debuff", "chance": 0.50, "duration": 1, "value": -3 }, "animationOnCast": "area_gold_fire" }
+    },
+    {
+      "name": "Castigo Divino", "element": "luz", "description": "Causa 3D6 de dano e aumenta o Acerto do usuário em +5 por 3 turnos.", "costMahou": 7, "costPA": 5, "cooldown": 4, "targetType": "single_enemy", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "3D6", "selfEffect": { "type": "bta_buff", "duration": 3, "value": 5 }, "animationOnCast": "impact_light" }
+    },
+    {
+      "name": "Explosão Sombria", "element": "escuridao", "description": "1D8 de dano em todos os inimigos. 50% de chance de causar -5 de Acerto.", "costMahou": 6, "costPA": 4, "cooldown": 3, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": true,
+      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "1D8", "secondaryEffect": { "type": "bta_debuff", "chance": 0.50, "duration": 1, "value": -5 }, "animationOnCast": "impact_dark" }
+    },
+    {
+      "name": "Maldade Eterna", "element": "escuridao", "description": "Causa 1D6 de dano no Mahou de todos os inimigos. Recupera 1 de Mahou por inimigo atingido.", "costMahou": 0, "costPA": 5, "cooldown": 4, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": false,
+      "effect": { "type": "resource_damage", "resource": "mahou", "damageFormula": "1D6", "selfEffect": { "type": "resource_heal_per_target", "resource": "mahou", "amount": 1 }, "animationOnCast": "area_null_shield" }
+    }
+  ],
   "advanced_grade1": [
     {
       "name": "Brasa Azul",
