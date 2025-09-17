@@ -769,7 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     stagedNpcSlots[targetSlot] = { 
                         ...npcData, 
                         id: `npc-staged-${Date.now()}-${targetSlot}`,
-                        customStats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 },
+                        customStats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0 },
                         equipment: { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
                         spells: []
                     };
@@ -854,9 +854,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let current;
         if (isLiveConfig) {
-            current = { stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes }, equip: npcData.sheet.equipment, spells: npcData.sheet.spells };
+            current = { stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes, xpReward: npcData.xpReward, moneyReward: npcData.moneyReward }, equip: npcData.sheet.equipment, spells: npcData.sheet.spells };
         } else if(isMidBattleAdd) {
-             current = { stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1 }, equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' }, spells: [] };
+             current = { stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0 }, equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' }, spells: [] };
         } else {
              current = { stats: npcData.customStats, equip: npcData.equipment, spells: npcData.spells };
         }
@@ -871,6 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
             hpInputHtml = `<label>HP:</label><input type="number" id="npc-cfg-hp" value="${current.stats.hp}">`;
         }
     
+        // ** AJUSTE 1: Corrige a lista de magias para incluir todos os graus **
         const spellCategories = {
             "Magias Grau 1": ALL_SPELLS.grade1 || [],
             "Magias Avançadas Grau 1": ALL_SPELLS.advanced_grade1 || [],
@@ -910,6 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         spellsHtml += '</div>';
     
+        // ** AJUSTE 2: Adiciona campos de XP e Dinheiro na interface **
         let content = `<div class="npc-config-container">
             <div class="npc-config-col">
                 <h4>Atributos Principais</h4>
@@ -922,6 +924,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label>Constituição:</label><input type="number" id="npc-cfg-constituicao" value="${current.stats.constituicao}">
                     <label>Inteligência:</label><input type="number" id="npc-cfg-inteligencia" value="${current.stats.inteligencia}">
                     <label>Mente:</label><input type="number" id="npc-cfg-mente" value="${current.stats.mente}">
+                </div>
+                <h4>Recompensas</h4>
+                 <div class="npc-config-grid">
+                    <label>XP Reward:</label><input type="number" id="npc-cfg-xp" value="${current.stats.xpReward !== undefined ? current.stats.xpReward : 30}">
+                    <label>Money Reward:</label><input type="number" id="npc-cfg-money" value="${current.stats.moneyReward !== undefined ? current.stats.moneyReward : 0}">
                 </div>
                 <h4>Equipamentos</h4>
                 <div class="npc-config-equip">
@@ -947,6 +954,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     constituicao: parseInt(document.getElementById('npc-cfg-constituicao').value, 10),
                     inteligencia: parseInt(document.getElementById('npc-cfg-inteligencia').value, 10),
                     mente: parseInt(document.getElementById('npc-cfg-mente').value, 10),
+                    xpReward: parseInt(document.getElementById('npc-cfg-xp').value, 10),
+                    moneyReward: parseInt(document.getElementById('npc-cfg-money').value, 10)
                 };
 
                 if (npcData.isMultiPart) {
@@ -1507,6 +1516,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p>
             <p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p>
             <p><b>I:</b> Abrir/Fechar loja (GM - Modo Cenário).</p>
+            <p><b>X:</b> Abrir menu de recompensas (GM - Modo Cenário).</p>
         </div>`;
         showInfoModal("Atalhos do Teclado", content);
     }
@@ -1590,6 +1600,53 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterTokenContainer.appendChild(fragment);
     }
     
+    // ** AJUSTE 3: Função para o modal de recompensa do GM **
+    function showGmAwardModal() {
+        if (!isGm || !currentGameState || !currentGameState.connectedPlayers) return;
+
+        let modalContent = `<div class="npc-config-container" style="gap: 10px;">
+                                <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 10px 20px; align-items: center; width: 100%;">
+                                    <h4 style="margin:0; color: #ffeb3b;">Jogador</h4>
+                                    <h4 style="margin:0; color: #ffeb3b;">XP</h4>
+                                    <h4 style="margin:0; color: #ffeb3b;">Dinheiro</h4>`;
+        
+        const players = Object.entries(currentGameState.connectedPlayers).filter(([id, p]) => p.role === 'player' && p.characterFinalized);
+
+        if (players.length === 0) {
+            modalContent += `<span style="grid-column: 1 / -1; text-align: center; color: #888; padding: 10px 0;">Nenhum jogador na sala.</span>`;
+        }
+
+        players.forEach(([id, player]) => {
+            modalContent += `<span>${player.characterName}</span>
+                             <input type="number" class="gm-award-input" data-player-id="${id}" data-type="xp" value="0" style="width: 80px; text-align: right;">
+                             <input type="number" class="gm-award-input" data-player-id="${id}" data-type="money" value="0" style="width: 80px; text-align: right;">`;
+        });
+        
+        modalContent += `</div></div>`;
+
+        showCustomModal("Conceder Recompensas (XP / Dinheiro)", modalContent, [
+            { text: 'Confirmar', closes: true, onClick: () => {
+                const awards = [];
+                document.querySelectorAll('.gm-award-input').forEach(input => {
+                    const playerId = input.dataset.playerId;
+                    const type = input.dataset.type;
+                    const value = parseInt(input.value, 10) || 0;
+
+                    let award = awards.find(a => a.playerId === playerId);
+                    if (!award) {
+                        award = { playerId, xp: 0, money: 0 };
+                        awards.push(award);
+                    }
+                    award[type] = value;
+                });
+                if (awards.length > 0) {
+                    socket.emit('playerAction', { type: 'gmAwardsRewards', awards });
+                }
+            }},
+            { text: 'Cancelar', closes: true, className: 'btn-danger' }
+        ]);
+    }
+
     function setupTheaterEventListeners() {
         const viewport = theaterBackgroundViewport;
         viewport.addEventListener('mousedown', (e) => {
@@ -1776,10 +1833,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 showInfoModal("Modo de Movimento", `Modo de movimento livre ${isFreeMoveModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
             }
             
-            if (currentGameState.mode === 'theater' && e.key.toLowerCase() === 'i') {
-                e.preventDefault();
-                toggleShop();
+            if (currentGameState.mode === 'theater') {
+                if (e.key.toLowerCase() === 'i') {
+                    e.preventDefault();
+                    toggleShop();
+                }
+                // ** AJUSTE 3: Adiciona o atalho 'X' para o modal de recompensa **
+                if (isGm && e.key.toLowerCase() === 'x') {
+                    e.preventDefault();
+                    showGmAwardModal();
+                }
             }
+
 
             if (currentGameState.mode !== 'theater' || !isGm) return;
             

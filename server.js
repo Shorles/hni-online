@@ -217,6 +217,10 @@ function createNewFighterState(data) {
 
     } else { // NPC
         fighter.level = 1;
+        // ** AJUSTE 2.a: Adiciona recompensas de XP e Dinheiro ao NPC **
+        fighter.xpReward = data.xpReward !== undefined ? data.xpReward : 30;
+        fighter.moneyReward = data.moneyReward !== undefined ? data.moneyReward : 0;
+        
         fighter.sheet = {
             finalAttributes: {},
             equipment: data.equipment || { weapon1: {type: 'Desarmado', name: ''}, weapon2: {type: 'Desarmado', name: ''}, armor: 'Nenhuma', shield: 'Nenhum' },
@@ -467,6 +471,41 @@ function getProtectionBreakdown(fighter) {
     return { value: total, details };
 }
 
+// ** AJUSTE 2.b: Função para distribuir recompensas **
+function distributeNpcRewards(state, defeatedNpc, roomId) {
+    const xpReward = defeatedNpc.xpReward || 0;
+    const moneyReward = defeatedNpc.moneyReward || 0;
+
+    if (xpReward === 0 && moneyReward === 0) return;
+
+    // Apenas jogadores que estão 'ativos' ou 'fugiram' recebem recompensas. 'Derrotados' não.
+    const eligiblePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active' || p.status === 'fled');
+
+    if (eligiblePlayers.length === 0) return;
+
+    const xpShare = Math.ceil(xpReward / eligiblePlayers.length);
+    const moneyShare = Math.floor(moneyReward / eligiblePlayers.length);
+
+    logMessage(state, `${defeatedNpc.nome} foi derrotado! Distribuindo ${xpShare} XP e ${moneyShare} moedas para ${eligiblePlayers.length} jogador(es).`, 'info');
+
+    const room = games[roomId];
+    const lobbyState = room.gameModes.lobby;
+
+    eligiblePlayers.forEach(player => {
+        player.xp += xpShare;
+        player.money += moneyShare;
+        
+        // Atualiza a ficha mestre no lobby para persistência
+        const lobbyPlayer = lobbyState.connectedPlayers[player.id];
+        if (lobbyPlayer && lobbyPlayer.characterSheet) {
+            lobbyPlayer.characterSheet.xp += xpShare;
+            lobbyPlayer.characterSheet.money += moneyShare;
+        }
+        
+        logMessage(state, `${player.nome} recebe ${xpShare} XP e ${moneyShare} moedas.`, 'info');
+    });
+}
+
 
 function checkGameOver(state) {
     const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
@@ -529,6 +568,10 @@ function processActiveEffects(state, fighter, roomId) {
     if (fighter.hp === 0 && fighter.status === 'active') {
         fighter.status = 'down';
         logMessage(state, `${fighter.nome} foi derrotado pelo dano contínuo!`, 'defeat');
+        // ** AJUSTE 2.b: Adiciona distribuição de recompensa em mortes por DoT **
+        if (!fighter.isPlayer) {
+            distributeNpcRewards(state, fighter, roomId);
+        }
     }
     
     return { isStunned };
@@ -687,6 +730,10 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             if (target.hp === 0) {
                 target.status = 'down';
                 logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
+                // ** AJUSTE 2.b: Adiciona distribuição de recompensa em mortes por ataque **
+                if (!target.isPlayer) {
+                    distributeNpcRewards(state, target, roomId);
+                }
             }
 
             Object.assign(debugInfo, { hit: true, isCrit, damageFormula: weaponData.damage, damageRoll, critDamage, btd, btdBreakdown: btdBreakdown.details, weaponBuffInfo, totalDamage, targetProtection, protectionBreakdown: protectionBreakdown.details, finalDamage });
@@ -908,6 +955,10 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             if(target.hp === 0) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
+                // ** AJUSTE 2.b: Adiciona distribuição de recompensa em mortes por magia **
+                if (!target.isPlayer) {
+                    distributeNpcRewards(state, target, roomId);
+                }
             }
             Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
             break;
@@ -1358,6 +1409,11 @@ io.on('connection', (socket) => {
                                 npc.sheet.finalAttributes = { forca: action.stats.forca, agilidade: action.stats.agilidade, protecao: action.stats.protecao, constituicao: action.stats.constituicao, inteligencia: action.stats.inteligencia, mente: action.stats.mente };
                                 npc.sheet.equipment = action.equipment;
                                 npc.sheet.spells = action.spells || [];
+
+                                // ** AJUSTE 2.a: Salva XP e Dinheiro configurados pelo GM **
+                                npc.xpReward = action.stats.xpReward;
+                                npc.moneyReward = action.stats.moneyReward;
+
                                 recalculateFighterStats(npc);
                                 logMessage(adventureState, `${npc.nome} foi reconfigurado pelo Mestre.`);
                             }
@@ -1386,7 +1442,16 @@ io.on('connection', (socket) => {
                             action.npcs.forEach((npcData, index) => {
                                 if (index < MAX_NPCS) {
                                     const npcObj = ALL_NPCS[npcData.name] || {};
-                                    const newNpc = createNewFighterState({ ...npcData, scale: npcObj.scale || 1.0, isMultiPart: npcObj.isMultiPart, parts: npcObj.parts, customStats: npcData.customStats });
+                                    // ** AJUSTE 2.a: Passa XP e Dinheiro para a criação do NPC **
+                                    const newNpc = createNewFighterState({ 
+                                        ...npcData, 
+                                        scale: npcObj.scale || 1.0, 
+                                        isMultiPart: npcObj.isMultiPart, 
+                                        parts: npcObj.parts, 
+                                        customStats: npcData.customStats,
+                                        xpReward: npcData.customStats.xpReward,
+                                        moneyReward: npcData.customStats.moneyReward
+                                    });
                                     adventureState.fighters.npcs[newNpc.id] = newNpc;
                                     adventureState.npcSlots[index] = newNpc.id;
                                 }
@@ -1571,6 +1636,24 @@ io.on('connection', (socket) => {
                             if (theaterState.shop) {
                                 theaterState.shop.isOpen = false;
                                 logMessage(theaterState, 'O Mestre fechou a loja.');
+                            }
+                            break;
+                        // ** AJUSTE 3: Manipulador para recompensas manuais do GM **
+                        case 'gmAwardsRewards':
+                            if (action.awards && Array.isArray(action.awards)) {
+                                action.awards.forEach(award => {
+                                    const { playerId, xp, money } = award;
+                                    const playerInfo = lobbyState.connectedPlayers[playerId];
+                                    if (playerInfo && playerInfo.characterSheet) {
+                                        const finalXp = parseInt(xp, 10) || 0;
+                                        const finalMoney = parseInt(money, 10) || 0;
+                                        playerInfo.characterSheet.xp += finalXp;
+                                        playerInfo.characterSheet.money += finalMoney;
+                                        if (finalXp > 0 || finalMoney > 0) {
+                                            logMessage(theaterState, `GM concedeu ${finalXp} XP e ${finalMoney} moedas para ${playerInfo.characterName}.`, 'info');
+                                        }
+                                    }
+                                });
                             }
                             break;
                      }
