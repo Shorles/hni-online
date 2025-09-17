@@ -709,7 +709,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const targetProtection = protectionBreakdown.value;
             let finalDamage = Math.max(1, totalDamage - targetProtection);
 
-            // **AJUSTE 2: Lógica para "Lâmina de Vento" e buffs de dano final**
             const finalDamageBuffs = attacker.activeEffects.filter(e => e.type === 'final_damage_buff');
             if (finalDamageBuffs.length > 0) {
                 finalDamageBuffs.forEach(buff => {
@@ -718,7 +717,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 });
             }
 
-            // **AJUSTE 2: Lógica para "Marca Ígnea Sombria"**
             if (target.marks && target.marks.igneous_curse > 0) {
                 const markBonus = target.marks.igneous_curse;
                 finalDamage += markBonus;
@@ -865,7 +863,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     if (spell.effect?.animationOnCast) {
         io.to(roomId).emit('visualEffectTriggered', { 
             casterId: attacker.id, 
-            targetId: primaryTarget.id, // A animação primária sempre vai para o alvo clicado
+            targetId: primaryTarget.id,
             animation: spell.effect.animationOnCast 
         });
     }
@@ -878,7 +876,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             const debugInfo = { attackerName: attacker.nome, targetName: target.nome, spellName: spell.name, hit: true, autoHit: true };
             applySpellEffect(state, roomId, attacker, target, spell, debugInfo);
             debugReports.push(debugInfo);
-            return; // Continua para o próximo alvo
+            return;
         }
 
         const hitRoll = rollD20();
@@ -938,7 +936,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         effectModifier += 1; logMessage(state, `O poder demoníaco de ${attacker.nome} fortalece a magia de Escuridão!`, 'info');
     }
 
-    // AJUSTE: Lógica para penalidade de cura em Demônios
     if (target.sheet.race === 'Demônio' && (spell.effect.type === 'heal' || spell.effect.type === 'hot')) {
         effectModifier -= 1;
     }
@@ -983,7 +980,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
             break;
         
-        // **AJUSTE: Lógica de cura**
         case 'heal':
             let healAmount = rollDice(spell.effect.formula);
             if (spell.effect.bonusAttribute) {
@@ -1034,6 +1030,9 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         case 'buff':
         case 'debuff':
         case 'final_damage_buff':
+        case 'btd_buff':
+        case 'bta_buff':
+        case 'bta_debuff':
             const newEffect = {
                 name: spell.name,
                 type: spell.effect.type,
@@ -1051,7 +1050,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 duration: spell.effect.duration + 1,
                 damageFormula: spell.effect.damageFormula,
                 animationOnHit: spell.effect.animationOnHit,
-                secondaryEffect: spell.effect.secondaryEffect // Can be undefined
+                secondaryEffect: spell.effect.secondaryEffect
             });
             break;
 

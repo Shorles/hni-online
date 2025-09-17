@@ -132,7 +132,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 #action-buttons-wrapper{
     position:absolute;
-    bottom: 10px;
+    bottom: 10px; 
     left:50%;
     transform:translateX(-50%);
     display:flex;
@@ -144,15 +144,15 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     border-radius:10px;
     z-index:10;
     pointer-events:auto;
-    max-width: 90%;
+    max-width: 90%; 
     width: 850px;
-    max-height: 160px;
-    overflow-y: auto;
+    max-height: 160px; 
+    overflow-y: auto; 
     align-content: flex-start;
 }
 .action-btn,.end-turn-btn{
-    padding: 6px 14px;
-    font-size: 0.9em;
+    padding: 6px 14px; 
+    font-size: 0.9em; 
     cursor:pointer;
     border:none;
     border-radius:5px;

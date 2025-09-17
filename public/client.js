@@ -140,6 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         targetingAction = null;
         document.getElementById('targeting-indicator').classList.add('hidden');
         document.querySelectorAll('.char-container.target-highlight').forEach(el => el.classList.remove('target-highlight'));
+        updateTargetableStatus(); // **CORREÇÃO: Atualiza a UI para remover alvos clicáveis**
     }
     function getFighter(state, key) {
         if (!state || !key) return null;
@@ -1091,26 +1092,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (fighter.status === 'active') {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
-
-            const activeFighter = getFighter(state, state.activeCharacterKey);
-            const canIControlThisTurn = (myPlayerKey === state.activeCharacterKey) || (isGm && activeFighter && !activeFighter.isPlayer);
-            
-            if (isTargeting && canIControlThisTurn && activeFighter) {
-                const isThisFighterPlayer = type === 'player';
-                const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
-
-                const isAllyTargetSpell = targetingAction.type === 'use_spell' && ['single_ally', 'all_allies'].includes(targetingAction.spell.targetType);
-                
-                if (isAllyTargetSpell) {
-                    if (isThisFighterPlayer === isActiveFighterPlayer) {
-                        container.classList.add('targetable');
-                    }
-                } else {
-                    if (isThisFighterPlayer !== isActiveFighterPlayer) {
-                        container.classList.add('targetable');
-                    }
-                }
-            }
         }
         
         if(container.classList.contains('targetable')) {
@@ -1178,6 +1159,39 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = `${marksHtml}${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
         return container;
     }
+
+    // **CORREÇÃO: Nova função central para atualizar alvos clicáveis**
+    function updateTargetableStatus() {
+        document.querySelectorAll('.char-container').forEach(el => el.classList.remove('targetable'));
+        if (!isTargeting || !currentGameState) return;
+
+        const activeFighter = getFighter(currentGameState, currentGameState.activeCharacterKey);
+        if (!activeFighter) return;
+
+        const canIControlThisTurn = (myPlayerKey === currentGameState.activeCharacterKey) || (isGm && !activeFighter.isPlayer);
+        if (!canIControlThisTurn) return;
+
+        const isActiveFighterPlayer = !!currentGameState.fighters.players[activeFighter.id];
+        const isAllyTargetAction = targetingAction.type === 'use_spell' && ['single_ally', 'all_allies'].includes(targetingAction.spell.targetType);
+
+        document.querySelectorAll('.char-container').forEach(container => {
+            const fighter = getFighter(currentGameState, container.id);
+            if (!fighter || fighter.status !== 'active') return;
+
+            const isThisFighterPlayer = !!currentGameState.fighters.players[fighter.id];
+
+            if (isAllyTargetAction) {
+                if (isThisFighterPlayer === isActiveFighterPlayer) {
+                    container.classList.add('targetable');
+                }
+            } else { // Ataque ou magia ofensiva
+                if (isThisFighterPlayer !== isActiveFighterPlayer) {
+                    container.classList.add('targetable');
+                }
+            }
+        });
+    }
+
     
     function renderActionButtons(state) {
         actionButtonsWrapper.innerHTML = '';
@@ -1272,6 +1286,7 @@ document.addEventListener('DOMContentLoaded', () => {
         targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: weaponChoice };
         isTargeting = true;
         document.getElementById('targeting-indicator').classList.remove('hidden');
+        updateTargetableStatus(); // **CORREÇÃO: Atualiza a UI imediatamente**
     }
     
     function startSpellSequence(spell) {
@@ -1286,6 +1301,7 @@ document.addEventListener('DOMContentLoaded', () => {
             targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name, spell: spell };
             isTargeting = true;
             document.getElementById('targeting-indicator').classList.remove('hidden');
+            updateTargetableStatus(); // **CORREÇÃO: Atualiza a UI imediatamente**
         }
     }
 
@@ -2892,7 +2908,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (myFighter.pa < 3) {
                 showInfoModal("Ação Bloqueada", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações não foram salvas.");
                 ingameSheetModal.classList.add('hidden');
-                // Não precisa reverter, pois o estado do jogo não foi alterado e a ficha será repopulada na próxima vez que abrir.
                 return;
             }
     
