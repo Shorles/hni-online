@@ -1401,8 +1401,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleTargetClick(event) {
         if (isFreeMoveModeActive || !isTargeting || !targetingAction) return;
-        const targetContainer = event.target.closest('.char-container.targetable');
-        if (!targetContainer) return;
+        const targetContainer = event.target.closest('.char-container');
+        if (!targetContainer || !targetContainer.classList.contains('targetable')) return;
+
         const targetKey = targetContainer.dataset.key;
         const targetFighter = getFighter(currentGameState, targetKey);
         

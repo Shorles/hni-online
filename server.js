@@ -27,6 +27,16 @@ let ALL_ITEMS = {};
 const MAX_PLAYERS = 4;
 const MAX_NPCS = 5; 
 
+const LEVEL_XP_THRESHOLDS = { 1: 100, 2: 250, 3: 500, 4: 1000, 5: 2000, 6: 4000, 7: Infinity };
+const LEVEL_REWARDS = {
+    2: { attrPoints: 2, spellChoices: { grade1: 1 } },
+    3: { attrPoints: 2, elemPoints: 1, spellChoices: { grade1: 1 } },
+    4: { attrPoints: 2, spellChoices: { grade2: 1 } },
+    5: { attrPoints: 2, elemPoints: 1, spellChoices: { grade1: 1 } },
+    6: { attrPoints: 2, elemPoints: 1, spellChoices: { grade2: 1 } },
+    7: { attrPoints: 2, spellChoices: { grade3: 1 } },
+};
+
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
     const characters = JSON.parse(charactersData);
@@ -209,7 +219,7 @@ function createNewFighterState(data) {
 
         fighter.level = sourceData.level || 1;
         fighter.xp = sourceData.xp || 0;
-        fighter.xpNeeded = sourceData.xpNeeded || 100;
+        fighter.xpNeeded = sourceData.xpNeeded || LEVEL_XP_THRESHOLDS[1];
         fighter.money = sourceData.money !== undefined ? sourceData.money : 200;
 
         fighter.inventory = sourceData.inventory || {};
@@ -466,6 +476,32 @@ function getProtectionBreakdown(fighter) {
     return { value: total, details };
 }
 
+function checkAndApplyLevelUp(playerFighter, lobbyState) {
+    let leveledUp = false;
+    while (playerFighter.xp >= playerFighter.xpNeeded) {
+        leveledUp = true;
+        playerFighter.level++;
+        const nextLevel = playerFighter.level;
+        logMessage(lobbyState, `${playerFighter.nome} subiu para o Nível ${nextLevel}!`, 'info');
+
+        const rewards = LEVEL_REWARDS[nextLevel];
+        if (rewards) {
+            if (!playerFighter.sheet.pendingRewards) {
+                playerFighter.sheet.pendingRewards = { attrPoints: 0, elemPoints: 0, spellChoices: {} };
+            }
+            playerFighter.sheet.pendingRewards.attrPoints += rewards.attrPoints || 0;
+            playerFighter.sheet.pendingRewards.elemPoints += rewards.elemPoints || 0;
+            if (rewards.spellChoices) {
+                for (const grade in rewards.spellChoices) {
+                    playerFighter.sheet.pendingRewards.spellChoices[grade] = (playerFighter.sheet.pendingRewards.spellChoices[grade] || 0) + rewards.spellChoices[grade];
+                }
+            }
+        }
+        playerFighter.xpNeeded = LEVEL_XP_THRESHOLDS[nextLevel] || Infinity;
+    }
+    return leveledUp;
+}
+
 function distributeNpcRewards(state, defeatedNpc, roomId) {
     const xpReward = defeatedNpc.xpReward || 0;
     const moneyReward = defeatedNpc.moneyReward || 0;
@@ -492,6 +528,7 @@ function distributeNpcRewards(state, defeatedNpc, roomId) {
         if (lobbyPlayer && lobbyPlayer.characterSheet) {
             lobbyPlayer.characterSheet.xp += xpShare;
             lobbyPlayer.characterSheet.money += moneyShare;
+            checkAndApplyLevelUp(lobbyPlayer.characterSheet, lobbyState);
         }
         
         logMessage(state, `${player.nome} recebe ${xpShare} XP e ${moneyShare} moedas.`, 'info');
@@ -706,7 +743,21 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             }
 
             const protectionBreakdown = getProtectionBreakdown(target);
-            const targetProtection = protectionBreakdown.value;
+            let targetProtection = protectionBreakdown.value;
+
+            const reflectBuff = target.activeEffects.find(e => e.type === 'reflect_damage_buff');
+            if (reflectBuff) {
+                const reflectedDamage = Math.floor(totalDamage * reflectBuff.percentage);
+                attacker.hp = Math.max(0, attacker.hp - reflectedDamage);
+                logMessage(state, `${target.nome} reflete ${reflectedDamage} de dano de volta para ${attacker.nome}!`, 'crit');
+                io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: `-${reflectedDamage} (Refletido)`, type: 'damage-hp' });
+                if (attacker.hp === 0) {
+                    attacker.status = 'down';
+                    logMessage(state, `${attacker.nome} foi derrotado pelo dano refletido!`, 'defeat');
+                }
+                return { hit: true, debugInfo: {} };
+            }
+            
             let finalDamage = Math.max(1, totalDamage - targetProtection);
 
             const finalDamageBuffs = attacker.activeEffects.filter(e => e.type === 'final_damage_buff');
@@ -1033,6 +1084,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         case 'btd_buff':
         case 'bta_buff':
         case 'bta_debuff':
+        case 'reflect_damage_buff':
             const newEffect = {
                 name: spell.name,
                 type: spell.effect.type,
@@ -1718,6 +1770,7 @@ io.on('connection', (socket) => {
                                         if (finalXp > 0 || finalMoney > 0) {
                                             logMessage(theaterState, `GM concedeu ${finalXp} XP e ${finalMoney} moedas para ${playerInfo.characterName}.`, 'info');
                                         }
+                                        checkAndApplyLevelUp(playerInfo.characterSheet, lobbyState);
                                     }
                                 });
                             }
