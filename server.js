@@ -27,16 +27,6 @@ let ALL_ITEMS = {};
 const MAX_PLAYERS = 4;
 const MAX_NPCS = 5; 
 
-const LEVEL_XP_THRESHOLDS = { 1: 100, 2: 250, 3: 500, 4: 1000, 5: 2000, 6: 4000, 7: Infinity };
-const LEVEL_REWARDS = {
-    2: { attrPoints: 2, spellChoices: { grade1: 1 } },
-    3: { attrPoints: 2, elemPoints: 1, spellChoices: { grade1: 1 } },
-    4: { attrPoints: 2, spellChoices: { grade2: 1 } },
-    5: { attrPoints: 2, elemPoints: 1, spellChoices: { grade1: 1 } },
-    6: { attrPoints: 2, elemPoints: 1, spellChoices: { grade2: 1 } },
-    7: { attrPoints: 2, spellChoices: { grade3: 1 } },
-};
-
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
     const characters = JSON.parse(charactersData);
@@ -219,7 +209,7 @@ function createNewFighterState(data) {
 
         fighter.level = sourceData.level || 1;
         fighter.xp = sourceData.xp || 0;
-        fighter.xpNeeded = sourceData.xpNeeded || LEVEL_XP_THRESHOLDS[1];
+        fighter.xpNeeded = sourceData.xpNeeded || 100;
         fighter.money = sourceData.money !== undefined ? sourceData.money : 200;
 
         fighter.inventory = sourceData.inventory || {};
@@ -326,9 +316,18 @@ function getFighterAttribute(fighter, attr) {
     let baseValue = fighter.sheet.finalAttributes[attr] || 0;
     
     if (fighter.activeEffects && fighter.activeEffects.length > 0) {
-        const bonus = fighter.activeEffects
-            .filter(effect => effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff'))
-            .reduce((sum, effect) => sum + effect.value, 0);
+        const bonus = fighter.activeEffects.reduce((sum, effect) => {
+            let effectValue = 0;
+            if (effect.modifiers) {
+                const relevantMod = effect.modifiers.find(mod => mod.attribute === attr);
+                if (relevantMod) {
+                    effectValue = relevantMod.value;
+                }
+            } else if (effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff')) {
+                effectValue = effect.value;
+            }
+            return sum + effectValue;
+        }, 0);
         baseValue += bonus;
     }
     
@@ -344,12 +343,19 @@ function getAttributeBreakdown(fighter, attr) {
         total += baseValue;
     }
      if (fighter.activeEffects && fighter.activeEffects.length > 0) {
-        fighter.activeEffects
-            .filter(effect => effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff'))
-            .forEach(effect => {
+        fighter.activeEffects.forEach(effect => {
+            if (effect.modifiers) {
+                effect.modifiers.forEach(mod => {
+                    if (mod.attribute === attr) {
+                        details[`Efeito (${effect.name})`] = mod.value;
+                        total += mod.value;
+                    }
+                });
+            } else if (effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff')) {
                 details[`Efeito (${effect.name})`] = effect.value;
                 total += effect.value;
-            });
+            }
+        });
     }
     return {value: total, details};
 }
@@ -402,6 +408,15 @@ function getBtaBreakdown(fighter, weaponKey = null) {
         details[`Bônus de Arma`] = weaponBtaMod;
         total += weaponBtaMod;
     }
+    
+    // BTA buff from effects
+    fighter.activeEffects.forEach(effect => {
+        if (effect.type === 'bta_buff' || effect.type === 'bta_debuff') {
+            total += effect.value;
+            details[`Efeito (${effect.name})`] = effect.value;
+        }
+    });
+
 
     const forca = getFighterAttribute(fighter, 'forca');
     if (forca >= 4) {
@@ -440,6 +455,14 @@ function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
         details[`Bônus de Arma (${weapon.type})`] = weaponData.btd;
         total += weaponData.btd;
     }
+    
+    // BTD buff from effects
+    fighter.activeEffects.forEach(effect => {
+        if (effect.type === 'btd_buff') {
+            total += effect.value;
+            details[`Efeito (${effect.name})`] = effect.value;
+        }
+    });
 
     if (isDualAttackPart) {
         const forca = getFighterAttribute(fighter, 'forca');
@@ -473,33 +496,22 @@ function getProtectionBreakdown(fighter) {
     const protBreakdown = getAttributeBreakdown(fighter, 'protecao');
     let total = protBreakdown.value;
     const details = protBreakdown.details;
-    return { value: total, details };
-}
 
-function checkAndApplyLevelUp(playerFighter, lobbyState) {
-    let leveledUp = false;
-    while (playerFighter.xp >= playerFighter.xpNeeded) {
-        leveledUp = true;
-        playerFighter.level++;
-        const nextLevel = playerFighter.level;
-        logMessage(lobbyState, `${playerFighter.nome} subiu para o Nível ${nextLevel}!`, 'info');
-
-        const rewards = LEVEL_REWARDS[nextLevel];
-        if (rewards) {
-            if (!playerFighter.sheet.pendingRewards) {
-                playerFighter.sheet.pendingRewards = { attrPoints: 0, elemPoints: 0, spellChoices: {} };
-            }
-            playerFighter.sheet.pendingRewards.attrPoints += rewards.attrPoints || 0;
-            playerFighter.sheet.pendingRewards.elemPoints += rewards.elemPoints || 0;
-            if (rewards.spellChoices) {
-                for (const grade in rewards.spellChoices) {
-                    playerFighter.sheet.pendingRewards.spellChoices[grade] = (playerFighter.sheet.pendingRewards.spellChoices[grade] || 0) + rewards.spellChoices[grade];
-                }
-            }
-        }
-        playerFighter.xpNeeded = LEVEL_XP_THRESHOLDS[nextLevel] || Infinity;
+    const armor = fighter.sheet.equipment.armor;
+    const shield = fighter.sheet.equipment.shield;
+    const armorData = GAME_RULES.armors[armor] || { protection: 0 };
+    const shieldData = GAME_RULES.shields[shield] || { protection_bonus: 0 };
+    
+    if (armorData.protection > 0) {
+        details[`Armadura (${armor})`] = armorData.protection;
+        total += armorData.protection;
     }
-    return leveledUp;
+    if (shieldData.protection_bonus > 0) {
+        details[`Escudo (${shield})`] = shieldData.protection_bonus;
+        total += shieldData.protection_bonus;
+    }
+
+    return { value: total, details };
 }
 
 function distributeNpcRewards(state, defeatedNpc, roomId) {
@@ -528,7 +540,6 @@ function distributeNpcRewards(state, defeatedNpc, roomId) {
         if (lobbyPlayer && lobbyPlayer.characterSheet) {
             lobbyPlayer.characterSheet.xp += xpShare;
             lobbyPlayer.characterSheet.money += moneyShare;
-            checkAndApplyLevelUp(lobbyPlayer.characterSheet, lobbyState);
         }
         
         logMessage(state, `${player.nome} recebe ${xpShare} XP e ${moneyShare} moedas.`, 'info');
@@ -561,7 +572,7 @@ function processActiveEffects(state, fighter, roomId) {
             case 'dot':
                 const procRoll = Math.random();
                 if (procRoll < (effect.procChance || 1.0)) {
-                    const damage = effect.damage || 0;
+                    const damage = rollDice(effect.damage) || 0;
                     fighter.hp = Math.max(0, fighter.hp - damage);
                     logMessage(state, `${fighter.nome} sofre ${damage} de dano de ${effect.name}!`, 'hit');
                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `-${damage}`, type: 'damage-hp' });
@@ -604,7 +615,7 @@ function processActiveEffects(state, fighter, roomId) {
     fighter.activeEffects = effectsToKeep;
     recalculateFighterStats(fighter);
 
-    if (fighter.hp === 0 && fighter.status === 'active') {
+    if (fighter.hp <= 0 && fighter.status === 'active') {
         fighter.status = 'down';
         logMessage(state, `${fighter.nome} foi derrotado pelo dano contínuo!`, 'defeat');
         if (!fighter.isPlayer) {
@@ -689,6 +700,15 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         target = getFighter(state, targetKey);
         if (!target || target.status !== 'active') return null;
 
+        const spellShields = target.activeEffects.filter(e => e.type === 'spell_shield');
+        for (const shield of spellShields) {
+            if (Math.random() < shield.chance) {
+                logMessage(state, `${target.nome} anulou o ataque com ${shield.name}!`, 'miss');
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Anulou`, type: 'status-resist' });
+                return { hit: false, debugInfo: { attackerName: attacker.nome, targetName: target.nome, weaponUsed: 'N/A', hit: false, reason: `${shield.name} ativado` } };
+            }
+        }
+        
         const weapon = attacker.sheet.equipment[weaponKey];
         if (weapon.isRanged) {
             if (!attacker.ammunition || !attacker.ammunition[weaponKey] || attacker.ammunition[weaponKey] <= 0) {
@@ -725,6 +745,18 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const damageRoll = rollDice(weaponData.damage);
             const critDamage = isCrit ? damageRoll : 0;
             let totalDamage = damageRoll + critDamage + btd;
+            
+            // Lifesteal
+            const lifestealEffects = attacker.activeEffects.filter(e => e.type === 'lifesteal_buff');
+            lifestealEffects.forEach(effect => {
+                const healedAmount = Math.floor(totalDamage * effect.percentage);
+                if (healedAmount > 0) {
+                    attacker.hp = Math.min(attacker.hpMax, attacker.hp + healedAmount);
+                    logMessage(state, `${attacker.nome} recupera ${healedAmount} HP com ${effect.name}.`, 'info');
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: `+${healedAmount} HP`, type: 'heal-hp' });
+                }
+            });
+
 
             const weaponBuffInfo = { total: 0, rolls: {}, breakdown: {} };
             const weaponBuffs = attacker.activeEffects.filter(e => e.type === 'weapon_buff');
@@ -743,28 +775,19 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             }
 
             const protectionBreakdown = getProtectionBreakdown(target);
-            let targetProtection = protectionBreakdown.value;
-
-            const reflectBuff = target.activeEffects.find(e => e.type === 'reflect_damage_buff');
-            if (reflectBuff) {
-                const reflectedDamage = Math.floor(totalDamage * reflectBuff.percentage);
-                attacker.hp = Math.max(0, attacker.hp - reflectedDamage);
-                logMessage(state, `${target.nome} reflete ${reflectedDamage} de dano de volta para ${attacker.nome}!`, 'crit');
-                io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: `-${reflectedDamage} (Refletido)`, type: 'damage-hp' });
-                if (attacker.hp === 0) {
-                    attacker.status = 'down';
-                    logMessage(state, `${attacker.nome} foi derrotado pelo dano refletido!`, 'defeat');
-                }
-                return { hit: true, debugInfo: {} };
-            }
-            
+            const targetProtection = protectionBreakdown.value;
             let finalDamage = Math.max(1, totalDamage - targetProtection);
 
-            const finalDamageBuffs = attacker.activeEffects.filter(e => e.type === 'final_damage_buff');
+            const finalDamageBuffs = attacker.activeEffects.filter(e => e.type === 'final_damage_buff' || e.type === 'damage_multiplier_buff');
             if (finalDamageBuffs.length > 0) {
                 finalDamageBuffs.forEach(buff => {
-                    finalDamage += buff.value;
-                    logMessage(state, `+${buff.value} de dano final de ${buff.name}!`, 'hit');
+                    if(buff.type === 'final_damage_buff'){
+                        finalDamage += buff.value;
+                        logMessage(state, `+${buff.value} de dano final de ${buff.name}!`, 'hit');
+                    } else if (buff.type === 'damage_multiplier_buff') {
+                        finalDamage *= buff.multiplier;
+                        logMessage(state, `Dano multiplicado por ${buff.multiplier}x por ${buff.name}!`, 'crit');
+                    }
                 });
             }
 
@@ -773,26 +796,67 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 finalDamage += markBonus;
                 logMessage(state, `${target.nome} sofre +${markBonus} de dano extra da Marca Ígnea Sombria!`, 'crit');
             }
-            
-            io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${finalDamage}`, type: 'damage-hp' });
-            
-            if (target.isMultiPart && targetPartKey) {
-                const part = target.parts.find(p => p.key === targetPartKey);
-                if (part && part.status === 'active') {
-                    part.hp = Math.max(0, part.hp - finalDamage);
-                    logMessage(state, `A parte "${part.name}" de ${target.nome} recebe ${finalDamage} de dano!`, 'hit');
-                    if (part.hp === 0) {
-                        part.status = 'down';
-                        logMessage(state, `A parte "${part.name}" foi destruída!`, 'defeat');
+
+            let damageWasReflected = false;
+            const reflectEffects = target.activeEffects.filter(e => e.type === 'reflect_damage_buff');
+            reflectEffects.forEach(effect => {
+                const reflectedDamage = Math.floor(finalDamage * (effect.percentage || 1.0));
+                if (reflectedDamage > 0) {
+                    attacker.hp = Math.max(0, attacker.hp - reflectedDamage);
+                    logMessage(state, `${attacker.nome} sofreu ${reflectedDamage} de dano refletido por ${effect.name} de ${target.nome}!`, 'hit');
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: `-${reflectedDamage}`, type: 'damage-hp' });
+                    if (effect.percentage >= 1.0) {
+                        finalDamage = 0;
+                        damageWasReflected = true;
                     }
-                    target.hp = target.parts.reduce((sum, p) => sum + p.hp, 0);
                 }
-            } else {
-                target.hp = Math.max(0, target.hp - finalDamage);
-                logMessage(state, `${attacker.nome} acerta ${target.nome} e causa ${finalDamage} de dano!`, 'hit');
+            });
+
+            const thornEffects = target.activeEffects.filter(e => e.onHitReceived?.type === 'reflect_damage');
+            thornEffects.forEach(effect => {
+                const thornDamage = rollDice(effect.onHitReceived.damage);
+                if (thornDamage > 0) {
+                    attacker.hp = Math.max(0, attacker.hp - thornDamage);
+                    logMessage(state, `${attacker.nome} sofreu ${thornDamage} de dano de espinhos de ${effect.name}!`, 'hit');
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: `-${thornDamage}`, type: 'damage-hp' });
+                }
+            });
+
+            if (damageWasReflected) {
+                 logMessage(state, `O dano em ${target.nome} foi anulado pela reflexão!`, 'info');
+                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Refletido!`, type: 'status-resist' });
+            } else if (finalDamage > 0) {
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${finalDamage}`, type: 'damage-hp' });
+                
+                if (target.isMultiPart && targetPartKey) {
+                    const part = target.parts.find(p => p.key === targetPartKey);
+                    if (part && part.status === 'active') {
+                        part.hp = Math.max(0, part.hp - finalDamage);
+                        logMessage(state, `A parte "${part.name}" de ${target.nome} recebe ${finalDamage} de dano!`, 'hit');
+                        if (part.hp === 0) {
+                            part.status = 'down';
+                            logMessage(state, `A parte "${part.name}" foi destruída!`, 'defeat');
+                        }
+                        target.hp = target.parts.reduce((sum, p) => sum + p.hp, 0);
+                    }
+                } else {
+                    target.hp = Math.max(0, target.hp - finalDamage);
+                    logMessage(state, `${attacker.nome} acerta ${target.nome} e causa ${finalDamage} de dano!`, 'hit');
+                }
             }
 
-            if (target.hp === 0) {
+            // Apply secondary effects from weapon buffs
+            const onHitBuffs = attacker.activeEffects.filter(e => e.type === 'weapon_buff' && e.onHitEffect);
+            onHitBuffs.forEach(buff => {
+                if (Math.random() < (buff.onHitEffect.chance || 1.0)) {
+                    const tempSpell = { name: buff.name, effect: buff.onHitEffect };
+                    applySpellEffect(state, roomId, attacker, target, tempSpell, {}); // debugInfo can be empty here
+                    logMessage(state, `Efeito secundário de ${buff.name} ativado em ${target.nome}!`, 'info');
+                }
+            });
+
+
+            if (target.hp <= 0 && target.status === 'active') {
                 target.status = 'down';
                 logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
                 if (!target.isPlayer) {
@@ -884,17 +948,19 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             targets.push(...Object.values(state.fighters.npcs).filter(n => n.status === 'active'));
             break;
         case 'adjacent_enemy':
-            const primaryTargetIndex = state.npcSlots.indexOf(targetKey);
-            if (primaryTargetIndex !== -1) {
-                const affectedIndexes = new Set([primaryTargetIndex]);
-                if (primaryTargetIndex > 0) affectedIndexes.add(primaryTargetIndex - 1);
-                if (primaryTargetIndex < 3) affectedIndexes.add(primaryTargetIndex + 1);
-                
-                affectedIndexes.forEach(index => {
-                    const npcId = state.npcSlots[index];
-                    const npc = getFighter(state, npcId);
-                    if (npc && npc.status === 'active') targets.push(npc);
-                });
+            if (primaryTarget) {
+                 targets.push(primaryTarget);
+                 const primaryTargetIndex = state.npcSlots.indexOf(targetKey);
+                 if (primaryTargetIndex !== -1) {
+                    if (primaryTargetIndex > 0) {
+                        const leftNpc = getFighter(state, state.npcSlots[primaryTargetIndex - 1]);
+                        if(leftNpc && leftNpc.status === 'active') targets.push(leftNpc);
+                    }
+                    if (primaryTargetIndex < 3) { // Slot 1, 2, 3, 4. 5 is separate.
+                        const rightNpc = getFighter(state, state.npcSlots[primaryTargetIndex + 1]);
+                        if(rightNpc && rightNpc.status === 'active') targets.push(rightNpc);
+                    }
+                 }
             }
             break;
         default: // single_enemy, single_ally, single_target
@@ -914,7 +980,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
     if (spell.effect?.animationOnCast) {
         io.to(roomId).emit('visualEffectTriggered', { 
             casterId: attacker.id, 
-            targetId: primaryTarget.id,
+            targetId: primaryTarget?.id || attacker.id,
             animation: spell.effect.animationOnCast 
         });
     }
@@ -1021,7 +1087,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             target.hp = Math.max(0, target.hp - finalDamage);
             io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${finalDamage}`, type: 'damage-hp' });
             logMessage(state, `${spell.name} causa ${finalDamage} de dano em ${target.nome}!`, 'hit');
-            if(target.hp === 0) {
+            if(target.hp <= 0) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
                 if (!target.isPlayer) {
@@ -1066,8 +1132,9 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${resourceDamage}`, type: 'damage-mahou' });
                 logMessage(state, `${spell.name} drena ${resourceDamage} de Mahou de ${target.nome}!`, 'hit');
 
-                if (spell.name === 'Dreno de Energia') {
-                    attacker.mahou = Math.min(attacker.mahouMax, attacker.mahou + 1);
+                if (spell.name === 'Dreno de Energia' || spell.effect.selfEffect?.type === 'resource_heal_per_target') {
+                    const healAmount = spell.effect.selfEffect?.amount || 1;
+                    attacker.mahou = Math.min(attacker.mahouMax, attacker.mahou + healAmount);
                 }
 
                 Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll: resourceDamage, resourceDamage });
@@ -1081,10 +1148,13 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         case 'buff':
         case 'debuff':
         case 'final_damage_buff':
+        case 'damage_multiplier_buff':
         case 'btd_buff':
         case 'bta_buff':
         case 'bta_debuff':
+        case 'lifesteal_buff':
         case 'reflect_damage_buff':
+        case 'spell_shield':
             const newEffect = {
                 name: spell.name,
                 type: spell.effect.type,
@@ -1092,6 +1162,35 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 ...spell.effect
             };
             target.activeEffects.push(newEffect);
+            recalculateFighterStats(target);
+            break;
+        
+        case 'random_debuff':
+            if (Math.random() < (spell.effect.chance || 1.0)) {
+                const attributes = spell.effect.attributes;
+                const randomAttr = attributes[Math.floor(Math.random() * attributes.length)];
+                target.activeEffects.push({
+                    name: spell.name,
+                    type: 'debuff',
+                    duration: spell.effect.duration + 1,
+                    modifiers: [{ attribute: randomAttr, value: spell.effect.value }]
+                });
+                logMessage(state, `${target.nome} teve seu atributo ${randomAttr} reduzido por ${spell.name}!`, 'info');
+                recalculateFighterStats(target);
+            } else {
+                 logMessage(state, `${target.nome} resistiu a ${spell.name}!`, 'info');
+            }
+            break;
+
+        case 'stacking_debuff':
+            for (let i = 1; i <= spell.effect.duration; i++) {
+                target.activeEffects.push({
+                    name: `${spell.name} (Turno ${i})`,
+                    type: 'debuff',
+                    duration: i + 1,
+                    modifiers: [{ attribute: spell.effect.attribute, value: spell.effect.value }]
+                });
+            }
             recalculateFighterStats(target);
             break;
 
@@ -1102,7 +1201,8 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 duration: spell.effect.duration + 1,
                 damageFormula: spell.effect.damageFormula,
                 animationOnHit: spell.effect.animationOnHit,
-                secondaryEffect: spell.effect.secondaryEffect
+                onHitEffect: spell.effect.onHitEffect, 
+                onCrit: spell.effect.onCrit
             });
             break;
 
@@ -1770,7 +1870,6 @@ io.on('connection', (socket) => {
                                         if (finalXp > 0 || finalMoney > 0) {
                                             logMessage(theaterState, `GM concedeu ${finalXp} XP e ${finalMoney} moedas para ${playerInfo.characterName}.`, 'info');
                                         }
-                                        checkAndApplyLevelUp(playerInfo.characterSheet, lobbyState);
                                     }
                                 });
                             }
