@@ -555,7 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
         oldGameState = currentGameState;
         currentGameState = gameState;
 
-        // **CORREÇÃO: Reseta o estado de mira se o turno mudou**
         if (oldGameState && oldGameState.activeCharacterKey !== currentGameState.activeCharacterKey) {
             cancelTargeting();
         }
@@ -1276,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        if (spell.targetType === 'self' || spell.targetType === 'all_allies') {
+        if (spell.targetType === 'self') {
             socket.emit('playerAction', {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
