@@ -217,7 +217,6 @@ function createNewFighterState(data) {
 
     } else { // NPC
         fighter.level = 1;
-        // ** AJUSTE 2.a: Adiciona recompensas de XP e Dinheiro ao NPC **
         fighter.xpReward = data.xpReward !== undefined ? data.xpReward : 30;
         fighter.moneyReward = data.moneyReward !== undefined ? data.moneyReward : 0;
         
@@ -378,15 +377,11 @@ function getBtaBreakdown(fighter, weaponKey = null) {
 
     let weaponBtaMod = 0;
 
-    // CORREÇÃO: Lógica ajustada para usar o bônus da arma específica do ataque.
     if (weaponKey) {
-        // Se uma arma específica for fornecida (durante um ataque), use o BTA dela.
         const weaponForAttack = fighter.sheet.equipment[weaponKey];
         const weaponDataForAttack = GAME_RULES.weapons[weaponForAttack.type] || { bta: 0 };
         weaponBtaMod = weaponDataForAttack.bta;
     } else {
-        // Se nenhuma arma for especificada, calcula um BTA "genérico" (usa o menor se dual-wielding).
-        // Isso pode ser útil para exibições na ficha de personagem, por exemplo.
         weaponBtaMod = w1Data.bta;
         if (weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado') {
             weaponBtaMod = Math.min(w1Data.bta, w2Data.bta);
@@ -471,14 +466,12 @@ function getProtectionBreakdown(fighter) {
     return { value: total, details };
 }
 
-// ** AJUSTE 2.b: Função para distribuir recompensas **
 function distributeNpcRewards(state, defeatedNpc, roomId) {
     const xpReward = defeatedNpc.xpReward || 0;
     const moneyReward = defeatedNpc.moneyReward || 0;
 
     if (xpReward === 0 && moneyReward === 0) return;
 
-    // Apenas jogadores que estão 'ativos' ou 'fugiram' recebem recompensas. 'Derrotados' não.
     const eligiblePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active' || p.status === 'fled');
 
     if (eligiblePlayers.length === 0) return;
@@ -495,7 +488,6 @@ function distributeNpcRewards(state, defeatedNpc, roomId) {
         player.xp += xpShare;
         player.money += moneyShare;
         
-        // Atualiza a ficha mestre no lobby para persistência
         const lobbyPlayer = lobbyState.connectedPlayers[player.id];
         if (lobbyPlayer && lobbyPlayer.characterSheet) {
             lobbyPlayer.characterSheet.xp += xpShare;
@@ -545,6 +537,16 @@ function processActiveEffects(state, fighter, roomId) {
                 }
                 break;
             
+            case 'hot':
+                 const healAmount = rollDice(effect.heal);
+                 const healedAmount = Math.min(fighter.hpMax - fighter.hp, healAmount);
+                 if (healedAmount > 0) {
+                     fighter.hp += healedAmount;
+                     logMessage(state, `${fighter.nome} é curado por ${effect.name} e recupera ${healedAmount} de HP.`, 'info');
+                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: `+${healedAmount} HP`, type: 'heal-hp' });
+                 }
+                break;
+
             case 'status_effect':
                 if (effect.status === 'stunned') {
                     isStunned = true;
@@ -568,7 +570,6 @@ function processActiveEffects(state, fighter, roomId) {
     if (fighter.hp === 0 && fighter.status === 'active') {
         fighter.status = 'down';
         logMessage(state, `${fighter.nome} foi derrotado pelo dano contínuo!`, 'defeat');
-        // ** AJUSTE 2.b: Adiciona distribuição de recompensa em mortes por DoT **
         if (!fighter.isPlayer) {
             distributeNpcRewards(state, fighter, roomId);
         }
@@ -688,7 +689,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const critDamage = isCrit ? damageRoll : 0;
             let totalDamage = damageRoll + critDamage + btd;
 
-            // **BUG FIX 1: ADD WEAPON BUFF DAMAGE**
             const weaponBuffInfo = { total: 0, rolls: {}, breakdown: {} };
             const weaponBuffs = attacker.activeEffects.filter(e => e.type === 'weapon_buff');
             if (weaponBuffs.length > 0) {
@@ -707,7 +707,23 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
 
             const protectionBreakdown = getProtectionBreakdown(target);
             const targetProtection = protectionBreakdown.value;
-            const finalDamage = Math.max(1, totalDamage - targetProtection);
+            let finalDamage = Math.max(1, totalDamage - targetProtection);
+
+            // **AJUSTE 2: Lógica para "Lâmina de Vento" e buffs de dano final**
+            const finalDamageBuffs = attacker.activeEffects.filter(e => e.type === 'final_damage_buff');
+            if (finalDamageBuffs.length > 0) {
+                finalDamageBuffs.forEach(buff => {
+                    finalDamage += buff.value;
+                    logMessage(state, `+${buff.value} de dano final de ${buff.name}!`, 'hit');
+                });
+            }
+
+            // **AJUSTE 2: Lógica para "Marca Ígnea Sombria"**
+            if (target.marks && target.marks.igneous_curse > 0) {
+                const markBonus = target.marks.igneous_curse;
+                finalDamage += markBonus;
+                logMessage(state, `${target.nome} sofre +${markBonus} de dano extra da Marca Ígnea Sombria!`, 'crit');
+            }
             
             io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `-${finalDamage}`, type: 'damage-hp' });
             
@@ -730,7 +746,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             if (target.hp === 0) {
                 target.status = 'down';
                 logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
-                // ** AJUSTE 2.b: Adiciona distribuição de recompensa em mortes por ataque **
                 if (!target.isPlayer) {
                     distributeNpcRewards(state, target, roomId);
                 }
@@ -916,12 +931,18 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
     if (attacker.sheet.race === 'Tulku' && spell.element === 'luz') {
         effectModifier -= 1; logMessage(state, `A natureza Tulku de ${attacker.nome} enfraquece a magia de Luz!`, 'info');
     }
-    if (attacker.sheet.race === 'Anjo' && spell.effect.type === 'healing') {
+    if (attacker.sheet.race === 'Anjo' && spell.effect.type === 'heal') {
         effectModifier += 1; logMessage(state, `A natureza angelical de ${attacker.nome} fortalece a magia de cura!`, 'info');
     }
     if (attacker.sheet.race === 'Demônio' && spell.element === 'escuridao') {
         effectModifier += 1; logMessage(state, `O poder demoníaco de ${attacker.nome} fortalece a magia de Escuridão!`, 'info');
     }
+
+    // AJUSTE: Lógica para penalidade de cura em Demônios
+    if (target.sheet.race === 'Demônio' && (spell.effect.type === 'heal' || spell.effect.type === 'hot')) {
+        effectModifier -= 1;
+    }
+
 
     switch(spell.effect.type) {
         case 'direct_damage':
@@ -955,7 +976,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             if(target.hp === 0) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
-                // ** AJUSTE 2.b: Adiciona distribuição de recompensa em mortes por magia **
                 if (!target.isPlayer) {
                     distributeNpcRewards(state, target, roomId);
                 }
@@ -963,6 +983,35 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
             break;
         
+        // **AJUSTE: Lógica de cura**
+        case 'heal':
+            let healAmount = rollDice(spell.effect.formula);
+            if (spell.effect.bonusAttribute) {
+                healAmount += getFighterAttribute(attacker, spell.effect.bonusAttribute);
+            }
+            healAmount += effectModifier;
+            healAmount = Math.max(0, healAmount);
+
+            const healedAmount = Math.min(target.hpMax - target.hp, healAmount);
+            if (healedAmount > 0) {
+                target.hp += healedAmount;
+                logMessage(state, `${target.nome} é curado por ${spell.name} e recupera ${healedAmount} de HP.`, 'info');
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `+${healedAmount} HP`, type: 'heal-hp' });
+            }
+            Object.assign(debugInfo, { hit: true, healedAmount });
+            break;
+        
+        case 'hot':
+            target.activeEffects.push({
+                name: spell.name,
+                type: 'hot',
+                duration: spell.effect.duration + 1,
+                heal: spell.effect.heal,
+                bonusAttribute: spell.effect.bonusAttribute,
+                casterId: attacker.id
+            });
+            break;
+
         case 'resource_damage':
             if (Math.random() > (spell.effect.resistChance || 0)) {
                 let resourceDamage = rollDice(spell.effect.damageFormula);
@@ -984,17 +1033,14 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         
         case 'buff':
         case 'debuff':
-            spell.effect.modifiers.forEach(mod => {
-                target.activeEffects.push({
-                    name: spell.name,
-                    type: spell.effect.type,
-                    duration: spell.effect.duration + 1,
-                    attribute: mod.attribute,
-                    value: mod.value
-                });
-                const sign = mod.value > 0 ? '+' : '';
-                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${mod.attribute.toUpperCase()} ${sign}${mod.value}`, type: 'buff' });
-            });
+        case 'final_damage_buff':
+            const newEffect = {
+                name: spell.name,
+                type: spell.effect.type,
+                duration: spell.effect.duration + 1,
+                ...spell.effect
+            };
+            target.activeEffects.push(newEffect);
             recalculateFighterStats(target);
             break;
 
@@ -1030,6 +1076,14 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Resistiu`, type: 'status-resist' });
                 logMessage(state, `${target.nome} resistiu a ${spell.name}!`, 'info');
             }
+            break;
+        
+        case 'apply_mark':
+            if (!target.marks[spell.effect.markType]) {
+                target.marks[spell.effect.markType] = 0;
+            }
+            target.marks[spell.effect.markType]++;
+            logMessage(state, `${target.nome} recebe uma ${spell.effect.markType}! (Total: ${target.marks[spell.effect.markType]})`, 'info');
             break;
     }
 
@@ -1085,7 +1139,6 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
         }
     
         let finalName = item.name;
-        // CORREÇÃO: Lógica para criar nomes únicos para itens duplicados.
         if (inventory[finalName]) {
             let count = 2;
             let potentialName = `${item.name.replace(/ \(\d+\)$/, '')} (${count})`; // Remove old count if exists
@@ -1242,33 +1295,27 @@ io.on('connection', (socket) => {
             }
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
-                    // Restore the battle state (NPCs, positions, round, etc.)
                     room.gameModes.adventure = room.adventureCache;
                     room.adventureCache = null;
 
-                    // CRITICAL: Resynchronize player data with the latest from the lobby
                     const adventureState = room.gameModes.adventure;
                     for (const playerId in adventureState.fighters.players) {
                         const adventureFighter = adventureState.fighters.players[playerId];
                         const lobbyPlayer = lobbyState.connectedPlayers[playerId];
 
                         if (adventureFighter && lobbyPlayer && lobbyPlayer.characterSheet) {
-                            // Update the entire sheet to reflect any changes (inventory, equipment, etc.)
                             adventureFighter.sheet = lobbyPlayer.characterSheet;
                             
-                            // Also update stats that might have changed outside of combat
                             adventureFighter.money = lobbyPlayer.characterSheet.money;
                             adventureFighter.inventory = lobbyPlayer.characterSheet.inventory;
                             adventureFighter.ammunition = lobbyPlayer.characterSheet.ammunition;
                             
-                            // Recalculate derived stats like esquiva based on the new sheet
                             recalculateFighterStats(adventureFighter);
                         }
                     }
                     logMessage(adventureState, "Continuando a aventura com as fichas dos jogadores atualizadas.");
 
                 } else { 
-                    // Start a completely new battle
                     room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                     room.adventureCache = null; 
                     logMessage(room.gameModes.adventure, "Mestre iniciou uma nova batalha.");
@@ -1318,7 +1365,7 @@ io.on('connection', (socket) => {
                     const updatedFighter = createNewFighterState({ 
                         id: socket.id, 
                         isPlayer: true,
-                        sheetData: characterData // Passa a ficha completa aninhada
+                        sheetData: characterData
                     });
                     updatedFighter.pa = existingFighter.pa;
                     updatedFighter.status = existingFighter.status;
@@ -1410,7 +1457,6 @@ io.on('connection', (socket) => {
                                 npc.sheet.equipment = action.equipment;
                                 npc.sheet.spells = action.spells || [];
 
-                                // ** AJUSTE 2.a: Salva XP e Dinheiro configurados pelo GM **
                                 npc.xpReward = action.stats.xpReward;
                                 npc.moneyReward = action.stats.moneyReward;
 
@@ -1442,7 +1488,6 @@ io.on('connection', (socket) => {
                             action.npcs.forEach((npcData, index) => {
                                 if (index < MAX_NPCS) {
                                     const npcObj = ALL_NPCS[npcData.name] || {};
-                                    // ** AJUSTE 2.a: Passa XP e Dinheiro para a criação do NPC **
                                     const newNpc = createNewFighterState({ 
                                         ...npcData, 
                                         scale: npcObj.scale || 1.0, 
@@ -1586,6 +1631,30 @@ io.on('connection', (socket) => {
                          logMessage(theaterState, `${playerLobbyInfo.characterName} trocou de equipamento.`);
                     }
                  }
+                 if (action.type === 'useUtilitySpell') {
+                    const casterInfo = lobbyState.connectedPlayers[action.casterId];
+                    const targetInfo = lobbyState.connectedPlayers[action.targetId];
+                    const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade1 || []), ...(ALL_SPELLS.advanced_grade2 || []), ...(ALL_SPELLS.advanced_grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
+                    const spell = allSpells.find(s => s.name === action.spellName);
+
+                    if (casterInfo && targetInfo && spell && casterInfo.characterSheet.mahou >= spell.costMahou) {
+                        casterInfo.characterSheet.mahou -= spell.costMahou;
+                        
+                        if (spell.effect.type === 'heal') {
+                            let healAmount = rollDice(spell.effect.formula);
+                            if (spell.effect.bonusAttribute) {
+                                healAmount += casterInfo.characterSheet.finalAttributes[spell.effect.bonusAttribute] || 0;
+                            }
+                            
+                            const targetSheet = targetInfo.characterSheet;
+                            const constituicao = targetSheet.finalAttributes.constituicao || 0;
+                            const hpMax = 20 + (constituicao * 5);
+                            targetSheet.hp = Math.min(hpMax, (targetSheet.hp || hpMax) + healAmount);
+                        }
+
+                        logMessage(theaterState, `${casterInfo.characterName} usou ${action.spellName} em ${targetInfo.characterName}.`, 'info');
+                    }
+                 }
                  if (action.type === 'useItem') { 
                     const actorSheet = lobbyState.connectedPlayers[socket.id]?.characterSheet;
                     const itemData = ALL_ITEMS[action.itemName];
@@ -1621,7 +1690,6 @@ io.on('connection', (socket) => {
                         case 'gmUpdatesShop':
                             if (theaterState.shop && action.items) {
                                 theaterState.shop.gmItems = action.items;
-                                // Não precisa de update para os players, é só o GM editando
                                 shouldUpdate = false; 
                             }
                             break;
@@ -1638,7 +1706,6 @@ io.on('connection', (socket) => {
                                 logMessage(theaterState, 'O Mestre fechou a loja.');
                             }
                             break;
-                        // ** AJUSTE 3: Manipulador para recompensas manuais do GM **
                         case 'gmAwardsRewards':
                             if (action.awards && Array.isArray(action.awards)) {
                                 action.awards.forEach(award => {
@@ -1683,7 +1750,7 @@ io.on('connection', (socket) => {
                             const newItem = {
                                 ...itemData,
                                 name: itemData.name,
-                                baseType: itemData.baseType || itemData.name, // AJUSTE: Usa o baseType correto para armas, ou o nome para outros itens
+                                baseType: itemData.baseType || itemData.name,
                                 quantity: quantityToTake
                             };
 

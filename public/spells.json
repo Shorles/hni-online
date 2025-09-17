@@ -187,7 +187,7 @@
       "inCombat": true,
       "requiresHitRoll": false,
       "effect": {
-        "type": "btd_buff",
+        "type": "final_damage_buff",
         "duration": 3,
         "value": 3,
         "animationOnCast": "self_wind_aura",
@@ -328,7 +328,7 @@
       "costMahou": 3, "costPA": 3, "cooldown": 3, "targetType": "self", "inCombat": true, "requiresHitRoll": false,
       "effect": { "type": "buff", "duration": 3, "modifiers": [ { "attribute": "protecao", "value": 2 }, { "attribute": "forca", "value": 4 }, { "attribute": "bta", "value": -2 } ], "animationOnCast": "self_water_aura" }
     },
-    { "name": "Purificação", "element": "agua", "description": "Remove veneno de comidas e bebidas.", "costMahou": 2, "costPA": 2, "inCombat": true, "targetType": "utility" },
+    { "name": "Purificação", "element": "agua", "description": "Remove veneno de comidas e bebidas.", "costMahou": 2, "costPA": 2, "inCombat": false, "usableOutsideCombat": true, "targetType": "utility" },
     {
       "name": "Armadura Rochosa",
       "element": "terra",
@@ -530,6 +530,7 @@
       "cooldown": 2,
       "targetType": "single_ally",
       "inCombat": true,
+      "usableOutsideCombat": true,
       "requiresHitRoll": false,
       "effect": {
         "type": "heal", "formula": "1D6", "bonusAttribute": "inteligencia",
@@ -595,11 +596,11 @@
       "effect": { "type": "lifesteal_buff", "duration": 3, "percentage": 0.20, "animationOnCast": "self_light_aura" }
     },
     {
-      "name": "Oração Curativa", "element": "luz", "isAdvanced": true, "description": "Cura 2D8 + Inteligência de HP de um alvo.", "costMahou": 4, "costPA": 3, "cooldown": 2, "targetType": "single_ally", "inCombat": true, "requiresHitRoll": false,
+      "name": "Oração Curativa", "element": "luz", "isAdvanced": true, "description": "Cura 2D8 + Inteligência de HP de um alvo.", "costMahou": 4, "costPA": 3, "cooldown": 2, "targetType": "single_ally", "inCombat": true, "usableOutsideCombat": true, "requiresHitRoll": false,
       "effect": { "type": "heal", "formula": "2D8", "bonusAttribute": "inteligencia", "animationOnCast": "target_heal" }
     },
     {
-      "name": "Benção Ritual", "element": "luz", "isAdvanced": true, "description": "Cura 2D4 + Inteligência de HP em você e em todos os aliados.", "costMahou": 5, "costPA": 3, "cooldown": 2, "targetType": "all_allies", "inCombat": true, "requiresHitRoll": false,
+      "name": "Benção Ritual", "element": "luz", "isAdvanced": true, "description": "Cura 2D4 + Inteligência de HP em você e em todos os aliados.", "costMahou": 5, "costPA": 3, "cooldown": 2, "targetType": "all_allies", "inCombat": true, "usableOutsideCombat": true, "requiresHitRoll": false,
       "effect": { "type": "heal", "formula": "2D4", "bonusAttribute": "inteligencia", "animationOnCast": "area_aurora" }
     },
     {
@@ -646,11 +647,11 @@
       "effect": { "type": "reflect_damage_buff", "duration": 2, "percentage": 1.0, "animationOnCast": "self_metal_armor" }
     },
     {
-      "name": "Milagre de Guerra", "element": "luz", "isAdvanced": true, "description": "Cura 1D8 + Inteligência de HP de um alvo no início de seu turno por 4 turnos.", "costMahou": 6, "costPA": 4, "cooldown": 0, "targetType": "single_ally", "inCombat": true, "requiresHitRoll": false,
+      "name": "Milagre de Guerra", "element": "luz", "isAdvanced": true, "description": "Cura 1D8 + Inteligência de HP de um alvo no início de seu turno por 4 turnos.", "costMahou": 6, "costPA": 4, "cooldown": 0, "targetType": "single_ally", "inCombat": true, "usableOutsideCombat": true, "requiresHitRoll": false,
       "effect": { "type": "hot", "heal": "1D8", "bonusAttribute": "inteligencia", "duration": 4, "animationOnCast": "target_nature_heal" }
     },
     {
-      "name": "Milagre Divino", "element": "luz", "isAdvanced": true, "description": "Ressuscita um aliado com 1D8 + Inteligência de HP.", "costMahou": 7, "costPA": 7, "cooldown": 5, "targetType": "single_ally_down", "inCombat": true, "requiresHitRoll": false,
+      "name": "Milagre Divino", "element": "luz", "isAdvanced": true, "description": "Ressuscita um aliado com 1D8 + Inteligência de HP.", "costMahou": 7, "costPA": 7, "cooldown": 5, "targetType": "single_ally_down", "inCombat": true, "usableOutsideCombat": true, "requiresHitRoll": false,
       "effect": { "type": "revive", "heal_formula": "1D8", "bonusAttribute": "inteligencia", "animationOnCast": "target_heal" }
     },
     {
@@ -836,6 +837,7 @@
       "cooldown": 0,
       "targetType": "single_ally",
       "inCombat": true,
+      "usableOutsideCombat": true,
       "requiresHitRoll": false,
       "effect": {
         "type": "create_item",
@@ -949,6 +951,7 @@
       "cooldown": 3,
       "targetType": "single_ally",
       "inCombat": true,
+      "usableOutsideCombat": true,
       "requiresHitRoll": false,
       "effect": {
         "type": "hot",

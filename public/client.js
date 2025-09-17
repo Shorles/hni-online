@@ -883,7 +883,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         let spellsHtml = '<div class="npc-config-spells">';
         for (const categoryName in spellCategories) {
-            // **AJUSTE 2: Filtra para mostrar apenas magias de combate**
             const spellsInCategory = spellCategories[categoryName].filter(spell => spell.inCombat);
             if (spellsInCategory.length > 0) {
                 spellsHtml += `<h5 class="spell-category-title">${categoryName}</h5>`;
@@ -1037,8 +1036,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(entry => entry.type !== 'debug' || isGm)
             .map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
-        const PLAYER_POSITIONS = [ { left: '150px', top: '450px' }, { left: '250px', top: '350px' }, { left: '350px', top: '250px' }, { left: '450px', top: '150px' } ];
-        const NPC_POSITIONS = [ { left: '1000px', top: '450px' }, { left: '900px',  top: '350px' }, { left: '800px',  top: '250px' }, { left: '700px',  top: '150px' }, { left: '1050px', top: '300px' } ];
+        // AJUSTE 1: Move os personagens 100px para cima
+        const PLAYER_POSITIONS = [ { left: '150px', top: '350px' }, { left: '250px', top: '250px' }, { left: '350px', top: '150px' }, { left: '450px', top: '50px' } ];
+        const NPC_POSITIONS = [ { left: '1000px', top: '350px' }, { left: '900px',  top: '250px' }, { left: '800px',  top: '150px' }, { left: '700px',  top: '50px' }, { left: '1050px', top: '200px' } ];
         
         Object.keys(state.fighters.players).forEach((key, index) => {
             const player = state.fighters.players[key];
@@ -1085,17 +1085,32 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (fighter.status === 'down') {
              container.classList.add(type === 'player' ? 'player-defeated-final' : 'npc-defeated-final');
         }
+
+        // **AJUSTE: Lógica de seleção de alvos para cura**
         if (fighter.status === 'active') {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
             const activeFighter = getFighter(state, state.activeCharacterKey);
-            if (activeFighter && activeFighter.status === 'active') {
-                const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
+
+            if (isTargeting && activeFighter && activeFighter.status === 'active') {
                 const isThisFighterPlayer = type === 'player';
-                if (isActiveFighterPlayer !== isThisFighterPlayer) {
-                    container.classList.add('targetable');
+                const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
+
+                const isAllyTargetSpell = targetingAction.type === 'use_spell' && (targetingAction.spell.targetType === 'single_ally' || targetingAction.spell.targetType === 'all_allies');
+                
+                if (isAllyTargetSpell) {
+                    // Se for magia de alvo aliado, pode mirar na mesma equipe
+                    if (isThisFighterPlayer === isActiveFighterPlayer) {
+                        container.classList.add('targetable');
+                    }
+                } else {
+                    // Se for magia de inimigo ou ataque, só pode mirar na equipe oposta
+                    if (isThisFighterPlayer !== isActiveFighterPlayer) {
+                        container.classList.add('targetable');
+                    }
                 }
             }
         }
+        
         if(container.classList.contains('targetable')) {
             container.addEventListener('click', handleTargetClick);
             container.addEventListener('mouseover', handleTargetMouseOver);
@@ -1258,7 +1273,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        // AJUSTE PARA A MIRA DE MAGIAS EM ÁREA
         if (spell.targetType === 'self' || spell.targetType === 'all_allies') {
             socket.emit('playerAction', {
                 type: 'use_spell',
@@ -1267,7 +1281,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetKey: currentGameState.activeCharacterKey 
             });
         } else {
-            // Todos os outros tipos (single_enemy, all_enemies, adjacent_enemy) agora entram no modo de mira.
             targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name, spell: spell };
             isTargeting = true;
             document.getElementById('targeting-indicator').classList.remove('hidden');
@@ -1414,6 +1427,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else if (spell.targetType === 'all_enemies') {
              document.querySelectorAll('.npc-char-container').forEach(el => el.classList.add('target-highlight'));
+        } else if (spell.targetType === 'all_allies') {
+            document.querySelectorAll('.player-char-container').forEach(el => el.classList.add('target-highlight'));
         } else {
             targetContainer.classList.add('target-highlight');
         }
@@ -2107,7 +2122,6 @@ document.addEventListener('DOMContentLoaded', () => {
         spellGrid.innerHTML = '';
         const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
         
-        // **AJUSTE 1: Corrige a lista de magias para a criação do personagem**
         const allSpells = [
             ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.advanced_grade1 || []),
             ...(ALL_SPELLS.grade_combined || [])
@@ -2452,7 +2466,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
     
-        // AJUSTE: Verifica se o jogador pode interagir com o inventário
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
         const canInteract = !isAdventureMode || isMyTurn;
@@ -2475,7 +2488,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
             }
             
-            // AJUSTE: Adiciona a classe 'item' e o event listener apenas se a interação for permitida
             if (canInteract) {
                 slot.classList.add('item');
                 slot.addEventListener('click', () => showItemContextMenu(item));
@@ -2590,11 +2602,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isHidden) {
             const myFighterData = getFighter(currentGameState, myPlayerKey);
             if (!myFighterData) return;
-            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment)); // AJUSTE 1: Captura o estado original
+            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment));
             populateIngameSheet(myFighterData);
             modal.classList.remove('hidden');
         } else {
-            handleEquipmentChangeConfirmation(); // AJUSTE 1: Chama a nova função de confirmação ao fechar
+            handleEquipmentChangeConfirmation();
         }
     }
     
@@ -2627,7 +2639,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
         allEquipmentSelectors.forEach(sel => sel.onchange = null);
 
-        // AJUSTE: Desativa os seletores se não for o turno do jogador em combate.
         weapon1Select.disabled = !canEditEquipment;
         weapon2Select.disabled = !canEditEquipment;
         armorSelect.disabled = !canEditEquipment;
@@ -2636,7 +2647,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const updateAllEquipment = (eventSource) => {
             const inventory = fighter.inventory || {};
             
-            // --- Rule Enforcement ---
             let selectedW1 = weapon1Select.value;
             let weapon1Item = inventory[selectedW1] || {};
             let weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
@@ -2683,7 +2693,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // --- Visual Updates based on the now-enforced state ---
             const finalW1 = weapon1Select.value;
             const finalW2 = weapon2Select.value;
             const finalShield = shieldSelect.value;
@@ -2691,7 +2700,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const finalW1BaseType = finalW1Item.baseType || (finalW1 === 'Desarmado' ? 'Desarmado' : null);
             const finalW1Data = GAME_RULES.weapons[finalW1BaseType] || {};
 
-            // A desativação agora considera o canEditEquipment globalmente.
             weapon2Select.disabled = !canEditEquipment || (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
             shieldSelect.disabled = !canEditEquipment || finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
 
@@ -2766,7 +2774,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(spellData) {
                     const card = document.createElement('div');
                     card.className = 'spell-card ingame-spell';
-                    if (!spellData.inCombat) card.classList.add('usable-outside-combat');
+                    
+                    // **AJUSTE: Lógica para destacar e tornar magias de utilidade clicáveis**
+                    if (spellData.usableOutsideCombat && currentGameState.mode === 'theater') {
+                        card.classList.add('usable-outside-combat');
+                        card.addEventListener('click', () => handleUtilitySpellClick(spellData));
+                    }
                     card.dataset.spellName = spellData.name;
                     const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
 
@@ -2787,10 +2800,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${elementHtml}
                         </div>
                         <p>${spellData.description}</p>`;
-
-                    if (!spellData.inCombat && currentGameState.mode === 'theater') {
-                        card.addEventListener('click', () => handleUtilitySpellClick(spellData));
-                    }
                     spellsGrid.appendChild(card);
                 }
             });
