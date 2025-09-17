@@ -555,6 +555,11 @@ document.addEventListener('DOMContentLoaded', () => {
         oldGameState = currentGameState;
         currentGameState = gameState;
 
+        // **CORREÇÃO: Reseta o estado de mira se o turno mudou**
+        if (oldGameState && oldGameState.activeCharacterKey !== currentGameState.activeCharacterKey) {
+            cancelTargeting();
+        }
+
         if (!gameState || !gameState.mode || !gameState.connectedPlayers) {
             showScreen(document.getElementById('loading-screen'));
             return;
@@ -1036,7 +1041,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(entry => entry.type !== 'debug' || isGm)
             .map(entry => `<p class="log-${entry.type || 'info'}">${entry.text}</p>`).join('');
         
-        // AJUSTE 1: Move os personagens 100px para cima
         const PLAYER_POSITIONS = [ { left: '150px', top: '350px' }, { left: '250px', top: '250px' }, { left: '350px', top: '150px' }, { left: '450px', top: '50px' } ];
         const NPC_POSITIONS = [ { left: '1000px', top: '350px' }, { left: '900px',  top: '250px' }, { left: '800px',  top: '150px' }, { left: '700px',  top: '50px' }, { left: '1050px', top: '200px' } ];
         
@@ -1085,25 +1089,24 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (fighter.status === 'down') {
              container.classList.add(type === 'player' ? 'player-defeated-final' : 'npc-defeated-final');
         }
-
-        // **AJUSTE: Lógica de seleção de alvos para cura**
+        
         if (fighter.status === 'active') {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
-            const activeFighter = getFighter(state, state.activeCharacterKey);
 
-            if (isTargeting && activeFighter && activeFighter.status === 'active') {
+            const activeFighter = getFighter(state, state.activeCharacterKey);
+            const canIControlThisTurn = (myPlayerKey === state.activeCharacterKey) || (isGm && activeFighter && !activeFighter.isPlayer);
+            
+            if (isTargeting && canIControlThisTurn && activeFighter) {
                 const isThisFighterPlayer = type === 'player';
                 const isActiveFighterPlayer = !!state.fighters.players[activeFighter.id];
 
-                const isAllyTargetSpell = targetingAction.type === 'use_spell' && (targetingAction.spell.targetType === 'single_ally' || targetingAction.spell.targetType === 'all_allies');
+                const isAllyTargetSpell = targetingAction.type === 'use_spell' && ['single_ally', 'all_allies'].includes(targetingAction.spell.targetType);
                 
                 if (isAllyTargetSpell) {
-                    // Se for magia de alvo aliado, pode mirar na mesma equipe
                     if (isThisFighterPlayer === isActiveFighterPlayer) {
                         container.classList.add('targetable');
                     }
                 } else {
-                    // Se for magia de inimigo ou ataque, só pode mirar na equipe oposta
                     if (isThisFighterPlayer !== isActiveFighterPlayer) {
                         container.classList.add('targetable');
                     }
@@ -2775,7 +2778,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const card = document.createElement('div');
                     card.className = 'spell-card ingame-spell';
                     
-                    // **AJUSTE: Lógica para destacar e tornar magias de utilidade clicáveis**
                     if (spellData.usableOutsideCombat && currentGameState.mode === 'theater') {
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
