@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         targetingAction = null;
         document.getElementById('targeting-indicator').classList.add('hidden');
         document.querySelectorAll('.char-container.target-highlight').forEach(el => el.classList.remove('target-highlight'));
-        updateTargetableStatus(); // **CORREÇÃO: Atualiza a UI para remover alvos clicáveis**
+        updateTargetableStatus();
     }
     function getFighter(state, key) {
         if (!state || !key) return null;
@@ -1061,6 +1061,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
+        updateTargetableStatus(); // **CORREÇÃO: Atualiza os alvos após renderizar**
         renderActionButtons(state);
         renderTurnOrderUI(state);
         renderWaitingPlayers(state);
@@ -1094,11 +1095,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.activeCharacterKey === fighter.id) container.classList.add('active-turn');
         }
         
-        if(container.classList.contains('targetable')) {
-            container.addEventListener('click', handleTargetClick);
-            container.addEventListener('mouseover', handleTargetMouseOver);
-            container.addEventListener('mouseout', handleTargetMouseOut);
-        }
+        // **CORREÇÃO: Event listeners são adicionados incondicionalmente**
+        container.addEventListener('click', handleTargetClick);
+        container.addEventListener('mouseover', handleTargetMouseOver);
+        container.addEventListener('mouseout', handleTargetMouseOut);
         
         if (isGm) {
             container.title = 'Clique direito para aplicar buff/debuff';
@@ -1160,7 +1160,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return container;
     }
 
-    // **CORREÇÃO: Nova função central para atualizar alvos clicáveis**
     function updateTargetableStatus() {
         document.querySelectorAll('.char-container').forEach(el => el.classList.remove('targetable'));
         if (!isTargeting || !currentGameState) return;
@@ -1286,7 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         targetingAction = { type: 'attack', attackerKey: attacker.id, weaponChoice: weaponChoice };
         isTargeting = true;
         document.getElementById('targeting-indicator').classList.remove('hidden');
-        updateTargetableStatus(); // **CORREÇÃO: Atualiza a UI imediatamente**
+        updateTargetableStatus();
     }
     
     function startSpellSequence(spell) {
@@ -1301,7 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
             targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name, spell: spell };
             isTargeting = true;
             document.getElementById('targeting-indicator').classList.remove('hidden');
-            updateTargetableStatus(); // **CORREÇÃO: Atualiza a UI imediatamente**
+            updateTargetableStatus();
         }
     }
 
