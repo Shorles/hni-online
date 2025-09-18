@@ -2969,6 +2969,247 @@ document.addEventListener('DOMContentLoaded', () => {
         ingameSheetModal.classList.add('hidden');
     }
 
+    // --- LÓGICA DE LEVEL UP (CLIENT-SIDE) ---
+    function renderLevelUpDistribution(fighter) {
+        const sheet = fighter.sheet;
+        const mainContainer = document.getElementById('ingame-point-distribution-section');
+        const attrContainer = document.getElementById('ingame-attribute-points-dist');
+        const elemContainer = document.getElementById('ingame-element-points-dist');
+        const spellContainer = document.getElementById('ingame-spell-choices-dist');
+        const confirmBtn = document.getElementById('ingame-confirm-points-btn');
+
+        // Reset state
+        stagedLevelUpChanges = {
+            attrPointsSpent: 0,
+            elemPointsSpent: 0,
+            newBaseAttributes: { ...sheet.baseAttributes },
+            newBaseElements: { ...sheet.elements },
+            newSpells: []
+        };
+        
+        mainContainer.classList.add('hidden');
+        attrContainer.classList.add('hidden');
+        elemContainer.classList.add('hidden');
+        spellContainer.classList.add('hidden');
+        confirmBtn.classList.add('hidden');
+        spellContainer.innerHTML = '';
+
+        let hasPointsToDistribute = false;
+
+        // Attribute points
+        if (sheet.unallocatedAttrPoints > 0) {
+            hasPointsToDistribute = true;
+            attrContainer.classList.remove('hidden');
+            let remainingAttr = sheet.unallocatedAttrPoints;
+            document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
+
+            const attrInputs = attrContainer.querySelectorAll('input[data-attr]');
+            attrInputs.forEach(input => {
+                const attrName = input.dataset.attr;
+                const wrapper = input.closest('.number-input-wrapper');
+                const upBtn = wrapper.querySelector('.up-arrow');
+                const downBtn = wrapper.querySelector('.down-arrow');
+
+                input.value = 0; // Show only points being added
+                downBtn.disabled = true;
+
+                const updateAttrButtons = () => {
+                    upBtn.disabled = remainingAttr <= 0;
+                    downBtn.disabled = parseInt(input.value) <= 0;
+                };
+
+                upBtn.onclick = () => {
+                    if (remainingAttr > 0) {
+                        remainingAttr--;
+                        input.value = parseInt(input.value) + 1;
+                        stagedLevelUpChanges.attrPointsSpent++;
+                        stagedLevelUpChanges.newBaseAttributes[attrName]++;
+                        document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
+                        updateAttrButtons();
+                    }
+                };
+
+                downBtn.onclick = () => {
+                    if (parseInt(input.value) > 0) {
+                        remainingAttr++;
+                        input.value = parseInt(input.value) - 1;
+                        stagedLevelUpChanges.attrPointsSpent--;
+                        stagedLevelUpChanges.newBaseAttributes[attrName]--;
+                        document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
+                        updateAttrButtons();
+                    }
+                };
+                updateAttrButtons();
+            });
+        }
+
+        // Element points
+        if (sheet.unallocatedElemPoints > 0) {
+            hasPointsToDistribute = true;
+            elemContainer.classList.remove('hidden');
+            let remainingElem = sheet.unallocatedElemPoints;
+            document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
+
+            const elemInputs = elemContainer.querySelectorAll('input[data-elem]');
+            elemInputs.forEach(input => {
+                const elemName = input.dataset.elem;
+                const wrapper = input.closest('.number-input-wrapper');
+                const upBtn = wrapper.querySelector('.up-arrow');
+                const downBtn = wrapper.querySelector('.down-arrow');
+
+                input.value = 0; // Show only points being added
+                downBtn.disabled = true;
+
+                const updateElemButtons = () => {
+                    const currentTotal = sheet.elements[elemName] + parseInt(input.value);
+                    upBtn.disabled = remainingElem <= 0 || currentTotal >= 2;
+                    downBtn.disabled = parseInt(input.value) <= 0;
+                };
+
+                upBtn.onclick = () => {
+                    const currentTotal = sheet.elements[elemName] + parseInt(input.value);
+                    if (remainingElem > 0 && currentTotal < 2) {
+                        remainingElem--;
+                        input.value = parseInt(input.value) + 1;
+                        stagedLevelUpChanges.elemPointsSpent++;
+                        stagedLevelUpChanges.newBaseElements[elemName]++;
+                        document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
+                        updateElemButtons();
+                    }
+                };
+                 downBtn.onclick = () => {
+                    if (parseInt(input.value) > 0) {
+                        remainingElem++;
+                        input.value = parseInt(input.value) - 1;
+                        stagedLevelUpChanges.elemPointsSpent--;
+                        stagedLevelUpChanges.newBaseElements[elemName]--;
+                        document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
+                        updateElemButtons();
+                    }
+                };
+                updateElemButtons();
+            });
+        }
+        
+        // Spell choices
+        if (sheet.spellChoicesAvailable && sheet.spellChoicesAvailable.length > 0) {
+            hasPointsToDistribute = true;
+            spellContainer.classList.remove('hidden');
+            
+            sheet.spellChoicesAvailable.forEach((choice, index) => {
+                const choiceContainer = document.createElement('div');
+                choiceContainer.className = 'levelup-spell-selection-container';
+                choiceContainer.innerHTML = `<h4>Escolha 1 Magia (Grau ${choice.grade})</h4>`;
+                
+                const spellGrid = document.createElement('div');
+                spellGrid.className = 'levelup-spell-grid';
+
+                const spellPool = [...(ALL_SPELLS[`grade${choice.grade}`] || []), ...(ALL_SPELLS[`advanced_grade${choice.grade}`] || [])];
+                
+                const availableElements = Object.keys(sheet.elements).filter(e => sheet.elements[e] > 0);
+                
+                const availableSpells = spellPool.filter(spell => {
+                    if (sheet.spells.includes(spell.name)) return false; // Already known
+                    if (spell.isAdvanced) return sheet.elements[spell.element] === 2;
+                    return availableElements.includes(spell.element);
+                });
+
+                availableSpells.forEach(spell => {
+                    const card = document.createElement('div');
+                    card.className = 'spell-card';
+                    card.dataset.spellName = spell.name;
+                    card.dataset.spellGrade = choice.grade;
+                    card.innerHTML = `<h4>${spell.name}</h4><p>${spell.description}</p>`;
+                    
+                    card.addEventListener('click', () => {
+                        // Deselect other spells for this choice
+                        spellGrid.querySelectorAll('.spell-card.selected').forEach(c => c.classList.remove('selected'));
+                        card.classList.add('selected');
+
+                        // Update staged changes
+                        stagedLevelUpChanges.newSpells = stagedLevelUpChanges.newSpells.filter(s => s.choiceIndex !== index);
+                        stagedLevelUpChanges.newSpells.push({
+                            choiceIndex: index,
+                            spellName: spell.name,
+                            grade: choice.grade
+                        });
+                    });
+                    spellGrid.appendChild(card);
+                });
+                
+                choiceContainer.appendChild(spellGrid);
+                spellContainer.appendChild(choiceContainer);
+            });
+        }
+
+
+        if (hasPointsToDistribute) {
+            mainContainer.classList.remove('hidden');
+            confirmBtn.classList.remove('hidden');
+            confirmBtn.onclick = handlePointDistributionConfirmation;
+        }
+    }
+    
+    function showGmAwardModal() {
+        if (!isGm || !currentGameState) return;
+
+        const players = Object.values(currentGameState.connectedPlayers).filter(p => p.role === 'player' && p.characterFinalized);
+        if (players.length === 0) {
+            showInfoModal("Aviso", "Não há jogadores na sala para conceder recompensas.");
+            return;
+        }
+
+        let playerListHtml = players.map(player => `
+            <div class="gm-award-player-item" data-player-id="${player.socketId || Object.keys(currentGameState.connectedPlayers).find(k => currentGameState.connectedPlayers[k] === player)}">
+                <div class="token" style="background-image: url('${player.characterSheet.tokenImg}')"></div>
+                <span class="name">${player.characterName}</span>
+                <input type="number" class="award-xp-input" placeholder="XP">
+                <input type="number" class="award-money-input" placeholder="Moedas">
+            </div>
+        `).join('');
+
+        const content = `
+            <div class="gm-award-modal-content">
+                <div class="gm-award-player-list">${playerListHtml}</div>
+                <div class="gm-award-all-container">
+                    <div>
+                        <label for="award-all-xp">Conceder para Todos (XP):</label>
+                        <input type="number" id="award-all-xp" placeholder="XP para todos">
+                    </div>
+                    <div>
+                         <label for="award-all-money">Conceder para Todos (Moedas):</label>
+                        <input type="number" id="award-all-money" placeholder="Moedas para todos">
+                    </div>
+                </div>
+            </div>`;
+            
+        showCustomModal("Conceder Recompensas", content, [
+            { text: 'Confirmar', closes: true, onClick: () => {
+                const awards = [];
+                const allXp = parseInt(document.getElementById('award-all-xp').value) || 0;
+                const allMoney = parseInt(document.getElementById('award-all-money').value) || 0;
+
+                document.querySelectorAll('.gm-award-player-item').forEach(item => {
+                    const playerId = item.dataset.playerId;
+                    const individualXp = parseInt(item.querySelector('.award-xp-input').value) || 0;
+                    const individualMoney = parseInt(item.querySelector('.award-money-input').value) || 0;
+
+                    const totalXp = individualXp + allXp;
+                    const totalMoney = individualMoney + allMoney;
+
+                    if (totalXp > 0 || totalMoney > 0) {
+                        awards.push({ playerId, xp: totalXp, money: totalMoney });
+                    }
+                });
+
+                if (awards.length > 0) {
+                    socket.emit('playerAction', { type: 'gmAwardsRewards', awards });
+                }
+            }},
+            { text: 'Cancelar', closes: true }
+        ]);
+    }
+
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {

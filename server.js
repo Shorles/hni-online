@@ -1525,6 +1525,7 @@ io.on('connection', (socket) => {
         }
         room.sockets[socket.id] = { role: finalRole };
         lobbyState.connectedPlayers[socket.id] = { 
+            socketId: socket.id, // Adiciona o socketId para referência
             role: finalRole, 
             characterName: null, 
             characterSheet: null,
@@ -1575,7 +1576,7 @@ io.on('connection', (socket) => {
 
                  if (room.activeMode === 'theater' && !room.gameModes.theater) {
                     room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
-                 }
+                }
             }
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
