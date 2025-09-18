@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let stagedCharacterSheet = {}; 
     let shopStagedItems = {}; 
     let isShopOpen = false;
+    let stagedLevelUpChanges = {};
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -1288,12 +1289,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        if (spell.targetType === 'self') {
-            socket.emit('playerAction', {
+        if (spell.targetType === 'self' || spell.targetType === 'all_allies' || spell.targetType === 'all_enemies') {
+             socket.emit('playerAction', {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
                 spellName: spell.name,
-                targetKey: currentGameState.activeCharacterKey 
+                targetKey: currentGameState.activeCharacterKey // O servidor determina os alvos reais
             });
         } else {
             targetingAction = { type: 'use_spell', attackerKey: currentGameState.activeCharacterKey, spellName: spell.name, spell: spell };
@@ -1824,7 +1825,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (currentGameState.mode === 'theater') {
-                if (e.key.toLowerCase() === 'i') {
+                if (isGm && e.key.toLowerCase() === 'i') {
                     e.preventDefault();
                     toggleShop();
                 }
@@ -2628,6 +2629,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
         } else {
             handleEquipmentChangeConfirmation();
+            handlePointDistributionConfirmation();
         }
     }
     
@@ -2844,6 +2846,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
+        
+        // Lógica de Level Up
+        renderLevelUpDistribution(fighter);
     }
     
     function handleUtilitySpellClick(spell) {
@@ -2903,14 +2908,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
     
         if (!hasChanged) {
-            ingameSheetModal.classList.add('hidden');
-            return;
+            return; // Nenhuma mudança, não faz nada
         }
     
         if (currentGameState.mode === 'adventure') {
             if (myFighter.pa < 3) {
                 showInfoModal("Ação Bloqueada", "Você não tem 3 Pontos de Ação (PA) para trocar de equipamento. Suas alterações não foram salvas.");
-                ingameSheetModal.classList.add('hidden');
                 return;
             }
     
@@ -2920,17 +2923,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 [
                     { text: 'Sim, Gastar 3 PA', closes: true, onClick: () => {
                         socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
-                        ingameSheetModal.classList.add('hidden');
                     }},
-                    { text: 'Não, Cancelar', closes: true, onClick: () => {
-                        ingameSheetModal.classList.add('hidden');
-                    }}
+                    { text: 'Não, Cancelar', closes: true }
                 ]
             );
         } else {
             socket.emit('playerAction', { type: 'changeEquipment', newEquipment });
-            ingameSheetModal.classList.add('hidden');
         }
+    }
+    
+    function handlePointDistributionConfirmation() {
+        if (Object.keys(stagedLevelUpChanges).length === 0) {
+            ingameSheetModal.classList.add('hidden');
+            return;
+        }
+
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        const { unallocatedAttrPoints, unallocatedElemPoints, spellChoicesAvailable } = myFighter.sheet;
+
+        if (stagedLevelUpChanges.attrPointsSpent < unallocatedAttrPoints || 
+            stagedLevelUpChanges.elemPointsSpent < unallocatedElemPoints || 
+            stagedLevelUpChanges.newSpells.length < (spellChoicesAvailable || []).length) 
+        {
+            showCustomModal(
+                "Confirmar Distribuição",
+                "Você não distribuiu todos os seus pontos/magias. Deseja confirmar mesmo assim? (Você poderá distribuí-los mais tarde)",
+                [
+                    { text: 'Sim, Confirmar', closes: true, onClick: sendPointDistribution },
+                    { text: 'Não, Voltar', closes: true }
+                ]
+            );
+        } else {
+            sendPointDistribution();
+        }
+    }
+
+    function sendPointDistribution() {
+        socket.emit('playerAction', {
+            type: 'playerDistributesPoints',
+            data: stagedLevelUpChanges
+        });
+        stagedLevelUpChanges = {};
+        ingameSheetModal.classList.add('hidden');
     }
 
 
@@ -2955,6 +2989,18 @@ document.addEventListener('DOMContentLoaded', () => {
         scaleGame();
     });
 
+    socket.on('levelUpNotification', () => {
+        if (!ingameSheetModal.classList.contains('hidden')) {
+            // Se a ficha já estiver aberta, apenas a atualize
+            const myFighterData = getFighter(currentGameState, myPlayerKey);
+            if(myFighterData) populateIngameSheet(myFighterData);
+        } else {
+            // Se estiver fechada, abra
+            toggleIngameSheet();
+        }
+        showInfoModal("Você subiu de nível!", "Distribua seus novos pontos e escolha suas magias na sua ficha de personagem.");
+    });
+    
     socket.on('gameUpdate', (gameState) => { 
         if (clientFlowState === 'initializing') return;
         renderGame(gameState); 
@@ -3255,7 +3301,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedCard) {
                 stagedCharacterSheet.tokenName = selectedCard.dataset.name;
                 stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
-                console.log(`[DEBUG-CLIENT CHECKPOINT 1] Token selecionado. tokenImg =`, stagedCharacterSheet.tokenImg);
                 initializeCharacterSheet();
                 showScreen(document.getElementById('character-sheet-screen'));
             }
@@ -3310,6 +3355,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
             handleEquipmentChangeConfirmation();
+            handlePointDistributionConfirmation(); // Adicionado para confirmar pontos ao fechar
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());

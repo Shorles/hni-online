@@ -27,6 +27,17 @@ let ALL_ITEMS = {};
 const MAX_PLAYERS = 4;
 const MAX_NPCS = 5; 
 
+// Tabela de Níveis e Recompensas
+const LEVEL_UP_TABLE = {
+    2: { xp: 100, rewards: { attrPoints: 2, spellGrade: 1, spellCount: 1 } },
+    3: { xp: 250, rewards: { attrPoints: 2, elemPoints: 1, spellGrade: 1, spellCount: 1 } },
+    4: { xp: 500, rewards: { attrPoints: 2, spellGrade: 2, spellCount: 1 } },
+    5: { xp: 1000, rewards: { attrPoints: 2, elemPoints: 1, spellGrade: 1, spellCount: 1 } },
+    6: { xp: 2000, rewards: { attrPoints: 2, elemPoints: 1, spellGrade: 2, spellCount: 1 } },
+    7: { xp: 4000, rewards: { attrPoints: 2, spellGrade: 3, spellCount: 1 } }
+};
+
+
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
     const characters = JSON.parse(charactersData);
@@ -199,21 +210,26 @@ function createNewFighterState(data) {
     };
 
     if (fighter.isPlayer && sourceData.finalAttributes) {
-        const constituicao = sourceData.finalAttributes.constituicao || 0;
-        const mente = sourceData.finalAttributes.mente || 0;
+        fighter.sheet = sourceData;
+        
+        fighter.level = sourceData.level || 1;
+        fighter.xp = sourceData.xp || 0;
+        fighter.xpNeeded = sourceData.xpNeeded || LEVEL_UP_TABLE[2].xp;
+        
+        // Inicializa campos de level up se não existirem
+        fighter.sheet.unallocatedAttrPoints = fighter.sheet.unallocatedAttrPoints || 0;
+        fighter.sheet.unallocatedElemPoints = fighter.sheet.unallocatedElemPoints || 0;
+        fighter.sheet.spellChoicesAvailable = fighter.sheet.spellChoicesAvailable || [];
+
+        const constituicao = fighter.sheet.finalAttributes.constituicao || 0;
+        const mente = fighter.sheet.finalAttributes.mente || 0;
         
         fighter.hpMax = 20 + (constituicao * 5);
         fighter.mahouMax = 10 + (mente * 5);
         fighter.hp = sourceData.hp !== undefined ? sourceData.hp : fighter.hpMax;
         fighter.mahou = sourceData.mahou !== undefined ? sourceData.mahou : fighter.mahouMax;
 
-        fighter.sheet = sourceData;
-
-        fighter.level = sourceData.level || 1;
-        fighter.xp = sourceData.xp || 0;
-        fighter.xpNeeded = sourceData.xpNeeded || 100;
         fighter.money = sourceData.money !== undefined ? sourceData.money : 200;
-
         fighter.inventory = sourceData.inventory || {};
         fighter.ammunition = sourceData.ammunition || {};
 
@@ -273,6 +289,24 @@ function createNewFighterState(data) {
 }
 
 function recalculateFighterStats(fighter) {
+    if (fighter.isPlayer) {
+        const constituicao = getAttributeBreakdown(fighter, 'constituicao').value;
+        const mente = getAttributeBreakdown(fighter, 'mente').value;
+        const oldHpMax = fighter.hpMax;
+        const oldMahouMax = fighter.mahouMax;
+
+        fighter.hpMax = 20 + (constituicao * 5);
+        fighter.mahouMax = 10 + (mente * 5);
+
+        // Aumenta HP/Mahou atual na mesma proporção do aumento máximo
+        if (fighter.hpMax > oldHpMax) fighter.hp += (fighter.hpMax - oldHpMax);
+        if (fighter.mahouMax > oldMahouMax) fighter.mahou += (fighter.mahouMax - oldMahouMax);
+
+        // Garante que não ultrapasse o novo máximo
+        fighter.hp = Math.min(fighter.hp, fighter.hpMax);
+        fighter.mahou = Math.min(fighter.mahou, fighter.mahouMax);
+    }
+
     const esqBreakdown = calculateESQ(fighter);
     fighter.esquiva = esqBreakdown.value;
     fighter.esqBreakdown = esqBreakdown.details;
@@ -281,6 +315,43 @@ function recalculateFighterStats(fighter) {
     fighter.magicDefense = magicDefBreakdown.value;
     fighter.magicDefenseBreakdown = magicDefBreakdown.details;
 }
+
+function checkForLevelUp(playerInfo, socket) {
+    let leveledUp = false;
+    const sheet = playerInfo.characterSheet;
+
+    while (sheet.xp >= sheet.xpNeeded && LEVEL_UP_TABLE[sheet.level + 1]) {
+        leveledUp = true;
+        sheet.level++;
+        const levelData = LEVEL_UP_TABLE[sheet.level];
+        
+        sheet.unallocatedAttrPoints = (sheet.unallocatedAttrPoints || 0) + (levelData.rewards.attrPoints || 0);
+        sheet.unallocatedElemPoints = (sheet.unallocatedElemPoints || 0) + (levelData.rewards.elemPoints || 0);
+
+        if (levelData.rewards.spellCount > 0) {
+            if (!sheet.spellChoicesAvailable) sheet.spellChoicesAvailable = [];
+            for (let i = 0; i < levelData.rewards.spellCount; i++) {
+                sheet.spellChoicesAvailable.push({ grade: levelData.rewards.spellGrade });
+            }
+        }
+        
+        logMessage(games[socket.currentRoomId].gameModes.lobby, `${sheet.name} alcançou o Nível ${sheet.level}!`, 'info');
+
+        // Atualiza o XP necessário para o próximo nível, se houver
+        sheet.xpNeeded = LEVEL_UP_TABLE[sheet.level + 1] ? LEVEL_UP_TABLE[sheet.level + 1].xp : sheet.xpNeeded;
+    }
+
+    if (leveledUp) {
+        // Notifica o cliente específico que ele subiu de nível
+        socket.emit('levelUpNotification', {
+            level: sheet.level,
+            unallocatedAttrPoints: sheet.unallocatedAttrPoints,
+            unallocatedElemPoints: sheet.unallocatedElemPoints,
+            spellChoicesAvailable: sheet.spellChoicesAvailable
+        });
+    }
+}
+
 
 function cachePlayerStats(room) {
     if (!room.gameModes.adventure) return;
@@ -522,13 +593,16 @@ function distributeNpcRewards(state, defeatedNpc, roomId) {
     const lobbyState = room.gameModes.lobby;
 
     eligiblePlayers.forEach(player => {
-        player.xp += xpShare;
-        player.money += moneyShare;
-        
-        const lobbyPlayer = lobbyState.connectedPlayers[player.id];
-        if (lobbyPlayer && lobbyPlayer.characterSheet) {
-            lobbyPlayer.characterSheet.xp += xpShare;
-            lobbyPlayer.characterSheet.money += moneyShare;
+        const playerInfo = lobbyState.connectedPlayers[player.id];
+        if (playerInfo && playerInfo.characterSheet) {
+            playerInfo.characterSheet.xp += xpShare;
+            playerInfo.characterSheet.money += moneyShare;
+            
+            // Acessa o socket do jogador para checar por level up
+            const playerSocket = io.sockets.sockets.get(player.id);
+            if(playerSocket) {
+                checkForLevelUp(playerInfo, playerSocket);
+            }
         }
         
         logMessage(state, `${player.nome} recebe ${xpShare} XP e ${moneyShare} moedas.`, 'info');
@@ -1583,6 +1657,61 @@ io.on('connection', (socket) => {
                 logMessage(lobbyState, `Jogador ${playerInfo.characterName} carregou uma nova ficha.`);
             }
         }
+        
+        if (action.type === 'playerDistributesPoints') {
+            const playerInfo = lobbyState.connectedPlayers[socket.id];
+            if (playerInfo && playerInfo.characterSheet) {
+                const sheet = playerInfo.characterSheet;
+                const data = action.data;
+
+                // Validação de segurança
+                if (data.attrPointsSpent > sheet.unallocatedAttrPoints || data.elemPointsSpent > sheet.unallocatedElemPoints) {
+                    return; // Tentativa de gastar mais pontos do que o disponível
+                }
+                
+                sheet.unallocatedAttrPoints -= data.attrPointsSpent;
+                sheet.unallocatedElemPoints -= data.elemPointsSpent;
+                
+                // Atualiza atributos base
+                for (const attr in data.newBaseAttributes) {
+                    sheet.baseAttributes[attr] = data.newBaseAttributes[attr];
+                }
+                // Atualiza elementos base
+                for (const elem in data.newBaseElements) {
+                    sheet.elements[elem] = data.newBaseElements[elem];
+                }
+                
+                // Adiciona novas magias
+                if (data.newSpells && Array.isArray(data.newSpells)) {
+                    data.newSpells.forEach(spellChoice => {
+                        if (!sheet.spells.includes(spellChoice.spellName)) {
+                            sheet.spells.push(spellChoice.spellName);
+                            // Remove a escolha disponível
+                            const choiceIndex = sheet.spellChoicesAvailable.findIndex(c => c.grade === spellChoice.grade);
+                            if (choiceIndex > -1) {
+                                sheet.spellChoicesAvailable.splice(choiceIndex, 1);
+                            }
+                        }
+                    });
+                }
+                
+                // Recalcula atributos finais
+                 const raceData = GAME_RULES.races[sheet.race];
+                 sheet.finalAttributes = { ...sheet.baseAttributes };
+                 if (raceData && raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') sheet.finalAttributes[attr] += raceData.bon[attr]; });
+                 if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => sheet.finalAttributes[attr] += raceData.pen[attr]);
+                
+                // Atualiza o fighter se estiver em batalha
+                if(room.activeMode === 'adventure' && adventureState.fighters.players[socket.id]) {
+                    const fighter = adventureState.fighters.players[socket.id];
+                    fighter.sheet = sheet; // Sincroniza a ficha
+                    recalculateFighterStats(fighter); // Recalcula HP/Mahou/etc.
+                }
+
+                logMessage(lobbyState, `${sheet.name} distribuiu seus pontos de nível.`, 'info');
+            }
+        }
+
 
         if (action.type === 'discardItem') {
             const playerInfo = lobbyState.connectedPlayers[socket.id];
@@ -1925,6 +2054,11 @@ io.on('connection', (socket) => {
                                         playerInfo.characterSheet.money += finalMoney;
                                         if (finalXp > 0 || finalMoney > 0) {
                                             logMessage(theaterState, `GM concedeu ${finalXp} XP e ${finalMoney} moedas para ${playerInfo.characterName}.`, 'info');
+                                        }
+                                        // Check for level up after awarding XP
+                                        const playerSocket = io.sockets.sockets.get(playerId);
+                                        if(playerSocket) {
+                                            checkForLevelUp(playerInfo, playerSocket);
                                         }
                                     }
                                 });

@@ -819,13 +819,18 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 
 
-/* --- ESTILOS PARA FUTURA DISTRIBUIÇÃO DE PONTOS --- */
+/* --- ESTILOS PARA DISTRIBUIÇÃO DE PONTOS E RECOMPENSAS --- */
 .point-dist-label {
     display: block;
     text-align: center;
     font-size: 1.1em;
     color: #ffc107;
     margin: 15px 0 10px;
+}
+
+.point-distribution-grid .attr-item {
+    background: rgba(0,0,0,0.3);
+    padding: 5px;
 }
 
 .point-distribution-grid input[type="number"] {
@@ -841,6 +846,78 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     display: block;
     margin: 15px auto 0;
 }
+
+.levelup-spell-selection-container {
+    margin-top: 15px;
+    border-top: 1px solid #555;
+    padding-top: 10px;
+}
+.levelup-spell-selection-container h4 {
+    color: #ffc107;
+    text-align: center;
+    margin-bottom: 10px;
+}
+.levelup-spell-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.levelup-spell-grid .spell-card.selected {
+    border-color: #28a745;
+    box-shadow: 0 0 8px #28a745;
+}
+
+.gm-award-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.gm-award-player-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 5px;
+}
+.gm-award-player-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background-color: rgba(0,0,0,0.3);
+    padding: 8px;
+    border-radius: 5px;
+}
+.gm-award-player-item .token {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-size: contain;
+    background-position: center;
+    flex-shrink: 0;
+}
+.gm-award-player-item .name {
+    flex-grow: 1;
+}
+.gm-award-player-item input {
+    width: 70px;
+    text-align: center;
+}
+.gm-award-all-container {
+    border-top: 1px solid #555;
+    padding-top: 15px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+.gm-award-all-container div {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
 
 /* === NOVOS ESTILOS (IMAGENS DE ARMAS E MUNIÇÃO) === */
 
