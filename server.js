@@ -214,7 +214,7 @@ function createNewFighterState(data) {
         
         fighter.level = sourceData.level || 1;
         fighter.xp = sourceData.xp || 0;
-        fighter.xpNeeded = sourceData.xpNeeded || LEVEL_UP_TABLE[2].xp;
+        fighter.xpNeeded = sourceData.xpNeeded || LEVEL_UP_TABLE[2]?.xp || 100;
         
         // Inicializa campos de level up se não existirem
         fighter.sheet.unallocatedAttrPoints = fighter.sheet.unallocatedAttrPoints || 0;
@@ -664,6 +664,12 @@ function processActiveEffects(state, fighter, roomId) {
                     logMessage(state, `${fighter.nome} está atordoado e perde o turno!`, 'miss');
                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: 'Perdeu o Turno', type: 'status-fail' });
                 }
+                if (effect.status === 'banished') {
+                    fighter.status = 'banished';
+                    fighter.turnOrderSnapshot = state.turnOrder;
+                    state.turnOrder = state.turnOrder.filter(id => id !== fighter.id);
+                    logMessage(state, `${fighter.nome} foi banido temporariamente do combate!`);
+                }
                 break;
         }
 
@@ -671,6 +677,12 @@ function processActiveEffects(state, fighter, roomId) {
         if (effect.duration > 0) {
             effectsToKeep.push(effect);
         } else {
+            if(effect.status === 'banished'){
+                fighter.status = 'active';
+                state.turnOrder = fighter.turnOrderSnapshot;
+                delete fighter.turnOrderSnapshot;
+                logMessage(state, `${fighter.nome} retornou para a batalha!`);
+            }
             logMessage(state, `O efeito de ${effect.name} em ${fighter.nome} acabou.`, 'info');
         }
     }

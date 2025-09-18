@@ -1049,7 +1049,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         Object.keys(state.fighters.players).forEach((key, index) => {
             const player = state.fighters.players[key];
-             if (player.status === 'fled') return;
+             if (player.status === 'fled' || player.status === 'banished') return;
              const position = state.customPositions[player.id] || PLAYER_POSITIONS[index];
              const el = createFighterElement(player, 'player', state, position);
              if (el) fightSceneCharacters.appendChild(el);
@@ -1057,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         (state.npcSlots || []).forEach((npcId, index) => {
             const npc = getFighter(state, npcId);
-            if (npc && npc.status !== 'fled') {
+            if (npc && npc.status !== 'fled' && npc.status !== 'banished') {
                 const position = state.customPositions[npc.id] || NPC_POSITIONS[index];
                 const el = createFighterElement(npc, 'npc', state, position);
                 if (el) fightSceneCharacters.appendChild(el);
@@ -2773,20 +2773,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
         const finalAttributes = fighter.sheet.finalAttributes || {};
+        const baseAttributes = fighter.sheet.baseAttributes || {};
         for (const attr in finalAttributes) {
             const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1).replace('cao', 'ção');
-            attributesGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${finalAttributes[attr]}</span></div>`;
+            attributesGrid.innerHTML += `
+                <div class="attr-item point-distribution-grid">
+                    <label>${capitalized}</label>
+                    <span>${finalAttributes[attr]}</span>
+                    <div class="number-input-wrapper hidden" data-attr-wrapper="${attr}">
+                        <button class="arrow-btn down-arrow" disabled>-</button>
+                        <input type="number" data-attr="${attr}" value="${baseAttributes[attr]}" readonly>
+                        <button class="arrow-btn up-arrow">+</button>
+                    </div>
+                </div>`;
         }
     
         const elementsGrid = document.getElementById('ingame-sheet-elements');
         elementsGrid.innerHTML = '';
+        const allElements = ['fogo', 'agua', 'terra', 'vento', 'luz', 'escuridao'];
         const elements = fighter.sheet.elements || {};
-        for (const elem in elements) {
-            if (elements[elem] > 0) {
-                 const capitalized = elem.charAt(0).toUpperCase() + elem.slice(1).replace('ao', 'ão');
-                elementsGrid.innerHTML += `<div class="attr-item"><label>${capitalized}</label><span>${elements[elem]}</span></div>`;
-            }
-        }
+        allElements.forEach(elem => {
+            const capitalized = elem.charAt(0).toUpperCase() + elem.slice(1).replace('ao', 'ão');
+            const elemValue = elements[elem] || 0;
+            elementsGrid.innerHTML += `
+                <div class="attr-item point-distribution-grid" data-elem-container="${elem}">
+                    <label>${capitalized}</label>
+                    <span>${elemValue}</span>
+                     <div class="number-input-wrapper hidden" data-elem-wrapper="${elem}">
+                        <button class="arrow-btn down-arrow" disabled>-</button>
+                        <input type="number" data-elem="${elem}" value="${elemValue}" readonly>
+                        <button class="arrow-btn up-arrow">+</button>
+                    </div>
+                </div>`;
+        });
         
         const spellsGrid = document.getElementById('ingame-sheet-spells-grid');
         spellsGrid.innerHTML = '';
@@ -2973,8 +2992,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderLevelUpDistribution(fighter) {
         const sheet = fighter.sheet;
         const mainContainer = document.getElementById('ingame-point-distribution-section');
-        const attrContainer = document.getElementById('ingame-attribute-points-dist');
-        const elemContainer = document.getElementById('ingame-element-points-dist');
+        mainContainer.classList.add('hidden'); // Oculta o container antigo
+        
+        const attrDistHeader = document.getElementById('ingame-attribute-points-dist-header');
+        const elemDistHeader = document.getElementById('ingame-element-points-dist-header');
         const spellContainer = document.getElementById('ingame-spell-choices-dist');
         const confirmBtn = document.getElementById('ingame-confirm-points-btn');
 
@@ -2987,35 +3008,35 @@ document.addEventListener('DOMContentLoaded', () => {
             newSpells: []
         };
         
-        mainContainer.classList.add('hidden');
-        attrContainer.classList.add('hidden');
-        elemContainer.classList.add('hidden');
+        attrDistHeader.classList.add('hidden');
+        elemDistHeader.classList.add('hidden');
         spellContainer.classList.add('hidden');
         confirmBtn.classList.add('hidden');
         spellContainer.innerHTML = '';
+        document.querySelectorAll('[data-attr-wrapper], [data-elem-wrapper]').forEach(el => el.classList.add('hidden'));
 
         let hasPointsToDistribute = false;
 
         // Attribute points
         if (sheet.unallocatedAttrPoints > 0) {
             hasPointsToDistribute = true;
-            attrContainer.classList.remove('hidden');
+            attrDistHeader.classList.remove('hidden');
             let remainingAttr = sheet.unallocatedAttrPoints;
             document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
 
-            const attrInputs = attrContainer.querySelectorAll('input[data-attr]');
-            attrInputs.forEach(input => {
-                const attrName = input.dataset.attr;
-                const wrapper = input.closest('.number-input-wrapper');
+            document.querySelectorAll('[data-attr-wrapper]').forEach(wrapper => {
+                wrapper.classList.remove('hidden');
+                const attrName = wrapper.dataset.attrWrapper;
+                const input = wrapper.querySelector('input');
                 const upBtn = wrapper.querySelector('.up-arrow');
                 const downBtn = wrapper.querySelector('.down-arrow');
 
-                input.value = 0; // Show only points being added
-                downBtn.disabled = true;
+                const baseValue = sheet.baseAttributes[attrName] || 0;
+                input.value = baseValue; // Mostra o valor base, não o que foi adicionado.
 
                 const updateAttrButtons = () => {
                     upBtn.disabled = remainingAttr <= 0;
-                    downBtn.disabled = parseInt(input.value) <= 0;
+                    downBtn.disabled = parseInt(input.value) <= baseValue;
                 };
 
                 upBtn.onclick = () => {
@@ -3030,7 +3051,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 downBtn.onclick = () => {
-                    if (parseInt(input.value) > 0) {
+                    if (parseInt(input.value) > baseValue) {
                         remainingAttr++;
                         input.value = parseInt(input.value) - 1;
                         stagedLevelUpChanges.attrPointsSpent--;
@@ -3046,29 +3067,28 @@ document.addEventListener('DOMContentLoaded', () => {
         // Element points
         if (sheet.unallocatedElemPoints > 0) {
             hasPointsToDistribute = true;
-            elemContainer.classList.remove('hidden');
+            elemDistHeader.classList.remove('hidden');
             let remainingElem = sheet.unallocatedElemPoints;
             document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
 
-            const elemInputs = elemContainer.querySelectorAll('input[data-elem]');
-            elemInputs.forEach(input => {
-                const elemName = input.dataset.elem;
-                const wrapper = input.closest('.number-input-wrapper');
+            document.querySelectorAll('[data-elem-container]').forEach(container => {
+                const wrapper = container.querySelector('[data-elem-wrapper]');
+                wrapper.classList.remove('hidden');
+                
+                const elemName = wrapper.dataset.elemWrapper;
+                const input = wrapper.querySelector('input');
                 const upBtn = wrapper.querySelector('.up-arrow');
                 const downBtn = wrapper.querySelector('.down-arrow');
-
-                input.value = 0; // Show only points being added
-                downBtn.disabled = true;
+                const baseValue = sheet.elements[elemName] || 0;
+                input.value = baseValue;
 
                 const updateElemButtons = () => {
-                    const currentTotal = sheet.elements[elemName] + parseInt(input.value);
-                    upBtn.disabled = remainingElem <= 0 || currentTotal >= 2;
-                    downBtn.disabled = parseInt(input.value) <= 0;
+                    upBtn.disabled = remainingElem <= 0 || parseInt(input.value) >= 2;
+                    downBtn.disabled = parseInt(input.value) <= baseValue;
                 };
 
                 upBtn.onclick = () => {
-                    const currentTotal = sheet.elements[elemName] + parseInt(input.value);
-                    if (remainingElem > 0 && currentTotal < 2) {
+                    if (remainingElem > 0 && parseInt(input.value) < 2) {
                         remainingElem--;
                         input.value = parseInt(input.value) + 1;
                         stagedLevelUpChanges.elemPointsSpent++;
@@ -3078,7 +3098,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
                  downBtn.onclick = () => {
-                    if (parseInt(input.value) > 0) {
+                    if (parseInt(input.value) > baseValue) {
                         remainingElem++;
                         input.value = parseInt(input.value) - 1;
                         stagedLevelUpChanges.elemPointsSpent--;
@@ -3144,7 +3164,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         if (hasPointsToDistribute) {
-            mainContainer.classList.remove('hidden');
             confirmBtn.classList.remove('hidden');
             confirmBtn.onclick = handlePointDistributionConfirmation;
         }
