@@ -790,7 +790,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         const weaponType = weapon.type;
         const weaponData = GAME_RULES.weapons[weaponType];
         
-        let debugInfo = { attackerName: attacker.nome, targetName: target.nome, weaponUsed: weaponType, isRanged: !!weapon.isRanged };
+        let debugInfo = { attackerName: attacker.nome, targetName: target.nome, weaponUsed: weaponType, isRanged: !!weapon.isRanged, finalDamageBreakdown: {} };
 
         logMessage(state, `${attacker.nome} ataca ${target.nome} com ${weapon.name || weaponType}. Rolagem: ${hitRoll} + ${bta} (BTA) = ${attackRoll} vs Esquiva ${target.esquiva}.`, 'info');
         Object.assign(debugInfo, { hitRoll, bta, btaBreakdown: btaBreakdown.details, attackRoll, targetEsquiva: target.esquiva, esqBreakdown: target.esqBreakdown });
@@ -846,9 +846,11 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 finalDamageBuffs.forEach(buff => {
                     if(buff.type === 'final_damage_buff'){
                         finalDamage += buff.value;
+                        debugInfo.finalDamageBreakdown[`Efeito (${buff.name})`] = buff.value;
                         logMessage(state, `+${buff.value} de dano final de ${buff.name}!`, 'hit');
                     } else if (buff.type === 'damage_multiplier_buff') {
                         const multipliedDamage = finalDamage * buff.multiplier;
+                        debugInfo.finalDamageBreakdown[`Multiplicador (${buff.name})`] = `x${buff.multiplier}`;
                         logMessage(state, `Dano multiplicado por ${buff.multiplier}x por ${buff.name}! Dano final: ${multipliedDamage}`, 'crit');
                         finalDamage = multipliedDamage;
                     }
@@ -858,6 +860,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             if (target.marks && target.marks.igneous_curse > 0) {
                 const markBonus = target.marks.igneous_curse;
                 finalDamage += markBonus;
+                debugInfo.finalDamageBreakdown[`Marca Ígnea Sombria`] = `+${markBonus}`;
                 logMessage(state, `${target.nome} sofre +${markBonus} de dano extra da Marca Ígnea Sombria!`, 'crit');
             }
 
@@ -1702,8 +1705,8 @@ io.on('connection', (socket) => {
                  if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => sheet.finalAttributes[attr] += raceData.pen[attr]);
                 
                 // Atualiza o fighter se estiver em batalha
-                if(room.activeMode === 'adventure' && adventureState.fighters.players[socket.id]) {
-                    const fighter = adventureState.fighters.players[socket.id];
+                if(room.activeMode === 'adventure' && activeState.fighters.players[socket.id]) {
+                    const fighter = activeState.fighters.players[socket.id];
                     fighter.sheet = sheet; // Sincroniza a ficha
                     recalculateFighterStats(fighter); // Recalcula HP/Mahou/etc.
                 }

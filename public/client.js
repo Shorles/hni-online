@@ -768,8 +768,10 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'npc-card';
             card.innerHTML = `<img src="${npcData.img}" alt="${npcData.name}"><div class="char-name">${npcData.name}</div>`;
             card.addEventListener('click', () => {
-                let targetSlot = selectedSlotIndex;
-                if (targetSlot === null) {
+                let targetSlot;
+                if (selectedSlotIndex !== null) {
+                    targetSlot = selectedSlotIndex;
+                } else {
                     targetSlot = stagedNpcSlots.findIndex(slot => slot === null);
                 }
 
@@ -785,8 +787,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderNpcStagingArea();
                 } else if (stagedNpcSlots.every(slot => slot !== null)) {
                      showInfoModal("Aviso", "Todos os slots estão cheios. Remova um inimigo para adicionar outro.");
-                } else {
-                     showInfoModal("Aviso", "Primeiro, clique em um slot vago abaixo para posicionar o inimigo.");
                 }
             });
             npcArea.appendChild(card);
@@ -2430,7 +2430,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleConfirmCharacter() {
         if (stagedCharacterSheet.spells.length > 2) {
-            alert("Você só pode escolher no máximo 2 magias iniciais. Por favor, desmarque o excedente.");
+            alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
             return;
         }
 
@@ -3164,6 +3164,11 @@ document.addEventListener('DOMContentLoaded', () => {
                      weaponBuffHtml = formatBreakdown(attackData.weaponBuffInfo.breakdown);
                 }
 
+                let finalDamageHtml = '';
+                if(attackData.finalDamageBreakdown && Object.keys(attackData.finalDamageBreakdown).length > 0) {
+                    finalDamageHtml = `<h5>Bônus de Dano Final:</h5><div class="debug-breakdown">${formatBreakdown(attackData.finalDamageBreakdown)}</div>`;
+                }
+
                 let report = `<h4>Cálculo de Acerto (Arma: ${attackData.weaponUsed})</h4>
                     <div class="grid-row"><span>Rolagem D20:</span> <span>${attackData.hitRoll}</span></div>
                     <div class="grid-row"><span>BTA do Atacante:</span> <span>${attackData.bta >= 0 ? '+' : ''}${attackData.bta}</span></div>
@@ -3184,6 +3189,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="grid-row"><span>Dano Bruto Total:</span> <span>${attackData.totalDamage}</span></div>
                         <div class="grid-row"><span>vs Proteção do Alvo:</span> <span>-${attackData.targetProtection}</span></div>
                         <div class="debug-breakdown">${formatBreakdown(attackData.protectionBreakdown)}</div>
+                        ${finalDamageHtml}
                         <hr>
                         <div class="final-damage-row"><span>DANO FINAL:</span> <span class="debug-final-damage">${attackData.finalDamage}</span></div>`;
                 }
