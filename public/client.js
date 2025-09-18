@@ -2430,7 +2430,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleConfirmCharacter() {
         if (stagedCharacterSheet.spells.length > 2) {
-            alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
+            alert("Você só pode escolher no máximo 2 magias iniciais. Por favor, desmarque o excedente.");
             return;
         }
 
