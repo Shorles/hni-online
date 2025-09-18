@@ -151,7 +151,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
     
         if (fighterInBattle) {
-            return { ...fighterInBattle, sheet: lobbySheet || fighterInBattle.sheet };
+            // Unifica a ficha do lobby com a ficha da batalha para ter os dados mais recentes
+            const finalSheet = { ...fighterInBattle.sheet, ...lobbySheet };
+            return { ...fighterInBattle, sheet: finalSheet };
         }
     
         if (lobbySheet) {
