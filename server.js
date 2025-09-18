@@ -933,8 +933,11 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             targets.push(attacker);
             break;
         case 'all_allies':
-            targets.push(...Object.values(state.fighters.players).filter(p => p.status === 'active' && !p.isPlayer));
-            targets.push(...Object.values(state.fighters.npcs).filter(p => p.status === 'active' && p.isPlayer));
+            if (attacker.isPlayer) {
+                targets.push(...Object.values(state.fighters.players).filter(p => p.status === 'active'));
+            } else {
+                targets.push(...Object.values(state.fighters.npcs).filter(n => n.status === 'active'));
+            }
             break;
         case 'all_enemies':
             if (attacker.isPlayer) {
