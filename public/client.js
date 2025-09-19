@@ -3262,8 +3262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('levelUpNotification', () => {
-        // Apenas um log ou talvez nada, já que o texto flutuante já notifica.
-        console.log("Level Up! Abra a ficha para distribuir os pontos.");
+        showInfoModal("Você subiu de nível!", "Abra sua ficha para distribuir seus novos pontos e escolher suas magias.");
     });
     
     socket.on('gameUpdate', (gameState) => { 
@@ -3634,3 +3633,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     initialize();
+});
