@@ -3262,7 +3262,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('levelUpNotification', () => {
-        showInfoModal("Você subiu de nível!", "Abra sua ficha para distribuir seus novos pontos e escolher suas magias.");
+        // Apenas um log ou talvez nada, já que o texto flutuante já notifica.
+        console.log("Level Up! Abra a ficha para distribuir os pontos.");
     });
     
     socket.on('gameUpdate', (gameState) => { 
@@ -3380,7 +3381,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setTimeout(() => {
                 textEl.remove();
-            }, 2000);
+            }, 3000);
         }, textsForDelay * 100);
     });
 
@@ -3633,4 +3634,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     initialize();
-});

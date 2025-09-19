@@ -273,6 +273,8 @@ function createNewFighterState(data) {
                 inteligencia: data.customStats.inteligencia,
                 mente: data.customStats.mente,
             };
+            fighter.xpReward = data.customStats.xpReward;
+            fighter.moneyReward = data.customStats.moneyReward;
         } else {
              fighter.mahouMax = 10; fighter.mahou = 10;
              fighter.sheet.finalAttributes = { forca: 1, agilidade: 1, protecao: 1, constituicao: 1, mente: 1 };
@@ -349,7 +351,7 @@ function checkForLevelUp(playerInfo, socket, roomId) {
     }
 
     if (leveledUp) {
-        io.to(roomId).emit('floatingTextTriggered', { targetId: socket.id, text: `LEVEL UP!`, type: 'buff' });
+        io.to(roomId).emit('floatingTextTriggered', { targetId: socket.id, text: `LEVEL UP!`, type: 'level-up' });
     }
 }
 

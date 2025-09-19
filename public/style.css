@@ -565,11 +565,25 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 /* --- ESTILOS PARA TEXTO FLUTUANTE --- */
 @keyframes float-up {
     0% {
-        transform: translate(-50%, var(--y-offset, 0px));
+        transform: translate(-50%, var(--y-offset, 0px)) scale(1);
         opacity: 1;
     }
     100% {
-        transform: translate(-50%, calc(var(--y-offset, 0px) - 50px));
+        transform: translate(-50%, calc(var(--y-offset, 0px) - 50px)) scale(1);
+        opacity: 0;
+    }
+}
+
+@keyframes level-up-float {
+    0% {
+        transform: translate(-50%, var(--y-offset, 0px)) scale(1.5);
+        opacity: 1;
+    }
+    80% {
+         opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, calc(var(--y-offset, 0px) - 80px)) scale(2);
         opacity: 0;
     }
 }
@@ -592,6 +606,12 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .floating-text.status-fail { color: #ffc107; } /* Amarelo para destaque */
 .floating-text.heal-hp { color: #28a745; }
 .floating-text.heal-mahou { color: #17a2b8; }
+.floating-text.level-up {
+    color: #ffd700;
+    font-size: 2.2em;
+    text-shadow: 2px 2px 5px rgba(0,0,0,1);
+    animation: level-up-float 3s ease-out forwards;
+}
 
 /* === NOVOS ESTILOS PARA INVENTÁRIO E FICHA EM JOGO === */
 
