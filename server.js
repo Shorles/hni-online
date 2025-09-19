@@ -2112,8 +2112,12 @@ io.on('connection', (socket) => {
                             };
 
                             if (!newItem.img) {
-                                if(newItem.type === 'weapon' && ALL_WEAPON_IMAGES[newItem.name]?.melee[0]) {
-                                   newItem.img = ALL_WEAPON_IMAGES[newItem.name].melee[0];
+                                 if (newItem.type === 'armor' && newItem.name !== 'Nenhuma') {
+                                    const armorImgName = newItem.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${newItem.name}`;
+                                    newItem.img = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
+                                } else if (newItem.type === 'shield' && newItem.name !== 'Nenhum') {
+                                     const shieldImgName = newItem.name === 'Médio' ? 'Escudo Medio' : `Escudo ${newItem.name}`;
+                                     newItem.img = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                                 }
                             }
                             

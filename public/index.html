@@ -364,6 +364,16 @@
                         </div>
                     </div>
                     <div class="ingame-sheet-equipment">
+                        <div class="sheet-section life-bars ingame-life-bars">
+                            <div class="bar-container">
+                                <label>VIDA (HP)</label>
+                                <div class="bar-value"><span id="ingame-sheet-hp-current">20</span> / <span id="ingame-sheet-hp-max">20</span></div>
+                            </div>
+                            <div class="bar-container">
+                                <label>MAHOU / KI</label>
+                                <div class="bar-value"><span id="ingame-sheet-mahou-current">10</span> / <span id="ingame-sheet-mahou-max">10</span></div>
+                            </div>
+                        </div>
                         <h3>Equipamento Ativo</h3>
                         <div class="equipment-grid">
                             <div class="equip-item">
@@ -405,11 +415,8 @@
 
                 <div class="sheet-columns">
                     <div class="sheet-column">
-                        <div id="ingame-point-distribution-section" class="sheet-section hidden">
-                             <!-- Conteúdo de distribuição será movido para dentro das seções abaixo -->
-                        </div>
                         <div class="sheet-section">
-                            <h3>Atributos <span id="ingame-attribute-points-dist-header" class="hidden point-dist-label"> | Pontos de Atributo: <span id="ingame-attr-points-avail">0</span></span></h3>
+                             <h3>Atributos <span id="ingame-attribute-points-dist-header" class="hidden point-dist-label"> | Pontos de Atributo: <span id="ingame-attr-points-avail">0</span></span></h3>
                             <div class="attributes-grid" id="ingame-sheet-attributes">
                                 <!-- Populado por JS -->
                             </div>

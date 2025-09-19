@@ -2649,6 +2649,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
         const tokenImg = fighter.sheet.tokenImg;
         document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
+        
+        // Atualiza HP, Mahou, Nível e XP
+        document.getElementById('ingame-sheet-hp-current').textContent = fighter.hp;
+        document.getElementById('ingame-sheet-hp-max').textContent = fighter.hpMax;
+        document.getElementById('ingame-sheet-mahou-current').textContent = fighter.mahou;
+        document.getElementById('ingame-sheet-mahou-max').textContent = fighter.mahouMax;
         document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
         document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
         document.getElementById('ingame-sheet-xp-needed').textContent = fighter.xpNeeded || 100;
@@ -2991,9 +2997,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE LEVEL UP (CLIENT-SIDE) ---
     function renderLevelUpDistribution(fighter) {
         const sheet = fighter.sheet;
-        const mainContainer = document.getElementById('ingame-point-distribution-section');
-        mainContainer.classList.add('hidden'); // Oculta o container antigo
-        
         const attrDistHeader = document.getElementById('ingame-attribute-points-dist-header');
         const elemDistHeader = document.getElementById('ingame-element-points-dist-header');
         const spellContainer = document.getElementById('ingame-spell-choices-dist');
@@ -3030,9 +3033,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const input = wrapper.querySelector('input');
                 const upBtn = wrapper.querySelector('.up-arrow');
                 const downBtn = wrapper.querySelector('.down-arrow');
-
                 const baseValue = sheet.baseAttributes[attrName] || 0;
-                input.value = baseValue; // Mostra o valor base, não o que foi adicionado.
+                
+                upBtn.onclick = null;
+                downBtn.onclick = null;
+                input.value = baseValue; 
 
                 const updateAttrButtons = () => {
                     upBtn.disabled = remainingAttr <= 0;
@@ -3064,6 +3069,59 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        const renderSpellsForLevelUp = () => {
+             // Spell choices
+            if (sheet.spellChoicesAvailable && sheet.spellChoicesAvailable.length > 0) {
+                hasPointsToDistribute = true;
+                spellContainer.classList.remove('hidden');
+                spellContainer.innerHTML = '';
+                
+                sheet.spellChoicesAvailable.forEach((choice, index) => {
+                    const choiceContainer = document.createElement('div');
+                    choiceContainer.className = 'levelup-spell-selection-container';
+                    choiceContainer.innerHTML = `<h4>Escolha 1 Magia (Grau ${choice.grade})</h4>`;
+                    
+                    const spellGrid = document.createElement('div');
+                    spellGrid.className = 'levelup-spell-grid';
+
+                    const spellPool = [...(ALL_SPELLS[`grade${choice.grade}`] || []), ...(ALL_SPELLS[`advanced_grade${choice.grade}`] || []), ...(ALL_SPELLS.grade_combined || [])];
+                    
+                    const availableElements = Object.keys(stagedLevelUpChanges.newBaseElements).filter(e => stagedLevelUpChanges.newBaseElements[e] > 0);
+                    
+                    const availableSpells = spellPool.filter(spell => {
+                        if (sheet.spells.includes(spell.name)) return false; // Already known
+                        if (spell.requiredElements) {
+                            return spell.requiredElements.every(reqElem => availableElements.includes(reqElem));
+                        }
+                        if (spell.isAdvanced) return stagedLevelUpChanges.newBaseElements[spell.element] === 2;
+                        return availableElements.includes(spell.element);
+                    });
+
+                    availableSpells.forEach(spell => {
+                        const card = document.createElement('div');
+                        card.className = 'spell-card';
+                        card.dataset.spellName = spell.name;
+                        card.dataset.spellGrade = choice.grade;
+                        card.innerHTML = `<h4>${spell.name}</h4><p>${spell.description}</p>`;
+                        
+                        card.addEventListener('click', () => {
+                            spellGrid.querySelectorAll('.spell-card.selected').forEach(c => c.classList.remove('selected'));
+                            card.classList.add('selected');
+                            stagedLevelUpChanges.newSpells = stagedLevelUpChanges.newSpells.filter(s => s.choiceIndex !== index);
+                            stagedLevelUpChanges.newSpells.push({ choiceIndex: index, spellName: spell.name, grade: choice.grade });
+                        });
+                        spellGrid.appendChild(card);
+                    });
+                    
+                    choiceContainer.appendChild(spellGrid);
+                    spellContainer.appendChild(choiceContainer);
+                });
+            } else {
+                spellContainer.classList.add('hidden');
+                spellContainer.innerHTML = '';
+            }
+        }
+
         // Element points
         if (sheet.unallocatedElemPoints > 0) {
             hasPointsToDistribute = true;
@@ -3071,15 +3129,16 @@ document.addEventListener('DOMContentLoaded', () => {
             let remainingElem = sheet.unallocatedElemPoints;
             document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
 
-            document.querySelectorAll('[data-elem-container]').forEach(container => {
-                const wrapper = container.querySelector('[data-elem-wrapper]');
+            document.querySelectorAll('[data-elem-wrapper]').forEach(wrapper => {
                 wrapper.classList.remove('hidden');
-                
                 const elemName = wrapper.dataset.elemWrapper;
                 const input = wrapper.querySelector('input');
                 const upBtn = wrapper.querySelector('.up-arrow');
                 const downBtn = wrapper.querySelector('.down-arrow');
                 const baseValue = sheet.elements[elemName] || 0;
+                
+                upBtn.onclick = null;
+                downBtn.onclick = null;
                 input.value = baseValue;
 
                 const updateElemButtons = () => {
@@ -3095,6 +3154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         stagedLevelUpChanges.newBaseElements[elemName]++;
                         document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
                         updateElemButtons();
+                        renderSpellsForLevelUp();
                     }
                 };
                  downBtn.onclick = () => {
@@ -3105,63 +3165,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         stagedLevelUpChanges.newBaseElements[elemName]--;
                         document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
                         updateElemButtons();
+                        renderSpellsForLevelUp();
                     }
                 };
                 updateElemButtons();
             });
         }
         
-        // Spell choices
-        if (sheet.spellChoicesAvailable && sheet.spellChoicesAvailable.length > 0) {
-            hasPointsToDistribute = true;
-            spellContainer.classList.remove('hidden');
-            
-            sheet.spellChoicesAvailable.forEach((choice, index) => {
-                const choiceContainer = document.createElement('div');
-                choiceContainer.className = 'levelup-spell-selection-container';
-                choiceContainer.innerHTML = `<h4>Escolha 1 Magia (Grau ${choice.grade})</h4>`;
-                
-                const spellGrid = document.createElement('div');
-                spellGrid.className = 'levelup-spell-grid';
-
-                const spellPool = [...(ALL_SPELLS[`grade${choice.grade}`] || []), ...(ALL_SPELLS[`advanced_grade${choice.grade}`] || [])];
-                
-                const availableElements = Object.keys(sheet.elements).filter(e => sheet.elements[e] > 0);
-                
-                const availableSpells = spellPool.filter(spell => {
-                    if (sheet.spells.includes(spell.name)) return false; // Already known
-                    if (spell.isAdvanced) return sheet.elements[spell.element] === 2;
-                    return availableElements.includes(spell.element);
-                });
-
-                availableSpells.forEach(spell => {
-                    const card = document.createElement('div');
-                    card.className = 'spell-card';
-                    card.dataset.spellName = spell.name;
-                    card.dataset.spellGrade = choice.grade;
-                    card.innerHTML = `<h4>${spell.name}</h4><p>${spell.description}</p>`;
-                    
-                    card.addEventListener('click', () => {
-                        // Deselect other spells for this choice
-                        spellGrid.querySelectorAll('.spell-card.selected').forEach(c => c.classList.remove('selected'));
-                        card.classList.add('selected');
-
-                        // Update staged changes
-                        stagedLevelUpChanges.newSpells = stagedLevelUpChanges.newSpells.filter(s => s.choiceIndex !== index);
-                        stagedLevelUpChanges.newSpells.push({
-                            choiceIndex: index,
-                            spellName: spell.name,
-                            grade: choice.grade
-                        });
-                    });
-                    spellGrid.appendChild(card);
-                });
-                
-                choiceContainer.appendChild(spellGrid);
-                spellContainer.appendChild(choiceContainer);
-            });
-        }
-
+        renderSpellsForLevelUp();
 
         if (hasPointsToDistribute) {
             confirmBtn.classList.remove('hidden');
