@@ -390,18 +390,13 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'staged-item-card';
 
             const itemData = stagedItem.itemData;
-             let imgPath = itemData.img;
+            let imgPath = itemData.img;
             if (!imgPath) {
-                if(itemData.type === 'weapon') {
-                   const weaponTypeImages = ALL_WEAPON_IMAGES[itemData.name];
-                   if (weaponTypeImages && weaponTypeImages.melee.length > 0) {
-                       imgPath = weaponTypeImages.melee[0];
-                   }
-                } else if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
+                if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
                     const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
                     imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
                 } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${shieldImgName}`;
+                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
                      imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
                 }
             }
@@ -2779,16 +2774,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
         const finalAttributes = fighter.sheet.finalAttributes || {};
-        const baseAttributes = fighter.sheet.baseAttributes || {};
         for (const attr in finalAttributes) {
             const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1).replace('cao', 'ção');
             attributesGrid.innerHTML += `
-                <div class="attr-item point-distribution-grid">
+                <div class="attr-item point-distribution-grid" data-attr-container="${attr}">
                     <label>${capitalized}</label>
                     <span>${finalAttributes[attr]}</span>
                     <div class="number-input-wrapper hidden" data-attr-wrapper="${attr}">
                         <button class="arrow-btn down-arrow" disabled>-</button>
-                        <input type="number" data-attr="${attr}" value="${baseAttributes[attr]}" readonly>
+                        <input type="number" data-attr="${attr}" value="${finalAttributes[attr]}" readonly>
                         <button class="arrow-btn up-arrow">+</button>
                     </div>
                 </div>`;
@@ -3020,57 +3014,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let hasPointsToDistribute = false;
 
-        // Attribute points
-        if (sheet.unallocatedAttrPoints > 0) {
-            hasPointsToDistribute = true;
-            attrDistHeader.classList.remove('hidden');
-            let remainingAttr = sheet.unallocatedAttrPoints;
-            document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
-
-            document.querySelectorAll('[data-attr-wrapper]').forEach(wrapper => {
-                wrapper.classList.remove('hidden');
-                const attrName = wrapper.dataset.attrWrapper;
-                const input = wrapper.querySelector('input');
-                const upBtn = wrapper.querySelector('.up-arrow');
-                const downBtn = wrapper.querySelector('.down-arrow');
-                const baseValue = sheet.baseAttributes[attrName] || 0;
-                
-                upBtn.onclick = null;
-                downBtn.onclick = null;
-                input.value = baseValue; 
-
-                const updateAttrButtons = () => {
-                    upBtn.disabled = remainingAttr <= 0;
-                    downBtn.disabled = parseInt(input.value) <= baseValue;
-                };
-
-                upBtn.onclick = () => {
-                    if (remainingAttr > 0) {
-                        remainingAttr--;
-                        input.value = parseInt(input.value) + 1;
-                        stagedLevelUpChanges.attrPointsSpent++;
-                        stagedLevelUpChanges.newBaseAttributes[attrName]++;
-                        document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
-                        updateAttrButtons();
-                    }
-                };
-
-                downBtn.onclick = () => {
-                    if (parseInt(input.value) > baseValue) {
-                        remainingAttr++;
-                        input.value = parseInt(input.value) - 1;
-                        stagedLevelUpChanges.attrPointsSpent--;
-                        stagedLevelUpChanges.newBaseAttributes[attrName]--;
-                        document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
-                        updateAttrButtons();
-                    }
-                };
-                updateAttrButtons();
-            });
-        }
-
         const renderSpellsForLevelUp = () => {
-             // Spell choices
             if (sheet.spellChoicesAvailable && sheet.spellChoicesAvailable.length > 0) {
                 hasPointsToDistribute = true;
                 spellContainer.classList.remove('hidden');
@@ -3085,11 +3029,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     spellGrid.className = 'levelup-spell-grid';
 
                     const spellPool = [...(ALL_SPELLS[`grade${choice.grade}`] || []), ...(ALL_SPELLS[`advanced_grade${choice.grade}`] || []), ...(ALL_SPELLS.grade_combined || [])];
-                    
                     const availableElements = Object.keys(stagedLevelUpChanges.newBaseElements).filter(e => stagedLevelUpChanges.newBaseElements[e] > 0);
                     
                     const availableSpells = spellPool.filter(spell => {
-                        if (sheet.spells.includes(spell.name)) return false; // Already known
+                        if (sheet.spells.includes(spell.name)) return false;
                         if (spell.requiredElements) {
                             return spell.requiredElements.every(reqElem => availableElements.includes(reqElem));
                         }
@@ -3120,6 +3063,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 spellContainer.classList.add('hidden');
                 spellContainer.innerHTML = '';
             }
+            confirmBtn.classList.toggle('hidden', !hasPointsToDistribute);
+        };
+        
+        // Attribute points
+        if (sheet.unallocatedAttrPoints > 0) {
+            hasPointsToDistribute = true;
+            attrDistHeader.classList.remove('hidden');
+            let remainingAttr = sheet.unallocatedAttrPoints;
+            document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
+
+            document.querySelectorAll('[data-attr-wrapper]').forEach(wrapper => {
+                wrapper.classList.remove('hidden');
+                const attrName = wrapper.dataset.attrWrapper;
+                const input = wrapper.querySelector('input');
+                const upBtn = wrapper.querySelector('.up-arrow');
+                const downBtn = wrapper.querySelector('.down-arrow');
+                const baseValue = sheet.baseAttributes[attrName] || 0;
+                
+                upBtn.onclick = null;
+                downBtn.onclick = null;
+                input.value = baseValue; 
+
+                const updateAttrButtons = () => {
+                    upBtn.disabled = remainingAttr <= 0;
+                    downBtn.disabled = parseInt(input.value) <= baseValue;
+                };
+
+                upBtn.onclick = () => {
+                    if (remainingAttr > 0) {
+                        remainingAttr--;
+                        input.value = parseInt(input.value, 10) + 1;
+                        stagedLevelUpChanges.attrPointsSpent++;
+                        stagedLevelUpChanges.newBaseAttributes[attrName]++;
+                        document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
+                        updateAttrButtons();
+                    }
+                };
+
+                downBtn.onclick = () => {
+                    if (parseInt(input.value, 10) > baseValue) {
+                        remainingAttr++;
+                        input.value = parseInt(input.value, 10) - 1;
+                        stagedLevelUpChanges.attrPointsSpent--;
+                        stagedLevelUpChanges.newBaseAttributes[attrName]--;
+                        document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
+                        updateAttrButtons();
+                    }
+                };
+                updateAttrButtons();
+            });
         }
 
         // Element points
@@ -3149,7 +3142,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 upBtn.onclick = () => {
                     if (remainingElem > 0 && parseInt(input.value) < 2) {
                         remainingElem--;
-                        input.value = parseInt(input.value) + 1;
+                        input.value = parseInt(input.value, 10) + 1;
                         stagedLevelUpChanges.elemPointsSpent++;
                         stagedLevelUpChanges.newBaseElements[elemName]++;
                         document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
@@ -3158,9 +3151,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
                  downBtn.onclick = () => {
-                    if (parseInt(input.value) > baseValue) {
+                    if (parseInt(input.value, 10) > baseValue) {
                         remainingElem++;
-                        input.value = parseInt(input.value) - 1;
+                        input.value = parseInt(input.value, 10) - 1;
                         stagedLevelUpChanges.elemPointsSpent--;
                         stagedLevelUpChanges.newBaseElements[elemName]--;
                         document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
@@ -3173,11 +3166,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         renderSpellsForLevelUp();
-
-        if (hasPointsToDistribute) {
-            confirmBtn.classList.remove('hidden');
-            confirmBtn.onclick = handlePointDistributionConfirmation;
-        }
+        
+        confirmBtn.onclick = handlePointDistributionConfirmation;
     }
     
     function showGmAwardModal() {

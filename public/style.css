@@ -832,34 +832,31 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     align-items: center;
     gap: 8px;
 }
-.point-distribution-grid .number-input-wrapper {
-    grid-column: 3;
-}
 
-.attributes-grid .attr-item {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
+#ingame-sheet-attributes .attr-item,
+#ingame-sheet-elements .attr-item {
     background: none;
-    padding: 5px 0;
-}
-.elements-grid .attr-item {
-     grid-template-columns: 1fr auto;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr auto auto; /* Label | Valor | Controles */
+    align-items: center;
+    gap: 8px;
 }
 
-.attributes-grid .attr-item > label,
-.elements-grid .attr-item > label {
+#ingame-sheet-attributes .attr-item > label,
+#ingame-sheet-elements .attr-item > label {
     justify-self: start;
 }
-.attributes-grid .attr-item > span,
-.elements-grid .attr-item > span {
+#ingame-sheet-attributes .attr-item > span,
+#ingame-sheet-elements .attr-item > span {
      justify-self: end;
      font-size: 1.5em;
      font-weight: bold;
+     padding-right: 10px;
 }
-.attributes-grid .attr-item .number-input-wrapper,
-.elements-grid .attr-item .number-input-wrapper {
-    grid-column: 2;
+#ingame-sheet-attributes .attr-item .number-input-wrapper,
+#ingame-sheet-elements .attr-item .number-input-wrapper {
+    grid-column: 3;
     justify-self: end;
 }
 
