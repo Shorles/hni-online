@@ -861,6 +861,16 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     justify-self: end;
 }
 
+#ingame-sheet-attributes .point-distribution-grid .number-input-wrapper,
+#ingame-sheet-elements .point-distribution-grid .number-input-wrapper {
+    grid-column: 2 / span 2;
+}
+#ingame-sheet-attributes .point-distribution-grid > span,
+#ingame-sheet-elements .point-distribution-grid > span {
+    display: none;
+}
+
+
 .point-distribution-grid input[type="number"] {
     width: 30px;
     border: none;

@@ -343,12 +343,8 @@ function checkForLevelUp(playerInfo, socket) {
 
     if (leveledUp) {
         // Notifica o cliente específico que ele subiu de nível
-        socket.emit('levelUpNotification', {
-            level: sheet.level,
-            unallocatedAttrPoints: sheet.unallocatedAttrPoints,
-            unallocatedElemPoints: sheet.unallocatedElemPoints,
-            spellChoicesAvailable: sheet.spellChoicesAvailable
-        });
+        io.to(socket.currentRoomId).emit('floatingTextTriggered', { targetId: socket.id, text: `LEVEL UP!`, type: 'buff' });
+        socket.emit('levelUpNotification');
     }
 }
 

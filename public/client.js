@@ -2774,15 +2774,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
         const finalAttributes = fighter.sheet.finalAttributes || {};
+        const baseAttributes = fighter.sheet.baseAttributes || {};
         for (const attr in finalAttributes) {
             const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1).replace('cao', 'ção');
             attributesGrid.innerHTML += `
                 <div class="attr-item point-distribution-grid" data-attr-container="${attr}">
                     <label>${capitalized}</label>
-                    <span>${finalAttributes[attr]}</span>
+                    <span data-attr-span="${attr}">${finalAttributes[attr]}</span>
                     <div class="number-input-wrapper hidden" data-attr-wrapper="${attr}">
                         <button class="arrow-btn down-arrow" disabled>-</button>
-                        <input type="number" data-attr="${attr}" value="${finalAttributes[attr]}" readonly>
+                        <input type="number" data-attr="${attr}" value="${baseAttributes[attr]}" readonly>
                         <button class="arrow-btn up-arrow">+</button>
                     </div>
                 </div>`;
@@ -2798,7 +2799,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elementsGrid.innerHTML += `
                 <div class="attr-item point-distribution-grid" data-elem-container="${elem}">
                     <label>${capitalized}</label>
-                    <span>${elemValue}</span>
+                    <span data-elem-span="${elem}">${elemValue}</span>
                      <div class="number-input-wrapper hidden" data-elem-wrapper="${elem}">
                         <button class="arrow-btn down-arrow" disabled>-</button>
                         <input type="number" data-elem="${elem}" value="${elemValue}" readonly>
@@ -3011,6 +3012,7 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmBtn.classList.add('hidden');
         spellContainer.innerHTML = '';
         document.querySelectorAll('[data-attr-wrapper], [data-elem-wrapper]').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('[data-attr-span], [data-elem-span]').forEach(el => el.classList.remove('hidden'));
 
         let hasPointsToDistribute = false;
 
@@ -3073,8 +3075,12 @@ document.addEventListener('DOMContentLoaded', () => {
             let remainingAttr = sheet.unallocatedAttrPoints;
             document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
 
-            document.querySelectorAll('[data-attr-wrapper]').forEach(wrapper => {
+            document.querySelectorAll('[data-attr-container]').forEach(container => {
+                const wrapper = container.querySelector('[data-attr-wrapper]');
+                const span = container.querySelector('[data-attr-span]');
                 wrapper.classList.remove('hidden');
+                span.classList.add('hidden');
+
                 const attrName = wrapper.dataset.attrWrapper;
                 const input = wrapper.querySelector('input');
                 const upBtn = wrapper.querySelector('.up-arrow');
@@ -3122,8 +3128,12 @@ document.addEventListener('DOMContentLoaded', () => {
             let remainingElem = sheet.unallocatedElemPoints;
             document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
 
-            document.querySelectorAll('[data-elem-wrapper]').forEach(wrapper => {
+            document.querySelectorAll('[data-elem-container]').forEach(container => {
+                const wrapper = container.querySelector('[data-elem-wrapper]');
+                const span = container.querySelector('[data-elem-span]');
                 wrapper.classList.remove('hidden');
+                span.classList.add('hidden');
+                
                 const elemName = wrapper.dataset.elemWrapper;
                 const input = wrapper.querySelector('input');
                 const upBtn = wrapper.querySelector('.up-arrow');
@@ -3253,15 +3263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('levelUpNotification', () => {
-        if (!ingameSheetModal.classList.contains('hidden')) {
-            // Se a ficha já estiver aberta, apenas a atualize
-            const myFighterData = getFighter(currentGameState, myPlayerKey);
-            if(myFighterData) populateIngameSheet(myFighterData);
-        } else {
-            // Se estiver fechada, abra
-            toggleIngameSheet();
-        }
-        showInfoModal("Você subiu de nível!", "Distribua seus novos pontos e escolha suas magias na sua ficha de personagem.");
+        showInfoModal("Você subiu de nível!", "Abra sua ficha para distribuir seus novos pontos e escolher suas magias.");
     });
     
     socket.on('gameUpdate', (gameState) => { 
