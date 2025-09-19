@@ -3107,7 +3107,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 downBtn.onclick = () => {
-                    if (parseInt(input.value) > baseValue) {
+                    if (parseInt(input.value, 10) > baseValue) {
                         remainingAttr++;
                         stagedLevelUpChanges.newBaseAttributes[attrName]--;
                         input.value = stagedLevelUpChanges.newBaseAttributes[attrName];
@@ -3160,7 +3160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
                  downBtn.onclick = () => {
-                    if (parseInt(input.value) > baseValue) {
+                    if (parseInt(input.value, 10) > baseValue) {
                         remainingElem++;
                         stagedLevelUpChanges.newBaseElements[elemName]--;
                         input.value = stagedLevelUpChanges.newBaseElements[elemName];
@@ -3262,7 +3262,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('levelUpNotification', () => {
-        showInfoModal("Você subiu de nível!", "Abra sua ficha para distribuir seus novos pontos e escolher suas magias.");
+        // Apenas um log ou talvez nada, já que o texto flutuante já notifica.
+        console.log("Level Up! Abra a ficha para distribuir os pontos.");
     });
     
     socket.on('gameUpdate', (gameState) => { 
@@ -3633,4 +3634,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     initialize();
-});

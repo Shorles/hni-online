@@ -316,9 +316,10 @@ function recalculateFighterStats(fighter) {
     fighter.magicDefenseBreakdown = magicDefBreakdown.details;
 }
 
-function checkForLevelUp(playerInfo, socket) {
+function checkForLevelUp(playerInfo, socket, roomId) {
     let leveledUp = false;
     const sheet = playerInfo.characterSheet;
+    const room = games[roomId];
 
     while (sheet.xp >= sheet.xpNeeded && LEVEL_UP_TABLE[sheet.level + 1]) {
         leveledUp = true;
@@ -335,16 +336,20 @@ function checkForLevelUp(playerInfo, socket) {
             }
         }
         
-        logMessage(games[socket.currentRoomId].gameModes.lobby, `${sheet.name} alcançou o Nível ${sheet.level}!`, 'info');
+        logMessage(room.gameModes.lobby, `${sheet.name} alcançou o Nível ${sheet.level}!`, 'info');
 
-        // Atualiza o XP necessário para o próximo nível, se houver
         sheet.xpNeeded = LEVEL_UP_TABLE[sheet.level + 1] ? LEVEL_UP_TABLE[sheet.level + 1].xp : sheet.xpNeeded;
+
+        // Sincroniza com o estado da aventura, se existir
+        if (room.activeMode === 'adventure' && room.gameModes.adventure.fighters.players[socket.id]) {
+            const adventureFighter = room.gameModes.adventure.fighters.players[socket.id];
+            adventureFighter.level = sheet.level;
+            adventureFighter.xpNeeded = sheet.xpNeeded;
+        }
     }
 
     if (leveledUp) {
-        // Notifica o cliente específico que ele subiu de nível
-        io.to(socket.currentRoomId).emit('floatingTextTriggered', { targetId: socket.id, text: `LEVEL UP!`, type: 'buff' });
-        socket.emit('levelUpNotification');
+        io.to(roomId).emit('floatingTextTriggered', { targetId: socket.id, text: `LEVEL UP!`, type: 'buff' });
     }
 }
 
@@ -594,10 +599,15 @@ function distributeNpcRewards(state, defeatedNpc, roomId) {
             playerInfo.characterSheet.xp += xpShare;
             playerInfo.characterSheet.money += moneyShare;
             
-            // Acessa o socket do jogador para checar por level up
+            const adventureFighter = state.fighters.players[player.id];
+            if(adventureFighter) {
+                adventureFighter.xp = playerInfo.characterSheet.xp;
+                adventureFighter.money = playerInfo.characterSheet.money;
+            }
+            
             const playerSocket = io.sockets.sockets.get(player.id);
             if(playerSocket) {
-                checkForLevelUp(playerInfo, playerSocket);
+                checkForLevelUp(playerInfo, playerSocket, roomId);
             }
         }
         
@@ -2064,13 +2074,19 @@ io.on('connection', (socket) => {
                                         const finalMoney = parseInt(money, 10) || 0;
                                         playerInfo.characterSheet.xp += finalXp;
                                         playerInfo.characterSheet.money += finalMoney;
+
+                                        if(room.activeMode === 'adventure' && room.gameModes.adventure.fighters.players[playerId]){
+                                            const adventureFighter = room.gameModes.adventure.fighters.players[playerId];
+                                            adventureFighter.xp = playerInfo.characterSheet.xp;
+                                            adventureFighter.money = playerInfo.characterSheet.money;
+                                        }
+
                                         if (finalXp > 0 || finalMoney > 0) {
                                             logMessage(theaterState, `GM concedeu ${finalXp} XP e ${finalMoney} moedas para ${playerInfo.characterName}.`, 'info');
                                         }
-                                        // Check for level up after awarding XP
                                         const playerSocket = io.sockets.sockets.get(playerId);
                                         if(playerSocket) {
-                                            checkForLevelUp(playerInfo, playerSocket);
+                                            checkForLevelUp(playerInfo, playerSocket, roomId);
                                         }
                                     }
                                 });
