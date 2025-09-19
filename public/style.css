@@ -853,6 +853,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
      font-size: 1.5em;
      font-weight: bold;
      padding-right: 10px;
+     grid-column: 2;
 }
 #ingame-sheet-attributes .attr-item .number-input-wrapper,
 #ingame-sheet-elements .attr-item .number-input-wrapper {
