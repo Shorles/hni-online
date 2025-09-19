@@ -821,16 +821,46 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 
 /* --- ESTILOS PARA DISTRIBUIÇÃO DE PONTOS E RECOMPENSAS --- */
 .point-dist-label {
-    display: block;
-    text-align: center;
-    font-size: 1.1em;
+    display: inline;
+    font-size: 0.9em;
     color: #ffc107;
-    margin: 15px 0 10px;
 }
 
-.point-distribution-grid .attr-item {
-    background: rgba(0,0,0,0.3);
-    padding: 5px;
+.point-distribution-grid {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+}
+.point-distribution-grid .number-input-wrapper {
+    grid-column: 3;
+}
+
+.attributes-grid .attr-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    background: none;
+    padding: 5px 0;
+}
+.elements-grid .attr-item {
+     grid-template-columns: 1fr auto;
+}
+
+.attributes-grid .attr-item > label,
+.elements-grid .attr-item > label {
+    justify-self: start;
+}
+.attributes-grid .attr-item > span,
+.elements-grid .attr-item > span {
+     justify-self: end;
+     font-size: 1.5em;
+     font-weight: bold;
+}
+.attributes-grid .attr-item .number-input-wrapper,
+.elements-grid .attr-item .number-input-wrapper {
+    grid-column: 2;
+    justify-self: end;
 }
 
 .point-distribution-grid input[type="number"] {
@@ -1381,4 +1411,11 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     color: transparent;
     -webkit-text-fill-color: transparent;
     border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.life-bars.ingame-life-bars {
+    padding: 10px;
+    background-color: rgba(0,0,0,0.3);
+    border-radius: 5px;
+    margin-bottom: 10px;
 }
