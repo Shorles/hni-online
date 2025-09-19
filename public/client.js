@@ -3017,10 +3017,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let hasPointsToDistribute = false;
 
         const renderSpellsForLevelUp = () => {
+            spellContainer.innerHTML = '';
             if (sheet.spellChoicesAvailable && sheet.spellChoicesAvailable.length > 0) {
                 hasPointsToDistribute = true;
                 spellContainer.classList.remove('hidden');
-                spellContainer.innerHTML = '';
                 
                 sheet.spellChoicesAvailable.forEach((choice, index) => {
                     const choiceContainer = document.createElement('div');
@@ -3063,7 +3063,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             } else {
                 spellContainer.classList.add('hidden');
-                spellContainer.innerHTML = '';
             }
             confirmBtn.classList.toggle('hidden', !hasPointsToDistribute);
         };
@@ -3099,20 +3098,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 upBtn.onclick = () => {
                     if (remainingAttr > 0) {
                         remainingAttr--;
-                        input.value = parseInt(input.value, 10) + 1;
-                        stagedLevelUpChanges.attrPointsSpent++;
                         stagedLevelUpChanges.newBaseAttributes[attrName]++;
+                        input.value = stagedLevelUpChanges.newBaseAttributes[attrName];
+                        stagedLevelUpChanges.attrPointsSpent++;
                         document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
                         updateAttrButtons();
                     }
                 };
 
                 downBtn.onclick = () => {
-                    if (parseInt(input.value, 10) > baseValue) {
+                    if (parseInt(input.value) > baseValue) {
                         remainingAttr++;
-                        input.value = parseInt(input.value, 10) - 1;
-                        stagedLevelUpChanges.attrPointsSpent--;
                         stagedLevelUpChanges.newBaseAttributes[attrName]--;
+                        input.value = stagedLevelUpChanges.newBaseAttributes[attrName];
+                        stagedLevelUpChanges.attrPointsSpent--;
                         document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
                         updateAttrButtons();
                     }
@@ -3152,20 +3151,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 upBtn.onclick = () => {
                     if (remainingElem > 0 && parseInt(input.value) < 2) {
                         remainingElem--;
-                        input.value = parseInt(input.value, 10) + 1;
-                        stagedLevelUpChanges.elemPointsSpent++;
                         stagedLevelUpChanges.newBaseElements[elemName]++;
+                        input.value = stagedLevelUpChanges.newBaseElements[elemName];
+                        stagedLevelUpChanges.elemPointsSpent++;
                         document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
                         updateElemButtons();
                         renderSpellsForLevelUp();
                     }
                 };
                  downBtn.onclick = () => {
-                    if (parseInt(input.value, 10) > baseValue) {
+                    if (parseInt(input.value) > baseValue) {
                         remainingElem++;
-                        input.value = parseInt(input.value, 10) - 1;
-                        stagedLevelUpChanges.elemPointsSpent--;
                         stagedLevelUpChanges.newBaseElements[elemName]--;
+                        input.value = stagedLevelUpChanges.newBaseElements[elemName];
+                        stagedLevelUpChanges.elemPointsSpent--;
                         document.getElementById('ingame-elem-points-avail').textContent = remainingElem;
                         updateElemButtons();
                         renderSpellsForLevelUp();
