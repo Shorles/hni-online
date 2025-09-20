@@ -17,6 +17,7 @@ app.get('/favicon.ico', (req, res) => res.status(204).send());
 
 let ALL_NPCS = {};
 let PLAYABLE_CHARACTERS = [];
+let ALL_PLAYER_IMAGES = [];
 let DYNAMIC_CHARACTERS = [];
 let ALL_SCENARIOS = {};
 let GAME_RULES = {};
@@ -43,6 +44,14 @@ try {
     const characters = JSON.parse(charactersData);
     PLAYABLE_CHARACTERS = characters.players || [];
     ALL_NPCS = characters.npcs || {}; 
+
+    // Lê as imagens de token personalizáveis para os jogadores
+    const playerImagesPath = 'public/images/players/';
+    if (fs.existsSync(playerImagesPath)) {
+        ALL_PLAYER_IMAGES = fs.readdirSync(playerImagesPath)
+            .filter(file => file.toLowerCase().startsWith('player (') && (file.endsWith('.png') || file.endsWith('.jpg')))
+            .map(file => `/images/players/${file}`);
+    }
 
     const rulesData = fs.readFileSync('public/rules.json', 'utf8');
     GAME_RULES = JSON.parse(rulesData);
@@ -1492,6 +1501,7 @@ io.on('connection', (socket) => {
         spells: ALL_SPELLS,
         weaponImages: ALL_WEAPON_IMAGES,
         items: ALL_ITEMS, 
+        playerImages: ALL_PLAYER_IMAGES,
         characters: { 
             players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `/images/players/${name}.png` })), 
             npcs: Object.keys(ALL_NPCS).map(name => ({ 

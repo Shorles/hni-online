@@ -58,7 +58,7 @@
         </div>
     </div>
 
-    <!-- TELA DE SELEÇÃO DE PERSONAGENS (TOKEN) -->
+    <!-- TELA DE SELEÇÃO DE PERSONAGENS (TOKEN) - AGORA IGNORADA -->
     <div id="selection-screen" class="screen">
         <h1 id="selection-title">Selecione seu Personagem (Token)</h1>
         <div id="character-list-container"></div>
@@ -73,6 +73,9 @@
             </div>
 
             <div class="sheet-main-info">
+                <!-- NOVO TOKEN PLACEHOLDER -->
+                <div id="sheet-token-placeholder" class="sheet-token-placeholder" title="Clique para escolher um token personalizado"></div>
+
                 <div class="sheet-field">
                     <label for="sheet-name">Nome:</label>
                     <input type="text" id="sheet-name" placeholder="Nome do Personagem">
@@ -215,6 +218,12 @@
                 <button id="sheet-confirm-btn" class="sheet-btn confirm">Concluir e Jogar</button>
             </div>
         </div>
+    </div>
+
+    <!-- MODAL DE PRÉ-VISUALIZAÇÃO DA RAÇA -->
+    <div id="race-preview-modal" class="race-preview-modal hidden">
+        <img id="race-preview-img1" class="race-preview-image" src="" alt="Pré-visualização da Raça 1">
+        <img id="race-preview-img2" class="race-preview-image" src="" alt="Pré-visualização da Raça 2">
     </div>
 
 

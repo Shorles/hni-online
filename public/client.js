@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ALL_SPELLS = {};
     let ALL_WEAPON_IMAGES = {};
     let ALL_ITEMS = {}; 
+    let ALL_PLAYER_IMAGES = [];
 
     // --- VARIÁVEIS DE ESTADO ---
     let myRole = null, myPlayerKey = null, isGm = false;
@@ -41,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let shopStagedItems = {}; 
     let isShopOpen = false;
     let stagedLevelUpChanges = {};
+    let isRacePreviewFixed = false;
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -69,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const coordsDisplay = document.getElementById('coords-display');
     const playerInfoWidget = document.getElementById('player-info-widget');
     const ingameSheetModal = document.getElementById('ingame-sheet-modal');
+    const racePreviewModal = document.getElementById('race-preview-modal');
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -1922,13 +1925,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
-        stagedCharacterSheet.spells = []; 
-        stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
-        stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
+        stagedCharacterSheet = {
+            spells: [],
+            weapon1: { img: null, isRanged: false },
+            weapon2: { img: null, isRanged: false },
+            tokenImg: null, // Token final
+            manualTokenImg: null, // Token escolhido manualmente
+            raceTokenImg: null, // Token vindo da raça
+        };
+        isRacePreviewFixed = false;
+        racePreviewModal.classList.add('hidden');
 
         const raceSelect = document.getElementById('sheet-race-select');
         raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(race => `<option value="${race}">${race}</option>`).join('');
-
+        
         const createEquipmentOptions = (type) => {
             return Object.entries(GAME_RULES[type])
                 .map(([name, data]) => `<option value="${name}">${name} (${data.cost} moedas)</option>`)
@@ -1962,8 +1972,90 @@ document.addEventListener('DOMContentLoaded', () => {
                 input.dispatchEvent(new Event('change', { bubbles: true }));
             });
         });
+
+        // Event listeners para a nova lógica de token
+        document.getElementById('sheet-token-placeholder').onclick = showManualTokenSelectionModal;
+        
+        const raceOptions = raceSelect.options;
+        for (let i = 0; i < raceOptions.length; i++) {
+            raceOptions[i].addEventListener('mouseover', handleRaceHover);
+        }
+        raceSelect.addEventListener('mouseout', () => {
+            if (!isRacePreviewFixed) {
+                racePreviewModal.classList.add('hidden');
+            }
+        });
         
         updateCharacterSheet();
+    }
+
+    function showManualTokenSelectionModal() {
+        const content = `
+            <div class="character-list-container" style="max-height: 400px; overflow-y: auto;">
+                ${ALL_PLAYER_IMAGES.map(imgPath => {
+                    const name = imgPath.split('/').pop().split('.')[0];
+                    return `<div class="char-card" data-img="${imgPath}">
+                                <img src="${imgPath}" alt="${name}">
+                                <div class="char-name">${name}</div>
+                            </div>`;
+                }).join('')}
+            </div>`;
+
+        showCustomModal("Escolha um Token Personalizado", content, [{ text: "Voltar", closes: true }]);
+
+        document.querySelectorAll('#modal .char-card').forEach(card => {
+            card.onclick = () => {
+                const imgPath = card.dataset.img;
+                stagedCharacterSheet.manualTokenImg = imgPath;
+                stagedCharacterSheet.tokenImg = imgPath;
+                updateTokenDisplayOnSheet();
+                modal.classList.add('hidden');
+            };
+        });
+    }
+
+    function handleRaceHover(event) {
+        if (isRacePreviewFixed) return;
+        const raceName = event.target.value;
+        const img1 = document.getElementById('race-preview-img1');
+        const img2 = document.getElementById('race-preview-img2');
+
+        img1.src = `/images/players/${raceName}1.png`;
+        img2.src = `/images/players/${raceName}2.png`;
+        
+        img1.dataset.imgPath = `/images/players/${raceName}1.png`;
+        img2.dataset.imgPath = `/images/players/${raceName}2.png`;
+
+        racePreviewModal.classList.remove('hidden');
+    }
+    
+    function fixRacePreview() {
+        isRacePreviewFixed = true;
+        racePreviewModal.classList.remove('hidden');
+
+        document.querySelectorAll('.race-preview-image').forEach(img => {
+            img.onclick = (e) => {
+                const imgPath = e.target.dataset.imgPath;
+                stagedCharacterSheet.raceTokenImg = imgPath;
+                if (!stagedCharacterSheet.manualTokenImg) {
+                    stagedCharacterSheet.tokenImg = imgPath;
+                }
+                updateTokenDisplayOnSheet();
+                isRacePreviewFixed = false;
+                racePreviewModal.classList.add('hidden');
+            };
+        });
+    }
+    
+    function updateTokenDisplayOnSheet() {
+        const placeholder = document.getElementById('sheet-token-placeholder');
+        if (stagedCharacterSheet.tokenImg) {
+            placeholder.style.backgroundImage = `url('${stagedCharacterSheet.tokenImg}')`;
+            placeholder.classList.add('has-image');
+        } else {
+            placeholder.style.backgroundImage = 'none';
+            placeholder.classList.remove('has-image');
+        }
     }
 
     function getElementColors(elementName, requiredElements = []) {
@@ -1981,8 +2073,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return `linear-gradient(90deg, ${colors[elementName] || '#ffffff'} 100%, ${colors[elementName] || '#ffffff'} 100%)`;
     }
     
-    function updateCharacterSheet(loadedData = null) {
+    function updateCharacterSheet(loadedData = null, event = null) {
         if (!GAME_RULES.races) return; 
+        
+        if (event && event.type === 'change' && event.target.id === 'sheet-race-select') {
+            isRacePreviewFixed = false; // Reset on new race selection change
+            fixRacePreview();
+        }
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
         
@@ -2281,7 +2378,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = {
             name: isCreation ? document.getElementById('sheet-name').value : myFighter.sheet.name,
-            tokenName: isCreation ? stagedCharacterSheet.tokenName : myFighter.sheet.tokenName,
+            tokenName: isCreation ? (stagedCharacterSheet.tokenImg ? stagedCharacterSheet.tokenImg.split('/').pop().split('.')[0] : '') : myFighter.sheet.tokenName,
             tokenImg: isCreation ? stagedCharacterSheet.tokenImg : myFighter.sheet.tokenImg,
             class: isCreation ? document.getElementById('sheet-class').value : myFighter.sheet.class,
             race: isCreation ? document.getElementById('sheet-race-select').value : myFighter.sheet.race,
@@ -2376,8 +2473,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!GAME_RULES.races[decryptedData.race]) {
                         throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida nas regras atuais do jogo.`);
                     }
-                    stagedCharacterSheet.tokenName = decryptedData.tokenName || '';
-                    stagedCharacterSheet.tokenImg = decryptedData.tokenImg || '';
+                    stagedCharacterSheet.tokenImg = decryptedData.tokenImg || null;
+                    stagedCharacterSheet.manualTokenImg = decryptedData.tokenImg || null;
+                    stagedCharacterSheet.raceTokenImg = null;
                     stagedCharacterSheet.spells = decryptedData.spells || [];
                     stagedCharacterSheet.weapon1 = decryptedData.equipment?.weapon1 || { img: null, isRanged: false, type: 'Desarmado' };
                     stagedCharacterSheet.weapon2 = decryptedData.equipment?.weapon2 || { img: null, isRanged: false, type: 'Desarmado' };
@@ -2404,6 +2502,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('sheet-armor-type').value = decryptedData.equipment?.armor || 'Nenhuma';
                     document.getElementById('sheet-shield-type').value = decryptedData.equipment?.shield || 'Nenhum';
 
+                    updateTokenDisplayOnSheet();
                     updateCharacterSheet();
                     showScreen(document.getElementById('character-sheet-screen'));
                 } else if (context === 'ingame') {
@@ -3248,6 +3347,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_ITEMS = data.items || {};
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
+        ALL_PLAYER_IMAGES = data.playerImages || [];
     
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
@@ -3562,8 +3662,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('join-as-spectator-btn').addEventListener('click', () => socket.emit('playerChoosesRole', { role: 'spectator' }));
         
         document.getElementById('new-char-btn').addEventListener('click', () => {
-            showScreen(document.getElementById('selection-screen'));
-            renderPlayerTokenSelection();
+            initializeCharacterSheet();
+            showScreen(document.getElementById('character-sheet-screen'));
         });
         document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
         document.getElementById('load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'creation'));
