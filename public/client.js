@@ -3379,9 +3379,10 @@ document.addEventListener('DOMContentLoaded', () => {
             textEl.style.top = `${y}px`;
             textEl.style.setProperty('--y-offset', `${yOffset}px`);
 
+            const duration = type === 'level-up' ? 3000 : 2000;
             setTimeout(() => {
                 textEl.remove();
-            }, 3000);
+            }, duration);
         }, textsForDelay * 100);
     });
 
@@ -3634,3 +3635,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     initialize();
+});
