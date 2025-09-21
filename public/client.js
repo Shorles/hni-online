@@ -1976,16 +1976,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Event listeners para a nova lógica de token
         document.getElementById('sheet-token-placeholder').onclick = showManualTokenSelectionModal;
         
-        const raceOptions = raceSelect.options;
-        for (let i = 0; i < raceOptions.length; i++) {
-            raceOptions[i].addEventListener('mouseover', handleRaceHover);
-        }
-        raceSelect.addEventListener('mouseout', () => {
-            if (!isRacePreviewFixed) {
-                racePreviewModal.classList.add('hidden');
-            }
-        });
-        
         updateCharacterSheet();
     }
 
@@ -2013,10 +2003,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
     }
-
-    function handleRaceHover(event) {
-        if (isRacePreviewFixed) return;
-        const raceName = event.target.value;
+    
+    function fixRacePreview(raceName) {
         const img1 = document.getElementById('race-preview-img1');
         const img2 = document.getElementById('race-preview-img2');
 
@@ -2027,11 +2015,6 @@ document.addEventListener('DOMContentLoaded', () => {
         img2.dataset.imgPath = `/images/players/${raceName}2.png`;
 
         racePreviewModal.classList.remove('hidden');
-    }
-    
-    function fixRacePreview() {
-        isRacePreviewFixed = true;
-        racePreviewModal.classList.remove('hidden');
 
         document.querySelectorAll('.race-preview-image').forEach(img => {
             img.onclick = (e) => {
@@ -2041,7 +2024,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     stagedCharacterSheet.tokenImg = imgPath;
                 }
                 updateTokenDisplayOnSheet();
-                isRacePreviewFixed = false;
                 racePreviewModal.classList.add('hidden');
             };
         });
@@ -2076,9 +2058,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateCharacterSheet(loadedData = null, event = null) {
         if (!GAME_RULES.races) return; 
         
+        const raceSelect = document.getElementById('sheet-race-select');
+        const selectedRace = loadedData ? loadedData.race : raceSelect.value;
+        
         if (event && event.type === 'change' && event.target.id === 'sheet-race-select') {
-            isRacePreviewFixed = false; // Reset on new race selection change
-            fixRacePreview();
+            fixRacePreview(selectedRace);
         }
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
@@ -2088,7 +2072,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const shieldSelect = document.getElementById('sheet-shield-type');
         const armorSelect = document.getElementById('sheet-armor-type');
         
-        const selectedRace = loadedData ? loadedData.race : document.getElementById('sheet-race-select').value;
         const raceData = GAME_RULES.races[selectedRace];
         const baseAttributes = loadedData ? loadedData.baseAttributes : {
             forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0, agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
