@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ALL_WEAPON_IMAGES = {};
     let ALL_ITEMS = {}; 
     let ALL_PLAYER_IMAGES = [];
+    let ALL_SUMMONS = {};
 
     // --- VARIÁVEIS DE ESTADO ---
     let myRole = null, myPlayerKey = null, isGm = false;
@@ -151,11 +152,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const playerLobbyData = state.connectedPlayers?.[key];
         const lobbySheet = playerLobbyData?.characterSheet;
-        const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key];
+        const fighterInBattle = state.fighters?.players[key] || state.fighters?.npcs[key] || state.fighters?.summons[key];
     
         if (fighterInBattle) {
             // Unifica a ficha do lobby com a ficha da batalha para ter os dados mais recentes
-            const finalSheet = { ...fighterInBattle.sheet, ...lobbySheet };
+            const finalSheet = fighterInBattle.isPlayer ? { ...fighterInBattle.sheet, ...lobbySheet } : fighterInBattle.sheet;
             return { ...fighterInBattle, sheet: finalSheet };
         }
     
@@ -1036,6 +1037,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
+        // Render Summons
+        Object.keys(state.fighters.summons || {}).forEach(key => {
+            const summon = state.fighters.summons[key];
+            if (summon.status === 'fled' || summon.status === 'banished') return;
+            const ownerEl = document.getElementById(summon.ownerId);
+            let position = state.customPositions[summon.id];
+            if (!position && ownerEl) {
+                const ownerRect = ownerEl.getBoundingClientRect();
+                const gameWrapperRect = gameWrapper.getBoundingClientRect();
+                const gameScale = getGameScale();
+                const x = (ownerRect.left - gameWrapperRect.left) / gameScale + (ownerEl.classList.contains('player-char-container') ? 80 : -80);
+                const y = (ownerRect.top - gameWrapperRect.top) / gameScale + 50;
+                position = { left: `${x}px`, top: `${y}px` };
+            }
+             if (position) {
+                const el = createFighterElement(summon, 'summon', state, position);
+                if (el) fightSceneCharacters.appendChild(el);
+             }
+        });
+        
         updateTargetableStatus();
         renderActionButtons(state);
         renderTurnOrderUI(state);
@@ -1129,8 +1150,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         }
+        
+        const durationHtml = fighter.isSummon && fighter.duration ? `<span class="summon-duration">(${fighter.duration} turnos)</span>` : '';
     
-        container.innerHTML = `${marksHtml}${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome}</div>`;
+        container.innerHTML = `${marksHtml}${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome} ${durationHtml}</div>`;
         return container;
     }
 
@@ -1141,24 +1164,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeFighter = getFighter(currentGameState, currentGameState.activeCharacterKey);
         if (!activeFighter) return;
 
-        const canIControlThisTurn = (myPlayerKey === currentGameState.activeCharacterKey) || (isGm && !activeFighter.isPlayer);
+        const canIControlThisTurn = (myPlayerKey === currentGameState.activeCharacterKey) || (isGm && !activeFighter.isPlayer && !activeFighter.isSummon) || (activeFighter.isSummon && activeFighter.ownerId === myPlayerKey);
         if (!canIControlThisTurn) return;
-
-        const isActiveFighterPlayer = !!currentGameState.fighters.players[activeFighter.id];
+        
+        const isActiveFighterPlayerSide = activeFighter.isPlayer || activeFighter.isSummon;
         const isAllyTargetAction = targetingAction.type === 'use_spell' && ['single_ally', 'all_allies'].includes(targetingAction.spell.targetType);
 
         document.querySelectorAll('.char-container').forEach(container => {
             const fighter = getFighter(currentGameState, container.id);
             if (!fighter || fighter.status !== 'active') return;
 
-            const isThisFighterPlayer = !!currentGameState.fighters.players[fighter.id];
+            const isThisFighterPlayerSide = fighter.isPlayer || fighter.isSummon;
 
             if (isAllyTargetAction) {
-                if (isThisFighterPlayer === isActiveFighterPlayer) {
+                if (isThisFighterPlayerSide === isActiveFighterPlayerSide) {
                     container.classList.add('targetable');
                 }
             } else { // Ataque ou magia ofensiva
-                if (isThisFighterPlayer !== isActiveFighterPlayer) {
+                if (isThisFighterPlayerSide !== isActiveFighterPlayerSide) {
                     container.classList.add('targetable');
                 }
             }
@@ -1173,7 +1196,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!activeFighter) return;
 
         const isNpcTurn = !!state.fighters.npcs[activeFighter.id];
-        const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn);
+        const isMySummonTurn = activeFighter.isSummon && activeFighter.ownerId === myPlayerKey;
+        const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn) || isMySummonTurn;
         
         const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
         const finalCanControl = canControl && !isStunned;
@@ -1195,42 +1219,47 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             return btn;
         };
-
-        const createAttackButton = (weaponKey) => {
-            const weapon = activeFighter.sheet.equipment[weaponKey];
-            if (weapon && weapon.type !== 'Desarmado') {
-                const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
-                const btn = createButton(
-                    `Atacar com ${weapon.name} (2 PA)`,
-                    () => startAttackSequence(weaponKey),
-                    !finalCanControl,
-                    'action-btn',
-                    ammo
-                );
+        
+        // Summons don't have dual wield or complex weapons
+        if (activeFighter.isSummon) {
+             const btn = createButton('Ataque Básico (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
+             actionButtonsWrapper.appendChild(btn);
+        } else {
+            const createAttackButton = (weaponKey) => {
+                const weapon = activeFighter.sheet.equipment[weaponKey];
+                if (weapon && weapon.type !== 'Desarmado') {
+                    const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
+                    const btn = createButton(
+                        `Atacar com ${weapon.name} (2 PA)`,
+                        () => startAttackSequence(weaponKey),
+                        !finalCanControl,
+                        'action-btn',
+                        ammo
+                    );
+                    actionButtonsWrapper.appendChild(btn);
+                    attackButtonAdded = true;
+                }
+            };
+            createAttackButton('weapon1');
+            createAttackButton('weapon2');
+            
+            if (!attackButtonAdded) {
+                const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
                 actionButtonsWrapper.appendChild(btn);
-                attackButtonAdded = true;
             }
-        };
 
-        createAttackButton('weapon1');
-        createAttackButton('weapon2');
-        
-        if (!attackButtonAdded) {
-            const btn = createButton('Atacar Desarmado (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
-            actionButtonsWrapper.appendChild(btn);
-        }
+            const weapon1 = activeFighter.sheet.equipment.weapon1;
+            const weapon2 = activeFighter.sheet.equipment.weapon2;
+            const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
+            
+            if (isDualWielding) {
+                let ammo1 = weapon1.isRanged ? activeFighter.ammunition?.['weapon1'] : Infinity;
+                let ammo2 = weapon2.isRanged ? activeFighter.ammunition?.['weapon2'] : Infinity;
+                let dualDisabled = ammo1 <= 0 || ammo2 <= 0;
 
-        const weapon1 = activeFighter.sheet.equipment.weapon1;
-        const weapon2 = activeFighter.sheet.equipment.weapon2;
-        const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
-        
-        if (isDualWielding) {
-            let ammo1 = weapon1.isRanged ? activeFighter.ammunition?.['weapon1'] : Infinity;
-            let ammo2 = weapon2.isRanged ? activeFighter.ammunition?.['weapon2'] : Infinity;
-            let dualDisabled = ammo1 <= 0 || ammo2 <= 0;
-
-            const btn = createButton('Ataque Duplo (3 PA)', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
-            actionButtonsWrapper.appendChild(btn);
+                const btn = createButton('Ataque Duplo (3 PA)', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
+                actionButtonsWrapper.appendChild(btn);
+            }
         }
 
         const fighterSpells = activeFighter.sheet?.spells || [];
@@ -1248,7 +1277,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !finalCanControl, 'action-btn flee-btn'));
+        // Summons cannot flee
+        if (!activeFighter.isSummon) {
+             actionButtonsWrapper.appendChild(createButton('Fugir', () => socket.emit('playerAction', { type: 'flee', actorKey: state.activeCharacterKey }), !finalCanControl, 'action-btn flee-btn'));
+        }
+
         actionButtonsWrapper.appendChild(createButton('Encerrar Turno', () => socket.emit('playerAction', { type: 'end_turn', actorKey: state.activeCharacterKey }), !finalCanControl, 'end-turn-btn'));
     }
 
@@ -1263,7 +1296,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function startSpellSequence(spell) {
-        if (spell.targetType === 'self' || spell.targetType === 'all_allies' || spell.targetType === 'all_enemies') {
+        if (spell.targetType === 'self' || spell.targetType === 'all_allies' || spell.targetType === 'all_enemies' || spell.effect.type === 'summon' || spell.effect.type === 'summon_elemental') {
              socket.emit('playerAction', {
                 type: 'use_spell',
                 attackerKey: currentGameState.activeCharacterKey,
@@ -1318,6 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'turn-order-card';
             if (index === 0) card.classList.add('active-turn-indicator');
+            if (fighter.isSummon) card.classList.add('summon-card');
             const img = document.createElement('img');
             img.src = fighter.img;
             img.alt = fighter.nome;
@@ -1403,8 +1437,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
         document.querySelectorAll('.char-container.target-highlight').forEach(el => el.classList.remove('target-highlight'));
         
-        const alliesSelector = activeFighter.isPlayer ? '.player-char-container' : '.npc-char-container';
-        const enemiesSelector = activeFighter.isPlayer ? '.npc-char-container' : '.player-char-container';
+        const alliesSelector = (activeFighter.isPlayer || activeFighter.isSummon) ? '.player-char-container, .summon-char-container' : '.npc-char-container';
+        const enemiesSelector = (activeFighter.isPlayer || activeFighter.isSummon) ? '.npc-char-container' : '.player-char-container, .summon-char-container';
+
 
         if (spell.targetType === 'adjacent_enemy') {
             const targetIndex = currentGameState.npcSlots.indexOf(targetKey);
@@ -2049,6 +2084,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event && event.type === 'change' && event.target.id === 'sheet-race-select') {
             if (selectedRace) {
                 fixRacePreview(selectedRace);
+            } else {
+                racePreviewModal.classList.add('hidden');
             }
         }
         
@@ -2452,7 +2489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     document.getElementById('sheet-name').value = decryptedData.name || '';
                     document.getElementById('sheet-class').value = decryptedData.class || '';
-                    document.getElementById('sheet-race-select').value = decryptedData.race || 'Humano';
+                    document.getElementById('sheet-race-select').value = decryptedData.race || '';
 
                     Object.keys(decryptedData.baseAttributes || {}).forEach(attr => {
                         const input = document.getElementById(`sheet-base-attr-${attr}`);
@@ -3321,6 +3358,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_SPELLS = data.spells;
         ALL_WEAPON_IMAGES = data.weaponImages;
         ALL_ITEMS = data.items || {};
+        ALL_SUMMONS = data.summons || {};
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
         ALL_PLAYER_IMAGES = data.playerImages || [];

@@ -24,6 +24,7 @@ let GAME_RULES = {};
 let ALL_SPELLS = {};
 let ALL_WEAPON_IMAGES = {};
 let ALL_ITEMS = {}; 
+let ALL_SUMMONS = {};
 
 const MAX_PLAYERS = 4;
 const MAX_NPCS = 5; 
@@ -59,6 +60,8 @@ try {
     ALL_SPELLS = JSON.parse(spellsData);
     const itemsData = fs.readFileSync('public/items.json', 'utf8'); 
     ALL_ITEMS = JSON.parse(itemsData);
+    const summonsData = fs.readFileSync('public/summons.json', 'utf8');
+    ALL_SUMMONS = JSON.parse(summonsData);
     
     const weaponImagesConfigData = fs.readFileSync('public/weaponImages.json', 'utf8');
     const weaponImagesConfig = JSON.parse(weaponImagesConfigData);
@@ -146,7 +149,7 @@ function createNewLobbyState(gmId) { return { mode: 'lobby', phase: 'waiting_pla
 
 function createNewAdventureState(gmId, connectedPlayers) {
     const adventureState = {
-        mode: 'adventure', fighters: { players: {}, npcs: {} }, npcSlots: new Array(MAX_NPCS).fill(null), 
+        mode: 'adventure', fighters: { players: {}, npcs: {}, summons: {} }, npcSlots: new Array(MAX_NPCS).fill(null), 
         customPositions: {},
         winner: null, reason: null, currentRound: 1,
         activeCharacterKey: null, turnOrder: [], turnIndex: 0, initiativeRolls: {}, 
@@ -202,7 +205,8 @@ function filterPublicTheaterState(scenarioState) {
 
 
 function createNewFighterState(data) {
-    const sourceData = data.isPlayer ? data.sheetData : data;
+    const isSummon = !!data.isSummon;
+    const sourceData = (data.isPlayer || isSummon) ? data.sheetData : data;
 
     const fighter = {
         id: data.id || `npc-${uuidv4()}`,
@@ -211,6 +215,9 @@ function createNewFighterState(data) {
         status: 'active',
         scale: sourceData.scale !== undefined ? parseFloat(sourceData.scale) : 1.0,
         isPlayer: !!data.isPlayer,
+        isSummon: isSummon,
+        ownerId: data.ownerId || null,
+        duration: data.duration || null,
         pa: 3,
         hasTakenFirstTurn: false,
         activeEffects: [],
@@ -225,7 +232,6 @@ function createNewFighterState(data) {
         fighter.xp = sourceData.xp || 0;
         fighter.xpNeeded = sourceData.xpNeeded || LEVEL_UP_TABLE[2]?.xp || 100;
         
-        // Inicializa campos de level up se não existirem
         fighter.sheet.unallocatedAttrPoints = fighter.sheet.unallocatedAttrPoints || 0;
         fighter.sheet.unallocatedElemPoints = fighter.sheet.unallocatedElemPoints || 0;
         fighter.sheet.spellChoicesAvailable = fighter.sheet.spellChoicesAvailable || [];
@@ -242,7 +248,22 @@ function createNewFighterState(data) {
         fighter.inventory = sourceData.inventory || {};
         fighter.ammunition = sourceData.ammunition || {};
 
-    } else { // NPC
+    } else if (isSummon) {
+        const summonData = sourceData;
+        fighter.level = 1;
+        fighter.sheet = {
+            baseAttributes: {},
+            finalAttributes: summonData.attributes,
+            equipment: { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
+            spells: summonData.spells || []
+        };
+        fighter.hpMax = summonData.attributes.hp;
+        fighter.hp = summonData.attributes.hp;
+        fighter.mahouMax = summonData.attributes.mahou;
+        fighter.mahou = summonData.attributes.mahou;
+        fighter.specialEffect = summonData.specialEffect || null;
+    }
+    else { // NPC
         fighter.level = 1;
         fighter.xpReward = data.xpReward !== undefined ? data.xpReward : 30;
         fighter.moneyReward = data.moneyReward !== undefined ? data.moneyReward : 0;
@@ -393,7 +414,7 @@ function logMessage(state, text, type = 'info') {
 
 function getFighter(state, key) {
     if (!key) return null;
-    return state.fighters.players[key] || state.fighters.npcs[key];
+    return state.fighters.players[key] || state.fighters.npcs[key] || state.fighters.summons[key];
 }
 
 function getAttributeBreakdown(fighter, attr) {
@@ -403,7 +424,7 @@ function getAttributeBreakdown(fighter, attr) {
     if (fighter && fighter.sheet) {
         // Para players, começamos com os atributos base + raciais/etc
         // Para NPCs, finalAttributes é a base
-        const baseAttributes = fighter.isPlayer ? fighter.sheet.finalAttributes : fighter.sheet.finalAttributes;
+        const baseAttributes = (fighter.isPlayer || fighter.isSummon) ? fighter.sheet.finalAttributes : fighter.sheet.finalAttributes;
         const baseValue = baseAttributes[attr] || 0;
         details[`Base (${attr})`] = baseValue;
         total += baseValue;
@@ -630,8 +651,10 @@ function distributeNpcRewards(state, defeatedNpc, roomId) {
 function checkGameOver(state) {
     const activePlayers = Object.values(state.fighters.players).filter(p => p.status === 'active');
     const activeNpcs = Object.values(state.fighters.npcs).filter(n => n.status === 'active');
-    if (activePlayers.length === 0) {
-        state.winner = 'npcs'; state.reason = 'Todos os jogadores foram derrotados ou fugiram.';
+    const activeSummons = Object.values(state.fighters.summons).filter(s => s.status === 'active');
+
+    if (activePlayers.length === 0 && activeSummons.length === 0) {
+        state.winner = 'npcs'; state.reason = 'Todos os jogadores e invocações foram derrotados ou fugiram.';
         logMessage(state, 'Fim da batalha! Os inimigos venceram.', 'game_over');
     } else if (activeNpcs.length === 0) {
         state.winner = 'players'; state.reason = 'Todos os inimigos foram derrotados.';
@@ -710,8 +733,10 @@ function processActiveEffects(state, fighter, roomId) {
     if (fighter.hp <= 0 && fighter.status === 'active') {
         fighter.status = 'down';
         logMessage(state, `${fighter.nome} foi derrotado pelo dano contínuo!`, 'defeat');
-        if (!fighter.isPlayer) {
+        if (!fighter.isPlayer && !fighter.isSummon) {
             distributeNpcRewards(state, fighter, roomId);
+        } else if (fighter.isSummon) {
+             delete state.fighters.summons[fighter.id];
         }
     }
     
@@ -741,6 +766,19 @@ function advanceTurn(state, roomId) {
 
     state.activeCharacterKey = state.turnOrder[nextIndex];
     const activeFighter = getFighter(state, state.activeCharacterKey);
+    
+    if (activeFighter.isSummon) {
+        activeFighter.duration--;
+        if (activeFighter.duration <= 0) {
+            logMessage(state, `A invocação ${activeFighter.nome} desapareceu!`, 'info');
+            activeFighter.status = 'fled';
+            delete state.fighters.summons[activeFighter.id];
+            checkGameOver(state);
+            io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+            setTimeout(() => advanceTurn(state, roomId), 500);
+            return;
+        }
+    }
 
     if (activeFighter.hasTakenFirstTurn) {
         activeFighter.pa += 3;
@@ -952,12 +990,36 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                     logMessage(state, `Efeito secundário de ${buff.name} ativado em ${target.nome}!`, 'info');
                 }
             });
+            
+            // Efeito especial de Invocação
+            if (attacker.isSummon && attacker.specialEffect && attacker.specialEffect.type === 'on_basic_attack') {
+                if (Math.random() < attacker.specialEffect.chance) {
+                    const owner = getFighter(state, attacker.ownerId);
+                    const effectTarget = attacker.specialEffect.effect.target === 'owner' ? owner : target;
+                    if(effectTarget) {
+                        const tempSpell = { name: attacker.specialEffect.effect.name, effect: attacker.specialEffect.effect };
+                        applySpellEffect(state, roomId, attacker, effectTarget, tempSpell, {});
+                        logMessage(state, `Efeito especial de ${attacker.nome} (${attacker.specialEffect.effect.name}) ativado!`, 'info');
+                    }
+                }
+            }
+
 
             if (target.hp <= 0 && target.status === 'active') {
                 target.status = 'down';
                 logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
-                if (!target.isPlayer) {
+                if (!target.isPlayer && !target.isSummon) {
                     distributeNpcRewards(state, target, roomId);
+                } else if (target.isSummon) {
+                    delete state.fighters.summons[target.id];
+                } else if (target.isPlayer) {
+                    // Remove invocações do jogador derrotado
+                    Object.keys(state.fighters.summons).forEach(summonId => {
+                        if(state.fighters.summons[summonId].ownerId === target.id) {
+                            logMessage(state, `Com a queda de seu mestre, ${state.fighters.summons[summonId].nome} desaparece!`, 'info');
+                            delete state.fighters.summons[summonId];
+                        }
+                    });
                 }
             }
 
@@ -1033,6 +1095,30 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         attacker.cooldowns[spellName] = spell.cooldown + 1;
     }
 
+    // Lógica de Invocação
+    if (spell.effect.type === 'summon' || spell.effect.type === 'summon_elemental') {
+        logMessage(state, `${attacker.nome} inicia um ritual de invocação!`, 'info');
+        if (spell.effect.type === 'summon') { // Requer escolha
+            const summonPool = ALL_SUMMONS[`tier${spell.effect.tier}`];
+            const choices = Object.keys(summonPool).map(name => {
+                const img = ALL_NPCS[name] ? `/images/lutadores/${name}.png` : '/images/lutadores/default.png';
+                return { name, img };
+            });
+            const socket = io.sockets.sockets.get(attackerKey);
+            if (socket) {
+                socket.emit('promptForSummon', { tier: spell.effect.tier, choices, spell });
+            }
+        } else { // Invocação direta
+            handleSummon(state, roomId, {
+                summonerId: attackerKey,
+                spell,
+                choice: spell.effect.summonName
+            });
+        }
+        return;
+    }
+
+
     const targets = [];
     switch (spell.targetType) {
         case 'self':
@@ -1046,10 +1132,11 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             }
             break;
         case 'all_enemies':
-            if (attacker.isPlayer) {
+            if (attacker.isPlayer || attacker.isSummon) {
                 targets.push(...Object.values(state.fighters.npcs).filter(n => n.status === 'active'));
             } else {
                 targets.push(...Object.values(state.fighters.players).filter(p => p.status === 'active'));
+                targets.push(...Object.values(state.fighters.summons).filter(s => s.status === 'active'));
             }
             break;
         case 'adjacent_enemy':
@@ -1955,6 +2042,13 @@ io.on('connection', (socket) => {
                                  actor.status = 'fled';
                                  logMessage(adventureState, `${actor.nome} fugiu da batalha!`, 'info');
                                  io.to(roomId).emit('fleeResolved', { actorKey: action.actorKey });
+                                 // Remove invocações do jogador que fugiu
+                                 Object.keys(adventureState.fighters.summons).forEach(summonId => {
+                                     if(adventureState.fighters.summons[summonId].ownerId === actor.id) {
+                                         logMessage(adventureState, `Com a fuga de seu mestre, ${adventureState.fighters.summons[summonId].nome} desaparece!`, 'info');
+                                         delete adventureState.fighters.summons[summonId];
+                                     }
+                                 });
                                  checkGameOver(adventureState);
                                  setTimeout(() => {
                                      advanceTurn(adventureState, roomId);
@@ -2257,6 +2351,13 @@ io.on('connection', (socket) => {
         if (adventureState && adventureState.fighters.players[socket.id]) {
             adventureState.fighters.players[socket.id].status = 'disconnected';
             logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
+             // Remove invocações do jogador desconectado
+            Object.keys(adventureState.fighters.summons).forEach(summonId => {
+                if(adventureState.fighters.summons[summonId].ownerId === socket.id) {
+                    logMessage(adventureState, `Com a desconexão de seu mestre, ${adventureState.fighters.summons[summonId].nome} desaparece!`, 'info');
+                    delete adventureState.fighters.summons[summonId];
+                }
+            });
             checkGameOver(adventureState);
         }
         io.to(roomId).emit('gameUpdate', getFullState(room));

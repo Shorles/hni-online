@@ -1,0 +1,99 @@
+{
+  "elementals": {
+    "Elemental Fogo": {
+      "attributes": { "hp": 15, "mahou": 15, "forca": 1, "agilidade": 2, "protecao": 0, "constituicao": 1, "inteligencia": 1, "mente": 0 },
+      "spells": ["Brasa Azul"],
+      "specialEffect": {
+        "type": "on_basic_attack",
+        "chance": 0.15,
+        "effect": { "type": "dot", "name": "Queimadura", "damage": 3, "duration": 2 }
+      }
+    },
+    "Elemental Agua": {
+      "attributes": { "hp": 15, "mahou": 15, "forca": 1, "agilidade": 1, "protecao": 0, "constituicao": 1, "inteligencia": 2, "mente": 0 },
+      "spells": ["Congelamento"],
+      "specialEffect": {
+        "type": "on_basic_attack",
+        "chance": 0.15,
+        "effect": { "type": "dot", "name": "Afogamento", "damage": 2, "duration": 3 }
+      }
+    },
+    "Elemental Vento": {
+      "attributes": { "hp": 15, "mahou": 15, "forca": 0, "agilidade": 3, "protecao": 0, "constituicao": 1, "inteligencia": 1, "mente": 0 },
+      "spells": ["Faísca Elétrica"],
+      "specialEffect": {
+        "type": "on_basic_attack",
+        "chance": 0.20,
+        "effect": { "type": "buff", "target": "owner", "name": "Buff de Agilidade", "duration": 2, "modifiers": [{ "attribute": "agilidade", "value": 3 }] }
+      }
+    },
+    "Elemental Terra": {
+      "attributes": { "hp": 15, "mahou": 15, "forca": 2, "agilidade": 0, "protecao": 2, "constituicao": 0, "inteligencia": 1, "mente": 0 },
+      "spells": ["Armadura Metálica"],
+      "specialEffect": {
+        "type": "on_basic_attack",
+        "chance": 0.20,
+        "effect": { "type": "buff", "target": "owner", "name": "Buff de Proteção", "duration": 2, "modifiers": [{ "attribute": "protecao", "value": 1 }] }
+      }
+    },
+    "Elemental Luz": {
+      "attributes": { "hp": 15, "mahou": 15, "forca": 0, "agilidade": 1, "protecao": 0, "constituicao": 1, "inteligencia": 3, "mente": 0 },
+      "spells": ["Toque Restaurador"],
+      "specialEffect": {
+        "type": "on_basic_attack",
+        "chance": 0.10,
+        "effect": { "type": "status_effect", "name": "Cegueira", "status": "stunned", "duration": 1 }
+      }
+    },
+    "Elemental Escuridão": {
+      "attributes": { "hp": 30, "mahou": 15, "forca": 0, "agilidade": 2, "protecao": 0, "constituicao": 0, "inteligencia": 0, "mente": 0 },
+      "spells": ["Peso Aumentado"],
+      "specialEffect": {
+        "type": "on_basic_attack",
+        "chance": 0.15,
+        "effect": { "type": "resource_heal", "target": "owner", "name": "Dreno de Mahou", "resource": "mahou", "amount": 1 }
+      }
+    }
+  },
+  "tier1": {
+    "Aranha": {
+      "attributes": { "hp": 15, "mahou": 15, "forca": 1, "agilidade": 3, "protecao": 0, "constituicao": 0, "inteligencia": 0, "mente": 0 },
+      "spells": ["Cortina Abrasiva"],
+      "specialEffect": null
+    },
+    "Cobra": {
+      "attributes": { "hp": 15, "mahou": 15, "forca": 1, "agilidade": 3, "protecao": 0, "constituicao": 0, "inteligencia": 0, "mente": 0 },
+      "spells": ["Corrente Envenenada"],
+      "specialEffect": null
+    },
+    "Rato": {
+      "attributes": { "hp": 15, "mahou": 15, "forca": 1, "agilidade": 3, "protecao": 0, "constituicao": 0, "inteligencia": 0, "mente": 0 },
+      "spells": ["Marca Ígnea Sombria"],
+      "specialEffect": null
+    }
+  },
+  "tier2": {
+    "Ratazana": {
+      "attributes": { "hp": 25, "mahou": 20, "forca": 3, "agilidade": 3, "protecao": 1, "constituicao": 0, "inteligencia": 0, "mente": 0 },
+      "spells": ["Dreno de Energia", "Rajada de Ar"],
+      "specialEffect": null
+    },
+    "Dragão Jovem": {
+      "attributes": { "hp": 25, "mahou": 20, "forca": 3, "agilidade": 3, "protecao": 1, "constituicao": 0, "inteligencia": 0, "mente": 0 },
+      "spells": ["Baforada Dracônica", "Brasa Azul"],
+      "specialEffect": null
+    },
+    "Cobra Boss": {
+      "attributes": { "hp": 25, "mahou": 20, "forca": 3, "agilidade": 3, "protecao": 1, "constituicao": 0, "inteligencia": 0, "mente": 0 },
+      "spells": ["Pedrada", "Espinhos Terrestre"],
+      "specialEffect": null
+    }
+  },
+  "tier3": {
+    "Dragão": {
+      "attributes": { "hp": 40, "mahou": 30, "forca": 5, "agilidade": 2, "protecao": 2, "constituicao": 1, "inteligencia": 2, "mente": 2 },
+      "spells": ["Baforada Dracônica", "Brasa Azul", "Meteoros Flamejantes"],
+      "specialEffect": null
+    }
+  }
+}
