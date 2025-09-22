@@ -591,7 +591,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (myRole === 'player' && myPlayerData && !myPlayerData.characterFinalized) {
              const currentScreen = document.querySelector('.screen.active');
-             if (currentScreen.id !== 'character-sheet-screen' && currentScreen.id !== 'player-initial-choice-screen' && currentScreen.id !== 'selection-screen') {
+             if (currentScreen.id !== 'character-sheet-screen' && currentScreen.id !== 'player-initial-choice-screen') {
                  showScreen(document.getElementById('player-waiting-screen'));
              }
              return;
@@ -730,32 +730,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 playerListEl.innerHTML += `<li>${p.role === 'player' ? 'Jogador' : 'Espectador'} - Personagem: ${charName}</li>`;
             });
         }
-    }
-
-    function renderPlayerTokenSelection() {
-        const charListContainer = document.getElementById('character-list-container');
-        const confirmBtn = document.getElementById('confirm-selection-btn');
-        charListContainer.innerHTML = '';
-        confirmBtn.disabled = true;
-        let myCurrentSelection = stagedCharacterSheet.tokenImg; 
-
-        (ALL_CHARACTERS.players || []).forEach(data => {
-            const card = document.createElement('div');
-            card.className = 'char-card';
-            card.dataset.name = data.name;
-            card.dataset.img = data.img;
-            card.innerHTML = `<img src="${data.img}" alt="${data.name}"><div class="char-name">${data.name}</div>`;
-            if (myCurrentSelection === data.img) {
-                card.classList.add('selected');
-                confirmBtn.disabled = false;
-            }
-            card.addEventListener('click', () => {
-                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
-                confirmBtn.disabled = false;
-            });
-            charListContainer.appendChild(card);
-        });
     }
     
     function renderNpcSelectionForGm() {
@@ -1933,11 +1907,12 @@ document.addEventListener('DOMContentLoaded', () => {
             manualTokenImg: null, // Token escolhido manualmente
             raceTokenImg: null, // Token vindo da raça
         };
-        isRacePreviewFixed = false;
         racePreviewModal.classList.add('hidden');
 
         const raceSelect = document.getElementById('sheet-race-select');
-        raceSelect.innerHTML = Object.keys(GAME_RULES.races).map(race => `<option value="${race}">${race}</option>`).join('');
+        let raceOptionsHtml = '<option value="" disabled selected>Selecione uma Raça...</option>';
+        raceOptionsHtml += Object.keys(GAME_RULES.races).map(race => `<option value="${race}">${race}</option>`).join('');
+        raceSelect.innerHTML = raceOptionsHtml;
         
         const createEquipmentOptions = (type) => {
             return Object.entries(GAME_RULES[type])
@@ -1983,15 +1958,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const content = `
             <div class="character-list-container" style="max-height: 400px; overflow-y: auto;">
                 ${ALL_PLAYER_IMAGES.map(imgPath => {
-                    const name = imgPath.split('/').pop().split('.')[0];
                     return `<div class="char-card" data-img="${imgPath}">
-                                <img src="${imgPath}" alt="${name}">
-                                <div class="char-name">${name}</div>
+                                <img src="${imgPath}" alt="Token">
                             </div>`;
                 }).join('')}
             </div>`;
 
-        showCustomModal("Escolha um Token Personalizado", content, [{ text: "Voltar", closes: true }]);
+        showCustomModal("Escolha um Token Personalizado", content, [
+            {
+                text: 'Remover Token Personalizado',
+                className: 'btn-danger',
+                closes: true,
+                onClick: () => {
+                    stagedCharacterSheet.manualTokenImg = null;
+                    stagedCharacterSheet.tokenImg = stagedCharacterSheet.raceTokenImg; // Retorna para o token da raça, se houver
+                    updateTokenDisplayOnSheet();
+                }
+            },
+            { text: "Voltar", closes: true, className: 'btn-secondary' }
+        ]);
 
         document.querySelectorAll('#modal .char-card').forEach(card => {
             card.onclick = () => {
@@ -2062,7 +2047,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedRace = loadedData ? loadedData.race : raceSelect.value;
         
         if (event && event.type === 'change' && event.target.id === 'sheet-race-select') {
-            fixRacePreview(selectedRace);
+            if (selectedRace) {
+                fixRacePreview(selectedRace);
+            }
         }
         
         document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
@@ -2072,7 +2059,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const shieldSelect = document.getElementById('sheet-shield-type');
         const armorSelect = document.getElementById('sheet-armor-type');
         
-        const raceData = GAME_RULES.races[selectedRace];
+        const raceData = GAME_RULES.races[selectedRace] || { bon: {}, pen: {}, text: 'Selecione uma raça para ver os detalhes.' };
         const baseAttributes = loadedData ? loadedData.baseAttributes : {
             forca: parseInt(document.getElementById('sheet-base-attr-forca').value) || 0, agilidade: parseInt(document.getElementById('sheet-base-attr-agilidade').value) || 0,
             protecao: parseInt(document.getElementById('sheet-base-attr-protecao').value) || 0, constituicao: parseInt(document.getElementById('sheet-base-attr-constituicao').value) || 0,
@@ -2506,6 +2493,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleConfirmCharacter() {
+        const selectedRace = document.getElementById('sheet-race-select').value;
+        if (!selectedRace) {
+            alert("Por favor, selecione uma raça para o seu personagem.");
+            return;
+        }
+
         if (stagedCharacterSheet.spells.length > 2) {
             alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
             return;
@@ -3650,16 +3643,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         document.getElementById('load-char-btn').addEventListener('click', () => document.getElementById('load-char-input').click());
         document.getElementById('load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'creation'));
-
-        document.getElementById('confirm-selection-btn').onclick = () => {
-            const selectedCard = document.querySelector('.char-card.selected');
-            if (selectedCard) {
-                stagedCharacterSheet.tokenName = selectedCard.dataset.name;
-                stagedCharacterSheet.tokenImg = selectedCard.dataset.img;
-                initializeCharacterSheet();
-                showScreen(document.getElementById('character-sheet-screen'));
-            }
-        };
 
         document.querySelectorAll('#character-sheet-screen input, #character-sheet-screen select').forEach(el => {
             el.addEventListener('change', (e) => {
