@@ -169,12 +169,34 @@
     "img": "/images/itens/RunaD.png",
     "description": "Uma pedra com uma runa, talvez a última de uma série desconhecida."
   },
+  "CartaAberta": {
+    "img": "/images/itens/CartaAberta.png",
+    "description": "A quem estas linhas chegarem. Há algo impuro no porão da mansão Wanderhill. Primeiro foi o fedor de enxofre que tomou o ar, depois vieram os lamentos e aparições que não nos deixam repousar. Peço que procurem o padre Benedictus, pois creio ser o unico capaz de enfrentar tal mal. Até que o caso seja resolvido, minha família e eu abandonamos estas paredes. Conde Valemont Wanderhill."
+  },
+  "CartaSelada": {
+    "img": "/images/itens/CartaSelada.png",
+    "description": "Uma carta com o selo de uma família nobre."
+  },
   "Pedra": {
     "img": "/images/itens/Pedra.png",
     "description": "Uma pedra comum. Talvez sirva para alguma coisa."
+  },
+"JoiaVermelha": {
+    "img": "/images/itens/JoiaVermelha.png",
+    "description": "Uma jóia de formato peculiar. Parece ter alguma função misteriosa."
+  },
+  "Crânio1Joia": {
+    "img": "/images/itens/Crânio1Joia.png",
+    "description": "Um crânio humanóide com uma jóia azul encravada em uma das órbitas oculares."
+  },
+  "Crânio2Joias": {
+    "img": "/images/itens/Crânio2Joias.png",
+    "description": "Um crânio humanóide com uma jóia azul e com uma jóia vermelha encravada em suas órbitas oculares."
   },
   "Pau": {
     "img": "/images/itens/Pau.png",
     "description": "Um graveto robusto. Poderia ser útil."
   }
 }
+
+
