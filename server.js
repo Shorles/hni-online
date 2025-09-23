@@ -422,9 +422,8 @@ function getAttributeBreakdown(fighter, attr) {
     let total = 0;
 
     if (fighter && fighter.sheet) {
-        // Para players, começamos com os atributos base + raciais/etc
-        // Para NPCs, finalAttributes é a base
-        const baseAttributes = (fighter.isPlayer || fighter.isSummon) ? fighter.sheet.finalAttributes : fighter.sheet.finalAttributes;
+        // Para players, summons, etc., usamos finalAttributes.
+        const baseAttributes = fighter.sheet.finalAttributes;
         const baseValue = baseAttributes[attr] || 0;
         details[`Base (${attr})`] = baseValue;
         total += baseValue;
@@ -432,7 +431,6 @@ function getAttributeBreakdown(fighter, attr) {
 
     if (fighter && fighter.activeEffects && fighter.activeEffects.length > 0) {
         fighter.activeEffects.forEach(effect => {
-            // Lida com buffs/debuffs de múltiplos atributos (ex: Golpe Rochoso)
             if (effect.modifiers) {
                 effect.modifiers.forEach(mod => {
                     if (mod.attribute === attr) {
@@ -441,7 +439,6 @@ function getAttributeBreakdown(fighter, attr) {
                     }
                 });
             } 
-            // Lida com buffs/debuffs simples (ex: GM aplica buff)
             else if (effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff')) {
                 details[`Efeito (${effect.name})`] = effect.value;
                 total += effect.value;
@@ -1125,8 +1122,9 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             targets.push(attacker);
             break;
         case 'all_allies':
-            if (attacker.isPlayer) {
+            if (attacker.isPlayer || attacker.isSummon) {
                 targets.push(...Object.values(state.fighters.players).filter(p => p.status === 'active'));
+                targets.push(...Object.values(state.fighters.summons).filter(s => s.status === 'active'));
             } else {
                 targets.push(...Object.values(state.fighters.npcs).filter(n => n.status === 'active'));
             }
@@ -1327,8 +1325,10 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             if(target.hp <= 0) {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
-                if (!target.isPlayer) {
+                if (!target.isPlayer && !target.isSummon) {
                     distributeNpcRewards(state, target, roomId);
+                } else if (target.isSummon) {
+                    delete state.fighters.summons[target.id];
                 }
             }
             Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
@@ -1588,6 +1588,7 @@ io.on('connection', (socket) => {
         spells: ALL_SPELLS,
         weaponImages: ALL_WEAPON_IMAGES,
         items: ALL_ITEMS, 
+        summons: ALL_SUMMONS,
         playerImages: ALL_PLAYER_IMAGES,
         characters: { 
             players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `/images/players/${name}.png` })), 
@@ -1891,7 +1892,7 @@ io.on('connection', (socket) => {
                             break;
                         
                         case 'gmConfiguresLiveNpc':
-                            const npc = adventureState.fighters.npcs[action.fighterId];
+                            const npc = getFighter(adventureState, action.fighterId);
                             if (npc && action.stats && action.equipment) {
                                 if(npc.isMultiPart) {
                                     npc.parts.forEach(part => {
@@ -1940,6 +1941,7 @@ io.on('connection', (socket) => {
                     case 'gmStartBattle':
                         if (isGm && adventureState.phase === 'npc_setup' && action.npcs) {
                             adventureState.fighters.npcs = {};
+                            adventureState.fighters.summons = {};
                             adventureState.npcSlots.fill(null);
                             adventureState.customPositions = {};
                             action.npcs.forEach((npcData, index) => {
@@ -1996,6 +1998,11 @@ io.on('connection', (socket) => {
                         if (adventureState.phase === 'battle' && action.attackerKey === adventureState.activeCharacterKey) {
                             useSpell(adventureState, roomId, action.attackerKey, action.targetKey, action.spellName);
                             shouldUpdate = false;
+                        }
+                        break;
+                    case 'playerSummonsCreature':
+                        if (adventureState.phase === 'battle' && action.summonerId === adventureState.activeCharacterKey) {
+                            handleSummon(adventureState, roomId, action);
                         }
                         break;
                     case 'useItem': 
