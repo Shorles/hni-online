@@ -40,17 +40,44 @@ const LEVEL_UP_TABLE = {
 };
 
 
+// Função para ordenação natural (Ex: 1, 2, ..., 10)
+function naturalSort(a, b) {
+    const re = /(\d+)/g;
+    const ax = a.match(re) || [];
+    const bx = b.match(re) || [];
+
+    for (let i = 0; i < Math.min(ax.length, bx.length); i++) {
+        const an = parseInt(ax[i], 10);
+        const bn = parseInt(bx[i], 10);
+        if (an !== bn) {
+            return an - bn;
+        }
+    }
+    return a.localeCompare(b);
+}
+
+
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
     const characters = JSON.parse(charactersData);
-    PLAYABLE_CHARACTERS = characters.players || [];
     ALL_NPCS = characters.npcs || {}; 
 
+    // Lê as imagens de token personalizáveis para os jogadores
     const playerImagesPath = 'public/images/players/';
     if (fs.existsSync(playerImagesPath)) {
-        ALL_PLAYER_IMAGES = fs.readdirSync(playerImagesPath)
-            .filter(file => file.toLowerCase().startsWith('player (') && (file.endsWith('.png') || file.endsWith('.jpg')))
+        const allPlayerFiles = fs.readdirSync(playerImagesPath).filter(file => file.endsWith('.png') || file.endsWith('.jpg'));
+        
+        ALL_PLAYER_IMAGES = allPlayerFiles
+            .filter(file => file.toLowerCase().startsWith('player ('))
             .map(file => `/images/players/${file}`);
+
+        // Gera a lista de personagens jogáveis para o Modo Cenário a partir dos arquivos de imagem
+        PLAYABLE_CHARACTERS = allPlayerFiles
+            .filter(file => !file.toLowerCase().startsWith('player ('))
+            .map(file => {
+                const name = file.replace(/\d*\.png/i, '').replace(/\d*\.jpg/i, '');
+                return { name, img: `/images/players/${file}` };
+            });
     }
 
     const rulesData = fs.readFileSync('public/rules.json', 'utf8');
@@ -96,7 +123,10 @@ try {
     scenarioCategories.forEach(category => {
         const path = `public/images/mapas/${category}/`;
         if (fs.existsSync(path)) {
-            ALL_SCENARIOS[category] = fs.readdirSync(path).filter(file => file.endsWith('.png') || file.endsWith('.jpg')).map(file => `${category}/${file}`);
+            const files = fs.readdirSync(path)
+                .filter(file => file.endsWith('.png') || file.endsWith('.jpg'))
+                .sort(naturalSort); // Aplica a ordenação natural
+            ALL_SCENARIOS[category] = files.map(file => `${category}/${file}`);
         }
     });
 
@@ -1636,7 +1666,7 @@ io.on('connection', (socket) => {
         summons: ALL_SUMMONS,
         playerImages: ALL_PLAYER_IMAGES,
         characters: { 
-            players: PLAYABLE_CHARACTERS.map(name => ({ name, img: `/images/players/${name}.png` })), 
+            players: PLAYABLE_CHARACTERS,
             npcs: Object.keys(ALL_NPCS).map(name => ({ 
                 name, img: `/images/lutadores/${name}.png`, scale: ALL_NPCS[name].scale || 1.0,
                 isMultiPart: !!ALL_NPCS[name].isMultiPart, parts: ALL_NPCS[name].parts || []

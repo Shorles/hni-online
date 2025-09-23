@@ -3506,8 +3506,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const attackerEl = document.getElementById(attackerKey);
             if (attackerEl) {
                 const isPlayer = attackerEl.classList.contains('player-char-container');
+                const isSummon = attackerEl.classList.contains('summon-char-container');
+                const animationDirection = (isPlayer || isSummon) ? 100 : -100; // Invocação se move como player
                 const originalLeft = attackerEl.style.left;
-                attackerEl.style.left = `${parseFloat(originalLeft) + (isPlayer ? 200 : -200)}px`;
+                attackerEl.style.left = `${parseFloat(originalLeft) + animationDirection}px`;
                 setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
             }
             const targetEl = document.getElementById(targetKey);
