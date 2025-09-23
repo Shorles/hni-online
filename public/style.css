@@ -464,6 +464,33 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     font-weight: bold;
 }
 
+/* --- ANIMAÇÕES DE ATAQUE BÁSICO --- */
+@keyframes move-right-and-back {
+    0%, 100% { transform: translateX(0) scale(var(--character-scale, 1)); }
+    50% { transform: translateX(70px) scale(var(--character-scale, 1)); }
+}
+
+@keyframes move-left-and-back {
+    0%, 100% { transform: translateX(0) scale(var(--character-scale, 1)); }
+    50% { transform: translateX(-70px) scale(var(--character-scale, 1)); }
+}
+
+@keyframes move-right-half-and-back {
+    0%, 100% { transform: translateX(0) scale(var(--character-scale, 1)); }
+    50% { transform: translateX(35px) scale(var(--character-scale, 1)); }
+}
+
+.char-container.attack-player {
+    animation: move-right-and-back 0.5s ease-in-out;
+}
+.char-container.attack-npc {
+    animation: move-left-and-back 0.5s ease-in-out;
+}
+.char-container.attack-summon {
+    animation: move-right-half-and-back 0.5s ease-in-out;
+}
+
+
 /* --- EFEITOS VISUAIS PARA MAGIAS --- */
 .visual-effect {
     position: absolute;
@@ -517,7 +544,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 }
 
 
-.visual-effect.target_bubble, .visual-effect.self_rock, .visual-effect.self_swirl, .visual-effect.target_flash, .visual-effect.target_purple_aura, .visual-effect.self_fire_aura, .visual-effect.self_water_aura, .visual-effect.self_wind_aura, .visual-effect.self_light_aura, .visual-effect.self_dark_aura, .visual-effect.impact_fire, .visual-effect.impact_water, .visual-effect.impact_slash, .visual-effect.impact_light, .visual-effect.impact_dark, .visual-effect.impact_poison, .visual-effect.self_poison_aura, .visual-effect.self_metal_armor, .visual-effect.target_ice_burst, .visual-effect.target_heal, .visual-effect.target_nature_heal, .visual-effect.target_gravity, .visual-effect.self_vanish, .visual-effect.target_chains, .visual-effect.self_summon {
+.visual-effect.target_bubble, .visual-effect.self_rock, .visual-effect.self_swirl, .visual-effect.target_flash, .visual-effect.target_purple_aura, .visual-effect.self_fire_aura, .visual-effect.self_water_aura, .visual-effect.self_wind_aura, .visual-effect.self_light_aura, .visual-effect.self_dark_aura, .visual-effect.impact_fire, .visual-effect.impact_water, .visual-effect.impact_slash, .visual-effect.impact_light, .visual-effect.impact_dark, .visual-effect.impact_poison, .visual-effect.self_poison_aura, .visual-effect.self_metal_armor, .visual-effect.target_ice_burst, .visual-effect.target_heal, .visual-effect.target_nature_heal, .visual-effect.target_gravity, .visual-effect.self_vanish, .visual-effect.target_chains, .visual-effect.self_summon, .visual-effect.target_dark_fire {
     left: var(--start-x); 
     top: var(--start-y);
     transform: translate(-50%, -50%);
