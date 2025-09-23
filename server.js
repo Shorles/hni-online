@@ -758,7 +758,7 @@ function processActiveEffects(state, fighter, roomId) {
         if (!fighter.isPlayer && !fighter.isSummon) {
             distributeNpcRewards(state, fighter, roomId);
         } else if (fighter.isSummon) {
-             delete state.fighters.summons[fighter.id];
+             // Não remover a invocação aqui para permitir a animação de morte
         }
     }
     
@@ -769,7 +769,11 @@ function processActiveEffects(state, fighter, roomId) {
 function advanceTurn(state, roomId) {
     if (state.winner) return;
 
-    state.turnOrder = state.turnOrder.filter(id => getFighter(state, id)?.status === 'active');
+    state.turnOrder = state.turnOrder.filter(id => {
+        const f = getFighter(state, id);
+        return f && (f.status === 'active' || (f.status === 'down' && !f.hasTakenFirstTurn));
+    });
+
     if (state.turnOrder.length === 0) {
         checkGameOver(state);
         if (state.winner) {
@@ -793,11 +797,10 @@ function advanceTurn(state, roomId) {
         activeFighter.duration--;
         if (activeFighter.duration <= 0) {
             logMessage(state, `A invocação ${activeFighter.nome} desapareceu!`, 'info');
-            activeFighter.status = 'fled';
-            delete state.fighters.summons[activeFighter.id];
+            activeFighter.status = 'down'; // Alterado de 'fled' para 'down' para acionar animação
             checkGameOver(state);
             io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-            setTimeout(() => advanceTurn(state, roomId), 500);
+            setTimeout(() => advanceTurn(state, roomId), 1500); // Aumentado para dar tempo para a animação
             return;
         }
     }
@@ -1085,13 +1088,13 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 if (!target.isPlayer && !target.isSummon) {
                     distributeNpcRewards(state, target, roomId);
                 } else if (target.isSummon) {
-                    delete state.fighters.summons[target.id];
+                    // Não remover a invocação aqui para permitir a animação de morte
                 } else if (target.isPlayer) {
                     // Remove invocações do jogador derrotado
                     Object.keys(state.fighters.summons).forEach(summonId => {
                         if(state.fighters.summons[summonId].ownerId === target.id) {
                             logMessage(state, `Com a queda de seu mestre, ${state.fighters.summons[summonId].nome} desaparece!`, 'info');
-                            delete state.fighters.summons[summonId];
+                            state.fighters.summons[summonId].status = 'down'; // Alterado para acionar animação
                         }
                     });
                 }
@@ -1165,7 +1168,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
 
     // Lógica de Invocação - Verificação
     if (spell.effect.type === 'summon' || spell.effect.type === 'summon_elemental') {
-        const existingSummon = Object.values(state.fighters.summons).find(s => s.ownerId === attackerKey);
+        const existingSummon = Object.values(state.fighters.summons).find(s => s.ownerId === attackerKey && s.status === 'active');
         if (existingSummon) {
             logMessage(state, `${attacker.nome} já possui uma criatura em campo e não pode invocar outra.`, 'miss');
             return io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
@@ -1411,13 +1414,13 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  applySpellEffect(state, roomId, attacker, attacker, { name: spell.name, effect: spell.effect.selfEffect }, {});
             }
 
-            if(target.hp <= 0) {
+            if(target.hp <= 0 && target.status === 'active') {
                  target.status = 'down';
                  logMessage(state, `${target.nome} foi derrotado!`, 'defeat');
                 if (!target.isPlayer && !target.isSummon) {
                     distributeNpcRewards(state, target, roomId);
                 } else if (target.isSummon) {
-                    delete state.fighters.summons[target.id];
+                    // Não remover a invocação aqui para permitir a animação de morte
                 }
             }
             Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
@@ -2142,7 +2145,7 @@ io.on('connection', (socket) => {
                                  Object.keys(adventureState.fighters.summons).forEach(summonId => {
                                      if(adventureState.fighters.summons[summonId].ownerId === actor.id) {
                                          logMessage(adventureState, `Com a fuga de seu mestre, ${adventureState.fighters.summons[summonId].nome} desaparece!`, 'info');
-                                         delete adventureState.fighters.summons[summonId];
+                                         adventureState.fighters.summons[summonId].status = 'down'; // Alterado para acionar animação
                                      }
                                  });
                                  checkGameOver(adventureState);
@@ -2451,7 +2454,7 @@ io.on('connection', (socket) => {
             Object.keys(adventureState.fighters.summons).forEach(summonId => {
                 if(adventureState.fighters.summons[summonId].ownerId === socket.id) {
                     logMessage(adventureState, `Com a desconexão de seu mestre, ${adventureState.fighters.summons[summonId].nome} desaparece!`, 'info');
-                    delete adventureState.fighters.summons[summonId];
+                    adventureState.fighters.summons[summonId].status = 'down'; // Alterado para acionar animação
                 }
             });
             checkGameOver(adventureState);
