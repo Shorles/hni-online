@@ -46,7 +46,6 @@ try {
     PLAYABLE_CHARACTERS = characters.players || [];
     ALL_NPCS = characters.npcs || {}; 
 
-    // Lê as imagens de token personalizáveis para os jogadores
     const playerImagesPath = 'public/images/players/';
     if (fs.existsSync(playerImagesPath)) {
         ALL_PLAYER_IMAGES = fs.readdirSync(playerImagesPath)
@@ -110,7 +109,6 @@ function rollD20() { return Math.floor(Math.random() * 20) + 1; }
 function rollDice(diceString) {
     if (!diceString || typeof diceString !== 'string') return 0;
     
-    // Suporte para 1d4, 2d6, 3d8+2, etc.
     let match = diceString.toString().match(/(\d+)d(\d+)(\+\d+)?/i);
     if (match) {
         const numDice = parseInt(match[1], 10);
@@ -124,13 +122,12 @@ function rollDice(diceString) {
         return total + bonus;
     }
     
-    // Legado/Fallback para formatos simples como "1D4"
     let mainParts = diceString.split('+');
     let formula = mainParts[0];
     let bonusLegacy = mainParts[1] ? parseInt(mainParts[1], 10) : 0;
 
     const parts = formula.match(/(\d+)d(\d+)/i);
-    if (!parts) return parseInt(diceString) || bonusLegacy; // Retorna o número se não for um dado
+    if (!parts) return parseInt(diceString) || bonusLegacy;
     
     const numDiceLegacy = parseInt(parts[1], 10);
     const diceSidesLegacy = parseInt(parts[2], 10);
