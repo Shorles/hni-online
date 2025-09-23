@@ -3669,6 +3669,41 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
+    // --- LÓGICA DE INVOCAÇÃO (CLIENTE) ---
+    socket.on('promptForSummon', (data) => {
+        showSummonSelectionModal(data);
+    });
+
+    function showSummonSelectionModal({ tier, choices, spell }) {
+        let contentHtml = `<div class="character-list-container">`;
+        choices.forEach(choice => {
+            contentHtml += `
+                <div class="char-card summon-choice-card" data-choice="${choice.name}">
+                    <img src="${choice.img}" alt="${choice.name}">
+                    <div class="char-name">${choice.name}</div>
+                </div>
+            `;
+        });
+        contentHtml += `</div>`;
+
+        showCustomModal(`Invocar Criatura (Nível ${tier})`, contentHtml, [
+            { text: 'Cancelar', closes: true, className: 'btn-danger' }
+        ]);
+
+        document.querySelectorAll('.summon-choice-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const choice = card.dataset.choice;
+                socket.emit('playerAction', {
+                    type: 'playerSummonsCreature',
+                    summonerId: myPlayerKey,
+                    spell,
+                    choice
+                });
+                modal.classList.add('hidden');
+            });
+        });
+    }
+
     function initialize() {
         showScreen(document.getElementById('loading-screen'));
 
