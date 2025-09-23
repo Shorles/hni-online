@@ -62,7 +62,6 @@ try {
     const characters = JSON.parse(charactersData);
     ALL_NPCS = characters.npcs || {}; 
 
-    // Lê as imagens de token personalizáveis para os jogadores
     const playerImagesPath = 'public/images/players/';
     if (fs.existsSync(playerImagesPath)) {
         const allPlayerFiles = fs.readdirSync(playerImagesPath).filter(file => file.endsWith('.png') || file.endsWith('.jpg'));
@@ -71,7 +70,6 @@ try {
             .filter(file => file.toLowerCase().startsWith('player ('))
             .map(file => `/images/players/${file}`);
 
-        // Gera a lista de personagens jogáveis para o Modo Cenário a partir dos arquivos de imagem
         PLAYABLE_CHARACTERS = allPlayerFiles
             .filter(file => !file.toLowerCase().startsWith('player ('))
             .map(file => {
@@ -841,6 +839,12 @@ function handleSummon(state, roomId, action) {
     const { summonerId, spell, choice } = action;
     console.log(`[DEBUG] Handling summon: ${choice} by ${summonerId}`);
 
+    const summoner = getFighter(state, summonerId);
+    if (!summoner) {
+        console.error(`[ERROR] Summoner with ID ${summonerId} not found.`);
+        return;
+    }
+
     let summonDataPool;
     if (spell.effect.type === 'summon') {
         summonDataPool = ALL_SUMMONS[`tier${spell.effect.tier}`];
@@ -1159,13 +1163,23 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         return io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     }
 
+    // Lógica de Invocação - Verificação
+    if (spell.effect.type === 'summon' || spell.effect.type === 'summon_elemental') {
+        const existingSummon = Object.values(state.fighters.summons).find(s => s.ownerId === attackerKey);
+        if (existingSummon) {
+            logMessage(state, `${attacker.nome} já possui uma criatura em campo e não pode invocar outra.`, 'miss');
+            return io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+        }
+    }
+
+
     attacker.pa -= paCost;
     attacker.mahou -= spell.costMahou;
     if (spell.cooldown > 0) {
         attacker.cooldowns[spellName] = spell.cooldown + 1;
     }
 
-    // Lógica de Invocação
+    // Lógica de Invocação - Execução
     if (spell.effect.type === 'summon' || spell.effect.type === 'summon_elemental') {
         logMessage(state, `${attacker.nome} inicia um ritual de invocação!`, 'info');
         if (spell.effect.type === 'summon') { // Requer escolha

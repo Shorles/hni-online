@@ -3501,16 +3501,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual }) => {
-
         const playAttackAnimation = (isSecondAttack = false) => {
             const attackerEl = document.getElementById(attackerKey);
             if (attackerEl) {
                 const isPlayer = attackerEl.classList.contains('player-char-container');
                 const isSummon = attackerEl.classList.contains('summon-char-container');
-                const animationDirection = (isPlayer || isSummon) ? 100 : -100; // Invocação se move como player
-                const originalLeft = attackerEl.style.left;
-                attackerEl.style.left = `${parseFloat(originalLeft) + animationDirection}px`;
-                setTimeout(() => { attackerEl.style.left = originalLeft; }, 500);
+                
+                let animationClass = 'attack-npc';
+                if(isPlayer) animationClass = 'attack-player';
+                if(isSummon) animationClass = 'attack-summon';
+                
+                attackerEl.classList.add(animationClass);
+                setTimeout(() => { attackerEl.classList.remove(animationClass); }, 500);
             }
             const targetEl = document.getElementById(targetKey);
             const currentHit = isDual ? (isSecondAttack ? debugInfo.attack2?.hit : debugInfo.attack1?.hit) : hit;
