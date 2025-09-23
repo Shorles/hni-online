@@ -812,8 +812,10 @@ function advanceTurn(state, roomId) {
 
 function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targetPartKey) {
     const attacker = getFighter(state, attackerKey);
+    // Correção: A função getFighter já lida com todos os tipos, não precisa checar o lobby separadamente aqui.
     let target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
+
 
     const paCost = weaponChoice === 'dual' ? 3 : 2;
     if (attacker.pa < paCost) {
@@ -1103,6 +1105,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             });
             const socket = io.sockets.sockets.get(attackerKey);
             if (socket) {
+                console.log(`[DEBUG] Enviando promptForSummon para ${attacker.nome}`);
                 socket.emit('promptForSummon', { tier: spell.effect.tier, choices, spell });
             }
         } else { // Invocação direta
@@ -1112,6 +1115,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
                 choice: spell.effect.summonName
             });
         }
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId])); // Atualiza para gastar PA/Mahou
         return;
     }
 
