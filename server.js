@@ -238,7 +238,7 @@ function createNewFighterState(data) {
         nome: sourceData.name || sourceData.tokenName,
         img: sourceData.tokenImg || sourceData.img,
         status: 'active',
-        scale: sourceData.scale !== undefined ? parseFloat(sourceData.scale) : 1.0,
+        scale: data.customStats?.scale || sourceData.scale || 1.0,
         isPlayer: !!data.isPlayer,
         isSummon: isSummon,
         ownerId: data.ownerId || null,
@@ -1696,7 +1696,7 @@ io.on('connection', (socket) => {
         characters: { 
             players: PLAYABLE_CHARACTERS,
             npcs: Object.keys(ALL_NPCS).map(name => ({ 
-                name, img: `/images/lutadores/${name}.png`, scale: ALL_NPCS[name].scale || 1.0,
+                name, img: `/images/lutadores/${name}.png`, 
                 isMultiPart: !!ALL_NPCS[name].isMultiPart, parts: ALL_NPCS[name].parts || []
             })), 
             dynamic: DYNAMIC_CHARACTERS 
@@ -2020,6 +2020,9 @@ io.on('connection', (socket) => {
 
                                 npc.xpReward = action.stats.xpReward;
                                 npc.moneyReward = action.stats.moneyReward;
+                                if (action.stats.scale !== undefined) {
+                                    npc.scale = parseFloat(action.stats.scale);
+                                }
 
                                 recalculateFighterStats(npc);
                                 logMessage(adventureState, `${npc.nome} foi reconfigurado pelo Mestre.`);
@@ -2052,7 +2055,6 @@ io.on('connection', (socket) => {
                                     const npcObj = ALL_NPCS[npcData.name] || {};
                                     const newNpc = createNewFighterState({ 
                                         ...npcData, 
-                                        scale: npcObj.scale || 1.0, 
                                         isMultiPart: npcObj.isMultiPart, 
                                         parts: npcObj.parts, 
                                         customStats: npcData.customStats,
@@ -2115,6 +2117,7 @@ io.on('connection', (socket) => {
                             logMessage(adventureState, `${summon.nome} foi dispensado por seu mestre.`, 'info');
                             summon.status = 'down';
                             checkGameOver(adventureState);
+                            io.to(roomId).emit('gameUpdate', getFullState(room));
                             setTimeout(() => advanceTurn(adventureState, roomId), 1500);
                             shouldUpdate = false;
                         }

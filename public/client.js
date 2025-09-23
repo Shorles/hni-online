@@ -752,7 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     stagedNpcSlots[targetSlot] = { 
                         ...npcData, 
                         id: `npc-staged-${Date.now()}-${targetSlot}`,
-                        customStats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0 },
+                        customStats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0, scale: 1.0 },
                         equipment: { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
                         spells: []
                     };
@@ -835,9 +835,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let current;
         if (isLiveConfig) {
-            current = { stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes, xpReward: npcData.xpReward, moneyReward: npcData.moneyReward }, equip: npcData.sheet.equipment, spells: npcData.sheet.spells };
+            current = { stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes, xpReward: npcData.xpReward, moneyReward: npcData.moneyReward, scale: npcData.scale }, equip: npcData.sheet.equipment, spells: npcData.sheet.spells };
         } else if(isMidBattleAdd) {
-             current = { stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0 }, equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' }, spells: [] };
+             current = { stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0, scale: 1.0 }, equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' }, spells: [] };
         } else {
              current = { stats: npcData.customStats, equip: npcData.equipment, spells: npcData.spells };
         }
@@ -904,6 +904,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <label>Inteligência:</label><input type="number" id="npc-cfg-inteligencia" value="${current.stats.inteligencia}">
                     <label>Mente:</label><input type="number" id="npc-cfg-mente" value="${current.stats.mente}">
                 </div>
+                 <h4>Outros</h4>
+                 <div class="npc-config-grid">
+                    <label>Escala:</label><input type="number" id="npc-cfg-scale" value="${current.stats.scale || 1.0}" step="0.1" min="0.1">
+                </div>
                 <h4>Recompensas</h4>
                  <div class="npc-config-grid">
                     <label>XP Reward:</label><input type="number" id="npc-cfg-xp" value="${current.stats.xpReward !== undefined ? current.stats.xpReward : 30}">
@@ -934,7 +938,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     inteligencia: parseInt(document.getElementById('npc-cfg-inteligencia').value, 10),
                     mente: parseInt(document.getElementById('npc-cfg-mente').value, 10),
                     xpReward: parseInt(document.getElementById('npc-cfg-xp').value, 10),
-                    moneyReward: parseInt(document.getElementById('npc-cfg-money').value, 10)
+                    moneyReward: parseInt(document.getElementById('npc-cfg-money').value, 10),
+                    scale: parseFloat(document.getElementById('npc-cfg-scale').value) || 1.0
                 };
 
                 if (npcData.isMultiPart) {
@@ -1226,7 +1231,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Dispensar Invocação',
                     () => socket.emit('playerAction', { type: 'dismiss_summon', summonKey: state.activeCharacterKey }),
                     !finalCanControl,
-                    'action-btn flee-btn' // Reusing style for now
+                    'action-btn flee-btn'
                 )
             );
         }
