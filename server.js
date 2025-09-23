@@ -807,9 +807,53 @@ function advanceTurn(state, roomId) {
     }
 }
 
+function handleSummon(state, roomId, action) {
+    const { summonerId, spell, choice } = action;
+    console.log(`[DEBUG] Handling summon: ${choice} by ${summonerId}`);
+
+    let summonDataPool;
+    if (spell.effect.type === 'summon') {
+        summonDataPool = ALL_SUMMONS[`tier${spell.effect.tier}`];
+    } else { // summon_elemental
+        summonDataPool = ALL_SUMMONS.elementals;
+    }
+    
+    const summonBaseData = summonDataPool[choice];
+    if (!summonBaseData) {
+        console.error(`[ERROR] Summon data for "${choice}" not found.`);
+        logMessage(state, `Erro: Dados da invocação ${choice} não encontrados.`, 'miss');
+        return;
+    }
+    
+    const summonId = `summon-${uuidv4()}`;
+    const newSummon = createNewFighterState({
+        id: summonId,
+        isSummon: true,
+        ownerId: summonerId,
+        duration: spell.effect.duration,
+        sheetData: {
+            name: choice,
+            img: ALL_NPCS[choice] ? `/images/lutadores/${choice}.png` : '/images/lutadores/default.png',
+            ...summonBaseData
+        }
+    });
+
+    state.fighters.summons[summonId] = newSummon;
+    
+    const summonerIndex = state.turnOrder.indexOf(summonerId);
+    if (summonerIndex !== -1) {
+        state.turnOrder.splice(summonerIndex + 1, 0, summonId);
+    } else {
+        state.turnOrder.push(summonId); 
+    }
+
+    logMessage(state, `${getFighter(state, summonerId).nome} invocou ${choice}!`, 'info');
+    io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+    console.log(`[DEBUG] Creature ${choice} (${summonId}) summoned by ${summonerId}.`);
+}
+
 function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targetPartKey) {
     const attacker = getFighter(state, attackerKey);
-    // Correção: A função getFighter já lida com todos os tipos, não precisa checar o lobby separadamente aqui.
     let target = getFighter(state, targetKey);
     if (!attacker || !target || attacker.status !== 'active' || target.status !== 'active') return;
 
