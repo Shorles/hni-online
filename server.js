@@ -840,7 +840,6 @@ function advanceTurn(state, roomId) {
 
 function handleSummon(state, roomId, action) {
     const { summonerId, spell, choice } = action;
-    console.log(`[DEBUG] Handling summon: ${choice} by ${summonerId}`);
 
     const summoner = getFighter(state, summonerId);
     if (!summoner) {
@@ -848,45 +847,56 @@ function handleSummon(state, roomId, action) {
         return;
     }
 
-    let summonDataPool;
-    if (spell.effect.type === 'summon') {
-        summonDataPool = ALL_SUMMONS[`tier${spell.effect.tier}`];
-    } else { // summon_elemental
-        summonDataPool = ALL_SUMMONS.elementals;
-    }
-    
-    const summonBaseData = summonDataPool[choice];
-    if (!summonBaseData) {
-        console.error(`[ERROR] Summon data for "${choice}" not found.`);
-        logMessage(state, `Erro: Dados da invocação ${choice} não encontrados.`, 'miss');
-        return;
-    }
-    
-    const summonId = `summon-${uuidv4()}`;
-    const newSummon = createNewFighterState({
-        id: summonId,
-        isSummon: true,
-        ownerId: summonerId,
-        duration: spell.effect.duration,
-        sheetData: {
-            name: choice,
-            img: ALL_NPCS[choice] ? `/images/lutadores/${choice}.png` : '/images/lutadores/default.png',
-            ...summonBaseData
-        }
+    // Dispara o efeito visual ANTES de criar a invocação
+    io.to(roomId).emit('visualEffectTriggered', {
+        casterId: summonerId,
+        targetId: summonerId, // Efeito acontece no próprio invocador
+        animation: 'self_summon'
     });
 
-    state.fighters.summons[summonId] = newSummon;
-    
-    const summonerIndex = state.turnOrder.indexOf(summonerId);
-    if (summonerIndex !== -1) {
-        state.turnOrder.splice(summonerIndex + 1, 0, summonId);
-    } else {
-        state.turnOrder.push(summonId); 
-    }
+    // Atraso de 1 segundo para a aparição da criatura
+    setTimeout(() => {
+        let summonDataPool;
+        if (spell.effect.type === 'summon') {
+            summonDataPool = ALL_SUMMONS[`tier${spell.effect.tier}`];
+        } else { // summon_elemental
+            summonDataPool = ALL_SUMMONS.elementals;
+        }
 
-    logMessage(state, `${getFighter(state, summonerId).nome} invocou ${choice}!`, 'info');
-    io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-    console.log(`[DEBUG] Creature ${choice} (${summonId}) summoned by ${summonerId}.`);
+        const summonBaseData = summonDataPool[choice];
+        if (!summonBaseData) {
+            console.error(`[ERROR] Summon data for "${choice}" not found.`);
+            logMessage(state, `Erro: Dados da invocação ${choice} não encontrados.`, 'miss');
+            return;
+        }
+
+        const summonId = `summon-${uuidv4()}`;
+        const newSummon = createNewFighterState({
+            id: summonId,
+            isSummon: true,
+            ownerId: summonerId,
+            duration: spell.effect.duration,
+            sheetData: {
+                name: choice,
+                img: ALL_NPCS[choice] ? `/images/lutadores/${choice}.png` : '/images/lutadores/default.png',
+                ...summonBaseData
+            }
+        });
+
+        state.fighters.summons[summonId] = newSummon;
+
+        const summonerIndex = state.turnOrder.indexOf(summonerId);
+        if (summonerIndex !== -1) {
+            state.turnOrder.splice(summonerIndex + 1, 0, summonId);
+        } else {
+            state.turnOrder.push(summonId);
+        }
+
+        logMessage(state, `${summoner.nome} invocou ${choice}!`, 'info');
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
+        console.log(`[DEBUG] Creature ${choice} (${summonId}) summoned by ${summonerId}.`);
+
+    }, 1000); // 1000ms = 1 segundo de atraso
 }
 
 function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targetPartKey) {
@@ -1203,6 +1213,7 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
                 choice: spell.effect.summonName
             });
         }
+        shouldUpdate = false; // A atualização virá do handleSummon
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId])); // Atualiza para gastar PA/Mahou
         return;
     }
@@ -2095,6 +2106,7 @@ io.on('connection', (socket) => {
                     case 'playerSummonsCreature':
                         if (adventureState.phase === 'battle' && action.summonerId === adventureState.activeCharacterKey) {
                             handleSummon(adventureState, roomId, action);
+                            shouldUpdate = false;
                         }
                         break;
                     case 'useItem': 
