@@ -1220,6 +1220,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return btn;
         };
         
+        if (isMySummonTurn) {
+             actionButtonsWrapper.appendChild(
+                createButton(
+                    'Dispensar Invocação',
+                    () => socket.emit('playerAction', { type: 'dismiss_summon', summonKey: state.activeCharacterKey }),
+                    !finalCanControl,
+                    'action-btn flee-btn' // Reusing style for now
+                )
+            );
+        }
+        
         // Summons don't have dual wield or complex weapons
         if (activeFighter.isSummon) {
              const btn = createButton('Ataque Básico (2 PA)', () => startAttackSequence('weapon1'), !finalCanControl, 'action-btn');
@@ -3430,15 +3441,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('visualEffectTriggered', ({ casterId, targetId, animation }) => {
         const casterEl = document.getElementById(casterId);
-        const targetEl = document.getElementById(targetId);
-        if (!casterEl || !targetEl) return;
+        let targetEl = document.getElementById(targetId);
+        if (!casterEl) return;
     
         const effectEl = document.createElement('div');
         const gameWrapperRect = gameWrapper.getBoundingClientRect();
         const gameScale = getGameScale();
-    
+        
         const casterRect = casterEl.getBoundingClientRect();
-        const targetRect = targetEl.getBoundingClientRect();
+        let targetRect = targetEl ? targetEl.getBoundingClientRect() : casterRect;
+
+        // Caso especial para self_summon
+        if (animation === 'self_summon') {
+            const summonerIsPlayer = casterEl.classList.contains('player-char-container');
+            const summonPosX = (casterRect.left - gameWrapperRect.left) / gameScale + (summonerIsPlayer ? 80 : -80);
+            const summonPosY = (casterRect.top - gameWrapperRect.top) / gameScale + 50;
+            
+            // Simula um retângulo na posição da futura invocação para o efeito
+            targetRect = { 
+                left: summonPosX * gameScale + gameWrapperRect.left, 
+                top: summonPosY * gameScale + gameWrapperRect.top, 
+                width: 0, 
+                height: 0 
+            };
+        }
     
         const startX = (casterRect.left + casterRect.width / 2 - gameWrapperRect.left) / gameScale;
         const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale;
@@ -3451,8 +3477,12 @@ document.addEventListener('DOMContentLoaded', () => {
             effectEl.style.setProperty('--end-x', `${endX}px`);
             effectEl.style.setProperty('--end-y', `${endY}px`);
         } else {
-            const effectX = (animation.startsWith('self')) ? startX : endX;
-            const effectY = (animation.startsWith('self')) ? startY : endY;
+            let effectX = (animation.startsWith('self')) ? startX : endX;
+            let effectY = (animation.startsWith('self')) ? startY : endY;
+            if (animation === 'self_summon') {
+                 effectX = endX; // Usa a posição calculada da futura invocação
+                 effectY = endY;
+            }
             effectEl.style.setProperty('--start-x', `${effectX}px`);
             effectEl.style.setProperty('--start-y', `${effectY}px`);
         }

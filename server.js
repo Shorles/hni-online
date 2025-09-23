@@ -2109,6 +2109,16 @@ io.on('connection', (socket) => {
                             shouldUpdate = false;
                         }
                         break;
+                    case 'dismiss_summon':
+                        const summon = getFighter(adventureState, action.summonKey);
+                        if (summon && summon.isSummon && summon.ownerId === socket.id && adventureState.activeCharacterKey === action.summonKey) {
+                            logMessage(adventureState, `${summon.nome} foi dispensado por seu mestre.`, 'info');
+                            summon.status = 'down';
+                            checkGameOver(adventureState);
+                            setTimeout(() => advanceTurn(adventureState, roomId), 1500);
+                            shouldUpdate = false;
+                        }
+                        break;
                     case 'useItem': 
                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
                             const actor = getFighter(adventureState, action.actorKey);

@@ -167,7 +167,7 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
 .char-container.targetable { cursor: crosshair; }
 .char-container.targetable .fighter-img-ingame { transition: filter 0.2s, transform 0.2s; }
 .char-container.targetable:hover .fighter-img-ingame { filter: drop-shadow(0 0 15px #fff); transform: scale(1.05); }
-.summon-char-container.targetable:hover .fighter-img-ingame { filter: drop-shadow(0 0 15px #fff) brightness(1.1); transform: scale(1.05) scaleX(-1); }
+.summon-char-container:hover .fighter-img-ingame, .summon-char-container.targetable:hover .fighter-img-ingame { filter: drop-shadow(0 0 15px #fff) brightness(1.1); transform: scale(1.05) scaleX(-1); }
 .char-container.target-highlight .fighter-img-ingame {
     outline: 4px solid #ffeb3b;
     outline-offset: 2px;
