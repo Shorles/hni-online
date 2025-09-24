@@ -2076,19 +2076,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function getElementColors(elementName, requiredElements = []) {
+    function getElementColors(elementName) {
         const colors = {
             fogo: '#ff4d4d', agua: '#4da6ff', vento: '#00cc66', terra: '#a67c52',
             luz: '#ffffff', escuridao: '#b366ff',
             'Chama Azul': '#007bff', 'Gelo': '#a3d8f4', 'Metal': '#c0c0c0',
             'Raio': '#ffd700', 'Cura': '#90ee90', 'Gravidade': '#9370db'
         };
-        if (requiredElements.length === 2) {
-            const color1 = colors[requiredElements[0]] || '#ffffff';
-            const color2 = colors[requiredElements[1]] || '#ffffff';
-            return `linear-gradient(90deg, ${color1} 50%, ${color2} 50%)`;
-        }
-        return `linear-gradient(90deg, ${colors[elementName] || '#ffffff'} 100%, ${colors[elementName] || '#ffffff'} 100%)`;
+        const color = colors[elementName] || '#ffffff';
+        return `linear-gradient(90deg, ${color} 100%, ${color} 100%)`;
     }
     
     function updateCharacterSheet(loadedData = null, event = null) {
@@ -2948,7 +2944,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const card = document.createElement('div');
                     card.className = 'spell-card ingame-spell';
                     
-                    const isUsableOutside = (!spellData.inCombat || spellData.usableOutsideCombat);
+                    const isUsableOutside = (spellData.inCombat === false || spellData.usableOutsideCombat === true);
                     if (isUsableOutside && currentGameState.mode === 'theater') {
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
@@ -3003,8 +2999,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleUtilitySpellClick(spell) {
-        // Se a magia for puramente utilitária ou de alvo único que pode ser usada em si
-        if (spell.targetType === 'utility' || spell.targetType === 'self' || spell.targetType === 'single_ally') {
+        // Magias que não precisam de um alvo específico (como Iluminar)
+        if (spell.targetType === 'utility' || spell.targetType === 'self') {
+            socket.emit('playerAction', {
+                type: 'useUtilitySpell',
+                casterId: myPlayerKey,
+                targetId: myPlayerKey, // O alvo é o próprio caster
+                spellName: spell.name
+            });
+            ingameSheetModal.classList.add('hidden');
+            return;
+        }
+
+        // Magias que requerem um alvo aliado (como curas)
+        if (spell.targetType === 'single_ally' || spell.targetType === 'single_ally_down') {
             let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
             Object.keys(currentGameState.connectedPlayers).forEach(playerId => {
                 const player = currentGameState.connectedPlayers[playerId];
@@ -3426,12 +3434,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const announcement = document.createElement('div');
         announcement.className = 'global-effect-announcement';
         
-        let color = getElementColors(data.element)[1]; // Pega a cor base do gradiente
-        announcement.style.color = color;
-        announcement.style.textShadow = `2px 2px 5px rgba(0,0,0,0.8), 0 0 10px ${color}`;
+        const color = getElementColors(data.element);
+        announcement.style.backgroundImage = color;
+        announcement.style.textShadow = `2px 2px 5px rgba(0,0,0,0.8)`;
 
         let html = `<div class="announcement-main">${data.casterName} usou ${data.spellName}`;
-        if (data.casterName !== data.targetName) {
+        if (data.targetName) {
             html += ` em ${data.targetName}`;
         }
         html += `</div>`;

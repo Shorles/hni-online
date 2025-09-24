@@ -2257,7 +2257,7 @@ io.on('connection', (socket) => {
                         
                         let effectText = null;
                         
-                        if (spell.effect.type === 'heal') {
+                        if (spell.effect?.type === 'heal') {
                             let healAmount = rollDice(spell.effect.formula);
                             if (spell.effect.bonusAttribute) {
                                 healAmount += casterInfo.characterSheet.finalAttributes[spell.effect.bonusAttribute] || 0;
@@ -2267,11 +2267,9 @@ io.on('connection', (socket) => {
                             const constituicao = targetSheet.finalAttributes.constituicao || 0;
                             const hpMax = 20 + (constituicao * 5);
                             const actualHealed = Math.min(hpMax - (targetSheet.hp || hpMax), healAmount);
-                            if (actualHealed > 0) {
+                            if (actualHealed >= 0) {
                                 targetSheet.hp = (targetSheet.hp || hpMax) + actualHealed;
                                 effectText = `+${actualHealed} HP`;
-                            } else {
-                                effectText = `+0 HP`;
                             }
                         }
                         
