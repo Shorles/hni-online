@@ -2284,14 +2284,14 @@ io.on('connection', (socket) => {
                         
                         io.to(roomId).emit('globalAnnounceEffect', {
                             casterName: casterInfo.characterName,
-                            targetName: targetInfo.characterName,
+                            targetName: spell.targetType !== 'utility' ? targetInfo.characterName : null,
                             spellName: spell.name,
                             effectText: effectText,
                             costText: `-${spell.costMahou} Mahou`,
                             element: finalElementName
                         });
 
-                        logMessage(theaterState, `${casterInfo.characterName} usou ${action.spellName} em ${targetInfo.characterName}.`);
+                        logMessage(theaterState, `${casterInfo.characterName} usou ${action.spellName}${spell.targetType !== 'utility' ? ` em ${targetInfo.characterName}` : ''}.`);
                     }
                  }
                  if (action.type === 'useItem') { 

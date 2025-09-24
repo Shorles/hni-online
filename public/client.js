@@ -2084,7 +2084,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'Raio': '#ffd700', 'Cura': '#90ee90', 'Gravidade': '#9370db'
         };
         const color = colors[elementName] || '#ffffff';
-        return `linear-gradient(90deg, ${color} 100%, ${color} 100%)`;
+        // Retorna um gradiente sólido para ser usado no background-image
+        return `linear-gradient(to top, ${color}, ${color})`;
     }
     
     function updateCharacterSheet(loadedData = null, event = null) {
@@ -2284,8 +2285,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             let elementHtml;
             if (spell.combinedElementName) {
-                const colors = getElementColors(null, spell.requiredElements);
-                elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spell.combinedElementName}</span>`;
+                const color = getElementColors(spell.combinedElementName, spell.requiredElements);
+                elementHtml = `<span class="spell-element" style="background-image: ${color};">${spell.combinedElementName}</span>`;
             } else {
                 const elementName = spell.isAdvanced ? GAME_RULES.advancedElements[spell.element] : spell.element;
                 const color = getElementColors(elementName);
@@ -3436,7 +3437,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const color = getElementColors(data.element);
         announcement.style.backgroundImage = color;
-        announcement.style.textShadow = `2px 2px 5px rgba(0,0,0,0.8)`;
+        // Usa uma cor de texto que contraste com a maioria das cores de elemento
+        const textColor = ['luz', 'Cura', 'Gelo', 'Raio'].includes(data.element) ? '#000' : '#fff';
+        announcement.style.color = textColor;
+        announcement.style.textShadow = `1px 1px 3px rgba(0,0,0,0.8)`;
 
         let html = `<div class="announcement-main">${data.casterName} usou ${data.spellName}`;
         if (data.targetName) {
