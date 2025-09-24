@@ -238,7 +238,7 @@ function createNewFighterState(data) {
         nome: sourceData.name || sourceData.tokenName,
         img: sourceData.tokenImg || sourceData.img,
         status: 'active',
-        scale: data.customStats?.scale || sourceData.scale || 1.0,
+        scale: data.customStats?.scale || 1.0,
         isPlayer: !!data.isPlayer,
         isSummon: isSummon,
         ownerId: data.ownerId || null,
@@ -769,9 +769,12 @@ function processActiveEffects(state, fighter, roomId) {
 function advanceTurn(state, roomId) {
     if (state.winner) return;
 
-    state.turnOrder = state.turnOrder.filter(id => {
+    const lastActiveKey = state.activeCharacterKey;
+    const turnOrderBeforeFilter = [...state.turnOrder];
+
+    state.turnOrder = turnOrderBeforeFilter.filter(id => {
         const f = getFighter(state, id);
-        return f && (f.status === 'active' || (f.status === 'down' && !f.hasTakenFirstTurn));
+        return f && f.status === 'active';
     });
 
     if (state.turnOrder.length === 0) {
@@ -782,25 +785,47 @@ function advanceTurn(state, roomId) {
         return;
     }
     
-    let currentIndex = state.turnOrder.indexOf(state.activeCharacterKey);
-    let nextIndex = (currentIndex + 1) % state.turnOrder.length;
+    let lastKnownIndex = turnOrderBeforeFilter.indexOf(lastActiveKey);
+    if (lastKnownIndex === -1) {
+        lastKnownIndex = -1; // Se o último ativo não está mais na lista, começaremos do início
+    }
+    
+    let nextFighterId = null;
+    let nextIndexInFullOrder = -1;
 
-    if (nextIndex === 0 && currentIndex !== -1) {
+    for (let i = 1; i <= turnOrderBeforeFilter.length; i++) {
+        const potentialIndex = (lastKnownIndex + i) % turnOrderBeforeFilter.length;
+        const potentialId = turnOrderBeforeFilter[potentialIndex];
+        if (state.turnOrder.includes(potentialId)) {
+            nextFighterId = potentialId;
+            nextIndexInFullOrder = potentialIndex;
+            break;
+        }
+    }
+
+    if (!nextFighterId) {
+        checkGameOver(state);
+        if (state.winner) { io.to(roomId).emit('gameUpdate', getFullState(games[roomId])); }
+        return;
+    }
+    
+    // Verifica se um novo round começou
+    if (lastActiveKey && lastKnownIndex > nextIndexInFullOrder) {
         state.currentRound++;
         logMessage(state, `--- Começando o Round ${state.currentRound} ---`, 'round');
     }
 
-    state.activeCharacterKey = state.turnOrder[nextIndex];
+    state.activeCharacterKey = nextFighterId;
     const activeFighter = getFighter(state, state.activeCharacterKey);
-    
+
     if (activeFighter.isSummon) {
         activeFighter.duration--;
         if (activeFighter.duration <= 0) {
             logMessage(state, `A invocação ${activeFighter.nome} desapareceu!`, 'info');
-            activeFighter.status = 'down'; // Alterado de 'fled' para 'down' para acionar animação
+            activeFighter.status = 'down';
             checkGameOver(state);
             io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-            setTimeout(() => advanceTurn(state, roomId), 1500); // Aumentado para dar tempo para a animação
+            setTimeout(() => advanceTurn(state, roomId), 1500);
             return;
         }
     }
@@ -889,7 +914,7 @@ function handleSummon(state, roomId, action) {
         if (summonerIndex !== -1) {
             state.turnOrder.splice(summonerIndex + 1, 0, summonId);
         } else {
-            state.turnOrder.push(summonId);
+            state.turnOrder.push(summonId); 
         }
 
         logMessage(state, `${summoner.nome} invocou ${choice}!`, 'info');

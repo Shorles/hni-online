@@ -18,7 +18,7 @@
         "effect": { "type": "dot", "name": "Afogamento", "damage": 2, "duration": 3 }
       }
     },
-    "Elemental Vento": {
+    "Elemental Ar": {
       "attributes": { "hp": 15, "mahou": 15, "forca": 0, "agilidade": 3, "protecao": 0, "constituicao": 1, "inteligencia": 1, "mente": 0 },
       "spells": ["Faísca Elétrica"],
       "specialEffect": {

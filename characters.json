@@ -1,15 +1,4 @@
 {
-  "players": [
-    "Humano Guerreiro",
-    "Elfa Arqueira",
-    "Anão Barbaro",
-    "Humana Maga",
-    "Orc Barbaro",
-    "Elfo Ladino",
-    "Tulku Lutadora",
-    "Anjo Lanceiro",
-    "Demonia Lanceira"
-  ],
   "npcs": {
     "Quimera": {
       "isMultiPart": true,
