@@ -2948,7 +2948,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const card = document.createElement('div');
                     card.className = 'spell-card ingame-spell';
                     
-                    if (!spellData.inCombat && currentGameState.mode === 'theater') {
+                    if (spellData.usableOutsideCombat && currentGameState.mode === 'theater') {
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
                     }
@@ -3002,17 +3002,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleUtilitySpellClick(spell) {
+        // Se a magia for puramente utilitária (sem alvo específico)
         if (spell.targetType === 'utility') {
             socket.emit('playerAction', {
                 type: 'useUtilitySpell',
                 casterId: myPlayerKey,
-                targetId: myPlayerKey, // Target doesn't matter for pure utility
+                targetId: myPlayerKey, // O alvo é o próprio caster
                 spellName: spell.name
             });
             ingameSheetModal.classList.add('hidden');
             return;
         }
 
+        // Se a magia requer um alvo (como curas)
         let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
         Object.keys(currentGameState.connectedPlayers).forEach(playerId => {
             const player = currentGameState.connectedPlayers[playerId];
@@ -3329,13 +3331,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let playerListHtml = players.map(player => `
-            <div class="gm-award-player-item" data-player-id="${player.socketId || Object.keys(currentGameState.connectedPlayers).find(k => currentGameState.connectedPlayers[k] === player)}">
+            <div class="gm-award-player-item">
                 <div class="token" style="background-image: url('${player.characterSheet.tokenImg}')"></div>
                 <span class="name">${player.characterName}</span>
-                <input type="number" class="award-xp-input" placeholder="XP">
-                <input type="number" class="award-money-input" placeholder="Moedas">
-                <input type="number" class="award-hp-input" placeholder="HP">
-                <input type="number" class="award-mahou-input" placeholder="Mahou">
+                <input type="number" class="award-xp-input" placeholder="XP" data-player-id="${player.socketId}">
+                <input type="number" class="award-money-input" placeholder="Moedas" data-player-id="${player.socketId}">
+                <input type="number" class="award-hp-input" placeholder="HP" data-player-id="${player.socketId}">
+                <input type="number" class="award-mahou-input" placeholder="Mahou" data-player-id="${player.socketId}">
             </div>
         `).join('');
 
@@ -3348,10 +3350,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input type="number" id="award-all-xp" placeholder="XP para todos">
                     </div>
                     <div>
-                        <label for="award-all-money">Conceder para Todos (Moedas):</label>
+                         <label for="award-all-money">Conceder para Todos (Moedas):</label>
                         <input type="number" id="award-all-money" placeholder="Moedas para todos">
                     </div>
-                    <div>
+                     <div>
                         <label for="award-all-hp">Ajustar para Todos (HP):</label>
                         <input type="number" id="award-all-hp" placeholder="+/- HP para todos">
                     </div>
@@ -3371,7 +3373,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const allMahou = parseInt(document.getElementById('award-all-mahou').value) || 0;
 
                 document.querySelectorAll('.gm-award-player-item').forEach(item => {
-                    const playerId = item.dataset.playerId;
+                    const playerId = item.querySelector('.award-xp-input').dataset.playerId;
                     const individualXp = parseInt(item.querySelector('.award-xp-input').value) || 0;
                     const individualMoney = parseInt(item.querySelector('.award-money-input').value) || 0;
                     const individualHp = parseInt(item.querySelector('.award-hp-input').value) || 0;
@@ -3382,7 +3384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const totalHp = individualHp + allHp;
                     const totalMahou = individualMahou + allMahou;
 
-                    if (totalXp > 0 || totalMoney > 0 || totalHp !== 0 || totalMahou !== 0) {
+                    if (totalXp !== 0 || totalMoney !== 0 || totalHp !== 0 || totalMahou !== 0) {
                         awards.push({ playerId, xp: totalXp, money: totalMoney, hp: totalHp, mahou: totalMahou });
                     }
                 });
