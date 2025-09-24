@@ -2948,7 +2948,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const card = document.createElement('div');
                     card.className = 'spell-card ingame-spell';
                     
-                    if (spellData.usableOutsideCombat && currentGameState.mode === 'theater') {
+                    const isUsableOutside = (!spellData.inCombat || spellData.usableOutsideCombat);
+                    if (isUsableOutside && currentGameState.mode === 'theater') {
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
                     }
@@ -3002,48 +3003,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleUtilitySpellClick(spell) {
-        // Se a magia for puramente utilitária (sem alvo específico)
-        if (spell.targetType === 'utility') {
-            socket.emit('playerAction', {
-                type: 'useUtilitySpell',
-                casterId: myPlayerKey,
-                targetId: myPlayerKey, // O alvo é o próprio caster
-                spellName: spell.name
+        // Se a magia for puramente utilitária ou de alvo único que pode ser usada em si
+        if (spell.targetType === 'utility' || spell.targetType === 'self' || spell.targetType === 'single_ally') {
+            let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
+            Object.keys(currentGameState.connectedPlayers).forEach(playerId => {
+                const player = currentGameState.connectedPlayers[playerId];
+                if(player.role === 'player' && player.characterSheet) {
+                     content += `<button class="utility-spell-target-btn" data-player-id="${playerId}">
+                        <div class="utility-spell-token" style="background-image: url('${player.characterSheet.tokenImg}')"></div>
+                        <span>${player.characterName}</span>
+                    </button>`;
+                }
             });
-            ingameSheetModal.classList.add('hidden');
-            return;
+            content += `</div>`;
+    
+            showCustomModal(`Usar ${spell.name}`, content, [
+                { text: 'Cancelar', closes: true, className: 'btn-danger'}
+            ]);
+    
+            document.querySelectorAll('.utility-spell-target-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const targetId = btn.dataset.playerId;
+                    socket.emit('playerAction', {
+                        type: 'useUtilitySpell',
+                        casterId: myPlayerKey,
+                        targetId: targetId,
+                        spellName: spell.name
+                    });
+                     modal.classList.add('hidden');
+                     ingameSheetModal.classList.add('hidden');
+                };
+            });
         }
-
-        // Se a magia requer um alvo (como curas)
-        let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
-        Object.keys(currentGameState.connectedPlayers).forEach(playerId => {
-            const player = currentGameState.connectedPlayers[playerId];
-            if(player.role === 'player' && player.characterSheet) {
-                 content += `<button class="utility-spell-target-btn" data-player-id="${playerId}">
-                    <div class="utility-spell-token" style="background-image: url('${player.characterSheet.tokenImg}')"></div>
-                    <span>${player.characterName}</span>
-                </button>`;
-            }
-        });
-        content += `</div>`;
-
-        showCustomModal(`Usar ${spell.name}`, content, [
-            { text: 'Cancelar', closes: true, className: 'btn-danger'}
-        ]);
-
-        document.querySelectorAll('.utility-spell-target-btn').forEach(btn => {
-            btn.onclick = () => {
-                const targetId = btn.dataset.playerId;
-                socket.emit('playerAction', {
-                    type: 'useUtilitySpell',
-                    casterId: myPlayerKey,
-                    targetId: targetId,
-                    spellName: spell.name
-                });
-                 modal.classList.add('hidden');
-                 ingameSheetModal.classList.add('hidden');
-            };
-        });
     }
 
     function handleEquipmentChangeConfirmation() {

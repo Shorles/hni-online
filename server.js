@@ -2256,8 +2256,7 @@ io.on('connection', (socket) => {
                         casterInfo.characterSheet.mahou -= spell.costMahou;
                         
                         let effectText = null;
-                        let element = spell.element;
-
+                        
                         if (spell.effect.type === 'heal') {
                             let healAmount = rollDice(spell.effect.formula);
                             if (spell.effect.bonusAttribute) {
@@ -2268,8 +2267,21 @@ io.on('connection', (socket) => {
                             const constituicao = targetSheet.finalAttributes.constituicao || 0;
                             const hpMax = 20 + (constituicao * 5);
                             const actualHealed = Math.min(hpMax - (targetSheet.hp || hpMax), healAmount);
-                            targetSheet.hp = (targetSheet.hp || hpMax) + actualHealed;
-                            effectText = `+${actualHealed} HP`;
+                            if (actualHealed > 0) {
+                                targetSheet.hp = (targetSheet.hp || hpMax) + actualHealed;
+                                effectText = `+${actualHealed} HP`;
+                            } else {
+                                effectText = `+0 HP`;
+                            }
+                        }
+                        
+                        let finalElementName;
+                        if (spell.combinedElementName) {
+                            finalElementName = spell.combinedElementName;
+                        } else if (spell.isAdvanced) {
+                            finalElementName = GAME_RULES.advancedElements[spell.element];
+                        } else {
+                            finalElementName = spell.element;
                         }
                         
                         io.to(roomId).emit('globalAnnounceEffect', {
@@ -2278,7 +2290,7 @@ io.on('connection', (socket) => {
                             spellName: spell.name,
                             effectText: effectText,
                             costText: `-${spell.costMahou} Mahou`,
-                            element: spell.element
+                            element: finalElementName
                         });
 
                         logMessage(theaterState, `${casterInfo.characterName} usou ${action.spellName} em ${targetInfo.characterName}.`);
