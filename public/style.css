@@ -1189,26 +1189,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     align-self: flex-start;
 }
 
-/* === PAINEL DE DEPURAÇÃO === */
-#debug-panel {
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
-    background-color: rgba(0, 0, 0, 0.7);
-    border: 1px solid #ffeb3b;
-    color: #ffeb3b;
-    padding: 10px;
-    border-radius: 5px;
-    font-family: monospace;
-    font-size: 12px;
-    z-index: 10000;
-    max-width: 300px;
-    max-height: 200px;
-    overflow: auto;
-    white-space: pre-wrap;
-    word-break: break-all;
-}
-
 /* ESTILOS DA LOJA */
 #shop-modal {
     position: absolute;

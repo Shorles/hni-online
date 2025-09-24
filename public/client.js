@@ -38,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let isSelectingBox = false;
     let selectionBoxStartPos = { x: 0, y: 0 };
     let isGmDebugModeActive = false;
-    let isCssDebugModeActive = false; // Nova variável para o debug de CSS
     let originalEquipmentState = null;
     let stagedCharacterSheet = {}; 
     let shopStagedItems = {}; 
@@ -74,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const playerInfoWidget = document.getElementById('player-info-widget');
     const ingameSheetModal = document.getElementById('ingame-sheet-modal');
     const racePreviewModal = document.getElementById('race-preview-modal');
-    const debugPanel = document.getElementById('debug-panel'); // Painel de debug
 
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
@@ -1443,18 +1441,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleTargetMouseOver(event) {
-        if (isCssDebugModeActive && isGm) {
-            const targetContainer = event.target.closest('.char-container');
-            if(targetContainer && targetContainer.classList.contains('summon-char-container')) {
-                const img = targetContainer.querySelector('.fighter-img-ingame');
-                const computedStyle = window.getComputedStyle(img);
-                debugPanel.textContent = `DEBUG (SUMMON HOVER):\n` +
-                                         `Classes: ${img.className}\n` +
-                                         `Transform: ${computedStyle.transform}\n` +
-                                         `Filter: ${computedStyle.filter}`;
-            }
-        }
-
         if (!isTargeting || !targetingAction || targetingAction.type !== 'use_spell') return;
         
         const targetContainer = event.target.closest('.char-container.targetable');
@@ -1498,9 +1484,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleTargetMouseOut() {
         if (isTargeting) {
             document.querySelectorAll('.char-container.target-highlight').forEach(el => el.classList.remove('target-highlight'));
-        }
-        if (isCssDebugModeActive && isGm) {
-            debugPanel.textContent = 'CSS DEBUG ATIVO (Z)';
         }
     }
 
@@ -1593,7 +1576,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const content = `<div style="text-align: left; font-size: 1.2em; line-height: 1.8;">
             <p><b>P:</b> Abrir menu de Cheats (GM).</p>
             <p><b>M:</b> Ativar/Desativar modo de depuração de combate (GM).</p>
-            <p><b>Z:</b> Ativar/Desativar modo de depuração de CSS (GM).</p>
             <p><b>T:</b> Mostrar/Ocultar coordenadas do mouse.</p>
             <p><b>J:</b> Ativar/Desativar modo de arrastar personagens (GM).</p>
             <p><b>I:</b> Abrir/Fechar loja (GM - Modo Cenário).</p>
@@ -1852,14 +1834,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 isGmDebugModeActive = !isGmDebugModeActive;
                 showInfoModal("Modo Depuração de Combate", `Modo de depuração de combate ${isGmDebugModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
-            }
-
-            if (e.key.toLowerCase() === 'z' && isGm) {
-                e.preventDefault();
-                isCssDebugModeActive = !isCssDebugModeActive;
-                debugPanel.classList.toggle('hidden', !isCssDebugModeActive);
-                debugPanel.textContent = 'CSS DEBUG ATIVO (Z)';
-                showInfoModal("Modo Depuração de CSS", `Modo de depuração de CSS ${isCssDebugModeActive ? 'ATIVADO' : 'DESATIVADO'}.`);
             }
 
             if (e.key.toLowerCase() === 't') {
