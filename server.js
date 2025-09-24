@@ -2255,6 +2255,9 @@ io.on('connection', (socket) => {
                     if (casterInfo && targetInfo && spell && casterInfo.characterSheet.mahou >= spell.costMahou) {
                         casterInfo.characterSheet.mahou -= spell.costMahou;
                         
+                        let effectText = null;
+                        let element = spell.element;
+
                         if (spell.effect.type === 'heal') {
                             let healAmount = rollDice(spell.effect.formula);
                             if (spell.effect.bonusAttribute) {
@@ -2264,10 +2267,21 @@ io.on('connection', (socket) => {
                             const targetSheet = targetInfo.characterSheet;
                             const constituicao = targetSheet.finalAttributes.constituicao || 0;
                             const hpMax = 20 + (constituicao * 5);
-                            targetSheet.hp = Math.min(hpMax, (targetSheet.hp || hpMax) + healAmount);
+                            const actualHealed = Math.min(hpMax - (targetSheet.hp || hpMax), healAmount);
+                            targetSheet.hp = (targetSheet.hp || hpMax) + actualHealed;
+                            effectText = `+${actualHealed} HP`;
                         }
+                        
+                        io.to(roomId).emit('globalAnnounceEffect', {
+                            casterName: casterInfo.characterName,
+                            targetName: targetInfo.characterName,
+                            spellName: spell.name,
+                            effectText: effectText,
+                            costText: `-${spell.costMahou} Mahou`,
+                            element: spell.element
+                        });
 
-                        logMessage(theaterState, `${casterInfo.characterName} usou ${action.spellName} em ${targetInfo.characterName}.`, 'info');
+                        logMessage(theaterState, `${casterInfo.characterName} usou ${action.spellName} em ${targetInfo.characterName}.`);
                     }
                  }
                  if (action.type === 'useItem') { 
@@ -2324,22 +2338,42 @@ io.on('connection', (socket) => {
                         case 'gmAwardsRewards':
                             if (action.awards && Array.isArray(action.awards)) {
                                 action.awards.forEach(award => {
-                                    const { playerId, xp, money } = award;
+                                    const { playerId, xp, money, hp, mahou } = award;
                                     const playerInfo = lobbyState.connectedPlayers[playerId];
                                     if (playerInfo && playerInfo.characterSheet) {
+                                        const sheet = playerInfo.characterSheet;
                                         const finalXp = parseInt(xp, 10) || 0;
                                         const finalMoney = parseInt(money, 10) || 0;
-                                        playerInfo.characterSheet.xp += finalXp;
-                                        playerInfo.characterSheet.money += finalMoney;
+                                        const finalHp = parseInt(hp, 10) || 0;
+                                        const finalMahou = parseInt(mahou, 10) || 0;
+                                        
+                                        sheet.xp += finalXp;
+                                        sheet.money += finalMoney;
+
+                                        const consti = sheet.finalAttributes.constituicao || 0;
+                                        const mente = sheet.finalAttributes.mente || 0;
+                                        const hpMax = 20 + (consti * 5);
+                                        const mahouMax = 10 + (mente * 5);
+
+                                        sheet.hp = Math.max(0, Math.min(hpMax, (sheet.hp || hpMax) + finalHp));
+                                        sheet.mahou = Math.max(0, Math.min(mahouMax, (sheet.mahou || mahouMax) + finalMahou));
 
                                         if(room.activeMode === 'adventure' && room.gameModes.adventure.fighters.players[playerId]){
                                             const adventureFighter = room.gameModes.adventure.fighters.players[playerId];
-                                            adventureFighter.xp = playerInfo.characterSheet.xp;
-                                            adventureFighter.money = playerInfo.characterSheet.money;
+                                            adventureFighter.xp = sheet.xp;
+                                            adventureFighter.money = sheet.money;
+                                            adventureFighter.hp = sheet.hp;
+                                            adventureFighter.mahou = sheet.mahou;
                                         }
 
-                                        if (finalXp > 0 || finalMoney > 0) {
-                                            logMessage(theaterState, `GM concedeu ${finalXp} XP e ${finalMoney} moedas para ${playerInfo.characterName}.`, 'info');
+                                        let logParts = [];
+                                        if (finalXp !== 0) logParts.push(`${finalXp} XP`);
+                                        if (finalMoney !== 0) logParts.push(`${finalMoney} moedas`);
+                                        if (finalHp !== 0) logParts.push(`${finalHp > 0 ? '+' : ''}${finalHp} HP`);
+                                        if (finalMahou !== 0) logParts.push(`${finalMahou > 0 ? '+' : ''}${finalMahou} Mahou`);
+
+                                        if (logParts.length > 0) {
+                                            logMessage(theaterState, `GM concedeu ${logParts.join(', ')} para ${playerInfo.characterName}.`, 'info');
                                         }
                                         const playerSocket = io.sockets.sockets.get(playerId);
                                         if(playerSocket) {

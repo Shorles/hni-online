@@ -674,6 +674,47 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     animation: level-up-float 3s ease-out forwards;
 }
 
+/* --- ESTILOS PARA ANÚNCIOS GLOBAIS (MODO CENÁRIO) --- */
+@keyframes announce-effect-animation {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    20% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    80% {
+        opacity: 1;
+        transform: translate(-50%, -60%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -70%) scale(1);
+    }
+}
+
+.global-effect-announcement {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10005;
+    pointer-events: none;
+    text-align: center;
+    font-weight: bold;
+    animation: announce-effect-animation 4s ease-out forwards;
+}
+
+.announcement-main {
+    font-size: 3em;
+}
+
+.announcement-sub {
+    font-size: 2em;
+    opacity: 0.9;
+}
+
 /* === NOVOS ESTILOS PARA INVENTÁRIO E FICHA EM JOGO === */
 
 #player-info-widget {
@@ -1002,9 +1043,10 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     padding: 5px;
 }
 .gm-award-player-item {
-    display: flex;
+    display: grid;
+    grid-template-columns: 40px 1fr repeat(4, 70px);
     align-items: center;
-    gap: 15px;
+    gap: 10px;
     background-color: rgba(0,0,0,0.3);
     padding: 8px;
     border-radius: 5px;
@@ -1021,7 +1063,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     flex-grow: 1;
 }
 .gm-award-player-item input {
-    width: 70px;
+    width: 100%;
+    box-sizing: border-box;
     text-align: center;
 }
 .gm-award-all-container {

@@ -2948,7 +2948,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const card = document.createElement('div');
                     card.className = 'spell-card ingame-spell';
                     
-                    if (spellData.usableOutsideCombat && currentGameState.mode === 'theater') {
+                    if (!spellData.inCombat && currentGameState.mode === 'theater') {
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
                     }
@@ -3002,6 +3002,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleUtilitySpellClick(spell) {
+        if (spell.targetType === 'utility') {
+            socket.emit('playerAction', {
+                type: 'useUtilitySpell',
+                casterId: myPlayerKey,
+                targetId: myPlayerKey, // Target doesn't matter for pure utility
+                spellName: spell.name
+            });
+            ingameSheetModal.classList.add('hidden');
+            return;
+        }
+
         let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
         Object.keys(currentGameState.connectedPlayers).forEach(playerId => {
             const player = currentGameState.connectedPlayers[playerId];
@@ -3175,7 +3186,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         card.className = 'spell-card';
                         card.dataset.spellName = spell.name;
                         card.dataset.spellGrade = choice.grade;
-                        card.innerHTML = `<h4>${spell.name}</h4><p>${spell.description}</p>`;
+                        const spellType = spell.inCombat ? '(Combate)' : '(Utilitário)';
+                        card.innerHTML = `<h4>${spell.name} <small>${spellType}</small></h4><p>${spell.description}</p>`;
                         
                         card.addEventListener('click', () => {
                             spellGrid.querySelectorAll('.spell-card.selected').forEach(c => c.classList.remove('selected'));
@@ -3322,6 +3334,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="name">${player.characterName}</span>
                 <input type="number" class="award-xp-input" placeholder="XP">
                 <input type="number" class="award-money-input" placeholder="Moedas">
+                <input type="number" class="award-hp-input" placeholder="HP">
+                <input type="number" class="award-mahou-input" placeholder="Mahou">
             </div>
         `).join('');
 
@@ -3334,8 +3348,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input type="number" id="award-all-xp" placeholder="XP para todos">
                     </div>
                     <div>
-                         <label for="award-all-money">Conceder para Todos (Moedas):</label>
+                        <label for="award-all-money">Conceder para Todos (Moedas):</label>
                         <input type="number" id="award-all-money" placeholder="Moedas para todos">
+                    </div>
+                    <div>
+                        <label for="award-all-hp">Ajustar para Todos (HP):</label>
+                        <input type="number" id="award-all-hp" placeholder="+/- HP para todos">
+                    </div>
+                    <div>
+                        <label for="award-all-mahou">Ajustar para Todos (Mahou):</label>
+                        <input type="number" id="award-all-mahou" placeholder="+/- Mahou para todos">
                     </div>
                 </div>
             </div>`;
@@ -3345,17 +3367,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const awards = [];
                 const allXp = parseInt(document.getElementById('award-all-xp').value) || 0;
                 const allMoney = parseInt(document.getElementById('award-all-money').value) || 0;
+                const allHp = parseInt(document.getElementById('award-all-hp').value) || 0;
+                const allMahou = parseInt(document.getElementById('award-all-mahou').value) || 0;
 
                 document.querySelectorAll('.gm-award-player-item').forEach(item => {
                     const playerId = item.dataset.playerId;
                     const individualXp = parseInt(item.querySelector('.award-xp-input').value) || 0;
                     const individualMoney = parseInt(item.querySelector('.award-money-input').value) || 0;
+                    const individualHp = parseInt(item.querySelector('.award-hp-input').value) || 0;
+                    const individualMahou = parseInt(item.querySelector('.award-mahou-input').value) || 0;
 
                     const totalXp = individualXp + allXp;
                     const totalMoney = individualMoney + allMoney;
+                    const totalHp = individualHp + allHp;
+                    const totalMahou = individualMahou + allMahou;
 
-                    if (totalXp > 0 || totalMoney > 0) {
-                        awards.push({ playerId, xp: totalXp, money: totalMoney });
+                    if (totalXp > 0 || totalMoney > 0 || totalHp !== 0 || totalMahou !== 0) {
+                        awards.push({ playerId, xp: totalXp, money: totalMoney, hp: totalHp, mahou: totalMahou });
                     }
                 });
 
@@ -3399,6 +3427,35 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('gameUpdate', (gameState) => { 
         if (clientFlowState === 'initializing') return;
         renderGame(gameState); 
+    });
+
+    socket.on('globalAnnounceEffect', (data) => {
+        const announcement = document.createElement('div');
+        announcement.className = 'global-effect-announcement';
+        
+        let color = getElementColors(data.element)[1]; // Pega a cor base do gradiente
+        announcement.style.color = color;
+        announcement.style.textShadow = `2px 2px 5px rgba(0,0,0,0.8), 0 0 10px ${color}`;
+
+        let html = `<div class="announcement-main">${data.casterName} usou ${data.spellName}`;
+        if (data.casterName !== data.targetName) {
+            html += ` em ${data.targetName}`;
+        }
+        html += `</div>`;
+        
+        if (data.costText) {
+            html += `<div class="announcement-sub cost">${data.costText}</div>`;
+        }
+        if (data.effectText) {
+            html += `<div class="announcement-sub effect">${data.effectText}</div>`;
+        }
+
+        announcement.innerHTML = html;
+        gameWrapper.appendChild(announcement);
+
+        setTimeout(() => {
+            announcement.remove();
+        }, 4000);
     });
 
     socket.on('fighterMoved', ({ fighterId, position }) => {
