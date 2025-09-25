@@ -25,6 +25,7 @@ let ALL_SPELLS = {};
 let ALL_WEAPON_IMAGES = {};
 let ALL_ITEMS = {}; 
 let ALL_SUMMONS = {};
+let PLAYER_TOKEN_CONFIG = [];
 
 const MAX_PLAYERS = 4;
 const MAX_NPCS = 5; 
@@ -60,6 +61,7 @@ function naturalSort(a, b) {
 try {
     const charactersData = fs.readFileSync('characters.json', 'utf8');
     const characters = JSON.parse(charactersData);
+    PLAYER_TOKEN_CONFIG = characters.players || [];
     ALL_NPCS = characters.npcs || {}; 
 
     const playerImagesPath = 'public/images/players/';
@@ -113,7 +115,6 @@ try {
 
     const dynamicCharPath = 'public/images/personagens/';
     if (fs.existsSync(dynamicCharPath)) {
-        // *** AJUSTE 2: Aplicando a ordenação natural na lista de arquivos de personagens ***
         const files = fs.readdirSync(dynamicCharPath)
             .filter(file => file.startsWith('Personagem (') && (file.endsWith('.png') || file.endsWith('.jpg')))
             .sort(naturalSort);
@@ -126,7 +127,7 @@ try {
         if (fs.existsSync(path)) {
             const files = fs.readdirSync(path)
                 .filter(file => file.endsWith('.png') || file.endsWith('.jpg'))
-                .sort(naturalSort); // Aplica a ordenação natural
+                .sort(naturalSort);
             ALL_SCENARIOS[category] = files.map(file => `${category}/${file}`);
         }
     });
@@ -255,6 +256,9 @@ function createNewFighterState(data) {
 
     if (fighter.isPlayer && sourceData.finalAttributes) {
         fighter.sheet = sourceData;
+        
+        const tokenConfig = PLAYER_TOKEN_CONFIG.find(p => p.img === sourceData.tokenImg);
+        fighter.scale = tokenConfig ? tokenConfig.scale : 1.0;
         
         fighter.level = sourceData.level || 1;
         fighter.xp = sourceData.xp || 0;
@@ -427,7 +431,6 @@ function cachePlayerStats(room) {
                  lobbyPlayer.characterSheet.mahou = playerFighter.mahou;
                  lobbyPlayer.characterSheet.ammunition = playerFighter.ammunition;
 
-                // *** AJUSTE 3: Se o jogador foi derrotado, volta ao lobby com 1 de HP ***
                 if (lobbyPlayer.characterSheet.hp <= 0) {
                     lobbyPlayer.characterSheet.hp = 1;
                 }
@@ -456,7 +459,6 @@ function getAttributeBreakdown(fighter, attr) {
     let total = 0;
 
     if (fighter && fighter.sheet) {
-        // Para players, summons, etc., usamos finalAttributes.
         const baseAttributes = fighter.sheet.finalAttributes;
         const baseValue = baseAttributes[attr] || 0;
         details[`Base (${attr})`] = baseValue;
@@ -533,7 +535,6 @@ function getBtaBreakdown(fighter, weaponKey = null) {
         total += weaponBtaMod;
     }
     
-    // BTA buff from effects
     fighter.activeEffects.forEach(effect => {
         if (effect.type === 'bta_buff' || effect.type === 'bta_debuff') {
             total += effect.value;
@@ -580,7 +581,6 @@ function getBtdBreakdown(fighter, weaponKey, isDualAttackPart = false) {
         total += weaponData.btd;
     }
     
-    // BTD buff from effects
     fighter.activeEffects.forEach(effect => {
         if (effect.type === 'btd_buff') {
             total += effect.value;
@@ -767,7 +767,6 @@ function processActiveEffects(state, fighter, roomId) {
         if (!fighter.isPlayer && !fighter.isSummon) {
             distributeNpcRewards(state, fighter, roomId);
         } else if (fighter.isSummon) {
-             // Não remover a invocação aqui para permitir a animação de morte
         }
     }
     
@@ -883,19 +882,17 @@ function handleSummon(state, roomId, action) {
         return;
     }
 
-    // Dispara o efeito visual ANTES de criar a invocação
     io.to(roomId).emit('visualEffectTriggered', {
         casterId: summonerId,
-        targetId: summonerId, // Efeito acontece no próprio invocador
+        targetId: summonerId,
         animation: 'self_summon'
     });
 
-    // Atraso de 1 segundo para a aparição da criatura
     setTimeout(() => {
         let summonDataPool;
         if (spell.effect.type === 'summon') {
             summonDataPool = ALL_SUMMONS[`tier${spell.effect.tier}`];
-        } else { // summon_elemental
+        } else {
             summonDataPool = ALL_SUMMONS.elementals;
         }
 
@@ -932,7 +929,7 @@ function handleSummon(state, roomId, action) {
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
         console.log(`[DEBUG] Creature ${choice} (${summonId}) summoned by ${summonerId}.`);
 
-    }, 1000); // 1000ms = 1 segundo de atraso
+    }, 1000);
 }
 
 function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targetPartKey) {
@@ -999,7 +996,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             const critDamage = isCrit ? damageRoll : 0;
             let totalDamage = damageRoll + critDamage + btd;
 
-            // Lifesteal
             const lifestealEffects = attacker.activeEffects.filter(e => e.type === 'lifesteal_buff');
             lifestealEffects.forEach(effect => {
                 const healedAmount = Math.floor(totalDamage * effect.percentage);
@@ -1055,7 +1051,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             }
 
             let damageNegated = false;
-            // Efeitos que acontecem quando o alvo é atingido (Reflexão, Espinhos)
             const onHitEffects = target.activeEffects.filter(e => e.type === 'reflect_damage_buff' || e.onHitReceived?.type === 'reflect_damage');
             onHitEffects.forEach(effect => {
                 if (effect.type === 'reflect_damage_buff') {
@@ -1104,7 +1099,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 }
             }
 
-            // Aplicar efeitos secundários que dependem do acerto
             const onHitBuffs = attacker.activeEffects.filter(e => e.type === 'weapon_buff' && e.onHitEffect);
             onHitBuffs.forEach(buff => {
                 if (Math.random() < (buff.onHitEffect.chance || 1.0)) {
@@ -1114,7 +1108,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 }
             });
             
-            // Efeito especial de Invocação
             if (attacker.isSummon && attacker.specialEffect && attacker.specialEffect.type === 'on_basic_attack') {
                 if (Math.random() < attacker.specialEffect.chance) {
                     const owner = getFighter(state, attacker.ownerId);
@@ -1134,13 +1127,11 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 if (!target.isPlayer && !target.isSummon) {
                     distributeNpcRewards(state, target, roomId);
                 } else if (target.isSummon) {
-                    // Não remover a invocação aqui para permitir a animação de morte
                 } else if (target.isPlayer) {
-                    // Remove invocações do jogador derrotado
                     Object.keys(state.fighters.summons).forEach(summonId => {
                         if(state.fighters.summons[summonId].ownerId === target.id) {
                             logMessage(state, `Com a queda de seu mestre, ${state.fighters.summons[summonId].nome} desaparece!`, 'info');
-                            state.fighters.summons[summonId].status = 'down'; // Alterado para acionar animação
+                            state.fighters.summons[summonId].status = 'down';
                         }
                     });
                 }
@@ -1212,7 +1203,6 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         return io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     }
 
-    // Lógica de Invocação - Verificação
     if (spell.effect.type === 'summon' || spell.effect.type === 'summon_elemental') {
         const existingSummon = Object.values(state.fighters.summons).find(s => s.ownerId === attackerKey && s.status === 'active');
         if (existingSummon) {
@@ -1228,10 +1218,9 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
         attacker.cooldowns[spellName] = spell.cooldown + 1;
     }
 
-    // Lógica de Invocação - Execução
     if (spell.effect.type === 'summon' || spell.effect.type === 'summon_elemental') {
         logMessage(state, `${attacker.nome} inicia um ritual de invocação!`, 'info');
-        if (spell.effect.type === 'summon') { // Requer escolha
+        if (spell.effect.type === 'summon') {
             const summonPool = ALL_SUMMONS[`tier${spell.effect.tier}`];
             const choices = Object.keys(summonPool).map(name => {
                 const img = ALL_NPCS[name] ? `/images/lutadores/${name}.png` : '/images/lutadores/default.png';
@@ -1242,15 +1231,15 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
                 console.log(`[DEBUG] Enviando promptForSummon para ${attacker.nome}`);
                 socket.emit('promptForSummon', { tier: spell.effect.tier, choices, spell });
             }
-        } else { // Invocação direta
+        } else {
             handleSummon(state, roomId, {
                 summonerId: attackerKey,
                 spell,
                 choice: spell.effect.summonName
             });
         }
-        shouldUpdate = false; // A atualização virá do handleSummon
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId])); // Atualiza para gastar PA/Mahou
+        shouldUpdate = false;
+        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
         return;
     }
 
@@ -1281,24 +1270,23 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
                  targets.push(primaryTarget);
                  const primaryTargetIndex = state.npcSlots.indexOf(targetKey);
                  if (primaryTargetIndex !== -1) {
-                    if (primaryTargetIndex > 0 && primaryTargetIndex < 4) { // Pega o da esquerda, exceto se for o primeiro ou o quinto
+                    if (primaryTargetIndex > 0 && primaryTargetIndex < 4) {
                         const leftNpc = getFighter(state, state.npcSlots[primaryTargetIndex - 1]);
                         if(leftNpc && leftNpc.status === 'active') targets.push(leftNpc);
                     }
-                    if (primaryTargetIndex < 3) { // Pega o da direita, exceto se for o último dos 4 ou o quinto
+                    if (primaryTargetIndex < 3) {
                         const rightNpc = getFighter(state, state.npcSlots[primaryTargetIndex + 1]);
                         if(rightNpc && rightNpc.status === 'active') targets.push(rightNpc);
                     }
                  }
             }
             break;
-        // *** AJUSTE 2: Permite que magias de ressurreição mirem em alvos derrotados ***
         case 'single_ally_down':
             if (primaryTarget && (primaryTarget.status === 'active' || primaryTarget.status === 'down')) {
                 targets.push(primaryTarget);
             }
             break;
-        default: // single_enemy, single_ally, single_target
+        default:
             if (primaryTarget && primaryTarget.status === 'active') {
                 targets.push(primaryTarget);
             }
@@ -1442,8 +1430,8 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 const btmData = getBtmBreakdown(attacker);
                 damageBonus = btmData.value;
                 damageBonusBreakdown = btmData.details;
-            } else { // Physical spell
-                const btdData = getBtdBreakdown(attacker, 'weapon1'); // Assume weapon1 for calculation base
+            } else {
+                const btdData = getBtdBreakdown(attacker, 'weapon1');
                 damageBonus = btdData.value;
                 damageBonusBreakdown = btdData.details;
             }
@@ -1473,7 +1461,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 if (!target.isPlayer && !target.isSummon) {
                     distributeNpcRewards(state, target, roomId);
                 } else if (target.isSummon) {
-                    // Não remover a invocação aqui para permitir a animação de morte
                 }
             }
             Object.assign(debugInfo, { hit: true, damageFormula: spell.effect.damageFormula, damageRoll, levelBonus, critDamage, damageBonus, damageBonusBreakdown, totalDamage, targetProtection, protectionBreakdown: targetProtectionBreakdown.details, finalDamage });
@@ -1496,7 +1483,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             Object.assign(debugInfo, { hit: true, healedAmount });
             break;
         
-        // *** AJUSTE 2: Lógica para o efeito de "revive" ***
         case 'revive':
             if (target.status === 'down') {
                 target.status = 'active';
@@ -1507,7 +1493,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 reviveHealAmount = Math.max(1, reviveHealAmount);
                 target.hp = Math.min(target.hpMax, reviveHealAmount);
                 
-                // Adiciona de volta à ordem de turnos, no final
                 if (!state.turnOrder.includes(target.id)) {
                     state.turnOrder.push(target.id);
                 }
@@ -1515,7 +1500,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 logMessage(state, `${target.nome} foi ressuscitado por ${attacker.nome} com ${target.hp} de HP!`, 'info');
                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Ressuscitado! +${target.hp} HP`, type: 'heal-hp' });
             } else {
-                // Se o alvo não estiver 'down', funciona como uma cura normal
                 let healAmountRevive = rollDice(spell.effect.heal_formula);
                 if (spell.effect.bonusAttribute) {
                     healAmountRevive += getAttributeBreakdown(attacker, spell.effect.bonusAttribute).value;
@@ -1720,13 +1704,13 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
         let finalName = item.name;
         if (inventory[finalName]) {
             let count = 2;
-            let potentialName = `${item.name.replace(/ \(\d+\)$/, '')} (${count})`; // Remove old count if exists
+            let potentialName = `${item.name.replace(/ \(\d+\)$/, '')} (${count})`;
             while (inventory[potentialName]) {
                 count++;
                 potentialName = `${item.name.replace(/ \(\d+\)$/, '')} (${count})`;
             }
             finalName = potentialName;
-            item.name = finalName; // Atualiza o nome no objeto de equipamento também.
+            item.name = finalName;
         }
     
         inventory[finalName] = { type, name: finalName, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
@@ -1822,7 +1806,7 @@ io.on('connection', (socket) => {
         }
         room.sockets[socket.id] = { role: finalRole };
         lobbyState.connectedPlayers[socket.id] = { 
-            socketId: socket.id, // Adiciona o socketId para referência
+            socketId: socket.id,
             role: finalRole, 
             characterName: null, 
             characterSheet: null,
@@ -1880,14 +1864,12 @@ io.on('connection', (socket) => {
                     room.gameModes.adventure = room.adventureCache;
                     room.adventureCache = null;
 
-                    // *** AJUSTE 1: Sincroniza o estado atual do jogador (do lobby) com o estado da aventura em cache ***
                     const adventureState = room.gameModes.adventure;
                     for (const playerId in adventureState.fighters.players) {
                         const adventureFighter = adventureState.fighters.players[playerId];
                         const lobbyPlayer = lobbyState.connectedPlayers[playerId];
 
                         if (adventureFighter && lobbyPlayer && lobbyPlayer.characterSheet) {
-                            // Atualiza a ficha inteira, que já contém HP e Mahou atuais do lobby/modo cenário
                             adventureFighter.sheet = lobbyPlayer.characterSheet;
                             
                             adventureFighter.hp = lobbyPlayer.characterSheet.hp;
@@ -1896,13 +1878,11 @@ io.on('connection', (socket) => {
                             adventureFighter.inventory = lobbyPlayer.characterSheet.inventory;
                             adventureFighter.ammunition = lobbyPlayer.characterSheet.ammunition;
 
-                            // Se o jogador foi derrotado, mas curado no modo cenário, ele volta à ativa.
                             if (adventureFighter.hp > 0 && adventureFighter.status === 'down') {
                                 adventureFighter.status = 'active';
                                 logMessage(adventureState, `${adventureFighter.nome} foi revivido e retorna ao combate!`);
                             }
                             
-                            // Recalcula stats como HP Máximo, que podem ter mudado com buffs
                             recalculateFighterStats(adventureFighter);
                         }
                     }
@@ -1976,29 +1956,24 @@ io.on('connection', (socket) => {
                 const sheet = playerInfo.characterSheet;
                 const data = action.data;
 
-                // Validação de segurança
                 if (data.attrPointsSpent > sheet.unallocatedAttrPoints || data.elemPointsSpent > sheet.unallocatedElemPoints) {
-                    return; // Tentativa de gastar mais pontos do que o disponível
+                    return;
                 }
                 
                 sheet.unallocatedAttrPoints -= data.attrPointsSpent;
                 sheet.unallocatedElemPoints -= data.elemPointsSpent;
                 
-                // Atualiza atributos base
                 for (const attr in data.newBaseAttributes) {
                     sheet.baseAttributes[attr] = data.newBaseAttributes[attr];
                 }
-                // Atualiza elementos base
                 for (const elem in data.newBaseElements) {
                     sheet.elements[elem] = data.newBaseElements[elem];
                 }
                 
-                // Adiciona novas magias
                 if (data.newSpells && Array.isArray(data.newSpells)) {
                     data.newSpells.forEach(spellChoice => {
                         if (!sheet.spells.includes(spellChoice.spellName)) {
                             sheet.spells.push(spellChoice.spellName);
-                            // Remove a escolha disponível
                             const choiceIndex = sheet.spellChoicesAvailable.findIndex(c => c.grade === spellChoice.grade);
                             if (choiceIndex > -1) {
                                 sheet.spellChoicesAvailable.splice(choiceIndex, 1);
@@ -2007,17 +1982,15 @@ io.on('connection', (socket) => {
                     });
                 }
                 
-                // Recalcula atributos finais
                  const raceData = GAME_RULES.races[sheet.race];
                  sheet.finalAttributes = { ...sheet.baseAttributes };
                  if (raceData && raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') sheet.finalAttributes[attr] += raceData.bon[attr]; });
                  if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => sheet.finalAttributes[attr] += raceData.pen[attr]);
                 
-                // Atualiza o fighter se estiver em batalha
                 if(room.activeMode === 'adventure' && activeState.fighters.players[socket.id]) {
                     const fighter = activeState.fighters.players[socket.id];
-                    fighter.sheet = sheet; // Sincroniza a ficha
-                    recalculateFighterStats(fighter); // Recalcula HP/Mahou/etc.
+                    fighter.sheet = sheet;
+                    recalculateFighterStats(fighter);
                 }
 
                 logMessage(lobbyState, `${sheet.name} distribuiu seus pontos de nível.`, 'info');
@@ -2304,11 +2277,10 @@ io.on('connection', (socket) => {
                                  actor.status = 'fled';
                                  logMessage(adventureState, `${actor.nome} fugiu da batalha!`, 'info');
                                  io.to(roomId).emit('fleeResolved', { actorKey: action.actorKey });
-                                 // Remove invocações do jogador que fugiu
                                  Object.keys(adventureState.fighters.summons).forEach(summonId => {
                                      if(adventureState.fighters.summons[summonId].ownerId === actor.id) {
                                          logMessage(adventureState, `Com a fuga de seu mestre, ${adventureState.fighters.summons[summonId].nome} desaparece!`, 'info');
-                                         adventureState.fighters.summons[summonId].status = 'down'; // Alterado para acionar animação
+                                         adventureState.fighters.summons[summonId].status = 'down';
                                      }
                                  });
                                  checkGameOver(adventureState);
@@ -2473,7 +2445,7 @@ io.on('connection', (socket) => {
                             playerInfo.characterSheet.money -= totalCost;
                             
                             if (isFreeItem) {
-                                shopItem.quantity = 0; // Remove all stock for free items
+                                shopItem.quantity = 0;
                             } else {
                                 shopItem.quantity -= quantityToTake;
                             }
@@ -2609,11 +2581,10 @@ io.on('connection', (socket) => {
         if (adventureState && adventureState.fighters.players[socket.id]) {
             adventureState.fighters.players[socket.id].status = 'disconnected';
             logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
-             // Remove invocações do jogador desconectado
             Object.keys(adventureState.fighters.summons).forEach(summonId => {
                 if(adventureState.fighters.summons[summonId].ownerId === socket.id) {
                     logMessage(adventureState, `Com a desconexão de seu mestre, ${adventureState.fighters.summons[summonId].nome} desaparece!`, 'info');
-                    adventureState.fighters.summons[summonId].status = 'down'; // Alterado para acionar animação
+                    adventureState.fighters.summons[summonId].status = 'down';
                 }
             });
             checkGameOver(adventureState);
