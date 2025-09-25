@@ -1165,22 +1165,29 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateTargetableStatus() {
         document.querySelectorAll('.char-container').forEach(el => el.classList.remove('targetable'));
         if (!isTargeting || !currentGameState) return;
-
+    
         const activeFighter = getFighter(currentGameState, currentGameState.activeCharacterKey);
         if (!activeFighter) return;
-
+    
         const canIControlThisTurn = (myPlayerKey === currentGameState.activeCharacterKey) || (isGm && !activeFighter.isPlayer && !activeFighter.isSummon) || (activeFighter.isSummon && activeFighter.ownerId === myPlayerKey);
         if (!canIControlThisTurn) return;
         
         const isActiveFighterPlayerSide = activeFighter.isPlayer || activeFighter.isSummon;
-        const isAllyTargetAction = targetingAction.type === 'use_spell' && ['single_ally', 'all_allies'].includes(targetingAction.spell.targetType);
-
+        const isAllyTargetAction = targetingAction.type === 'use_spell' && ['single_ally', 'all_allies', 'single_ally_down'].includes(targetingAction.spell.targetType);
+    
         document.querySelectorAll('.char-container').forEach(container => {
             const fighter = getFighter(currentGameState, container.id);
-            if (!fighter || fighter.status !== 'active') return;
-
+            if (!fighter) return;
+    
+            // *** AJUSTE 2: Condição para permitir alvejar alvos derrotados ***
+            if (targetingAction.spell?.targetType === 'single_ally_down') {
+                if (fighter.status !== 'down' && fighter.status !== 'active') return;
+            } else {
+                if (fighter.status !== 'active') return;
+            }
+    
             const isThisFighterPlayerSide = fighter.isPlayer || fighter.isSummon;
-
+    
             if (isAllyTargetAction) {
                 if (isThisFighterPlayerSide === isActiveFighterPlayerSide) {
                     container.classList.add('targetable');
@@ -1358,7 +1365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         turnOrderSidebar.classList.remove('hidden');
         const orderedFighters = state.turnOrder
             .map(id => getFighter(state, id))
-            .filter(f => f && f.status === 'active');
+            .filter(f => f && (f.status === 'active' || f.status === 'down'));
         
         const activeIndex = orderedFighters.findIndex(f => f.id === state.activeCharacterKey);
         const sortedVisibleFighters = activeIndex === -1 ? orderedFighters : orderedFighters.slice(activeIndex).concat(orderedFighters.slice(0, activeIndex));
@@ -1372,6 +1379,9 @@ document.addEventListener('DOMContentLoaded', () => {
             img.src = fighter.img;
             img.alt = fighter.nome;
             img.title = fighter.nome;
+            if (fighter.status === 'down') {
+                img.style.filter = 'grayscale(1)';
+            }
             card.appendChild(img);
             turnOrderSidebar.appendChild(card);
         });

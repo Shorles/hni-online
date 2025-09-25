@@ -423,6 +423,12 @@ function cachePlayerStats(room) {
                  lobbyPlayer.characterSheet.hp = playerFighter.hp;
                  lobbyPlayer.characterSheet.mahou = playerFighter.mahou;
                  lobbyPlayer.characterSheet.ammunition = playerFighter.ammunition;
+
+                // *** AJUSTE 3: Se o jogador foi derrotado, volta ao lobby com 1 de HP ***
+                if (lobbyPlayer.characterSheet.hp <= 0) {
+                    lobbyPlayer.characterSheet.hp = 1;
+                }
+
             } else {
                 delete lobbyPlayer.characterSheet.hp;
                 delete lobbyPlayer.characterSheet.mahou;
@@ -1283,6 +1289,12 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
                  }
             }
             break;
+        // *** AJUSTE 2: Permite que magias de ressurreição mirem em alvos derrotados ***
+        case 'single_ally_down':
+            if (primaryTarget && (primaryTarget.status === 'active' || primaryTarget.status === 'down')) {
+                targets.push(primaryTarget);
+            }
+            break;
         default: // single_enemy, single_ally, single_target
             if (primaryTarget && primaryTarget.status === 'active') {
                 targets.push(primaryTarget);
@@ -1481,6 +1493,40 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             Object.assign(debugInfo, { hit: true, healedAmount });
             break;
         
+        // *** AJUSTE 2: Lógica para o efeito de "revive" ***
+        case 'revive':
+            if (target.status === 'down') {
+                target.status = 'active';
+                let reviveHealAmount = rollDice(spell.effect.heal_formula);
+                if (spell.effect.bonusAttribute) {
+                    reviveHealAmount += getAttributeBreakdown(attacker, spell.effect.bonusAttribute).value;
+                }
+                reviveHealAmount = Math.max(1, reviveHealAmount);
+                target.hp = Math.min(target.hpMax, reviveHealAmount);
+                
+                // Adiciona de volta à ordem de turnos, no final
+                if (!state.turnOrder.includes(target.id)) {
+                    state.turnOrder.push(target.id);
+                }
+
+                logMessage(state, `${target.nome} foi ressuscitado por ${attacker.nome} com ${target.hp} de HP!`, 'info');
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Ressuscitado! +${target.hp} HP`, type: 'heal-hp' });
+            } else {
+                // Se o alvo não estiver 'down', funciona como uma cura normal
+                let healAmountRevive = rollDice(spell.effect.heal_formula);
+                if (spell.effect.bonusAttribute) {
+                    healAmountRevive += getAttributeBreakdown(attacker, spell.effect.bonusAttribute).value;
+                }
+                const healedAmountRevive = Math.min(target.hpMax - target.hp, healAmountRevive);
+                if (healedAmountRevive > 0) {
+                    target.hp += healedAmountRevive;
+                    logMessage(state, `${target.nome} é curado por ${spell.name} e recupera ${healedAmountRevive} de HP.`, 'info');
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `+${healedAmountRevive} HP`, type: 'heal-hp' });
+                }
+            }
+            Object.assign(debugInfo, { hit: true });
+            break;
+
         case 'hot':
             target.activeEffects.push({
                 name: spell.name,
@@ -1831,18 +1877,23 @@ io.on('connection', (socket) => {
                     room.gameModes.adventure = room.adventureCache;
                     room.adventureCache = null;
 
+                    // *** AJUSTE 1: Sincroniza o estado atual do jogador (do lobby) com o estado da aventura em cache ***
                     const adventureState = room.gameModes.adventure;
                     for (const playerId in adventureState.fighters.players) {
                         const adventureFighter = adventureState.fighters.players[playerId];
                         const lobbyPlayer = lobbyState.connectedPlayers[playerId];
 
                         if (adventureFighter && lobbyPlayer && lobbyPlayer.characterSheet) {
+                            // Atualiza a ficha inteira, que já contém HP e Mahou atuais do lobby/modo cenário
                             adventureFighter.sheet = lobbyPlayer.characterSheet;
                             
+                            adventureFighter.hp = lobbyPlayer.characterSheet.hp;
+                            adventureFighter.mahou = lobbyPlayer.characterSheet.mahou;
                             adventureFighter.money = lobbyPlayer.characterSheet.money;
                             adventureFighter.inventory = lobbyPlayer.characterSheet.inventory;
                             adventureFighter.ammunition = lobbyPlayer.characterSheet.ammunition;
                             
+                            // Recalcula stats como HP Máximo, que podem ter mudado com buffs
                             recalculateFighterStats(adventureFighter);
                         }
                     }
