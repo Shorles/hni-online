@@ -113,7 +113,10 @@ try {
 
     const dynamicCharPath = 'public/images/personagens/';
     if (fs.existsSync(dynamicCharPath)) {
-        const files = fs.readdirSync(dynamicCharPath).filter(file => file.startsWith('Personagem (') && (file.endsWith('.png') || file.endsWith('.jpg')));
+        // *** AJUSTE 2: Aplicando a ordenação natural na lista de arquivos de personagens ***
+        const files = fs.readdirSync(dynamicCharPath)
+            .filter(file => file.startsWith('Personagem (') && (file.endsWith('.png') || file.endsWith('.jpg')))
+            .sort(naturalSort);
         DYNAMIC_CHARACTERS = files.map(file => ({ name: file.split('.')[0], img: `/images/personagens/${file}` }));
     }
 
@@ -1892,6 +1895,12 @@ io.on('connection', (socket) => {
                             adventureFighter.money = lobbyPlayer.characterSheet.money;
                             adventureFighter.inventory = lobbyPlayer.characterSheet.inventory;
                             adventureFighter.ammunition = lobbyPlayer.characterSheet.ammunition;
+
+                            // Se o jogador foi derrotado, mas curado no modo cenário, ele volta à ativa.
+                            if (adventureFighter.hp > 0 && adventureFighter.status === 'down') {
+                                adventureFighter.status = 'active';
+                                logMessage(adventureState, `${adventureFighter.nome} foi revivido e retorna ao combate!`);
+                            }
                             
                             // Recalcula stats como HP Máximo, que podem ter mudado com buffs
                             recalculateFighterStats(adventureFighter);
