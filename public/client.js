@@ -1390,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderWaitingPlayers(state) {
         waitingPlayersSidebar.innerHTML = '';
         const waiting = state.waitingPlayers || {};
-        if (Object.keys(waiting).length === 0) {
+        if (Object.keys(waiting).length === 0 || !isGm) {
             waitingPlayersSidebar.classList.add('hidden');
             return;
         }
@@ -1398,15 +1398,19 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const playerId in waiting) {
             const character = waiting[playerId];
             const card = document.createElement('div');
-            card.className = 'waiting-player-card';
+            card.className = 'waiting-player-card gm-clickable';
             card.innerHTML = `<img src="${character.img}" alt="${character.nome}"><p>${character.nome}</p>`;
-            if (isGm) {
-                card.classList.add('gm-clickable');
-                card.title = `Clique para admitir ${character.nome} na batalha`;
-                card.onclick = () => {
-                    socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted: true });
-                };
-            }
+            card.title = `Clique para admitir ${character.nome} na batalha`;
+            card.onclick = () => {
+                showCustomModal(
+                    `Admitir ${character.nome}?`,
+                    `<p>Deseja permitir que ${character.nome} entre na batalha agora?</p>`,
+                    [
+                        { text: 'Sim', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted: true }) },
+                        { text: 'Não', closes: true, className: 'btn-danger' }
+                    ]
+                );
+            };
             waitingPlayersSidebar.appendChild(card);
         }
     }
@@ -3795,6 +3799,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- LÓGICA DE INVOCAÇÃO (CLIENTE) ---
     socket.on('promptForSummon', (data) => {
         showSummonSelectionModal(data);
+    });
+
+    socket.on('promptForAdmission', (data) => {
+        if (isGm) {
+            showCustomModal(
+                'Novo Jogador na Batalha',
+                `<p>${data.nome} está pronto para entrar na batalha. Deseja admiti-lo agora?</p>`,
+                [
+                    { text: 'Sim, Admitir', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId: data.playerId, admitted: true }) },
+                    { text: 'Não, Colocar em Espera', closes: true, className: 'btn-danger', onClick: () => socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId: data.playerId, admitted: false }) }
+                ]
+            );
+        }
     });
 
     function showSummonSelectionModal({ tier, choices, spell }) {

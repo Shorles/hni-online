@@ -1842,6 +1842,15 @@ io.on('connection', (socket) => {
                  if (room.activeMode === 'adventure') {
                     cachePlayerStats(room);
                     room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
+                    
+                    // Admitir jogadores em espera ao mudar para o modo cenário
+                    if(activeState.waitingPlayers) {
+                        Object.keys(activeState.waitingPlayers).forEach(playerId => {
+                            logMessage(room.gameModes.theater || lobbyState, `${activeState.waitingPlayers[playerId].nome} juntou-se à sessão.`);
+                        });
+                        activeState.waitingPlayers = {};
+                    }
+
                     room.activeMode = 'theater';
                  } else if (room.activeMode === 'theater') {
                     if (room.adventureCache) {
@@ -1915,6 +1924,27 @@ io.on('connection', (socket) => {
                 playerInfo.characterName = characterData.name;
                 playerInfo.characterFinalized = true;
                 logMessage(lobbyState, `Jogador ${playerInfo.characterName} está pronto!`);
+
+                if (room.activeMode === 'adventure') {
+                    const adventureState = room.gameModes.adventure;
+                    const currentPlayersCount = Object.keys(adventureState.fighters.players).length;
+                    if (currentPlayersCount < MAX_PLAYERS) {
+                        adventureState.waitingPlayers[socket.id] = {
+                            nome: characterData.name,
+                            img: characterData.tokenImg,
+                        };
+                        const gmSocket = io.sockets.sockets.get(lobbyState.gmId);
+                        if (gmSocket) {
+                            gmSocket.emit('promptForAdmission', {
+                                playerId: socket.id,
+                                nome: characterData.name,
+                                img: characterData.tokenImg,
+                            });
+                        }
+                    } else {
+                        logMessage(adventureState, `${characterData.name} tentou entrar, mas a batalha está cheia.`);
+                    }
+                }
             }
         }
 
@@ -2151,6 +2181,24 @@ io.on('connection', (socket) => {
                                  logMessage(adventureState, `GM aplicou um buff de ${action.value > 0 ? '+' : ''}${action.value} em ${action.attribute} de ${fighter.nome}.`);
                              }
                              break;
+                        case 'gmDecidesOnAdmission':
+                            if (adventureState.waitingPlayers[action.playerId]) {
+                                const playerInfo = lobbyState.connectedPlayers[action.playerId];
+                                if (action.admitted) {
+                                    const newFighter = createNewFighterState({
+                                        id: action.playerId,
+                                        isPlayer: true,
+                                        sheetData: playerInfo.characterSheet
+                                    });
+                                    adventureState.fighters.players[action.playerId] = newFighter;
+                                    adventureState.turnOrder.push(action.playerId);
+                                    logMessage(adventureState, `${playerInfo.characterName} juntou-se à batalha!`);
+                                } else {
+                                    logMessage(adventureState, `O Mestre decidiu que ${playerInfo.characterName} aguardará para entrar na batalha.`);
+                                }
+                                delete adventureState.waitingPlayers[action.playerId];
+                            }
+                            break;
                     }
                 }
 
@@ -2578,16 +2626,22 @@ io.on('connection', (socket) => {
         delete room.sockets[socket.id];
         delete lobbyState.connectedPlayers[socket.id];
         const adventureState = room.gameModes.adventure;
-        if (adventureState && adventureState.fighters.players[socket.id]) {
-            adventureState.fighters.players[socket.id].status = 'disconnected';
-            logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
-            Object.keys(adventureState.fighters.summons).forEach(summonId => {
-                if(adventureState.fighters.summons[summonId].ownerId === socket.id) {
-                    logMessage(adventureState, `Com a desconexão de seu mestre, ${adventureState.fighters.summons[summonId].nome} desaparece!`, 'info');
-                    adventureState.fighters.summons[summonId].status = 'down';
-                }
-            });
-            checkGameOver(adventureState);
+        if (adventureState) {
+            if (adventureState.fighters.players[socket.id]) {
+                adventureState.fighters.players[socket.id].status = 'disconnected';
+                logMessage(adventureState, `${adventureState.fighters.players[socket.id].nome} foi desconectado.`);
+                Object.keys(adventureState.fighters.summons).forEach(summonId => {
+                    if(adventureState.fighters.summons[summonId].ownerId === socket.id) {
+                        logMessage(adventureState, `Com a desconexão de seu mestre, ${adventureState.fighters.summons[summonId].nome} desaparece!`, 'info');
+                        adventureState.fighters.summons[summonId].status = 'down';
+                    }
+                });
+                checkGameOver(adventureState);
+            }
+            if (adventureState.waitingPlayers && adventureState.waitingPlayers[socket.id]) {
+                delete adventureState.waitingPlayers[socket.id];
+                logMessage(adventureState, `${playerInfo.characterName}, que estava esperando, desconectou-se.`);
+            }
         }
         io.to(roomId).emit('gameUpdate', getFullState(room));
         if (Object.keys(room.sockets).length === 0) {
