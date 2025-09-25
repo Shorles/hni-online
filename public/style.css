@@ -704,8 +704,8 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     text-align: center;
     font-weight: bold;
     animation: announce-effect-animation 4s ease-out forwards;
-    background: none; /* Remove qualquer fundo */
-    padding: 10px 20px; /* Adiciona um pouco de espaço, se necessário */
+    color: var(--element-color);
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.9), -2px -2px 5px rgba(0, 0, 0, 0.9);
 }
 
 .announcement-main {
@@ -1519,12 +1519,28 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     padding: 2px 6px;
     border-radius: 4px;
     
+    /* Truque para o gradiente no texto */
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
+
+.spell-details {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.spell-cost {
+    font-size: 0.8em;
+    color: #00bfff; /* Cor ciano para mahou */
+    font-weight: bold;
+}
+
 
 .life-bars.ingame-life-bars {
     padding: 10px;

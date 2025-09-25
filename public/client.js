@@ -2076,15 +2076,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function getElementColors(elementName) {
+    function getElementHexColor(elementName) {
         const colors = {
             fogo: '#ff4d4d', agua: '#4da6ff', vento: '#00cc66', terra: '#a67c52',
             luz: '#ffffff', escuridao: '#b366ff',
             'Chama Azul': '#007bff', 'Gelo': '#a3d8f4', 'Metal': '#c0c0c0',
-            'Raio': '#ffd700', 'Cura': '#90ee90', 'Gravidade': '#9370db'
+            'Raio': '#ffd700', 'Cura': '#90ee90', 'Gravidade': '#9370db',
+            'Névoa': '#cccccc', 'Calor': '#ffa500', 'Magma': '#ff4500', 
+            'Bênção': '#fffacd', 'Maldição': '#8b0000', 'Tempestade': '#708090',
+            'Barro': '#8b4513', 'Poção de Cura': '#98FB98', 'Veneno': '#9400d3',
+            'Areia': '#f4a460', 'Aurora': '#dda0dd', 'Sussurro': '#483d8b',
+            'Natureza': '#228b22', 'Abismo': '#2f4f4f', 'Nulificação': '#808080'
         };
-        // Retorna a cor direta
         return colors[elementName] || '#ffffff';
+    }
+
+    function getElementColors(elementName) {
+        const color = getElementHexColor(elementName);
+        // Retorna um gradiente sólido para ser usado no background-image
+        return `linear-gradient(to top, ${color}, ${color})`;
     }
     
     function updateCharacterSheet(loadedData = null, event = null) {
@@ -2283,16 +2293,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const spellType = spell.inCombat ? '(Combate)' : '(Utilitário)';
             
             let elementHtml;
-            const costText = (spell.costMahou !== undefined) ? `Custo: ${spell.costMahou} Mahou<br>` : '';
-
             if (spell.combinedElementName) {
-                // Combined spells don't get a color box in creation
-                elementHtml = `<span>${spell.combinedElementName}</span>`;
+                const color = getElementColors(spell.combinedElementName, spell.requiredElements);
+                elementHtml = `<span class="spell-element" style="background-image: ${color};">${spell.combinedElementName}</span>`;
             } else {
                 const elementName = spell.isAdvanced ? GAME_RULES.advancedElements[spell.element] : spell.element;
                 const color = getElementColors(elementName);
                 const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
-                elementHtml = `<span class="spell-element" style="background-image: ${color}; -webkit-text-fill-color: ${['Luz', 'Cura', 'Gelo', 'Raio'].includes(elementName) ? 'black' : 'white'};">${capitalizedElement}</span>`;
+                elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
             }
 
             card.innerHTML = `
@@ -2300,7 +2308,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h4>${spell.name} <small>${spellType}</small></h4>
                     ${elementHtml}
                 </div>
-                <p>${costText}${spell.description}</p>`;
+                <p>${spell.description}</p>`;
                 
             if (stagedCharacterSheet.spells.includes(spell.name)) {
                 card.classList.add('selected');
@@ -2953,27 +2961,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     card.dataset.spellName = spellData.name;
                     const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
-                    const costText = (spellData.costMahou !== undefined) ? `Custo: ${spellData.costMahou} Mahou<br>` : '';
 
                     let elementHtml;
                     if (spellData.combinedElementName) {
-                        const color = getElementColors(spellData.combinedElementName, spellData.requiredElements);
-                        const textColor = getTextColorForBackground(color);
-                        elementHtml = `<span class="spell-element" style="background-image: ${color}; color: ${textColor}; -webkit-text-fill-color: ${textColor};">${spellData.combinedElementName}</span>`;
+                        const colors = getElementColors(spellData.combinedElementName);
+                        elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spellData.combinedElementName}</span>`;
                     } else {
                         const elementName = spellData.isAdvanced ? GAME_RULES.advancedElements[spellData.element] : spellData.element;
                         const color = getElementColors(elementName);
-                        const textColor = getTextColorForBackground(color);
                         const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
-                        elementHtml = `<span class="spell-element" style="background-image: ${color}; color: ${textColor}; -webkit-text-fill-color: ${textColor};">${capitalizedElement}</span>`;
+                        elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
                     }
 
                     card.innerHTML = `
                         <div class="spell-card-header">
                             <h4>${spellData.name} <small>${spellType}</small></h4>
-                            ${elementHtml}
+                            <div class="spell-details">
+                                ${elementHtml}
+                                <span class="spell-cost">${spellData.costMahou} Mahou</span>
+                            </div>
                         </div>
-                        <p>${costText}${spellData.description}</p>`;
+                        <p>${spellData.description}</p>`;
                     spellsGrid.appendChild(card);
                 }
             });
@@ -3193,8 +3201,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         card.dataset.spellName = spell.name;
                         card.dataset.spellGrade = choice.grade;
                         const spellType = spell.inCombat ? '(Combate)' : '(Utilitário)';
-                        const costText = (spell.costMahou !== undefined) ? `Custo: ${spell.costMahou} Mahou<br>` : '';
-                        card.innerHTML = `<h4>${spell.name} <small>${spellType}</small></h4><p>${costText}${spell.description}</p>`;
+                        card.innerHTML = `<h4>${spell.name} <small>${spellType}</small></h4><p>${spell.description}</p>`;
                         
                         card.addEventListener('click', () => {
                             spellGrid.querySelectorAll('.spell-card.selected').forEach(c => c.classList.remove('selected'));
@@ -3440,12 +3447,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const announcement = document.createElement('div');
         announcement.className = 'global-effect-announcement';
         
-        const color = getElementColors(data.element);
-        announcement.style.color = color;
-        announcement.style.textShadow = `3px 3px 6px rgba(0,0,0,0.9)`;
-        
-        const textColor = getTextColorForBackground(color);
-        announcement.style.color = textColor;
+        const hexColor = getElementHexColor(data.element);
+        announcement.style.setProperty('--element-color', hexColor);
 
         let html = `<div class="announcement-main">${data.casterName} usou ${data.spellName}`;
         if (data.targetName) {
