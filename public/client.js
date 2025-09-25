@@ -1398,19 +1398,15 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const playerId in waiting) {
             const character = waiting[playerId];
             const card = document.createElement('div');
-            card.className = 'waiting-player-card gm-clickable';
+            card.className = 'waiting-player-card';
             card.innerHTML = `<img src="${character.img}" alt="${character.nome}"><p>${character.nome}</p>`;
-            card.title = `Clique para admitir ${character.nome} na batalha`;
-            card.onclick = () => {
-                showCustomModal(
-                    `Admitir ${character.nome}?`,
-                    `<p>Deseja permitir que ${character.nome} entre na batalha agora?</p>`,
-                    [
-                        { text: 'Sim', closes: true, onClick: () => socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted: true }) },
-                        { text: 'Não', closes: true, className: 'btn-danger' }
-                    ]
-                );
-            };
+            if (isGm) {
+                card.classList.add('gm-clickable');
+                card.title = `Clique para admitir ${character.nome} na batalha`;
+                card.onclick = () => {
+                    socket.emit('playerAction', { type: 'gmDecidesOnAdmission', playerId, admitted: true });
+                };
+            }
             waitingPlayersSidebar.appendChild(card);
         }
     }

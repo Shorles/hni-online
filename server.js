@@ -1791,7 +1791,6 @@ io.on('connection', (socket) => {
         const currentPlayers = Object.values(lobbyState.connectedPlayers).filter(p => p.role === 'player').length;
         const isFull = currentPlayers >= MAX_PLAYERS;
         socket.emit('promptForRole', { isFull: isFull });
-        io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
     });
     
     socket.on('playerChoosesRole', ({ role }) => {
