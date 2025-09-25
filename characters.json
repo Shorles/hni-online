@@ -2,7 +2,8 @@
   "players": [
     { "img": "/images/players/Centauro1.png", "scale": 1.2 },
     { "img": "/images/players/Centauro2.png", "scale": 1.2 },
-    { "img": "/images/players/player (1).png", "scale": 2.0 }
+    { "img": "/images/players/Meio-Orc1.png", "scale": 1.2 },
+    { "img": "/images/players/player (1).png", "scale": 1.0 }
   ],
   "npcs": {
     "Quimera": {
