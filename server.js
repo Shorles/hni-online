@@ -1973,6 +1973,57 @@ io.on('connection', (socket) => {
             }
         }
 
+        if (action.type === 'useUtilitySpell') {
+            const casterInfo = lobbyState.connectedPlayers[action.casterId];
+            const targetInfo = lobbyState.connectedPlayers[action.targetId];
+            const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade1 || []), ...(ALL_SPELLS.advanced_grade2 || []), ...(ALL_SPELLS.advanced_grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
+            const spell = allSpells.find(s => s.name === action.spellName);
+
+            if (casterInfo && targetInfo && spell && casterInfo.characterSheet.mahou >= spell.costMahou) {
+                casterInfo.characterSheet.mahou -= spell.costMahou;
+                
+                let effectText = null;
+                
+                if (spell.effect?.type === 'heal') {
+                    let healAmount = rollDice(spell.effect.formula);
+                    if (spell.effect.bonusAttribute) {
+                        healAmount += casterInfo.characterSheet.finalAttributes[spell.effect.bonusAttribute] || 0;
+                    }
+                    
+                    const targetSheet = targetInfo.characterSheet;
+                    const constituicao = targetSheet.finalAttributes.constituicao || 0;
+                    const hpMax = 20 + (constituicao * 5);
+                    const currentHp = targetSheet.hp !== undefined ? targetSheet.hp : hpMax;
+                    const actualHealed = Math.min(hpMax - currentHp, healAmount);
+
+                    if (actualHealed > 0) {
+                        targetSheet.hp = currentHp + actualHealed;
+                        effectText = `+${actualHealed} HP`;
+                    }
+                }
+                
+                let finalElementName;
+                if (spell.combinedElementName) {
+                    finalElementName = spell.combinedElementName;
+                } else if (spell.isAdvanced) {
+                    finalElementName = GAME_RULES.advancedElements[spell.element];
+                } else {
+                    finalElementName = spell.element;
+                }
+                
+                io.to(roomId).emit('globalAnnounceEffect', {
+                    casterName: casterInfo.characterName,
+                    targetName: spell.targetType !== 'utility' ? targetInfo.characterName : null,
+                    spellName: spell.name,
+                    effectText: effectText,
+                    costText: `-${spell.costMahou} Mahou`,
+                    element: finalElementName
+                });
+
+                logMessage(activeState, `${casterInfo.characterName} usou ${action.spellName}${spell.targetType !== 'utility' ? ` em ${targetInfo.characterName}` : ''}.`);
+            }
+        }
+
         switch (room.activeMode) {
             case 'lobby':
                 if (isGm) {
@@ -2244,54 +2295,6 @@ io.on('connection', (socket) => {
                     if (playerLobbyInfo && playerLobbyInfo.characterSheet) {
                          playerLobbyInfo.characterSheet.equipment = action.newEquipment;
                          logMessage(theaterState, `${playerLobbyInfo.characterName} trocou de equipamento.`);
-                    }
-                 }
-                 if (action.type === 'useUtilitySpell') {
-                    const casterInfo = lobbyState.connectedPlayers[action.casterId];
-                    const targetInfo = lobbyState.connectedPlayers[action.targetId];
-                    const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade1 || []), ...(ALL_SPELLS.advanced_grade2 || []), ...(ALL_SPELLS.advanced_grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
-                    const spell = allSpells.find(s => s.name === action.spellName);
-
-                    if (casterInfo && targetInfo && spell && casterInfo.characterSheet.mahou >= spell.costMahou) {
-                        casterInfo.characterSheet.mahou -= spell.costMahou;
-                        
-                        let effectText = null;
-                        
-                        if (spell.effect?.type === 'heal') {
-                            let healAmount = rollDice(spell.effect.formula);
-                            if (spell.effect.bonusAttribute) {
-                                healAmount += casterInfo.characterSheet.finalAttributes[spell.effect.bonusAttribute] || 0;
-                            }
-                            
-                            const targetSheet = targetInfo.characterSheet;
-                            const constituicao = targetSheet.finalAttributes.constituicao || 0;
-                            const hpMax = 20 + (constituicao * 5);
-                            const actualHealed = Math.min(hpMax - (targetSheet.hp || hpMax), healAmount);
-                            if (actualHealed >= 0) {
-                                targetSheet.hp = (targetSheet.hp || hpMax) + actualHealed;
-                                effectText = `+${actualHealed} HP`;
-                            }
-                        }
-                        
-                        let finalElementName;
-                        if (spell.combinedElementName) {
-                            finalElementName = spell.combinedElementName;
-                        } else if (spell.isAdvanced) {
-                            finalElementName = GAME_RULES.advancedElements[spell.element];
-                        } else {
-                            finalElementName = spell.element;
-                        }
-                        
-                        io.to(roomId).emit('globalAnnounceEffect', {
-                            casterName: casterInfo.characterName,
-                            targetName: spell.targetType !== 'utility' ? targetInfo.characterName : null,
-                            spellName: spell.name,
-                            effectText: effectText,
-                            costText: `-${spell.costMahou} Mahou`,
-                            element: finalElementName
-                        });
-
-                        logMessage(theaterState, `${casterInfo.characterName} usou ${action.spellName}${spell.targetType !== 'utility' ? ` em ${targetInfo.characterName}` : ''}.`);
                     }
                  }
                  if (action.type === 'useItem') { 

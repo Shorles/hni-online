@@ -2091,9 +2091,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return colors[elementName] || '#ffffff';
     }
 
-    function getElementColors(elementName) {
+    function getElementColors(elementName, requiredElements = []) {
+        if (requiredElements && requiredElements.length === 2) {
+            const color1 = getElementHexColor(requiredElements[0]);
+            const color2 = getElementHexColor(requiredElements[1]);
+            return `linear-gradient(to right, ${color1} 50%, ${color2} 50%)`;
+        }
         const color = getElementHexColor(elementName);
-        // Retorna um gradiente sólido para ser usado no background-image
         return `linear-gradient(to top, ${color}, ${color})`;
     }
     
@@ -2955,7 +2959,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.className = 'spell-card ingame-spell';
                     
                     const isUsableOutside = (spellData.inCombat === false || spellData.usableOutsideCombat === true);
-                    if (isUsableOutside && currentGameState.mode === 'theater') {
+                    if (isUsableOutside) {
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
                     }
@@ -2964,7 +2968,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     let elementHtml;
                     if (spellData.combinedElementName) {
-                        const colors = getElementColors(spellData.combinedElementName);
+                        const colors = getElementColors(spellData.combinedElementName, spellData.requiredElements);
                         elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spellData.combinedElementName}</span>`;
                     } else {
                         const elementName = spellData.isAdvanced ? GAME_RULES.advancedElements[spellData.element] : spellData.element;
