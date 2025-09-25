@@ -2190,12 +2190,14 @@ io.on('connection', (socket) => {
                                         sheetData: playerInfo.characterSheet
                                     });
                                     adventureState.fighters.players[action.playerId] = newFighter;
-                                    adventureState.turnOrder.push(action.playerId);
+                                    if(adventureState.phase === 'battle') {
+                                        adventureState.turnOrder.push(action.playerId);
+                                    }
+                                    delete adventureState.waitingPlayers[action.playerId];
                                     logMessage(adventureState, `${playerInfo.characterName} juntou-se à batalha!`);
                                 } else {
                                     logMessage(adventureState, `O Mestre decidiu que ${playerInfo.characterName} aguardará para entrar na batalha.`);
                                 }
-                                delete adventureState.waitingPlayers[action.playerId];
                             }
                             break;
                     }
