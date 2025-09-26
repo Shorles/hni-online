@@ -2921,6 +2921,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
+        attributesGrid.classList.remove('is-distributing');
         const finalAttributes = fighter.sheet.finalAttributes || {};
         const baseAttributes = fighter.sheet.baseAttributes || {};
         for (const attr in finalAttributes) {
@@ -2939,6 +2940,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const elementsGrid = document.getElementById('ingame-sheet-elements');
         elementsGrid.innerHTML = '';
+        elementsGrid.classList.remove('is-distributing');
         const allElements = ['fogo', 'agua', 'terra', 'vento', 'luz', 'escuridao'];
         const elements = fighter.sheet.elements || {};
         allElements.forEach(elem => {
@@ -3163,6 +3165,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const elemDistHeader = document.getElementById('ingame-element-points-dist-header');
         const spellContainer = document.getElementById('ingame-spell-choices-dist');
         const confirmBtn = document.getElementById('ingame-confirm-points-btn');
+        const attributesGrid = document.getElementById('ingame-sheet-attributes');
+        const elementsGrid = document.getElementById('ingame-sheet-elements');
 
         // Reset state
         stagedLevelUpChanges = {
@@ -3238,6 +3242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Attribute points
         if (sheet.unallocatedAttrPoints > 0) {
             hasPointsToDistribute = true;
+            attributesGrid.classList.add('is-distributing');
             attrDistHeader.classList.remove('hidden');
             let remainingAttr = sheet.unallocatedAttrPoints;
             document.getElementById('ingame-attr-points-avail').textContent = remainingAttr;
@@ -3291,6 +3296,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Element points
         if (sheet.unallocatedElemPoints > 0) {
             hasPointsToDistribute = true;
+            elementsGrid.classList.add('is-distributing');
             elemDistHeader.classList.remove('hidden');
             let remainingElem = sheet.unallocatedElemPoints;
             document.getElementById('ingame-elem-points-avail').textContent = remainingElem;

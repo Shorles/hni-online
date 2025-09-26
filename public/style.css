@@ -950,19 +950,43 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
     color: #ffc107;
 }
 
-.point-distribution-grid {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    align-items: center;
-    gap: 8px;
+.attributes-grid.is-distributing {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
+
+#ingame-sheet-attributes.is-distributing .attr-item,
+#ingame-sheet-elements.is-distributing .attr-item {
+    background: rgba(0,0,0,.2);
+    padding: 8px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+#ingame-sheet-attributes.is-distributing .attr-item > span,
+#ingame-sheet-elements.is-distributing .attr-item > span {
+    display: none;
+}
+
+#ingame-sheet-attributes.is-distributing .attr-item .number-input-wrapper input,
+#ingame-sheet-elements.is-distributing .attr-item .number-input-wrapper input {
+    width: 40px;
+    font-size: 1.2em;
+    background: #333;
+    color: #fff;
+    border: 1px solid #777;
+    border-radius: 0;
+}
+
 
 #ingame-sheet-attributes .attr-item,
 #ingame-sheet-elements .attr-item {
     background: none;
     padding: 0;
     display: grid;
-    grid-template-columns: 1fr auto auto; /* Label | Valor | Controles */
+    grid-template-columns: 1fr auto; 
     align-items: center;
     gap: 8px;
 }
@@ -977,31 +1001,6 @@ h1 { font-size: 3.5em; color: #ffeb3b; text-shadow: 2px 2px 5px #000; margin-bot
      font-size: 1.5em;
      font-weight: bold;
      padding-right: 10px;
-     grid-column: 2;
-}
-#ingame-sheet-attributes .attr-item .number-input-wrapper,
-#ingame-sheet-elements .attr-item .number-input-wrapper {
-    grid-column: 3;
-    justify-self: end;
-}
-
-#ingame-sheet-attributes .point-distribution-grid .number-input-wrapper,
-#ingame-sheet-elements .point-distribution-grid .number-input-wrapper {
-    grid-column: 2 / span 2;
-}
-#ingame-sheet-attributes .point-distribution-grid > span,
-#ingame-sheet-elements .point-distribution-grid > span {
-    display: none;
-}
-
-
-.point-distribution-grid input[type="number"] {
-    width: 30px;
-    border: none;
-    background-color: transparent;
-    font-size: 1.2em;
-    color: #fff;
-    text-align: center;
 }
 
 #ingame-confirm-points-btn {
