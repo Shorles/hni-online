@@ -939,11 +939,22 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
         return;
     }
-    attacker.pa -= paCost;
+    
 
     const performSingleAttack = (weaponKey, isDual = false) => {
         target = getFighter(state, targetKey);
         if (!target || target.status !== 'active') return null;
+
+        const weapon = attacker.sheet.equipment[weaponKey];
+        if (weapon.isRanged) {
+            if (attacker.ammunition <= 0) {
+                logMessage(state, `${attacker.nome} está sem munição!`, 'miss');
+                io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: 'SEM MUNIÇÃO', type: 'status-resist' });
+                return null; // Cancela o ataque, não consome PA
+            }
+        }
+        
+        attacker.pa -= (isDual && weaponKey === 'weapon1') ? 0 : paCost; // PA é consumido uma vez para ataque duplo
 
         const spellShields = target.activeEffects.filter(e => e.type === 'spell_shield');
         for (const shield of spellShields) {
@@ -954,14 +965,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             }
         }
         
-        const weapon = attacker.sheet.equipment[weaponKey];
         if (weapon.isRanged) {
-            if (!attacker.ammunition || attacker.ammunition <= 0) {
-                logMessage(state, `${attacker.nome} está sem munição!`, 'miss');
-                io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: 'SEM MUNIÇÃO', type: 'status-resist' });
-                io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
-                return null;
-            }
             attacker.ammunition--;
             logMessage(state, `${attacker.nome} usa 1 munição. Restam: ${attacker.ammunition}.`, 'info');
         }
@@ -1141,31 +1145,46 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         return { hit, debugInfo };
     };
     
-    let animationType = 'melee';
-    let projectileImg = null;
-    if (weaponChoice !== 'dual' && attacker.sheet.equipment[weaponChoice].isRanged) {
-        animationType = 'projectile';
-        const weaponImg = attacker.sheet.equipment[weaponKey].img; // weaponKey is correct here
-        projectileImg = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImg] || '/images/armas/bullet.png';
-    }
-
+    // Identificar tipo de animação
+    const weapon = attacker.sheet.equipment[weaponChoice === 'dual' ? 'weapon1' : weaponChoice];
+    const isRangedAttack = weapon && weapon.isRanged;
+    let animationType = isRangedAttack ? 'projectile' : 'melee';
+    
+    // Lógica principal de ataque
     if (weaponChoice === 'dual') {
+        attacker.pa -= paCost;
         const result1 = performSingleAttack('weapon1', true);
         const result2 = performSingleAttack('weapon2', true);
 
-        const combinedDebugInfo = {
-            attackerName: attacker.nome,
-            targetName: target.nome,
-            isDual: true,
-            attack1: result1 ? result1.debugInfo : null,
-            attack2: result2 ? result2.debugInfo : null,
-        };
-        const anyHit = (result1 && result1.hit) || (result2 && result2.hit);
-        io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: anyHit, debugInfo: combinedDebugInfo, isDual: true });
+        // A animação de projétil/melee é tratada separadamente para cada arma no ataque duplo
+        const weapon1Ranged = attacker.sheet.equipment.weapon1.isRanged;
+        const weapon2Ranged = attacker.sheet.equipment.weapon2.isRanged;
+        
+        io.to(roomId).emit('attackResolved', { 
+            attackerKey, targetKey, hit: result1.hit, debugInfo: { attack1: result1.debugInfo },
+            animationType: weapon1Ranged ? 'projectile' : 'melee', 
+            projectileImg: weapon1Ranged ? (ALL_WEAPON_IMAGES.customProjectiles?.[attacker.sheet.equipment.weapon1.img] || 'bullet') : null,
+            isDual: true, isSecondHit: false
+        });
+
+        setTimeout(() => {
+            io.to(roomId).emit('attackResolved', { 
+                attackerKey, targetKey, hit: result2.hit, debugInfo: { attack2: result2.debugInfo },
+                animationType: weapon2Ranged ? 'projectile' : 'melee',
+                projectileImg: weapon2Ranged ? (ALL_WEAPON_IMAGES.customProjectiles?.[attacker.sheet.equipment.weapon2.img] || 'bullet') : null,
+                isDual: true, isSecondHit: true
+            });
+        }, 600);
+
 
     } else {
-        const result = performSingleAttack(weaponChoice);
+        const result = performSingleAttack(weaponChoice, false);
         if (result) {
+            let projectileImg = null;
+            if (isRangedAttack) {
+                const weaponImgName = attacker.sheet.equipment[weaponChoice].img.split('/').pop();
+                projectileImg = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName] || 'bullet';
+            }
             io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: result.hit, debugInfo: result.debugInfo, animationType, projectileImg });
         }
     }
