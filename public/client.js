@@ -2177,14 +2177,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const itemData = (GAME_RULES[itemType] || {})[itemName] || {};
             if (itemData.req_forca && finalAttributes.forca < itemData.req_forca) {
-                showInfoModal("Requisito não atendido", `Você precisa de ${itemData.req_forca} de Força para usar ${itemName}.`);
-                itemSelect.value = defaultOption;
-                return true; 
+                if (itemSelect.value !== defaultOption) {
+                    showInfoModal("Requisito não atendido", `Você precisa de ${itemData.req_forca} de Força para usar ${itemName}.`);
+                    itemSelect.value = defaultOption;
+                    return true;
+                }
             }
             return false;
         };
 
-        if (event) {
+        if (event) { // A verificação só ocorre em uma interação do usuário
             if (checkAndHandleRequirement(weapon1Select, 'weapons', 'Desarmado')) return updateCharacterSheet();
             if (checkAndHandleRequirement(weapon2Select, 'weapons', 'Desarmado')) return updateCharacterSheet();
             if (checkAndHandleRequirement(shieldSelect, 'shields', 'Nenhum')) return updateCharacterSheet();
@@ -2192,19 +2194,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
         let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
-        let armorData = GAME_RULES.armors[armorSelect.value] || {};
-        let shieldData = GAME_RULES.shields[shieldSelect.value] || {};
-
-
+        
         if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-            if (weapon2Select.value !== 'Desarmado') weapon2Select.value = 'Desarmado';
+            if (weapon2Select.value !== 'Desarmado') {
+                weapon2Select.value = 'Desarmado';
+                stagedCharacterSheet.weapon2.img = null; // Limpa a imagem
+            }
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
             infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
         }
         if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
-            if (weapon1Select.value !== 'Desarmado') weapon1Select.value = 'Desarmado';
+            if (weapon1Select.value !== 'Desarmado') {
+                weapon1Select.value = 'Desarmado';
+                stagedCharacterSheet.weapon1.img = null; // Limpa a imagem
+            }
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         }
+
         if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
             shieldSelect.value = 'Nenhum';
         }
@@ -2215,8 +2221,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const armorType = armorSelect.value;
         weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
         weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
-        armorData = GAME_RULES.armors[armorType] || {};
-        shieldData = GAME_RULES.shields[shieldType] || {};
+        let armorData = GAME_RULES.armors[armorType] || {};
+        let shieldData = GAME_RULES.shields[shieldType] || {};
 
         weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
         shieldSelect.disabled = weapon2Type !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
@@ -2418,6 +2424,12 @@ document.addEventListener('DOMContentLoaded', () => {
         createSection('Armas Corpo a Corpo', images.melee, false);
         createSection('Armas de Longa Distância', images.ranged, true);
         
+        document.getElementById('weapon-image-modal-cancel').onclick = () => {
+             weaponImageModal.classList.add('hidden');
+             document.getElementById(`sheet-${weaponSlot}-type`).value = 'Desarmado';
+             updateCharacterSheet();
+        };
+
         weaponImageModal.classList.remove('hidden');
     }
 
@@ -3271,7 +3283,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         card.dataset.spellName = spell.name;
                         card.dataset.spellGrade = choice.grade;
                         const spellType = spell.inCombat ? '(Combate)' : '(Utilitário)';
-                        card.innerHTML = `<h4>${spell.name} <small>${spellType}</small></h4><p>${spell.description}</p>`;
+
+                        let elementHtml;
+                        if (spell.combinedElementName) {
+                            const colors = getElementColors(spell.combinedElementName, spell.requiredElements);
+                            elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spell.combinedElementName}</span>`;
+                        } else {
+                            const elementName = spell.isAdvanced ? GAME_RULES.advancedElements[spell.element] : spell.element;
+                            const color = getElementColors(elementName);
+                            const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
+                            elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
+                        }
+
+                        card.innerHTML = `
+                            <div class="spell-card-header">
+                                <h4>${spell.name} <small>${spellType}</small></h4>
+                                <div class="spell-details">
+                                    ${elementHtml}
+                                    <span class="spell-cost">${spell.costMahou} Mahou</span>
+                                </div>
+                            </div>
+                            <p>${spell.description}</p>`;
                         
                         card.addEventListener('click', () => {
                             spellGrid.querySelectorAll('.spell-card.selected').forEach(c => c.classList.remove('selected'));
