@@ -2023,7 +2023,7 @@ io.on('connection', (socket) => {
                  const raceData = GAME_RULES.races[sheet.race];
                  sheet.finalAttributes = { ...sheet.baseAttributes };
                  if (raceData && raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') sheet.finalAttributes[attr] += raceData.bon[attr]; });
-                 if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => sheet.finalAttributes[attr] += raceData.pen[attr]; });
+                 if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => { sheet.finalAttributes[attr] += raceData.pen[attr] });
                 
                 if(room.activeMode === 'adventure' && activeState.fighters.players[socket.id]) {
                     const fighter = activeState.fighters.players[socket.id];
