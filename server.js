@@ -278,7 +278,7 @@ function createNewFighterState(data) {
 
         fighter.money = sourceData.money !== undefined ? sourceData.money : 200;
         fighter.inventory = sourceData.inventory || {};
-        fighter.ammunition = sourceData.ammunition || {};
+        fighter.ammunition = sourceData.ammunition || 0;
 
     } else if (isSummon) {
         const summonData = sourceData;
@@ -620,11 +620,9 @@ function getProtectionBreakdown(fighter) {
     const protBreakdown = getAttributeBreakdown(fighter, 'protecao');
     let total = protBreakdown.value;
     const details = protBreakdown.details;
-
-    // Bônus passivos de armadura e escudo já estão inclusos no `finalAttributes`, que é a base do `getAttributeBreakdown`.
-    // Portanto, não os adicionamos novamente aqui para evitar duplicação.
-
-    // Adiciona bônus temporários, como o da defesa com escudo.
+    
+    // Bônus passivos de armadura e escudo já estão inclusos no `finalAttributes`,
+    // que é a base para `getAttributeBreakdown`. Aqui adicionamos apenas efeitos temporários.
     fighter.activeEffects.forEach(effect => {
         if (effect.type === 'shield_defense_buff') {
             details[`Efeito (${effect.name})`] = effect.bonus;
@@ -958,13 +956,14 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         
         const weapon = attacker.sheet.equipment[weaponKey];
         if (weapon.isRanged) {
-            if (!attacker.ammunition || !attacker.ammunition[weaponKey] || attacker.ammunition[weaponKey] <= 0) {
-                logMessage(state, `${attacker.nome} está sem munição para ${weapon.name}!`, 'miss');
+            if (!attacker.ammunition || attacker.ammunition <= 0) {
+                logMessage(state, `${attacker.nome} está sem munição!`, 'miss');
+                io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: 'SEM MUNIÇÃO', type: 'status-resist' });
                 io.to(roomId).emit('gameUpdate', getFullState(games[roomId]));
                 return null;
             }
-            attacker.ammunition[weaponKey]--;
-            logMessage(state, `${attacker.nome} usa 1 munição de ${weapon.name}. Restam: ${attacker.ammunition[weaponKey]}.`, 'info');
+            attacker.ammunition--;
+            logMessage(state, `${attacker.nome} usa 1 munição. Restam: ${attacker.ammunition}.`, 'info');
         }
 
         const hitRoll = rollD20();
@@ -1142,6 +1141,14 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         return { hit, debugInfo };
     };
     
+    let animationType = 'melee';
+    let projectileImg = null;
+    if (weaponChoice !== 'dual' && attacker.sheet.equipment[weaponChoice].isRanged) {
+        animationType = 'projectile';
+        const weaponImg = attacker.sheet.equipment[weaponKey].img; // weaponKey is correct here
+        projectileImg = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImg] || '/images/armas/bullet.png';
+    }
+
     if (weaponChoice === 'dual') {
         const result1 = performSingleAttack('weapon1', true);
         const result2 = performSingleAttack('weapon2', true);
@@ -1159,7 +1166,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     } else {
         const result = performSingleAttack(weaponChoice);
         if (result) {
-            io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: result.hit, debugInfo: result.debugInfo });
+            io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: result.hit, debugInfo: result.debugInfo, animationType, projectileImg });
         }
     }
 
@@ -1689,10 +1696,10 @@ function getFullState(room) {
 
 function createInventoryFromEquipment(equipment, addStartingItems = false) {
     const inventory = {};
-    const ammunition = {};
+    let ammunition = 0; // Alterado para ser um número
     const newEquipment = JSON.parse(JSON.stringify(equipment));
 
-    const addItem = (item, type, slotKey) => {
+    const addItem = (item, type) => {
         const baseType = item.type;
         if (!baseType || ['Desarmado', 'Nenhuma', 'Nenhum'].includes(baseType)) {
             return;
@@ -1712,19 +1719,19 @@ function createInventoryFromEquipment(equipment, addStartingItems = false) {
     
         inventory[finalName] = { type, name: finalName, baseType, quantity: 1, img: item.img, isRanged: item.isRanged };
     
-        if (item.isRanged && slotKey) {
-            ammunition[slotKey] = 15;
+        if (item.isRanged) {
+            ammunition = 10; // Munição inicial
         }
     };
 
-    addItem(newEquipment.weapon1, 'weapon', 'weapon1');
-    addItem(newEquipment.weapon2, 'weapon', 'weapon2');
+    addItem(newEquipment.weapon1, 'weapon');
+    addItem(newEquipment.weapon2, 'weapon');
 
     if (newEquipment.armor && newEquipment.armor !== 'Nenhuma') {
-        addItem({ name: newEquipment.armor, type: 'armor' }, 'armor', null);
+        addItem({ name: newEquipment.armor, type: 'armor' }, 'armor');
     }
     if (newEquipment.shield && newEquipment.shield !== 'Nenhum') {
-        addItem({ name: newEquipment.shield, type: 'shield' }, 'shield', null);
+        addItem({ name: newEquipment.shield, type: 'shield' }, 'shield');
     }
 
     if (addStartingItems) {

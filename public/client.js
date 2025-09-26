@@ -1252,7 +1252,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const createAttackButton = (weaponKey) => {
                 const weapon = activeFighter.sheet.equipment[weaponKey];
                 if (weapon && weapon.type !== 'Desarmado') {
-                    const ammo = weapon.isRanged ? activeFighter.ammunition?.[weaponKey] : null;
+                    const ammo = weapon.isRanged ? activeFighter.ammunition : null;
                     const btn = createButton(
                         `Atacar com ${weapon.name} (2 PA)`,
                         () => startAttackSequence(weaponKey),
@@ -1277,9 +1277,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const isDualWielding = weapon1.type !== 'Desarmado' && weapon2.type !== 'Desarmado';
             
             if (isDualWielding) {
-                let ammo1 = weapon1.isRanged ? activeFighter.ammunition?.['weapon1'] : Infinity;
-                let ammo2 = weapon2.isRanged ? activeFighter.ammunition?.['weapon2'] : Infinity;
-                let dualDisabled = ammo1 <= 0 || ammo2 <= 0;
+                const ammo = (weapon1.isRanged || weapon2.isRanged) ? activeFighter.ammunition : null;
+                let dualDisabled = (ammo !== null && ammo < 2); // Precisa de pelo menos 2 munições para ataque duplo se uma for ranged
 
                 const btn = createButton('Ataque Duplo (3 PA)', () => startAttackSequence('dual'), !finalCanControl || dualDisabled, 'action-btn');
                 actionButtonsWrapper.appendChild(btn);
@@ -2180,7 +2179,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (itemSelect.value !== defaultOption) {
                     showInfoModal("Requisito não atendido", `Você precisa de ${itemData.req_forca} de Força para usar ${itemName}.`);
                     itemSelect.value = defaultOption;
-                    return true;
+                    return true; 
                 }
             }
             return false;
@@ -2427,6 +2426,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('weapon-image-modal-cancel').onclick = () => {
              weaponImageModal.classList.add('hidden');
              document.getElementById(`sheet-${weaponSlot}-type`).value = 'Desarmado';
+             stagedCharacterSheet[weaponSlot].img = null; // Limpa a imagem
              updateCharacterSheet();
         };
 
@@ -3072,19 +3072,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const ammoContainer = document.getElementById('ingame-sheet-ammunition');
         const ammoList = document.getElementById('ingame-sheet-ammo-list');
         ammoList.innerHTML = '';
-        const ammunition = fighter.ammunition || {};
+        const ammunition = fighter.ammunition;
         let hasRangedWeapon = false;
         
         ['weapon1', 'weapon2'].forEach(slot => {
             if (fighter.sheet.equipment[slot] && fighter.sheet.equipment[slot].isRanged) {
                 hasRangedWeapon = true;
-                const ammoItem = document.createElement('div');
-                ammoItem.className = 'ammo-item';
-                ammoItem.innerHTML = `<span>${fighter.sheet.equipment[slot].name}:</span><span>${ammunition[slot] || 0}</span>`;
-                ammoList.appendChild(ammoItem);
             }
         });
 
+        ammoList.innerHTML = `<div class="ammo-item"><span>Munição:</span><span>${ammunition || 0}</span></div>`;
         ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
         
         // Lógica de Level Up
@@ -3709,34 +3706,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }, textsForDelay * 100);
     });
 
-    socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual }) => {
-        const playAttackAnimation = (isSecondAttack = false) => {
-            const attackerEl = document.getElementById(attackerKey);
-            if (attackerEl) {
-                const isPlayer = attackerEl.classList.contains('player-char-container');
-                const isSummon = attackerEl.classList.contains('summon-char-container');
-                
-                let animationClass = 'attack-npc';
-                if(isPlayer) animationClass = 'attack-player';
-                if(isSummon) animationClass = 'attack-summon';
-                
-                attackerEl.classList.add(animationClass);
-                setTimeout(() => { attackerEl.classList.remove(animationClass); }, 500);
-            }
-            const targetEl = document.getElementById(targetKey);
-            const currentHit = isDual ? (isSecondAttack ? debugInfo.attack2?.hit : debugInfo.attack1?.hit) : hit;
-            if (targetEl && currentHit) {
-                const img = targetEl.querySelector('.fighter-img-ingame');
-                if (img) {
-                    img.classList.add('is-hit-flash');
-                    setTimeout(() => img.classList.remove('is-hit-flash'), 400);
-                }
-            }
-        };
+    socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual, animationType, projectileImg }) => {
+        const attackerEl = document.getElementById(attackerKey);
+        const targetEl = document.getElementById(targetKey);
 
-        playAttackAnimation(false);
-        if (isDual) {
-            setTimeout(() => playAttackAnimation(true), 800);
+        if (animationType === 'projectile' && attackerEl && targetEl) {
+            // Lógica de projétil
+            io.to(roomId).emit('visualEffectTriggered', { 
+                casterId: attackerKey, 
+                targetId: targetKey,
+                animation: `projectile_${projectileImg}` // Ex: projectile_/images/armas/flecha.png
+            });
+             setTimeout(() => {
+                if (targetEl && hit) {
+                    const img = targetEl.querySelector('.fighter-img-ingame');
+                    if (img) {
+                        img.classList.add('is-hit-flash');
+                        setTimeout(() => img.classList.remove('is-hit-flash'), 400);
+                    }
+                }
+            }, 500); // Atraso para sincronizar com a chegada do projétil
+        } else {
+            // Lógica de ataque corpo a corpo
+            const playAttackAnimation = (isSecondAttack = false) => {
+                if (attackerEl) {
+                    const isPlayer = attackerEl.classList.contains('player-char-container');
+                    const isSummon = attackerEl.classList.contains('summon-char-container');
+                    let animationClass = isPlayer ? 'attack-player' : (isSummon ? 'attack-summon' : 'attack-npc');
+                    attackerEl.classList.add(animationClass);
+                    setTimeout(() => { attackerEl.classList.remove(animationClass); }, 500);
+                }
+                const currentHit = isDual ? (isSecondAttack ? debugInfo.attack2?.hit : debugInfo.attack1?.hit) : hit;
+                if (targetEl && currentHit) {
+                    const img = targetEl.querySelector('.fighter-img-ingame');
+                    if (img) {
+                        img.classList.add('is-hit-flash');
+                        setTimeout(() => img.classList.remove('is-hit-flash'), 400);
+                    }
+                }
+            };
+            playAttackAnimation(false);
+            if (isDual) {
+                setTimeout(() => playAttackAnimation(true), 800);
+            }
         }
         
         if (isGm && isGmDebugModeActive && debugInfo) {
@@ -3962,9 +3974,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        document.getElementById('weapon-image-modal-cancel').onclick = () => {
-             weaponImageModal.classList.add('hidden');
-        };
         
         document.getElementById('sheet-save-btn').addEventListener('click', () => handleSaveCharacter('creation'));
         document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
