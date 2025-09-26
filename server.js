@@ -621,28 +621,16 @@ function getProtectionBreakdown(fighter) {
     let total = protBreakdown.value;
     const details = protBreakdown.details;
 
-    const armor = fighter.sheet.equipment.armor;
-    const shield = fighter.sheet.equipment.shield;
-    const armorData = GAME_RULES.armors[armor] || { protection: 0 };
-    const shieldData = GAME_RULES.shields[shield] || { protection_bonus: 0 };
-    
-    if (armorData.protection > 0) {
-        details[`Armadura (${armor})`] = armorData.protection;
-        total += armorData.protection;
-    }
-    if (shieldData.protection_bonus > 0) {
-        details[`Escudo (${shield})`] = shieldData.protection_bonus;
-        total += shieldData.protection_bonus;
-    }
-    
-    // Adiciona bônus temporários, como o da defesa com escudo
+    // Bônus passivos de armadura e escudo já estão inclusos no `finalAttributes`, que é a base do `getAttributeBreakdown`.
+    // Portanto, não os adicionamos novamente aqui para evitar duplicação.
+
+    // Adiciona bônus temporários, como o da defesa com escudo.
     fighter.activeEffects.forEach(effect => {
         if (effect.type === 'shield_defense_buff') {
             details[`Efeito (${effect.name})`] = effect.bonus;
             total += effect.bonus;
         }
     });
-
 
     return { value: total, details };
 }
