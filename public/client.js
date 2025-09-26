@@ -2171,33 +2171,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const canWield2HInOneHand = finalAttributes.forca >= 4;
         let infoText = '';
 
-        let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
-        let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
-        let shieldData = GAME_RULES.shields[shieldSelect.value] || {};
-        
-        const checkAndHandleRequirement = (itemData, itemSelect, defaultOption, message) => {
+        const checkAndHandleRequirement = (itemSelect, itemType, defaultOption) => {
+            const itemName = itemSelect.value;
+            if (itemName === defaultOption) return false;
+
+            const itemData = (GAME_RULES[itemType] || {})[itemName] || {};
             if (itemData.req_forca && finalAttributes.forca < itemData.req_forca) {
-                if (itemSelect.value !== defaultOption) {
-                    itemSelect.value = defaultOption;
-                    infoText += message; // Acumula a mensagem
-                    return true; // Indica que uma mudança ocorreu
-                }
+                showInfoModal("Requisito não atendido", `Você precisa de ${itemData.req_forca} de Força para usar ${itemName}.`);
+                itemSelect.value = defaultOption;
+                return true; 
             }
             return false;
         };
 
-        let requirementFailed = false;
-        if (checkAndHandleRequirement(weapon1Data, weapon1Select, 'Desarmado', `Requer ${weapon1Data.req_forca} de Força para ${weapon1Select.value}. `)) requirementFailed = true;
-        if (checkAndHandleRequirement(weapon2Data, weapon2Select, 'Desarmado', `Requer ${weapon2Data.req_forca} de Força para ${weapon2Select.value}. `)) requirementFailed = true;
-        if (checkAndHandleRequirement(shieldData, shieldSelect, 'Nenhum', `Requer ${shieldData.req_forca} de Força para ${shieldSelect.value}. `)) requirementFailed = true;
-
-        if (requirementFailed) {
-            // A função será re-chamada após o timeout para garantir que os valores dos selects estejam atualizados no DOM
-            setTimeout(() => updateCharacterSheet(), 0); 
-            // Mostra a mensagem imediatamente antes de recalcular
-            document.getElementById('equipment-info-text').textContent = infoText;
-            return;
+        if (event) {
+            if (checkAndHandleRequirement(weapon1Select, 'weapons', 'Desarmado')) return updateCharacterSheet();
+            if (checkAndHandleRequirement(weapon2Select, 'weapons', 'Desarmado')) return updateCharacterSheet();
+            if (checkAndHandleRequirement(shieldSelect, 'shields', 'Nenhum')) return updateCharacterSheet();
         }
+
+        let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
+        let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
+        let armorData = GAME_RULES.armors[armorSelect.value] || {};
+        let shieldData = GAME_RULES.shields[shieldSelect.value] || {};
+
 
         if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
             if (weapon2Select.value !== 'Desarmado') weapon2Select.value = 'Desarmado';
@@ -2218,7 +2215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const armorType = armorSelect.value;
         weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
         weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
-        let armorData = GAME_RULES.armors[armorType] || {};
+        armorData = GAME_RULES.armors[armorType] || {};
         shieldData = GAME_RULES.shields[shieldType] || {};
 
         weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
@@ -2862,8 +2859,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const itemData = (GAME_RULES[itemType] || {})[itemName] || {};
                 if (itemData.req_forca && forca < itemData.req_forca) {
                     if (itemSelect.value !== defaultOption) {
+                        showInfoModal("Requisito não atendido", `Você precisa de ${itemData.req_forca} de Força para usar ${itemName}.`);
                         itemSelect.value = defaultOption;
-                        infoText += `Requer ${itemData.req_forca} de Força para ${itemName}. `;
                         return true;
                     }
                 }
