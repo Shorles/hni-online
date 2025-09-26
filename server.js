@@ -634,6 +634,15 @@ function getProtectionBreakdown(fighter) {
         details[`Escudo (${shield})`] = shieldData.protection_bonus;
         total += shieldData.protection_bonus;
     }
+    
+    // Adiciona bônus temporários, como o da defesa com escudo
+    fighter.activeEffects.forEach(effect => {
+        if (effect.type === 'shield_defense_buff') {
+            details[`Efeito (${effect.name})`] = effect.bonus;
+            total += effect.bonus;
+        }
+    });
+
 
     return { value: total, details };
 }
@@ -2014,7 +2023,7 @@ io.on('connection', (socket) => {
                  const raceData = GAME_RULES.races[sheet.race];
                  sheet.finalAttributes = { ...sheet.baseAttributes };
                  if (raceData && raceData.bon) Object.keys(raceData.bon).forEach(attr => { if(attr !== 'escolha') sheet.finalAttributes[attr] += raceData.bon[attr]; });
-                 if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => sheet.finalAttributes[attr] += raceData.pen[attr]);
+                 if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => sheet.finalAttributes[attr] += raceData.pen[attr]; });
                 
                 if(room.activeMode === 'adventure' && activeState.fighters.players[socket.id]) {
                     const fighter = activeState.fighters.players[socket.id];
@@ -2259,6 +2268,28 @@ io.on('connection', (socket) => {
                              shouldUpdate = false; 
                         }
                         break;
+                    case 'defendWithShield':
+                         if (adventureState.phase === 'battle' && action.actorKey === adventureState.activeCharacterKey) {
+                             const actor = getFighter(adventureState, action.actorKey);
+                             if (actor && actor.pa >= 3) {
+                                 actor.pa -= 3;
+                                 const shieldName = actor.sheet.equipment.shield;
+                                 const shieldData = GAME_RULES.shields[shieldName];
+                                 if (shieldData && shieldData.protection_bonus > 0) {
+                                     actor.activeEffects.push({
+                                         name: 'Defesa com Escudo',
+                                         type: 'shield_defense_buff',
+                                         bonus: shieldData.protection_bonus,
+                                         duration: 2 // Dura até o INÍCIO do próximo turno do jogador
+                                     });
+                                     recalculateFighterStats(actor);
+                                     logMessage(adventureState, `${actor.nome} usa 3 PA para se defender com o escudo, dobrando sua proteção até o próximo turno.`, 'info');
+                                 }
+                                 advanceTurn(adventureState, roomId);
+                                 shouldUpdate = false;
+                             }
+                         }
+                        break;
                     case 'use_spell':
                         if (adventureState.phase === 'battle' && action.attackerKey === adventureState.activeCharacterKey) {
                             useSpell(adventureState, roomId, action.attackerKey, action.targetKey, action.spellName);
@@ -2374,8 +2405,23 @@ io.on('connection', (socket) => {
                  if (action.type === 'changeEquipment') {
                     const playerLobbyInfo = lobbyState.connectedPlayers[socket.id];
                     if (playerLobbyInfo && playerLobbyInfo.characterSheet) {
-                         playerLobbyInfo.characterSheet.equipment = action.newEquipment;
-                         logMessage(theaterState, `${playerLobbyInfo.characterName} trocou de equipamento.`);
+                        const forca = getAttributeBreakdown(playerLobbyInfo.characterSheet, 'forca').value;
+                        
+                        // Valida armas
+                        const w1 = GAME_RULES.weapons[action.newEquipment.weapon1.type] || {};
+                        const w2 = GAME_RULES.weapons[action.newEquipment.weapon2.type] || {};
+                        if ( (w1.req_forca && forca < w1.req_forca) || (w2.req_forca && forca < w2.req_forca) ) {
+                            return; // Envio inválido, ignora
+                        }
+                        
+                        // Valida escudo
+                        const shield = GAME_RULES.shields[action.newEquipment.shield] || {};
+                        if (shield.req_forca && forca < shield.req_forca) {
+                            return; // Envio inválido, ignora
+                        }
+
+                        playerLobbyInfo.characterSheet.equipment = action.newEquipment;
+                        logMessage(theaterState, `${playerLobbyInfo.characterName} trocou de equipamento.`);
                     }
                  }
                  if (action.type === 'useItem') { 

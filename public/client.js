@@ -1216,12 +1216,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let attackButtonAdded = false;
 
-        const createButton = (text, onClick, disabled = false, className = 'action-btn', ammoCount = null) => {
+        const createButton = (text, onClick, disabled = false, className = 'action-btn', ammoCount = null, title = null) => {
             const btn = document.createElement('button');
             btn.className = className;
             btn.textContent = text;
             btn.disabled = disabled;
             btn.onclick = onClick;
+            if (title) btn.title = title;
             if (ammoCount !== null && ammoCount !== undefined) {
                 const ammoEl = document.createElement('span');
                 ammoEl.className = 'attack-ammo-counter';
@@ -1298,6 +1299,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     actionButtonsWrapper.appendChild(spellBtn);
                 }
             });
+        }
+        
+        // Botão de Defesa com Escudo
+        const shieldName = activeFighter.sheet?.equipment?.shield;
+        if (!activeFighter.isSummon && shieldName && shieldName !== 'Nenhum') {
+            const btn = createButton(
+                'Defender com Escudo (3 PA)',
+                () => {
+                    showCustomModal("Confirmar Defesa", "Você gastará 3 PA para dobrar a proteção do seu escudo e encerrar seu turno. Deseja continuar?", [
+                        { text: 'Sim', closes: true, onClick: () => socket.emit('playerAction', { type: 'defendWithShield', actorKey: state.activeCharacterKey }) },
+                        { text: 'Não', closes: true, className: 'btn-danger' }
+                    ]);
+                },
+                !finalCanControl,
+                'action-btn flee-btn', // Usando estilo azul
+                null,
+                'Dobra a proteção do escudo até o início do seu próximo turno, mas encerra o turno atual.'
+            );
+            actionButtonsWrapper.appendChild(btn);
         }
         
         // Summons cannot flee
@@ -2149,37 +2169,50 @@ document.addEventListener('DOMContentLoaded', () => {
         if (raceData && raceData.pen) Object.keys(raceData.pen).forEach(attr => finalAttributes[attr] += raceData.pen[attr]);
         
         const canWield2HInOneHand = finalAttributes.forca >= 4;
+        let infoText = '';
 
         let weapon1Data = GAME_RULES.weapons[weapon1Select.value] || {};
         let weapon2Data = GAME_RULES.weapons[weapon2Select.value] || {};
+        let shieldData = GAME_RULES.shields[shieldSelect.value] || {};
+        let armorData = GAME_RULES.armors[armorSelect.value] || {};
+
+        const checkAndHandleRequirement = (itemData, itemSelect, defaultOption, message) => {
+            if (itemData.req_forca && finalAttributes.forca < itemData.req_forca) {
+                if (itemSelect.value !== defaultOption) {
+                    itemSelect.value = defaultOption;
+                    infoText += message;
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if (checkAndHandleRequirement(weapon1Data, weapon1Select, 'Desarmado', `Requer ${weapon1Data.req_forca} de Força para ${weapon1Select.value}. `)) return updateCharacterSheet();
+        if (checkAndHandleRequirement(weapon2Data, weapon2Select, 'Desarmado', `Requer ${weapon2Data.req_forca} de Força para ${weapon2Select.value}. `)) return updateCharacterSheet();
+        if (checkAndHandleRequirement(shieldData, shieldSelect, 'Nenhum', `Requer ${shieldData.req_forca} de Força para ${shieldSelect.value}. `)) return updateCharacterSheet();
+
 
         if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-            if (weapon2Select.value !== 'Desarmado') {
-                weapon2Select.value = 'Desarmado';
-                stagedCharacterSheet.weapon2 = { img: null, isRanged: false };
-            }
+            if (weapon2Select.value !== 'Desarmado') weapon2Select.value = 'Desarmado';
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
+            infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
         }
         if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
-            if (weapon1Select.value !== 'Desarmado') {
-                weapon1Select.value = 'Desarmado';
-                stagedCharacterSheet.weapon1 = { img: null, isRanged: false };
-            }
+            if (weapon1Select.value !== 'Desarmado') weapon1Select.value = 'Desarmado';
             if (shieldSelect.value !== 'Nenhum') shieldSelect.value = 'Nenhum';
         }
-
         if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
             shieldSelect.value = 'Nenhum';
         }
-        
+
         const weapon1Type = weapon1Select.value;
         const weapon2Type = weapon2Select.value;
         const shieldType = shieldSelect.value;
         const armorType = armorSelect.value;
         weapon1Data = GAME_RULES.weapons[weapon1Type] || {};
         weapon2Data = GAME_RULES.weapons[weapon2Type] || {};
-        let armorData = GAME_RULES.armors[armorType] || {};
-        let shieldData = GAME_RULES.shields[shieldType] || {};
+        armorData = GAME_RULES.armors[armorType] || {};
+        shieldData = GAME_RULES.shields[shieldType] || {};
 
         weapon2Select.disabled = (weapon1Data.hand === 2 && !canWield2HInOneHand) || shieldType !== 'Nenhum';
         shieldSelect.disabled = weapon2Type !== 'Desarmado' || (weapon1Data.hand === 2 && !canWield2HInOneHand);
@@ -2219,11 +2252,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const elemPointsRemaining = maxElemPoints - totalElemPoints;
         document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
         document.querySelectorAll('.elements-grid .up-arrow').forEach(btn => btn.disabled = elemPointsRemaining <= 0);
-
-        let infoText = '';
-        if ((weapon1Data.hand === 2 || weapon2Data.hand === 2) && !canWield2HInOneHand) {
-            infoText += 'Arma de 2 mãos requer ambas as mãos. É preciso 4 de Força para usá-la com uma mão. ';
-        }
 
         let bta = finalAttributes.agilidade;
         let weaponBtaMod = weapon1Data.bta || 0;
@@ -2820,6 +2848,25 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const updateAllEquipment = (eventSource) => {
             const inventory = fighter.inventory || {};
+            const forca = fighter.sheet.finalAttributes.forca || 0;
+            let infoText = '';
+
+            const checkAndHandleRequirement = (itemName, itemType, itemSelect, defaultOption) => {
+                const itemData = (GAME_RULES[itemType] || {})[itemName] || {};
+                if (itemData.req_forca && forca < itemData.req_forca) {
+                    if (itemSelect.value !== defaultOption) {
+                        itemSelect.value = defaultOption;
+                        infoText += `Requer ${itemData.req_forca} de Força para ${itemName}. `;
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            if (checkAndHandleRequirement(weapon1Select.value, 'weapons', weapon1Select, 'Desarmado')) return updateAllEquipment(null);
+            if (checkAndHandleRequirement(weapon2Select.value, 'weapons', weapon2Select, 'Desarmado')) return updateAllEquipment(null);
+            if (checkAndHandleRequirement(shieldSelect.value, 'shields', shieldSelect, 'Nenhum')) return updateAllEquipment(null);
+
             
             let selectedW1 = weapon1Select.value;
             let weapon1Item = inventory[selectedW1] || {};
@@ -2831,7 +2878,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let weapon2BaseType = weapon2Item.baseType || (selectedW2 === 'Desarmado' ? 'Desarmado' : null);
             let weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
 
-            const canWield2HInOneHand = (fighter.sheet.finalAttributes.forca || 0) >= 4;
+            const canWield2HInOneHand = forca >= 4;
             let changed = false;
 
             if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
@@ -2879,6 +2926,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
+            document.getElementById('ingame-equipment-info-text').textContent = infoText;
             renderIngameInventory(fighter);
         };
 
