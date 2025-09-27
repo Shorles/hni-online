@@ -97,6 +97,9 @@ try {
         const weaponImageFiles = fs.readdirSync(weaponImagesPath).filter(file => file.endsWith('.png'));
         for (const weaponType in weaponImagesConfig) {
             const config = weaponImagesConfig[weaponType];
+            // Ignora a chave 'customProjectiles' neste loop
+            if (weaponType === 'customProjectiles') continue;
+
             ALL_WEAPON_IMAGES[weaponType] = { melee: [], ranged: [] };
             
             if (config.meleePrefix) {
@@ -110,6 +113,9 @@ try {
                     .map(file => `/images/armas/${file}`);
             }
         }
+        // *** CORREÇÃO APLICADA AQUI ***
+        // Carrega a configuração de projéteis customizados separadamente.
+        ALL_WEAPON_IMAGES.customProjectiles = weaponImagesConfig.customProjectiles || {};
     }
 
 
@@ -1163,7 +1169,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         io.to(roomId).emit('attackResolved', { 
             attackerKey, targetKey, hit: result1.hit, debugInfo: { attack1: result1.debugInfo },
             animationType: weapon1Ranged ? 'projectile' : 'melee', 
-            projectileImg: weapon1Ranged ? (ALL_WEAPON_IMAGES.customProjectiles?.[attacker.sheet.equipment.weapon1.img] || 'bullet') : null,
+            projectileImg: weapon1Ranged ? (ALL_WEAPON_IMAGES.customProjectiles?.[attacker.sheet.equipment.weapon1.img.split('/').pop()] || 'bullet') : null,
             isDual: true, isSecondHit: false
         });
 
@@ -1171,7 +1177,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             io.to(roomId).emit('attackResolved', { 
                 attackerKey, targetKey, hit: result2.hit, debugInfo: { attack2: result2.debugInfo },
                 animationType: weapon2Ranged ? 'projectile' : 'melee',
-                projectileImg: weapon2Ranged ? (ALL_WEAPON_IMAGES.customProjectiles?.[attacker.sheet.equipment.weapon2.img] || 'bullet') : null,
+                projectileImg: weapon2Ranged ? (ALL_WEAPON_IMAGES.customProjectiles?.[attacker.sheet.equipment.weapon2.img.split('/').pop()] || 'bullet') : null,
                 isDual: true, isSecondHit: true
             });
         }, 600);
