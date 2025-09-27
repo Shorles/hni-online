@@ -223,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const magicWeapons = [];
     
         Object.entries(ALL_WEAPON_IMAGES).forEach(([weaponType, imageSets]) => {
+            if (weaponType === 'customProjectiles') return; // Pula a chave de configuração de projéteis
             const weaponData = GAME_RULES.weapons[weaponType];
             if (!weaponData || weaponType === 'Desarmado') return;
     
@@ -261,6 +262,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         });
+
+        // *** CORREÇÃO APLICADA AQUI (Munição) ***
+        const ammunitionItem = ALL_ITEMS['Munição'];
+        if (ammunitionItem) {
+            rangedWeapons.push({
+                name: 'Munição',
+                type: 'ammunition',
+                ...ammunitionItem
+            });
+        }
     
         const allGameItems = {
             'Armas Corpo a Corpo': meleeWeapons,
@@ -268,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'Armas Mágicas': magicWeapons,
             'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })).filter(item => !nonItems.includes(item.name)),
             'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })).filter(item => !nonItems.includes(item.name)),
-            'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: 'item', ...data })),
+            'Itens': Object.entries(ALL_ITEMS).filter(([name]) => name !== 'Munição').map(([name, data]) => ({ name, type: 'item', ...data })),
         };
         
         container.innerHTML = `
@@ -3722,7 +3733,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (animationType === 'projectile' && attackerEl && targetEl && projectileInfo) {
             const effectEl = document.createElement('div');
-            // *** CORREÇÃO APLICADA AQUI ***
             effectEl.className = `visual-effect projectile projectile_${projectileInfo.name}`;
             effectEl.style.setProperty('--projectile-scale', projectileInfo.scale || 1.0);
             
