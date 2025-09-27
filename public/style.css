@@ -501,17 +501,20 @@ clip-path: polygon(50% 0%, 60% 35%, 45% 45%, 55% 70%, 40% 100%, 30% 65%, 45% 55%
 /* Estilos para projéteis de ataque básico */
 .visual-effect.projectile {
 animation: projectile-move 0.5s linear forwards;
-transform: translate(-50%, -50%);
+transform: translate(-50%, -50%) scale(var(--projectile-scale, 1.0));
 }
 .visual-effect.projectile.is-npc {
-transform: translate(-50%, -50%) scaleX(-1);
+transform: translate(-50%, -50%) scaleX(-1) scale(var(--projectile-scale, 1.0));
 }
-/* *** CORREÇÃO APLICADA AQUI *** */
 .visual-effect.projectile_bullet {
-width: 80px; height: 32px; background-image: url('/images/armas/bullet.png');
+width: 20px;
+height: 8px;
+background-image: url('/images/armas/bullet.png');
 }
 .visual-effect.projectile_flecha {
-width: 192px; height: 40px; background-image: url('/images/armas/flecha.png');
+width: 48px;
+height: 10px;
+background-image: url('/images/armas/flecha.png');
 }
 .visual-effect.target_bubble, .visual-effect.self_rock, .visual-effect.self_swirl, .visual-effect.target_flash, .visual-effect.target_purple_aura, .visual-effect.self_fire_aura, .visual-effect.self_water_aura, .visual-effect.self_wind_aura, .visual-effect.self_light_aura, .visual-effect.self_dark_aura, .visual-effect.impact_fire, .visual-effect.impact_water, .visual-effect.impact_slash, .visual-effect.impact_light, .visual-effect.impact_dark, .visual-effect.impact_poison, .visual-effect.self_poison_aura, .visual-effect.self_metal_armor, .visual-effect.target_ice_burst, .visual-effect.target_heal, .visual-effect.target_nature_heal, .visual-effect.target_gravity, .visual-effect.self_vanish, .visual-effect.target_chains, .visual-effect.self_summon, .visual-effect.target_dark_fire {
 left: var(--start-x);
@@ -1206,9 +1209,9 @@ border-color: #ffeb3b;
 }
 .shop-item-grids-container {
 flex-grow: 1;
-min-height: 0; /* Importante para que a barra de rolagem funcione /
-overflow-y: auto; / Adiciona a barra de rolagem vertical /
-padding-right: 5px; / Espaço para a barra de rolagem */
+min-height: 0;
+overflow-y: auto;
+padding-right: 5px;
 }
 .shop-item-grid {
 display: none;
