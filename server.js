@@ -984,7 +984,19 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         const bta = btaBreakdown.value;
         const attackRoll = hitRoll + bta;
         const weaponType = weapon.type;
-        const weaponData = GAME_RULES.weapons[weaponType];
+        
+        // Crie uma cópia mutável do weaponData para não alterar o objeto global GAME_RULES
+        const weaponData = { ...GAME_RULES.weapons[weaponType] };
+
+        // >>> AJUSTE DE BALANCEAMENTO DAS ARMAS DE LONGA DISTÂNCIA <<<
+        if (weapon.isRanged) {
+            if (weaponData.damage === '1D6') {
+                weaponData.damage = '1D4'; // Armas de 1 mão de longa distância
+            } else if (weaponData.damage === '1D10') {
+                weaponData.damage = '1D8'; // Armas de 2 mãos de longa distância
+            }
+        }
+        // >>> FIM DO AJUSTE <<<
         
         let debugInfo = { attackerName: attacker.nome, targetName: target.nome, weaponUsed: weaponType, isRanged: !!weapon.isRanged, finalDamageBreakdown: {} };
 
@@ -2525,6 +2537,136 @@ io.on('connection', (socket) => {
                             actorSheet.mahou = (actorSheet.mahou || mahouMax) + healedMahou;
                         }
                         logMessage(theaterState, `${actorSheet.name} usou ${action.itemName} fora de combate.`, 'info');
+                    }
+                 }
+                 if (isGm) {
+                     switch(action.type) {
+                        case 'gmUpdatesShop':
+                            if (theaterState.shop && action.items) {
+                                theaterState.shop.gmItems = action.items;
+                                shouldUpdate = false; 
+                            }
+                            break;
+                        case 'gmPublishesShop':
+                            if (theaterState.shop) {
+                                theaterState.shop.playerItems = Object.values(action.items);
+                                theaterState.shop.isOpen = true;
+                                logMessage(theaterState, 'O Mestre abriu a loja.');
+                            }
+                            break;
+                        case 'gmClosesShop':
+                            if (theaterState.shop) {
+                                theaterState.shop.isOpen = false;
+                                logMessage(theaterState, 'O Mestre fechou a loja.');
+                            }
+                            break;
+                        case 'gmAwardsRewards':
+                            if (action.awards && Array.isArray(action.awards)) {
+                                action.awards.forEach(award => {
+                                    const { playerId, xp, money, hp, mahou } = award;
+                                    const playerInfo = lobbyState.connectedPlayers[playerId];
+                                    if (playerInfo && playerInfo.characterSheet) {
+                                        const sheet = playerInfo.characterSheet;
+                                        const finalXp = parseInt(xp, 10) || 0;
+                                        const finalMoney = parseInt(money, 10) || 0;
+                                        const finalHp = parseInt(hp, 10) || 0;
+                                        const finalMahou = parseInt(mahou, 10) || 0;
+                                        
+                                        sheet.xp += finalXp;
+                                        sheet.money += finalMoney;
+
+                                        const consti = sheet.finalAttributes.constituicao || 0;
+                                        const mente = sheet.finalAttributes.mente || 0;
+                                        const hpMax = 20 + (consti * 5);
+                                        const mahouMax = 10 + (mente * 5);
+
+                                        sheet.hp = Math.max(0, Math.min(hpMax, (sheet.hp || hpMax) + finalHp));
+                                        sheet.mahou = Math.max(0, Math.min(mahouMax, (sheet.mahou || mahouMax) + finalMahou));
+
+                                        if(room.activeMode === 'adventure' && room.gameModes.adventure.fighters.players[playerId]){
+                                            const adventureFighter = room.gameModes.adventure.fighters.players[playerId];
+                                            adventureFighter.xp = sheet.xp;
+                                            adventureFighter.money = sheet.money;
+                                            adventureFighter.hp = sheet.hp;
+                                            adventureFighter.mahou = sheet.mahou;
+                                        }
+
+                                        let logParts = [];
+                                        if (finalXp !== 0) logParts.push(`${finalXp} XP`);
+                                        if (finalMoney !== 0) logParts.push(`${finalMoney} moedas`);
+                                        if (finalHp !== 0) logParts.push(`${finalHp > 0 ? '+' : ''}${finalHp} HP`);
+                                        if (finalMahou !== 0) logParts.push(`${finalMahou > 0 ? '+' : ''}${finalMahou} Mahou`);
+
+                                        if (logParts.length > 0) {
+                                            logMessage(theaterState, `GM concedeu ${logParts.join(', ')} para ${playerInfo.characterName}.`, 'info');
+                                        }
+                                        const playerSocket = io.sockets.sockets.get(playerId);
+                                        if(playerSocket) {
+                                            checkForLevelUp(playerInfo, playerSocket, roomId);
+                                        }
+                                    }
+                                });
+                            }
+                            break;
+                     }
+                 }
+                 if (action.type === 'playerBuysItem') {
+                    const playerInfo = lobbyState.connectedPlayers[socket.id];
+                    const shopItem = theaterState.shop.gmItems[action.itemId];
+
+                    if (playerInfo && playerInfo.characterSheet && shopItem && shopItem.quantity > 0) {
+                        const isFreeItem = shopItem.price === 0;
+                        const quantityToTake = isFreeItem ? 1 : action.quantity;
+                        const totalCost = isFreeItem ? 0 : shopItem.price * quantityToTake;
+                        
+                        if (playerInfo.characterSheet.money >= totalCost && quantityToTake <= shopItem.quantity) {
+                            playerInfo.characterSheet.money -= totalCost;
+                            
+                            if (isFreeItem) {
+                                shopItem.quantity = 0;
+                            } else {
+                                shopItem.quantity -= quantityToTake;
+                            }
+
+                            const itemData = shopItem.itemData;
+                            
+                            // *** CORREÇÃO APLICADA AQUI ***
+                            if (itemData.isAmmunition) {
+                                playerInfo.characterSheet.ammunition = (playerInfo.characterSheet.ammunition || 0) + quantityToTake;
+                                logMessage(theaterState, `${playerInfo.characterName} comprou ${quantityToTake}x Munição.`);
+                            } else {
+                                const playerInv = playerInfo.characterSheet.inventory;
+                                const newItem = {
+                                    ...itemData,
+                                    name: itemData.name,
+                                    baseType: itemData.baseType || itemData.name,
+                                    quantity: quantityToTake
+                                };
+    
+                                if (!newItem.img) {
+                                     if (newItem.type === 'armor' && newItem.name !== 'Nenhuma') {
+                                        const armorImgName = newItem.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${newItem.name}`;
+                                        newItem.img = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
+                                    } else if (newItem.type === 'shield' && newItem.name !== 'Nenhum') {
+                                         const shieldImgName = newItem.name === 'Médio' ? 'Escudo Medio' : `Escudo ${newItem.name}`;
+                                         newItem.img = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
+                                    }
+                                }
+                                
+                                if (playerInv[newItem.name]) {
+                                    playerInv[newItem.name].quantity += quantityToTake;
+                                } else {
+                                    playerInv[newItem.name] = newItem;
+                                }
+                                logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${quantityToTake}x ${shopItem.name}.`);
+                            }
+
+                            if (shopItem.quantity <= 0) {
+                                delete theaterState.shop.gmItems[action.itemId];
+                            }
+                            
+                            theaterState.shop.playerItems = Object.values(theaterState.shop.gmItems);
+                        }
                     }
                  }
                  if (isGm && theaterState && theaterState.scenarioStates && theaterState.currentScenario) {
