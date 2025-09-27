@@ -1451,3 +1451,71 @@ margin-bottom: 0;
 #modal .char-card .char-name {
 display: none;
 }
+/* === NOVOS ESTILOS (TESTE DE ATRIBUTOS) === */
+#theater-skill-check-buttons {
+position: absolute;
+bottom: 10px;
+left: 50%;
+transform: translateX(-50%);
+display: flex;
+flex-wrap: wrap;
+justify-content: center;
+gap: 8px;
+padding: 10px;
+background-color: rgba(0,0,0,.7);
+border-radius: 10px;
+z-index: 10;
+pointer-events: auto;
+max-width: 90%;
+width: 950px;
+}
+.skill-check-btn {
+padding: 6px 12px;
+font-size: 0.85em;
+cursor: pointer;
+border: none;
+border-radius: 5px;
+color: #fff;
+background-color: #5a6268;
+transition: background-color 0.2s;
+}
+.skill-check-btn:hover:not(:disabled) {
+background-color: #495057;
+}
+.skill-check-btn:disabled {
+background-color: #333;
+color: #888;
+cursor: not-allowed;
+}
+.skill-check-result-modal {
+background-color: rgba(10,10,10,0.95) !important;
+border-color: #ffeb3b !important;
+color: #fff;
+}
+.skill-check-result-modal #modal-text {
+text-align: center;
+gap: 10px;
+}
+.skill-check-result-title {
+font-size: 1.5em;
+color: #ffc107;
+margin: 0;
+}
+.skill-check-result-details {
+font-size: 1.2em;
+color: #ccc;
+}
+.skill-check-result-final {
+font-size: 4em;
+font-weight: bold;
+}
+.skill-check-result-final.result-normal { color: #00aaff; }
+.skill-check-result-final.result-crit-success { color: #28a745; }
+.skill-check-result-final.result-crit-fail { color: #dc3545; }
+.skill-check-crit-text {
+font-size: 1.5em;
+font-weight: bold;
+margin-top: -10px;
+}
+.skill-check-crit-text.result-crit-success { color: #28a745; }
+.skill-check-crit-text.result-crit-fail { color: #dc3545; }

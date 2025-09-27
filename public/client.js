@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const theaterWorldContainer = document.getElementById('theater-world-container');
     const theaterCharList = document.getElementById('theater-char-list');
     const theaterGlobalScale = document.getElementById('theater-global-scale');
+    const theaterSkillCheckButtons = document.getElementById('theater-skill-check-buttons');
     const initiativeUI = document.getElementById('initiative-ui');
     const modal = document.getElementById('modal');
     const shopModal = document.getElementById('shop-modal'); 
@@ -98,12 +99,16 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
         modalButton.onclick = () => modal.classList.add('hidden');
     }
-    function showCustomModal(title, contentHtml, buttons) {
+    function showCustomModal(title, contentHtml, buttons, modalClass = '') {
+        const modalContent = document.getElementById('modal-content');
+        modalContent.className = 'modal-content'; // Reset class
+        if(modalClass) modalContent.classList.add(modalClass);
+
         document.getElementById('modal-title').innerHTML = title;
         document.getElementById('modal-text').innerHTML = contentHtml;
         document.getElementById('modal-button').classList.add('hidden');
         
-        const oldButtons = document.getElementById('modal-content').querySelector('.modal-button-container');
+        const oldButtons = modalContent.querySelector('.modal-button-container');
         if (oldButtons) oldButtons.remove();
 
         const buttonContainer = document.createElement('div');
@@ -124,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
             buttonContainer.appendChild(button);
         });
         
-        document.getElementById('modal-content').appendChild(buttonContainer);
+        modalContent.appendChild(buttonContainer);
         modal.classList.remove('hidden');
     }
     function getGameScale() { return (window.getComputedStyle(gameWrapper).transform === 'none') ? 1 : new DOMMatrix(window.getComputedStyle(gameWrapper).transform).a; }
@@ -728,6 +733,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     } 
                     renderNpcStagingArea();
                     break;
+                case 'scenario_selection':
+                    showScenarioSelectionModal('adventure');
+                    break;
                 case 'initiative_roll': 
                 case 'battle':
                 default: 
@@ -745,9 +753,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen(document.getElementById('player-waiting-screen'));
                 document.getElementById('player-waiting-message').innerText = "Aguardando o Mestre...";
             }
-            else if (['npc_setup'].includes(gameState.phase)) {
+            else if (['npc_setup', 'scenario_selection'].includes(gameState.phase)) {
                 showScreen(document.getElementById('player-waiting-screen'));
-                document.getElementById('player-waiting-message').innerText = "O Mestre está preparando a aventura...";
+                const message = gameState.phase === 'npc_setup' 
+                    ? "O Mestre está preparando a aventura..."
+                    : "O Mestre está escolhendo o cenário da batalha...";
+                document.getElementById('player-waiting-message').innerText = message;
             } 
             else {
                 showScreen(fightScreen); 
@@ -1697,7 +1708,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('toggle-gm-panel-btn').classList.toggle('hidden', !isGm);
         document.getElementById('theater-publish-btn').classList.toggle('hidden', !isGm || !dataToRender.isStaging);
         
-        if (isGm) theaterGlobalScale.value = dataToRender.globalTokenScale || 1.0;
+        if (isGm) {
+            theaterGlobalScale.value = dataToRender.globalTokenScale || 1.0;
+            theaterSkillCheckButtons.classList.add('hidden');
+        } else {
+            renderSkillCheckButtons(state);
+        }
         
         theaterTokenContainer.innerHTML = '';
         const fragment = document.createDocumentFragment();
@@ -1734,6 +1750,31 @@ document.addEventListener('DOMContentLoaded', () => {
         theaterTokenContainer.appendChild(fragment);
     }
     
+    function renderSkillCheckButtons(state) {
+        theaterSkillCheckButtons.innerHTML = '';
+        const amIPlayer = myRole === 'player' && state.connectedPlayers[myPlayerKey];
+        theaterSkillCheckButtons.classList.toggle('hidden', !amIPlayer);
+        if(!amIPlayer) return;
+
+        const attributes = ['forca', 'agilidade', 'protecao', 'constituicao', 'inteligencia', 'mente', 'sorte'];
+        attributes.forEach(attr => {
+            const btn = document.createElement('button');
+            btn.className = 'skill-check-btn';
+            
+            let label = attr.charAt(0).toUpperCase() + attr.slice(1);
+            if (attr === 'sorte') {
+                label = 'Sorte';
+            }
+            
+            btn.textContent = `Teste de ${label.replace('cao', 'ção')}`;
+            btn.disabled = state.isSkillCheckActive;
+            btn.onclick = () => {
+                socket.emit('playerAction', { type: 'playerRollsSkillCheck', attribute: attr });
+            };
+            theaterSkillCheckButtons.appendChild(btn);
+        });
+    }
+
     function setupTheaterEventListeners() {
         const viewport = theaterBackgroundViewport;
         viewport.addEventListener('mousedown', (e) => {
@@ -1984,7 +2025,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function showScenarioSelectionModal(){
+    function showScenarioSelectionModal(mode = 'theater'){
         let contentHtml = '<div class="category-tabs">';
         const categories = Object.keys(ALL_SCENARIOS);
         categories.forEach((category, index) => {
@@ -2001,7 +2042,8 @@ document.addEventListener('DOMContentLoaded', () => {
             contentHtml += '</div>';
         });
     
-        showCustomModal("Mudar Cenário", contentHtml, []);
+        const title = mode === 'adventure' ? "Escolha o Cenário da Batalha" : "Mudar Cenário";
+        showCustomModal(title, contentHtml, []);
     
         document.querySelectorAll(".category-tab-btn").forEach(btn => {
             btn.addEventListener("click", () => {
@@ -2013,7 +2055,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll(".scenario-card").forEach(card => {
             card.addEventListener("click", () => {
                 const path = card.dataset.path;
-                socket.emit("playerAction", { type: 'changeScenario', scenario: path });
+                if (mode === 'adventure') {
+                    socket.emit("playerAction", { type: 'gmSetsBattleScenario', scenario: `mapas/${path}` });
+                } else {
+                    socket.emit("playerAction", { type: 'changeScenario', scenario: path });
+                }
                 modal.classList.add("hidden");
             });
         });
@@ -3954,6 +4000,42 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+    socket.on('showSkillCheckResult', (data) => {
+        const { playerName, checkType, roll, bonus, total } = data;
+        let resultClass = 'result-normal';
+        let critText = '';
+        if (roll === 1) {
+            resultClass = 'result-crit-fail';
+            critText = '<div class="skill-check-crit-text result-crit-fail">ERRO CRÍTICO</div>';
+        } else if (roll === 20) {
+            resultClass = 'result-crit-success';
+            critText = '<div class="skill-check-crit-text result-crit-success">ACERTO CRÍTICO</div>';
+        }
+
+        const details = bonus !== 0 ? `1D20(${roll}) + ${bonus}` : `1D20(${roll})`;
+
+        const content = `
+            <h4 class="skill-check-result-title">${playerName} rolou ${checkType.toUpperCase()}</h4>
+            <p class="skill-check-result-details">${details}</p>
+            <div class="skill-check-result-final ${resultClass}">${total}</div>
+            ${critText}
+        `;
+        
+        const buttons = [];
+        if (isGm) {
+            buttons.push({
+                text: 'OK',
+                onClick: () => {
+                    socket.emit('playerAction', { type: 'gmClosesSkillCheck' });
+                }
+            });
+        }
+
+        showCustomModal('', content, buttons, 'skill-check-result-modal');
+    });
+    socket.on('closeSkillCheckResult', () => {
+        modal.classList.add('hidden');
+    });
     socket.on('error', (data) => showInfoModal('Erro', data.message));
     
     // --- LÓGICA DE INVOCAÇÃO (CLIENTE) ---
@@ -4042,7 +4124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('start-adventure-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsAdventure' }));
         document.getElementById('start-theater-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'gmStartsTheater' }));
         backToLobbyBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmGoesBackToLobby' }));
-        document.getElementById('theater-change-scenario-btn').addEventListener('click', showScenarioSelectionModal);
+        document.getElementById('theater-change-scenario-btn').addEventListener('click', () => showScenarioSelectionModal('theater'));
         document.getElementById('theater-publish-btn').addEventListener('click', () => socket.emit('playerAction', { type: 'publish_stage' }));
         
         floatingSwitchModeBtn.addEventListener('click', () => socket.emit('playerAction', { type: 'gmSwitchesMode' }));
