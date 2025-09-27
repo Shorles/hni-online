@@ -37,8 +37,8 @@
 },
 "customProjectiles": {
 "ColossalDist (1).png": { "name": "flecha", "scale": 10.0 },
-"GiganteDist (1).png": { "name": "flecha", "scale": 10.0 },
-"GrandeDist (1).png": { "name": "flecha", "scale": 10.0 },
-"GrandeDist (2).png": { "name": "flecha", "scale": 10.0 }
+"GiganteDist (1).png": { "name": "flecha", "scale": 8.0 },
+"GrandeDist (1).png": { "name": "flecha", "scale": 6.0 },
+"GrandeDist (2).png": { "name": "flecha", "scale": 6.0 }
 }
 }

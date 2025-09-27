@@ -1,202 +1,206 @@
 {
-  "Poção de HP menor": {
-    "img": "/images/itens/PoçãoHPmenor.png",
-    "description": "Recupera 2D4+2 de HP.",
-    "isUsable": true,
-    "costPA": 3,
-    "effect": {
-      "type": "heal_hp",
-      "formula": "2D4+2"
-    }
-  },
-  "Poção de Mahou menor": {
-    "img": "/images/itens/PoçãoMahoumenor.png",
-    "description": "Recupera 2D3+2 de Mahou.",
-    "isUsable": true,
-    "costPA": 3,
-    "effect": {
-      "type": "heal_mahou",
-      "formula": "2D3+2"
-    }
-  },
-  "Poção Total menor": {
-    "img": "/images/itens/PoçãoTotalmenor.png",
-    "description": "Recupera 2D4+2 de HP e 2D3+2 de Mahou.",
-    "isUsable": true,
-    "costPA": 3,
-    "effect": {
-      "type": "heal_total",
-      "hp_formula": "2D4+2",
-      "mahou_formula": "2D3+2"
-    }
-  },
-  "Poção de HP": {
-    "img": "/images/itens/PoçãoHP.png",
-    "description": "Recupera 2D6+4 de HP.",
-    "isUsable": true,
-    "costPA": 3,
-    "effect": {
-      "type": "heal_hp",
-      "formula": "2D6+4"
-    }
-  },
-  "Poção de Mahou": {
-    "img": "/images/itens/PoçãoMahou.png",
-    "description": "Recupera 2D4+4 de Mahou.",
-    "isUsable": true,
-    "costPA": 3,
-    "effect": {
-      "type": "heal_mahou",
-      "formula": "2D4+4"
-    }
-  },
-  "Poção Total": {
-    "img": "/images/itens/PoçãoTotal.png",
-    "description": "Recupera 2D6+4 de HP e 2D4+4 de Mahou.",
-    "isUsable": true,
-    "costPA": 3,
-    "effect": {
-      "type": "heal_total",
-      "hp_formula": "2D6+4",
-      "mahou_formula": "2D4+4"
-    }
-  },
-  "Ampulheta": {
-    "img": "/images/itens/Ampulheta.png",
-    "description": "Uma antiga ampulheta em bom estado."
-  },
-  "Amuleto": {
-    "img": "/images/itens/Amuleto.png",
-    "description": "Um amuleto com inscrições indecifráveis."
-  },
-  "Anel": {
-    "img": "/images/itens/Anel.png",
-    "description": "Um anel simples, mas com um brilho peculiar."
-  },
-  "Barbante": {
-    "img": "/images/itens/Barbante.png",
-    "description": "Um rolo de barbante, sempre útil."
-  },
-  "Bussola": {
-    "img": "/images/itens/Bussola.png",
-    "description": "Uma bússola que aponta para um lugar desconhecido."
-  },
-  "Cadeado": {
-    "img": "/images/itens/Cadeado.png",
-    "description": "Um cadeado antigo e enferrujado, com uma chave."
-  },
-  "Cantil": {
-    "img": "/images/itens/Cantil.png",
-    "description": "Um cantil para armazenar líquidos."
-  },
-  "Chave A": {
-    "img": "/images/itens/ChaveA.png",
-    "description": "Uma chave de bronze."
-  },
-  "Chave B": {
-    "img": "/images/itens/ChaveB.png",
-    "description": "Uma chave de prata."
-  },
-  "Chave C": {
-    "img": "/images/itens/ChaveC.png",
-    "description": "Uma chave de ouro."
-  },
-  "Chaveiro": {
-    "img": "/images/itens/Chaveiro.png",
-    "description": "Um chaveiro com várias chaves pequenas."
-  },
-  "Colar": {
-    "img": "/images/itens/Colar.png",
-    "description": "Um colar com uma gema que perdeu seu brilho."
-  },
-  "Corda": {
-    "img": "/images/itens/Corda.png",
-    "description": "Vários metros de corda resistente."
-  },
-  "Coroa": {
-    "img": "/images/itens/Coroa.png",
-    "description": "Uma coroa que pertenceu a um rei esquecido."
-  },
-  "Cubo Musical": {
-    "img": "/images/itens/CuboMusical.png",
-    "description": "Um cubo que emite uma melodia suave quando manipulado."
-  },
-  "Espelho": {
-    "img": "/images/itens/Espelho.png",
-    "description": "Um pequeno espelho de mão com uma moldura de bronze."
-  },
-  "Estatueta": {
-    "img": "/images/itens/Estatueta.png",
-    "description": "Uma estatueta de uma divindade desconhecida."
-  },
-  "Gancho": {
-    "img": "/images/itens/Gancho.png",
-    "description": "Um gancho de metal, útil para escaladas."
-  },
-  "Frasco": {
-    "img": "/images/itens/Frasco.png",
-    "description": "Um frasco de vidro vazio, útil para armazenar líquidos."
-  },
-  "Garrafa": {
-    "img": "/images/itens/Garrafa.png",
-    "description": "Uma garrafa de vidro, talvez para uma mensagem ou uma poção."
-  },
-  "Moeda": {
-    "img": "/images/itens/Moeda.png",
-    "description": "Uma moeda antiga de um reino esquecido."
-  },
-  "Pixie Engarrafada": {
-    "img": "/images/itens/PixieEngarrafada.png",
-    "description": "Uma pequena fada luminosa presa dentro de uma garrafa."
-  },
-  "Tinteiro": {
-    "img": "/images/itens/Tinteiro.png",
-    "description": "Uma pena e um tinteiro com um pouco de tinta no fundo."
-  },
-  "Runa A": {
-    "img": "/images/itens/RunaA.png",
-    "description": "Uma pedra com uma runa antiga gravada. Irradia uma leve energia."
-  },
-  "Runa B": {
-    "img": "/images/itens/RunaB.png",
-    "description": "Uma pedra com uma runa diferente. Parece ser parte de um conjunto."
-  },
-  "Runa C": {
-    "img": "/images/itens/RunaC.png",
-    "description": "Uma pedra com a terceira runa de uma série desconhecida."
-  },
-  "Runa D": {
-    "img": "/images/itens/RunaD.png",
-    "description": "Uma pedra com uma runa, talvez a última de uma série desconhecida."
-  },
-  "CartaAberta": {
-    "img": "/images/itens/CartaAberta.png",
-    "description": "A quem estas linhas chegarem. Há algo impuro no porão da mansão Wanderhill. Primeiro foi o fedor de enxofre que tomou o ar, depois vieram os lamentos e aparições que não nos deixam repousar. Peço que procurem o padre Benedictus, pois creio ser o unico capaz de enfrentar tal mal. Até que o caso seja resolvido, minha família e eu abandonamos estas paredes. Conde Valemont Wanderhill."
-  },
-  "CartaSelada": {
-    "img": "/images/itens/CartaSelada.png",
-    "description": "Uma carta com o selo de uma família nobre."
-  },
-  "Pedra": {
-    "img": "/images/itens/Pedra.png",
-    "description": "Uma pedra comum. Talvez sirva para alguma coisa."
-  },
-"JoiaVermelha": {
-    "img": "/images/itens/JoiaVermelha.png",
-    "description": "Uma jóia de formato peculiar. Parece ter alguma função misteriosa."
-  },
-  "Crânio1Joia": {
-    "img": "/images/itens/Crânio1Joia.png",
-    "description": "Um crânio humanóide com uma jóia azul encravada em uma das órbitas oculares."
-  },
-  "Crânio2Joias": {
-    "img": "/images/itens/Crânio2Joias.png",
-    "description": "Um crânio humanóide com uma jóia azul e com uma jóia vermelha encravada em suas órbitas oculares."
-  },
-  "Pau": {
-    "img": "/images/itens/Pau.png",
-    "description": "Um graveto robusto. Poderia ser útil."
-  }
+"Poção de HP menor": {
+"img": "/images/itens/PoçãoHPmenor.png",
+"description": "Recupera 2D4+2 de HP.",
+"isUsable": true,
+"costPA": 3,
+"effect": {
+"type": "heal_hp",
+"formula": "2D4+2"
 }
-
-
+},
+"Poção de Mahou menor": {
+"img": "/images/itens/PoçãoMahoumenor.png",
+"description": "Recupera 2D3+2 de Mahou.",
+"isUsable": true,
+"costPA": 3,
+"effect": {
+"type": "heal_mahou",
+"formula": "2D3+2"
+}
+},
+"Poção Total menor": {
+"img": "/images/itens/PoçãoTotalmenor.png",
+"description": "Recupera 2D4+2 de HP e 2D3+2 de Mahou.",
+"isUsable": true,
+"costPA": 3,
+"effect": {
+"type": "heal_total",
+"hp_formula": "2D4+2",
+"mahou_formula": "2D3+2"
+}
+},
+"Poção de HP": {
+"img": "/images/itens/PoçãoHP.png",
+"description": "Recupera 2D6+4 de HP.",
+"isUsable": true,
+"costPA": 3,
+"effect": {
+"type": "heal_hp",
+"formula": "2D6+4"
+}
+},
+"Poção de Mahou": {
+"img": "/images/itens/PoçãoMahou.png",
+"description": "Recupera 2D4+4 de Mahou.",
+"isUsable": true,
+"costPA": 3,
+"effect": {
+"type": "heal_mahou",
+"formula": "2D4+4"
+}
+},
+"Poção Total": {
+"img": "/images/itens/PoçãoTotal.png",
+"description": "Recupera 2D6+4 de HP e 2D4+4 de Mahou.",
+"isUsable": true,
+"costPA": 3,
+"effect": {
+"type": "heal_total",
+"hp_formula": "2D6+4",
+"mahou_formula": "2D4+4"
+}
+},
+"Munição": {
+"img": "/images/armas/munição.png",
+"description": "Um pacote de munição para armas de longa distância. Aumenta sua munição em 1.",
+"cost": 10,
+"isAmmunition": true
+},
+"Ampulheta": {
+"img": "/images/itens/Ampulheta.png",
+"description": "Uma antiga ampulheta em bom estado."
+},
+"Amuleto": {
+"img": "/images/itens/Amuleto.png",
+"description": "Um amuleto com inscrições indecifráveis."
+},
+"Anel": {
+"img": "/images/itens/Anel.png",
+"description": "Um anel simples, mas com um brilho peculiar."
+},
+"Barbante": {
+"img": "/images/itens/Barbante.png",
+"description": "Um rolo de barbante, sempre útil."
+},
+"Bussola": {
+"img": "/images/itens/Bussola.png",
+"description": "Uma bússola que aponta para um lugar desconhecido."
+},
+"Cadeado": {
+"img": "/images/itens/Cadeado.png",
+"description": "Um cadeado antigo e enferrujado, com uma chave."
+},
+"Cantil": {
+"img": "/images/itens/Cantil.png",
+"description": "Um cantil para armazenar líquidos."
+},
+"Chave A": {
+"img": "/images/itens/ChaveA.png",
+"description": "Uma chave de bronze."
+},
+"Chave B": {
+"img": "/images/itens/ChaveB.png",
+"description": "Uma chave de prata."
+},
+"Chave C": {
+"img": "/images/itens/ChaveC.png",
+"description": "Uma chave de ouro."
+},
+"Chaveiro": {
+"img": "/images/itens/Chaveiro.png",
+"description": "Um chaveiro com várias chaves pequenas."
+},
+"Colar": {
+"img": "/images/itens/Colar.png",
+"description": "Um colar com uma gema que perdeu seu brilho."
+},
+"Corda": {
+"img": "/images/itens/Corda.png",
+"description": "Vários metros de corda resistente."
+},
+"Coroa": {
+"img": "/images/itens/Coroa.png",
+"description": "Uma coroa que pertenceu a um rei esquecido."
+},
+"Cubo Musical": {
+"img": "/images/itens/CuboMusical.png",
+"description": "Um cubo que emite uma melodia suave quando manipulado."
+},
+"Espelho": {
+"img": "/images/itens/Espelho.png",
+"description": "Um pequeno espelho de mão com uma moldura de bronze."
+},
+"Estatueta": {
+"img": "/images/itens/Estatueta.png",
+"description": "Uma estatueta de uma divindade desconhecida."
+},
+"Gancho": {
+"img": "/images/itens/Gancho.png",
+"description": "Um gancho de metal, útil para escaladas."
+},
+"Frasco": {
+"img": "/images/itens/Frasco.png",
+"description": "Um frasco de vidro vazio, útil para armazenar líquidos."
+},
+"Garrafa": {
+"img": "/images/itens/Garrafa.png",
+"description": "Uma garrafa de vidro, talvez para uma mensagem ou uma poção."
+},
+"Moeda": {
+"img": "/images/itens/Moeda.png",
+"description": "Uma moeda antiga de um reino esquecido."
+},
+"Pixie Engarrafada": {
+"img": "/images/itens/PixieEngarrafada.png",
+"description": "Uma pequena fada luminosa presa dentro de uma garrafa."
+},
+"Tinteiro": {
+"img": "/images/itens/Tinteiro.png",
+"description": "Uma pena e um tinteiro com um pouco de tinta no fundo."
+},
+"Runa A": {
+"img": "/images/itens/RunaA.png",
+"description": "Uma pedra com uma runa antiga gravada. Irradia uma leve energia."
+},
+"Runa B": {
+"img": "/images/itens/RunaB.png",
+"description": "Uma pedra com uma runa diferente. Parece ser parte de um conjunto."
+},
+"Runa C": {
+"img": "/images/itens/RunaC.png",
+"description": "Uma pedra com a terceira runa de uma série desconhecida."
+},
+"Runa D": {
+"img": "/images/itens/RunaD.png",
+"description": "Uma pedra com uma runa, talvez a última de uma série desconhecida."
+},
+"CartaAberta": {
+"img": "/images/itens/CartaAberta.png",
+"description": "A quem estas linhas chegarem. Há algo impuro no porão da mansão Wanderhill. Primeiro foi o fedor de enxofre que tomou o ar, depois vieram os lamentos e aparições que não nos deixam repousar. Peço que procurem o padre Benedictus, pois creio ser o unico capaz de enfrentar tal mal. Até que o caso seja resolvido, minha família e eu abandonamos estas paredes. Conde Valemont Wanderhill."
+},
+"CartaSelada": {
+"img": "/images/itens/CartaSelada.png",
+"description": "Uma carta com o selo de uma família nobre."
+},
+"Pedra": {
+"img": "/images/itens/Pedra.png",
+"description": "Uma pedra comum. Talvez sirva para alguma coisa."
+},
+"JoiaVermelha": {
+"img": "/images/itens/JoiaVermelha.png",
+"description": "Uma jóia de formato peculiar. Parece ter alguma função misteriosa."
+},
+"Crânio1Joia": {
+"img": "/images/itens/Crânio1Joia.png",
+"description": "Um crânio humanóide com uma jóia azul encravada em uma das órbitas oculares."
+},
+"Crânio2Joias": {
+"img": "/images/itens/Crânio2Joias.png",
+"description": "Um crânio humanóide com uma jóia azul e com uma jóia vermelha encravada em suas órbitas oculares."
+},
+"Pau": {
+"img": "/images/itens/Pau.png",
+"description": "Um graveto robusto. Poderia ser útil."
+}
+}

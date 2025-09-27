@@ -9,7 +9,10 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+// *** CORREÇÃO APLICADA AQUI (TIMEOUT) ***
+const io = new Server(server, {
+  pingTimeout: 60000, // Aumenta o tempo de espera para 60 segundos para evitar desconexões no Render
+});
 
 app.use(express.static('public'));
 
@@ -1196,7 +1199,9 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             let projectileInfo = null;
             if (isRangedAttack) {
                 const weaponImgName = attacker.sheet.equipment[weaponChoice].img.split('/').pop();
-                projectileInfo = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName] || { name: 'bullet', scale: 3.0 };
+                // *** CORREÇÃO APLICADA AQUI ***
+                const customInfo = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName];
+                projectileInfo = customInfo ? { name: customInfo.name, scale: customInfo.scale } : { name: 'bullet', scale: 3.0 };
             }
             io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: result.hit, debugInfo: result.debugInfo, animationType, projectileInfo });
         }
@@ -2561,9 +2566,7 @@ io.on('connection', (socket) => {
                         const quantityToTake = isFreeItem ? 1 : action.quantity;
                         const totalCost = isFreeItem ? 0 : shopItem.price * quantityToTake;
                         
-
                         if (playerInfo.characterSheet.money >= totalCost && quantityToTake <= shopItem.quantity) {
-                            
                             playerInfo.characterSheet.money -= totalCost;
                             
                             if (isFreeItem) {
@@ -2572,29 +2575,37 @@ io.on('connection', (socket) => {
                                 shopItem.quantity -= quantityToTake;
                             }
 
-                            const playerInv = playerInfo.characterSheet.inventory;
                             const itemData = shopItem.itemData;
-                            const newItem = {
-                                ...itemData,
-                                name: itemData.name,
-                                baseType: itemData.baseType || itemData.name,
-                                quantity: quantityToTake
-                            };
-
-                            if (!newItem.img) {
-                                 if (newItem.type === 'armor' && newItem.name !== 'Nenhuma') {
-                                    const armorImgName = newItem.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${newItem.name}`;
-                                    newItem.img = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
-                                } else if (newItem.type === 'shield' && newItem.name !== 'Nenhum') {
-                                     const shieldImgName = newItem.name === 'Médio' ? 'Escudo Medio' : `Escudo ${newItem.name}`;
-                                     newItem.img = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
-                                }
-                            }
                             
-                            if (playerInv[newItem.name]) {
-                                playerInv[newItem.name].quantity += quantityToTake;
+                            // *** CORREÇÃO APLICADA AQUI ***
+                            if (itemData.isAmmunition) {
+                                playerInfo.characterSheet.ammunition = (playerInfo.characterSheet.ammunition || 0) + quantityToTake;
+                                logMessage(theaterState, `${playerInfo.characterName} comprou ${quantityToTake}x Munição.`);
                             } else {
-                                playerInv[newItem.name] = newItem;
+                                const playerInv = playerInfo.characterSheet.inventory;
+                                const newItem = {
+                                    ...itemData,
+                                    name: itemData.name,
+                                    baseType: itemData.baseType || itemData.name,
+                                    quantity: quantityToTake
+                                };
+    
+                                if (!newItem.img) {
+                                     if (newItem.type === 'armor' && newItem.name !== 'Nenhuma') {
+                                        const armorImgName = newItem.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${newItem.name}`;
+                                        newItem.img = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
+                                    } else if (newItem.type === 'shield' && newItem.name !== 'Nenhum') {
+                                         const shieldImgName = newItem.name === 'Médio' ? 'Escudo Medio' : `Escudo ${newItem.name}`;
+                                         newItem.img = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
+                                    }
+                                }
+                                
+                                if (playerInv[newItem.name]) {
+                                    playerInv[newItem.name].quantity += quantityToTake;
+                                } else {
+                                    playerInv[newItem.name] = newItem;
+                                }
+                                logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${quantityToTake}x ${shopItem.name}.`);
                             }
 
                             if (shopItem.quantity <= 0) {
@@ -2602,8 +2613,6 @@ io.on('connection', (socket) => {
                             }
                             
                             theaterState.shop.playerItems = Object.values(theaterState.shop.gmItems);
-                            
-                            logMessage(theaterState, `${playerInfo.characterName} ${isFreeItem ? 'pegou' : 'comprou'} ${quantityToTake}x ${shopItem.name}.`);
                         }
                     }
                  }
