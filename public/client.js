@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isShopOpen = false;
     let stagedLevelUpChanges = {};
     let isRacePreviewFixed = false;
+    let projectilesPreloaded = false; // *** NOVO: Flag para controlar o pré-carregamento ***
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -263,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // *** CORREÇÃO APLICADA AQUI (Munição) ***
+        // Adiciona o item "Munição" à lista de armas de distância para a loja
         const ammunitionItem = ALL_ITEMS['Munição'];
         if (ammunitionItem) {
             rangedWeapons.push({
@@ -562,6 +563,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // *** NOVA FUNÇÃO PARA PRÉ-CARREGAR IMAGENS ***
+    function preloadProjectileImages() {
+        const imageUrlsToPreload = new Set();
+        // Adiciona o projétil padrão
+        imageUrlsToPreload.add('/images/armas/bullet.png');
+
+        // Adiciona projéteis customizados da configuração
+        if (ALL_WEAPON_IMAGES && ALL_WEAPON_IMAGES.customProjectiles) {
+            for (const key in ALL_WEAPON_IMAGES.customProjectiles) {
+                const projectileInfo = ALL_WEAPON_IMAGES.customProjectiles[key];
+                if (projectileInfo && projectileInfo.name) {
+                    imageUrlsToPreload.add(`/images/armas/${projectileInfo.name}.png`);
+                }
+            }
+        }
+
+        console.log("Pré-carregando projéteis:", Array.from(imageUrlsToPreload));
+
+        imageUrlsToPreload.forEach(url => {
+            const img = new Image();
+            img.src = url;
+        });
+    }
+
     // =================================================================
     // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
     // =================================================================
@@ -633,6 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         switch(gameState.mode) {
             case 'lobby':
+                projectilesPreloaded = false; // *** NOVO: Reseta o flag ao voltar para o lobby ***
                 defeatAnimationPlayed.clear();
                 stagedNpcSlots.fill(null);
                 selectedSlotIndex = null;
@@ -650,6 +676,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'adventure':
+                // *** NOVO: Chama o pré-carregamento uma vez por batalha ***
+                if (!projectilesPreloaded) {
+                    preloadProjectileImages();
+                    projectilesPreloaded = true;
+                }
                 isShopOpen = false;
                 if(shopModal) shopModal.classList.add('hidden');
                 handleAdventureMode(gameState);
