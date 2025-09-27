@@ -34,5 +34,11 @@
   "Desarmado": {
     "meleePrefix": null,
     "rangedPrefix": null
+  },
+  "customProjectiles": {
+    "ColossalDist (1).png": "flecha",
+    "GiganteDist (1).png": "flecha",
+    "GrandeDist (1).png": "flecha",
+    "GrandeDist (2).png": "flecha"
   }
 }

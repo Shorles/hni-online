@@ -3706,18 +3706,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }, textsForDelay * 100);
     });
 
-    socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual, animationType, projectileImg }) => {
+    socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual, isSecondHit, animationType, projectileImg }) => {
         const attackerEl = document.getElementById(attackerKey);
         const targetEl = document.getElementById(targetKey);
-
+        
         if (animationType === 'projectile' && attackerEl && targetEl) {
-            // Lógica de projétil
-            io.to(roomId).emit('visualEffectTriggered', { 
-                casterId: attackerKey, 
-                targetId: targetKey,
-                animation: `projectile_${projectileImg}` // Ex: projectile_/images/armas/flecha.png
-            });
-             setTimeout(() => {
+            const effectEl = document.createElement('div');
+            effectEl.className = `visual-effect projectile projectile_${projectileImg}`;
+            if (attackerEl.classList.contains('npc-char-container')) {
+                effectEl.classList.add('is-npc');
+            }
+            
+            const gameWrapperRect = gameWrapper.getBoundingClientRect();
+            const gameScale = getGameScale();
+            const casterRect = attackerEl.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+
+            const startX = (casterRect.left + casterRect.width / 2 - gameWrapperRect.left) / gameScale;
+            const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale - 40; // Ajuste para sair do centro
+            const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
+            const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale - 40;
+
+            effectEl.style.setProperty('--start-x', `${startX}px`);
+            effectEl.style.setProperty('--start-y', `${startY}px`);
+            effectEl.style.setProperty('--end-x', `${endX}px`);
+            effectEl.style.setProperty('--end-y', `${endY}px`);
+            
+            fightScreen.appendChild(effectEl);
+
+            setTimeout(() => {
                 if (targetEl && hit) {
                     const img = targetEl.querySelector('.fighter-img-ingame');
                     if (img) {
@@ -3725,10 +3742,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         setTimeout(() => img.classList.remove('is-hit-flash'), 400);
                     }
                 }
-            }, 500); // Atraso para sincronizar com a chegada do projétil
-        } else {
-            // Lógica de ataque corpo a corpo
-            const playAttackAnimation = (isSecondAttack = false) => {
+                effectEl.remove();
+            }, 500);
+
+        } else if (animationType === 'melee') {
+            const playMeleeAnimation = () => {
                 if (attackerEl) {
                     const isPlayer = attackerEl.classList.contains('player-char-container');
                     const isSummon = attackerEl.classList.contains('summon-char-container');
@@ -3736,8 +3754,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     attackerEl.classList.add(animationClass);
                     setTimeout(() => { attackerEl.classList.remove(animationClass); }, 500);
                 }
-                const currentHit = isDual ? (isSecondAttack ? debugInfo.attack2?.hit : debugInfo.attack1?.hit) : hit;
-                if (targetEl && currentHit) {
+                if (targetEl && hit) {
                     const img = targetEl.querySelector('.fighter-img-ingame');
                     if (img) {
                         img.classList.add('is-hit-flash');
@@ -3745,9 +3762,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             };
-            playAttackAnimation(false);
+
             if (isDual) {
-                setTimeout(() => playAttackAnimation(true), 800);
+                if (!isSecondHit) {
+                    playMeleeAnimation();
+                } else {
+                    setTimeout(playMeleeAnimation, 600);
+                }
+            } else {
+                playMeleeAnimation();
             }
         }
         
@@ -3802,10 +3825,14 @@ document.addEventListener('DOMContentLoaded', () => {
             let contentHtml = '<div class="debug-info-grid">';
             let modalTitle = `Relatório: <span class="attacker-name">${debugInfo.attackerName}</span> ataca <span class="defender-name">${debugInfo.targetName}</span>`;
 
-            if (isDual) {
-                contentHtml += '<h3>Ataque 1</h3>' + buildAttackReport(debugInfo.attack1);
-                contentHtml += '<hr style="border-width: 2px; margin: 15px 0;">';
-                contentHtml += '<h3>Ataque 2</h3>' + buildAttackReport(debugInfo.attack2);
+            if (debugInfo.isDual) {
+                if (debugInfo.attack1) {
+                    contentHtml += '<h3>Ataque 1</h3>' + buildAttackReport(debugInfo.attack1);
+                }
+                if (debugInfo.attack2) {
+                     contentHtml += '<hr style="border-width: 2px; margin: 15px 0;">';
+                     contentHtml += '<h3>Ataque 2</h3>' + buildAttackReport(debugInfo.attack2);
+                }
             } else {
                 contentHtml += buildAttackReport(debugInfo);
             }
@@ -3973,7 +4000,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.addEventListener('input', (e) => updateCharacterSheet(null, e));
             }
         });
-
         
         document.getElementById('sheet-save-btn').addEventListener('click', () => handleSaveCharacter('creation'));
         document.getElementById('sheet-confirm-btn').addEventListener('click', handleConfirmCharacter);
