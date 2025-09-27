@@ -1,44 +1,44 @@
 {
-  "1 Mão Mínima": {
-    "meleePrefix": "Minima",
-    "rangedPrefix": "MinimaDist"
-  },
-  "1 Mão Leve": {
-    "meleePrefix": "Leve",
-    "rangedPrefix": "LeveDist"
-  },
-  "1 Mão Mediana": {
-    "meleePrefix": "Mediana",
-    "rangedPrefix": "MedianaDist"
-  },
-  "Cetro": {
-    "meleePrefix": "Cetro",
-    "rangedPrefix": null
-  },
-  "2 Mãos Pesada": {
-    "meleePrefix": "Grande",
-    "rangedPrefix": "GrandeDist"
-  },
-  "2 Mãos Gigante": {
-    "meleePrefix": "Gigante",
-    "rangedPrefix": "GiganteDist"
-  },
-  "2 Mãos Colossal": {
-    "meleePrefix": "Colossal",
-    "rangedPrefix": "ColossalDist"
-  },
-  "Cajado": {
-    "meleePrefix": "Cajado",
-    "rangedPrefix": null
-  },
-  "Desarmado": {
-    "meleePrefix": null,
-    "rangedPrefix": null
-  },
-  "customProjectiles": {
-    "ColossalDist (1).png": "flecha",
-    "GiganteDist (1).png": "flecha",
-    "GrandeDist (1).png": "flecha",
-    "GrandeDist (2).png": "flecha"
-  }
+"1 Mão Mínima": {
+"meleePrefix": "Minima",
+"rangedPrefix": "MinimaDist"
+},
+"1 Mão Leve": {
+"meleePrefix": "Leve",
+"rangedPrefix": "LeveDist"
+},
+"1 Mão Mediana": {
+"meleePrefix": "Mediana",
+"rangedPrefix": "MedianaDist"
+},
+"Cetro": {
+"meleePrefix": "Cetro",
+"rangedPrefix": null
+},
+"2 Mãos Pesada": {
+"meleePrefix": "Grande",
+"rangedPrefix": "GrandeDist"
+},
+"2 Mãos Gigante": {
+"meleePrefix": "Gigante",
+"rangedPrefix": "GiganteDist"
+},
+"2 Mãos Colossal": {
+"meleePrefix": "Colossal",
+"rangedPrefix": "ColossalDist"
+},
+"Cajado": {
+"meleePrefix": "Cajado",
+"rangedPrefix": null
+},
+"Desarmado": {
+"meleePrefix": null,
+"rangedPrefix": null
+},
+"customProjectiles": {
+"ColossalDist (1).png": { "name": "flecha", "scale": 6.0 },
+"GiganteDist (1).png": { "name": "flecha", "scale": 6.0 },
+"GrandeDist (1).png": { "name": "flecha", "scale": 6.0 },
+"GrandeDist (2).png": { "name": "flecha", "scale": 6.0 }
+}
 }

@@ -113,7 +113,6 @@ try {
                     .map(file => `/images/armas/${file}`);
             }
         }
-        // *** CORREÇÃO APLICADA AQUI ***
         // Carrega a configuração de projéteis customizados separadamente.
         ALL_WEAPON_IMAGES.customProjectiles = weaponImagesConfig.customProjectiles || {};
     }
@@ -1162,14 +1161,22 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         const result1 = performSingleAttack('weapon1', true);
         const result2 = performSingleAttack('weapon2', true);
 
-        // A animação de projétil/melee é tratada separadamente para cada arma no ataque duplo
         const weapon1Ranged = attacker.sheet.equipment.weapon1.isRanged;
         const weapon2Ranged = attacker.sheet.equipment.weapon2.isRanged;
+
+        const getProjectileInfo = (weaponKey) => {
+            const weaponImgName = attacker.sheet.equipment[weaponKey].img.split('/').pop();
+            const projectileInfo = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName];
+            return projectileInfo ? { name: projectileInfo.name, scale: projectileInfo.scale } : { name: 'bullet', scale: 3.0 };
+        };
         
+        const projectile1 = weapon1Ranged ? getProjectileInfo('weapon1') : null;
+        const projectile2 = weapon2Ranged ? getProjectileInfo('weapon2') : null;
+
         io.to(roomId).emit('attackResolved', { 
             attackerKey, targetKey, hit: result1.hit, debugInfo: { attack1: result1.debugInfo },
             animationType: weapon1Ranged ? 'projectile' : 'melee', 
-            projectileImg: weapon1Ranged ? (ALL_WEAPON_IMAGES.customProjectiles?.[attacker.sheet.equipment.weapon1.img.split('/').pop()] || 'bullet') : null,
+            projectileInfo: projectile1,
             isDual: true, isSecondHit: false
         });
 
@@ -1177,7 +1184,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
             io.to(roomId).emit('attackResolved', { 
                 attackerKey, targetKey, hit: result2.hit, debugInfo: { attack2: result2.debugInfo },
                 animationType: weapon2Ranged ? 'projectile' : 'melee',
-                projectileImg: weapon2Ranged ? (ALL_WEAPON_IMAGES.customProjectiles?.[attacker.sheet.equipment.weapon2.img.split('/').pop()] || 'bullet') : null,
+                projectileInfo: projectile2,
                 isDual: true, isSecondHit: true
             });
         }, 600);
@@ -1186,12 +1193,12 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     } else {
         const result = performSingleAttack(weaponChoice, false);
         if (result) {
-            let projectileImg = null;
+            let projectileInfo = null;
             if (isRangedAttack) {
                 const weaponImgName = attacker.sheet.equipment[weaponChoice].img.split('/').pop();
-                projectileImg = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName] || 'bullet';
+                projectileInfo = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName] || { name: 'bullet', scale: 3.0 };
             }
-            io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: result.hit, debugInfo: result.debugInfo, animationType, projectileImg });
+            io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: result.hit, debugInfo: result.debugInfo, animationType, projectileInfo });
         }
     }
 

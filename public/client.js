@@ -3706,8 +3706,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, textsForDelay * 100);
     });
 
-    socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual, isSecondHit, animationType, projectileImg }) => {
-        console.log("Attack resolved data received:", { attackerKey, targetKey, hit, animationType, projectileImg, isDual, isSecondHit }); // DEBUG
+    socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual, isSecondHit, animationType, projectileInfo }) => {
         const attackerEl = document.getElementById(attackerKey);
         const targetEl = document.getElementById(targetKey);
         
@@ -3721,10 +3720,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        if (animationType === 'projectile' && attackerEl && targetEl) {
-            console.log("Creating projectile animation:", projectileImg); // DEBUG
+        if (animationType === 'projectile' && attackerEl && targetEl && projectileInfo) {
             const effectEl = document.createElement('div');
-            effectEl.className = `visual-effect projectile projectile_${projectileImg}`;
+            // *** CORREÇÃO APLICADA AQUI ***
+            effectEl.className = `visual-effect projectile projectile_${projectileInfo.name}`;
+            effectEl.style.setProperty('--projectile-scale', projectileInfo.scale || 1.0);
+            
             if (attackerEl.classList.contains('npc-char-container')) {
                 effectEl.classList.add('is-npc');
             }
@@ -3738,8 +3739,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale - 40;
             const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
             const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale - 40;
-
-            console.log("Coords:", {startX, startY, endX, endY}); // DEBUG
 
             effectEl.style.setProperty('--start-x', `${startX}px`);
             effectEl.style.setProperty('--start-y', `${startY}px`);
