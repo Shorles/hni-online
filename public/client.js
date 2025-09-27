@@ -3707,10 +3707,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, isDual, isSecondHit, animationType, projectileImg }) => {
+        console.log("Attack resolved data received:", { attackerKey, targetKey, hit, animationType, projectileImg, isDual, isSecondHit }); // DEBUG
         const attackerEl = document.getElementById(attackerKey);
         const targetEl = document.getElementById(targetKey);
         
+        const handleHitFlash = (didHit) => {
+            if (targetEl && didHit) {
+                const img = targetEl.querySelector('.fighter-img-ingame');
+                if (img) {
+                    img.classList.add('is-hit-flash');
+                    setTimeout(() => img.classList.remove('is-hit-flash'), 400);
+                }
+            }
+        };
+
         if (animationType === 'projectile' && attackerEl && targetEl) {
+            console.log("Creating projectile animation:", projectileImg); // DEBUG
             const effectEl = document.createElement('div');
             effectEl.className = `visual-effect projectile projectile_${projectileImg}`;
             if (attackerEl.classList.contains('npc-char-container')) {
@@ -3723,9 +3735,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetRect = targetEl.getBoundingClientRect();
 
             const startX = (casterRect.left + casterRect.width / 2 - gameWrapperRect.left) / gameScale;
-            const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale - 40; // Ajuste para sair do centro
+            const startY = (casterRect.top + casterRect.height / 2 - gameWrapperRect.top) / gameScale - 40;
             const endX = (targetRect.left + targetRect.width / 2 - gameWrapperRect.left) / gameScale;
             const endY = (targetRect.top + targetRect.height / 2 - gameWrapperRect.top) / gameScale - 40;
+
+            console.log("Coords:", {startX, startY, endX, endY}); // DEBUG
 
             effectEl.style.setProperty('--start-x', `${startX}px`);
             effectEl.style.setProperty('--start-y', `${startY}px`);
@@ -3735,13 +3749,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fightScreen.appendChild(effectEl);
 
             setTimeout(() => {
-                if (targetEl && hit) {
-                    const img = targetEl.querySelector('.fighter-img-ingame');
-                    if (img) {
-                        img.classList.add('is-hit-flash');
-                        setTimeout(() => img.classList.remove('is-hit-flash'), 400);
-                    }
-                }
+                handleHitFlash(hit);
                 effectEl.remove();
             }, 500);
 
@@ -3754,16 +3762,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     attackerEl.classList.add(animationClass);
                     setTimeout(() => { attackerEl.classList.remove(animationClass); }, 500);
                 }
-                if (targetEl && hit) {
-                    const img = targetEl.querySelector('.fighter-img-ingame');
-                    if (img) {
-                        img.classList.add('is-hit-flash');
-                        setTimeout(() => img.classList.remove('is-hit-flash'), 400);
-                    }
-                }
+                handleHitFlash(hit);
             };
 
-            if (isDual) {
+             if (isDual) {
                 if (!isSecondHit) {
                     playMeleeAnimation();
                 } else {
@@ -3825,16 +3827,9 @@ document.addEventListener('DOMContentLoaded', () => {
             let contentHtml = '<div class="debug-info-grid">';
             let modalTitle = `Relatório: <span class="attacker-name">${debugInfo.attackerName}</span> ataca <span class="defender-name">${debugInfo.targetName}</span>`;
 
-            if (debugInfo.isDual) {
-                if (debugInfo.attack1) {
-                    contentHtml += '<h3>Ataque 1</h3>' + buildAttackReport(debugInfo.attack1);
-                }
-                if (debugInfo.attack2) {
-                     contentHtml += '<hr style="border-width: 2px; margin: 15px 0;">';
-                     contentHtml += '<h3>Ataque 2</h3>' + buildAttackReport(debugInfo.attack2);
-                }
-            } else {
-                contentHtml += buildAttackReport(debugInfo);
+            const reportData = isDual ? (isSecondHit ? debugInfo.attack2 : debugInfo.attack1) : debugInfo;
+            if(reportData) {
+                contentHtml += buildAttackReport(reportData);
             }
             contentHtml += '</div>';
 
