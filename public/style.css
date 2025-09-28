@@ -471,6 +471,14 @@ left: var(--end-x);
 top: var(--end-y);
 }
 }
+@keyframes spin-clockwise {
+    from { transform: translate(-50%, -50%) scale(var(--projectile-scale, 1.0)) rotate(0deg); }
+    to { transform: translate(-50%, -50%) scale(var(--projectile-scale, 1.0)) rotate(360deg); }
+}
+@keyframes spin-counter-clockwise-npc {
+    from { transform: translate(-50%, -50%) scaleX(-1) scale(var(--projectile-scale, 1.0)) rotate(0deg); }
+    to { transform: translate(-50%, -50%) scaleX(-1) scale(var(--projectile-scale, 1.0)) rotate(-360deg); }
+}
 .visual-effect.projectile,
 .visual-effect.projectile_fire, .visual-effect.projectile_rock, .visual-effect.projectile_blue_fire, .visual-effect.projectile_lightning {
 width: 50px;
@@ -515,6 +523,15 @@ background-image: url('/images/armas/bullet.png');
 width: 48px;
 height: 10px;
 background-image: url('/images/armas/flecha.png');
+}
+.visual-effect.projectile_machadinha {
+    width: 40px;
+    height: 40px;
+    background-image: url('/images/armas/Leve (5).png');
+    animation: projectile-move 0.5s linear forwards, spin-clockwise 0.2s linear infinite;
+}
+.visual-effect.projectile_machadinha.is-npc {
+    animation: projectile-move 0.5s linear forwards, spin-counter-clockwise-npc 0.2s linear infinite;
 }
 .visual-effect.target_bubble, .visual-effect.self_rock, .visual-effect.self_swirl, .visual-effect.target_flash, .visual-effect.target_purple_aura, .visual-effect.self_fire_aura, .visual-effect.self_water_aura, .visual-effect.self_wind_aura, .visual-effect.self_light_aura, .visual-effect.self_dark_aura, .visual-effect.impact_fire, .visual-effect.impact_water, .visual-effect.impact_slash, .visual-effect.impact_light, .visual-effect.impact_dark, .visual-effect.impact_poison, .visual-effect.self_poison_aura, .visual-effect.self_metal_armor, .visual-effect.target_ice_burst, .visual-effect.target_heal, .visual-effect.target_nature_heal, .visual-effect.target_gravity, .visual-effect.self_vanish, .visual-effect.target_chains, .visual-effect.self_summon, .visual-effect.target_dark_fire {
 left: var(--start-x);
@@ -1103,7 +1120,8 @@ border: 1px solid white;
 }
 /* Layout para imagem da arma e equipamento */
 #sheet-equipment-section .equip-item,
-.ingame-sheet-equipment .equip-item {
+.ingame-sheet-equipment .equip-item,
+.npc-config-equip .equip-item {
 display: flex;
 flex-direction: row;
 gap: 10px;
@@ -1119,6 +1137,10 @@ flex-shrink: 0;
 background-size: contain;
 background-position: center;
 background-repeat: no-repeat;
+cursor: pointer;
+}
+.equipment-image-display:hover {
+border-color: #ffeb3b;
 }
 .equip-controls {
 display: flex;

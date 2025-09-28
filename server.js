@@ -312,7 +312,7 @@ function createNewFighterState(data) {
         fighter.sheet = {
             baseAttributes: {}, // NPCs use finalAttributes directly
             finalAttributes: {},
-            equipment: data.equipment || { weapon1: {type: 'Desarmado', name: ''}, weapon2: {type: 'Desarmado', name: ''}, armor: 'Nenhuma', shield: 'Nenhum' },
+            equipment: data.equipment || { weapon1: {type: 'Desarmado', name: '', img: null, isRanged: false}, weapon2: {type: 'Desarmado', name: '', img: null, isRanged: false}, armor: 'Nenhuma', shield: 'Nenhum' },
             spells: data.spells || []
         };
         
@@ -984,19 +984,12 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         const bta = btaBreakdown.value;
         const attackRoll = hitRoll + bta;
         const weaponType = weapon.type;
-        
-        // Crie uma cópia mutável do weaponData para não alterar o objeto global GAME_RULES
         const weaponData = { ...GAME_RULES.weapons[weaponType] };
-
-        // >>> AJUSTE DE BALANCEAMENTO DAS ARMAS DE LONGA DISTÂNCIA <<<
+        
         if (weapon.isRanged) {
-            if (weaponData.damage === '1D6') {
-                weaponData.damage = '1D4'; // Armas de 1 mão de longa distância
-            } else if (weaponData.damage === '1D10') {
-                weaponData.damage = '1D8'; // Armas de 2 mãos de longa distância
-            }
+            if (weaponData.damage === '1D6') weaponData.damage = '1D4';
+            else if (weaponData.damage === '1D10') weaponData.damage = '1D8';
         }
-        // >>> FIM DO AJUSTE <<<
         
         let debugInfo = { attackerName: attacker.nome, targetName: target.nome, weaponUsed: weaponType, isRanged: !!weapon.isRanged, finalDamageBreakdown: {} };
 
@@ -1166,10 +1159,18 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         return { hit, debugInfo };
     };
     
-    // Identificar tipo de animação
+    // Identificar tipo de animação e projétil
     const weapon = attacker.sheet.equipment[weaponChoice === 'dual' ? 'weapon1' : weaponChoice];
     const isRangedAttack = weapon && weapon.isRanged;
     let animationType = isRangedAttack ? 'projectile' : 'melee';
+
+    const getProjectileInfo = (weaponKey) => {
+        const weaponImg = attacker.sheet.equipment[weaponKey]?.img;
+        if (!weaponImg) return { name: 'bullet', scale: 3.0 }; // Fallback
+        const weaponImgName = weaponImg.split('/').pop();
+        const customInfo = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName];
+        return customInfo ? { name: customInfo.name, scale: customInfo.scale } : { name: 'bullet', scale: 3.0 };
+    };
     
     // Lógica principal de ataque
     if (weaponChoice === 'dual') {
@@ -1177,21 +1178,15 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         const result1 = performSingleAttack('weapon1', true);
         const result2 = performSingleAttack('weapon2', true);
 
-        const weapon1Ranged = attacker.sheet.equipment.weapon1.isRanged;
-        const weapon2Ranged = attacker.sheet.equipment.weapon2.isRanged;
-
-        const getProjectileInfo = (weaponKey) => {
-            const weaponImgName = attacker.sheet.equipment[weaponKey].img.split('/').pop();
-            const projectileInfo = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName];
-            return projectileInfo ? { name: projectileInfo.name, scale: projectileInfo.scale } : { name: 'bullet', scale: 3.0 };
-        };
+        const weapon1IsRanged = attacker.sheet.equipment.weapon1.isRanged;
+        const weapon2IsRanged = attacker.sheet.equipment.weapon2.isRanged;
         
-        const projectile1 = weapon1Ranged ? getProjectileInfo('weapon1') : null;
-        const projectile2 = weapon2Ranged ? getProjectileInfo('weapon2') : null;
+        const projectile1 = weapon1IsRanged ? getProjectileInfo('weapon1') : null;
+        const projectile2 = weapon2IsRanged ? getProjectileInfo('weapon2') : null;
 
         io.to(roomId).emit('attackResolved', { 
             attackerKey, targetKey, hit: result1.hit, debugInfo: { attack1: result1.debugInfo },
-            animationType: weapon1Ranged ? 'projectile' : 'melee', 
+            animationType: weapon1IsRanged ? 'projectile' : 'melee', 
             projectileInfo: projectile1,
             isDual: true, isSecondHit: false
         });
@@ -1199,7 +1194,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         setTimeout(() => {
             io.to(roomId).emit('attackResolved', { 
                 attackerKey, targetKey, hit: result2.hit, debugInfo: { attack2: result2.debugInfo },
-                animationType: weapon2Ranged ? 'projectile' : 'melee',
+                animationType: weapon2IsRanged ? 'projectile' : 'melee',
                 projectileInfo: projectile2,
                 isDual: true, isSecondHit: true
             });
@@ -1211,10 +1206,7 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         if (result) {
             let projectileInfo = null;
             if (isRangedAttack) {
-                const weaponImgName = attacker.sheet.equipment[weaponChoice].img.split('/').pop();
-                // *** CORREÇÃO APLICADA AQUI ***
-                const customInfo = (ALL_WEAPON_IMAGES.customProjectiles || {})[weaponImgName];
-                projectileInfo = customInfo ? { name: customInfo.name, scale: customInfo.scale } : { name: 'bullet', scale: 3.0 };
+                projectileInfo = getProjectileInfo(weaponChoice);
             }
             io.to(roomId).emit('attackResolved', { attackerKey, targetKey, hit: result.hit, debugInfo: result.debugInfo, animationType, projectileInfo });
         }

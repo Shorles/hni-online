@@ -579,7 +579,12 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const key in ALL_WEAPON_IMAGES.customProjectiles) {
                 const projectileInfo = ALL_WEAPON_IMAGES.customProjectiles[key];
                 if (projectileInfo && projectileInfo.name) {
-                    imageUrlsToPreload.add(`/images/armas/${projectileInfo.name}.png`);
+                    // Trata o caso especial da machadinha
+                    if (projectileInfo.name === 'machadinha') {
+                        imageUrlsToPreload.add('/images/armas/Leve (5).png');
+                    } else {
+                        imageUrlsToPreload.add(`/images/armas/${projectileInfo.name}.png`);
+                    }
                 }
             }
         }
@@ -639,7 +644,9 @@ document.addEventListener('DOMContentLoaded', () => {
              return;
         }
         
-        if (gameState.mode === 'adventure' && gameState.scenario) gameWrapper.style.backgroundImage = `url('/images/${gameState.scenario}')`;
+        if (gameState.mode === 'adventure' && gameState.scenario) {
+            gameWrapper.style.backgroundImage = `url('/images/${gameState.scenario}')`;
+        }
         else if (gameState.mode === 'lobby') gameWrapper.style.backgroundImage = `url('/images/mapas/cenarios externos/externo (1).png')`;
         else gameWrapper.style.backgroundImage = 'none';
 
@@ -806,7 +813,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ...npcData, 
                         id: `npc-staged-${Date.now()}-${targetSlot}`,
                         customStats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0, scale: 1.0 },
-                        equipment: { weapon1: {type: 'Desarmado'}, weapon2: {type: 'Desarmado'}, armor: 'Nenhuma', shield: 'Nenhum' },
+                        equipment: { weapon1: {type: 'Desarmado', img: null, isRanged: false}, weapon2: {type: 'Desarmado', img: null, isRanged: false}, armor: 'Nenhuma', shield: 'Nenhum' },
                         spells: []
                     };
                     selectedSlotIndex = null;
@@ -890,7 +897,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isLiveConfig) {
             current = { stats: { hp: npcData.hpMax, mahou: npcData.mahouMax, ...npcData.sheet.finalAttributes, xpReward: npcData.xpReward, moneyReward: npcData.moneyReward, scale: npcData.scale }, equip: npcData.sheet.equipment, spells: npcData.sheet.spells };
         } else if(isMidBattleAdd) {
-             current = { stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0, scale: 1.0 }, equip: { weapon1: { type: 'Desarmado' }, weapon2: { type: 'Desarmado' }, armor: 'Nenhuma', shield: 'Nenhum' }, spells: [] };
+             current = { stats: { hp: 10, mahou: 10, forca: 1, agilidade: 1, protecao: 1, constituicao: 1, inteligencia: 1, mente: 1, xpReward: 30, moneyReward: 0, scale: 1.0 }, equip: { weapon1: { type: 'Desarmado', img: null, isRanged: false }, weapon2: { type: 'Desarmado', img: null, isRanged: false }, armor: 'Nenhuma', shield: 'Nenhum' }, spells: [] };
         } else {
              current = { stats: npcData.customStats, equip: npcData.equipment, spells: npcData.spells };
         }
@@ -906,12 +913,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     
         const spellCategories = {
-            "Magias Grau 1": ALL_SPELLS.grade1 || [],
-            "Magias Avançadas Grau 1": ALL_SPELLS.advanced_grade1 || [],
-            "Magias Grau 2": ALL_SPELLS.grade2 || [],
-            "Magias Avançadas Grau 2": ALL_SPELLS.advanced_grade2 || [],
-            "Magias Grau 3": ALL_SPELLS.grade3 || [],
-            "Magias Avançadas Grau 3": ALL_SPELLS.advanced_grade3 || [],
+            "Magias Grau 1": ALL_SPELLS.grade1 || [], "Magias Avançadas Grau 1": ALL_SPELLS.advanced_grade1 || [],
+            "Magias Grau 2": ALL_SPELLS.grade2 || [], "Magias Avançadas Grau 2": ALL_SPELLS.advanced_grade2 || [],
+            "Magias Grau 3": ALL_SPELLS.grade3 || [], "Magias Avançadas Grau 3": ALL_SPELLS.advanced_grade3 || [],
             "Magias Combinadas": ALL_SPELLS.grade_combined || []
         };
     
@@ -968,10 +972,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <h4>Equipamentos</h4>
                 <div class="npc-config-equip">
-                    <label>Arma 1:</label><select id="npc-cfg-weapon1">${weaponOptions}</select>
-                    <label>Arma 2:</label><select id="npc-cfg-weapon2">${weaponOptions}</select>
-                    <label>Armadura:</label><select id="npc-cfg-armor">${armorOptions}</select>
-                    <label>Escudo:</label><select id="npc-cfg-shield">${shieldOptions}</select>
+                    <div class="equip-item">
+                        <div id="npc-cfg-weapon1-image" class="equipment-image-display"></div>
+                        <div class="equip-controls">
+                            <label>Arma 1:</label><select id="npc-cfg-weapon1">${weaponOptions}</select>
+                        </div>
+                    </div>
+                    <div class="equip-item">
+                        <div id="npc-cfg-weapon2-image" class="equipment-image-display"></div>
+                        <div class="equip-controls">
+                            <label>Arma 2:</label><select id="npc-cfg-weapon2">${weaponOptions}</select>
+                        </div>
+                    </div>
+                    <div class="equip-item">
+                        <div id="npc-cfg-armor-image" class="equipment-image-display"></div>
+                        <div class="equip-controls">
+                            <label>Armadura:</label><select id="npc-cfg-armor">${armorOptions}</select>
+                        </div>
+                    </div>
+                    <div class="equip-item">
+                        <div id="npc-cfg-shield-image" class="equipment-image-display"></div>
+                        <div class="equip-controls">
+                            <label>Escudo:</label><select id="npc-cfg-shield">${shieldOptions}</select>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="npc-config-col">
@@ -980,6 +1004,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>`;
         
+        let tempEquipment = JSON.parse(JSON.stringify(current.equip));
+
         showCustomModal(`Configurar ${npcData.nome || npcData.name}`, content, [
             { text: 'Confirmar', closes: true, onClick: () => {
                 const updatedStats = {
@@ -997,40 +1023,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (npcData.isMultiPart) {
                     updatedStats.parts = npcData.parts.map(part => ({
-                        key: part.key,
-                        name: part.name,
+                        key: part.key, name: part.name,
                         hp: parseInt(document.getElementById(`npc-cfg-hp-${part.key}`).value, 10)
                     }));
-                } else {
-                    updatedStats.hp = parseInt(document.getElementById('npc-cfg-hp').value, 10);
-                }
+                } else { updatedStats.hp = parseInt(document.getElementById('npc-cfg-hp').value, 10); }
 
-                const updatedEquipment = {
-                    weapon1: { type: document.getElementById('npc-cfg-weapon1').value },
-                    weapon2: { type: document.getElementById('npc-cfg-weapon2').value },
-                    armor: document.getElementById('npc-cfg-armor').value,
-                    shield: document.getElementById('npc-cfg-shield').value,
-                };
-                const selectedSpells = [];
-                document.querySelectorAll('.npc-config-spells input[type="checkbox"]:checked').forEach(cb => {
-                    selectedSpells.push(cb.value);
-                });
+                tempEquipment.weapon1.type = document.getElementById('npc-cfg-weapon1').value;
+                tempEquipment.weapon2.type = document.getElementById('npc-cfg-weapon2').value;
+                tempEquipment.armor = document.getElementById('npc-cfg-armor').value;
+                tempEquipment.shield = document.getElementById('npc-cfg-shield').value;
+
+                const selectedSpells = Array.from(document.querySelectorAll('.npc-config-spells input:checked')).map(cb => cb.value);
 
                 if (isLiveConfig) {
-                    socket.emit('playerAction', { type: 'gmConfiguresLiveNpc', fighterId: npcData.id, stats: updatedStats, equipment: updatedEquipment, spells: selectedSpells });
+                    socket.emit('playerAction', { type: 'gmConfiguresLiveNpc', fighterId: npcData.id, stats: updatedStats, equipment: tempEquipment, spells: selectedSpells });
                 } else if (isMidBattleAdd) {
-                    socket.emit('playerAction', { type: 'gmSetsNpcInSlot', slotIndex: config.slotIndex, npcData: npcData, customStats: updatedStats, equipment: updatedEquipment, spells: selectedSpells });
+                    socket.emit('playerAction', { type: 'gmSetsNpcInSlot', slotIndex: config.slotIndex, npcData: npcData, customStats: updatedStats, equipment: tempEquipment, spells: selectedSpells });
                 } else {
                     stagedNpcSlots[config.slotIndex].customStats = updatedStats;
-                    stagedNpcSlots[config.slotIndex].equipment = updatedEquipment;
+                    stagedNpcSlots[config.slotIndex].equipment = tempEquipment;
                     stagedNpcSlots[config.slotIndex].spells = selectedSpells;
                 }
             }},
             { text: 'Cancelar', closes: true, className: 'btn-danger' }
         ]);
 
-        document.getElementById('npc-cfg-weapon1').value = current.equip.weapon1.type;
-        document.getElementById('npc-cfg-weapon2').value = current.equip.weapon2.type;
+        const setupWeaponSlot = (slot) => {
+            const typeSelect = document.getElementById(`npc-cfg-weapon${slot}`);
+            const imageDisplay = document.getElementById(`npc-cfg-weapon${slot}-image`);
+            
+            typeSelect.value = tempEquipment[`weapon${slot}`].type;
+            imageDisplay.style.backgroundImage = tempEquipment[`weapon${slot}`].img ? `url("${tempEquipment[`weapon${slot}`].img}")` : 'none';
+
+            typeSelect.onchange = () => {
+                tempEquipment[`weapon${slot}`] = { type: typeSelect.value, img: null, isRanged: false };
+                imageDisplay.style.backgroundImage = 'none';
+                if (typeSelect.value !== 'Desarmado') {
+                    showWeaponImageSelectionModal(`npc-weapon${slot}`);
+                }
+            };
+            imageDisplay.onclick = () => {
+                if (typeSelect.value !== 'Desarmado') {
+                     showWeaponImageSelectionModal(`npc-weapon${slot}`, tempEquipment, (weaponData) => {
+                        tempEquipment[`weapon${slot}`] = weaponData;
+                        imageDisplay.style.backgroundImage = weaponData.img ? `url("${weaponData.img}")` : 'none';
+                     });
+                }
+            };
+        };
+
+        setupWeaponSlot('1');
+        setupWeaponSlot('2');
         document.getElementById('npc-cfg-armor').value = current.equip.armor;
         document.getElementById('npc-cfg-shield').value = current.equip.shield;
     }
@@ -2469,13 +2512,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-spells-selected-count').textContent = stagedCharacterSheet.spells.length;
     }
 
-    function showWeaponImageSelectionModal(weaponSlot) {
-        const weaponType = document.getElementById(`sheet-${weaponSlot}-type`).value;
+    function showWeaponImageSelectionModal(weaponSlot, npcEquipment = null, callback = null) {
+        const isNpc = weaponSlot.startsWith('npc-');
+        const weaponId = isNpc ? weaponSlot.replace('npc-', '') : weaponSlot;
+        const weaponType = document.getElementById(isNpc ? `npc-cfg-${weaponId}` : `sheet-${weaponId}-type`).value;
         const images = ALL_WEAPON_IMAGES[weaponType];
         
         if (!images || (images.melee.length === 0 && images.ranged.length === 0)) {
-            stagedCharacterSheet[weaponSlot] = { img: null, isRanged: false };
-            updateCharacterSheet();
+            const data = { img: null, isRanged: false, type: weaponType };
+            if(callback) callback(data);
+            else stagedCharacterSheet[weaponSlot] = data;
+            
+            if(!isNpc) updateCharacterSheet();
             return;
         }
 
@@ -2496,9 +2544,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.className = 'weapon-image-card';
                     card.innerHTML = `<img src="${imgPath}" alt="weapon image">`;
                     card.onclick = () => {
-                        stagedCharacterSheet[weaponSlot] = { img: imgPath, isRanged: isRanged };
+                        const data = { img: imgPath, isRanged: isRanged, type: weaponType };
+                        if(callback) callback(data);
+                        else stagedCharacterSheet[weaponSlot] = data;
+                        
                         weaponImageModal.classList.add('hidden');
-                        updateCharacterSheet();
+                        if (!isNpc) updateCharacterSheet();
                     };
                     grid.appendChild(card);
                 });
@@ -2513,9 +2564,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('weapon-image-modal-cancel').onclick = () => {
              weaponImageModal.classList.add('hidden');
-             document.getElementById(`sheet-${weaponSlot}-type`).value = 'Desarmado';
-             stagedCharacterSheet[weaponSlot].img = null; // Limpa a imagem
-             updateCharacterSheet();
+             if(!isNpc) {
+                document.getElementById(`sheet-${weaponSlot}-type`).value = 'Desarmado';
+                stagedCharacterSheet[weaponSlot].img = null;
+                updateCharacterSheet();
+             }
         };
 
         weaponImageModal.classList.remove('hidden');
