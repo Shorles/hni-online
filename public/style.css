@@ -289,7 +289,7 @@ font-size: 1.1em;
 }
 .npc-config-equip {
 display: grid;
-grid-template-columns: auto 1fr;
+/* grid-template-columns: auto 1fr; */ /* Removido para dar espaço ao novo layout */
 gap: 10px 15px;
 align-items: center;
 }
@@ -1025,7 +1025,7 @@ background-color: rgba(0,0,0,0.85);
 display: flex;
 justify-content: center;
 align-items: center;
-z-index: 10001;
+z-index: 10003; /* Z-INDEX AUMENTADO PARA FICAR SOBRE O MODAL PRINCIPAL */
 }
 #weapon-image-modal-content {
 background-color: #2b2b2b;
