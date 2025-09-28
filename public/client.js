@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isShopOpen = false;
     let stagedLevelUpChanges = {};
     let isRacePreviewFixed = false;
-    let projectilesPreloaded = false; // *** NOVO: Flag para controlar o pré-carregamento ***
+    let projectilesPreloaded = false;
 
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -568,18 +568,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // *** NOVA FUNÇÃO PARA PRÉ-CARREGAR IMAGENS ***
     function preloadProjectileImages() {
         const imageUrlsToPreload = new Set();
-        // Adiciona o projétil padrão
         imageUrlsToPreload.add('/images/armas/bullet.png');
 
-        // Adiciona projéteis customizados da configuração
         if (ALL_WEAPON_IMAGES && ALL_WEAPON_IMAGES.customProjectiles) {
             for (const key in ALL_WEAPON_IMAGES.customProjectiles) {
                 const projectileInfo = ALL_WEAPON_IMAGES.customProjectiles[key];
                 if (projectileInfo && projectileInfo.name) {
-                    // Trata o caso especial da machadinha
                     if (projectileInfo.name === 'machadinha') {
                         imageUrlsToPreload.add('/images/armas/Leve (5).png');
                     } else {
@@ -588,9 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-
         console.log("Pré-carregando projéteis:", Array.from(imageUrlsToPreload));
-
         imageUrlsToPreload.forEach(url => {
             const img = new Image();
             img.src = url;
@@ -670,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         switch(gameState.mode) {
             case 'lobby':
-                projectilesPreloaded = false; // *** NOVO: Reseta o flag ao voltar para o lobby ***
+                projectilesPreloaded = false;
                 defeatAnimationPlayed.clear();
                 stagedNpcSlots.fill(null);
                 selectedSlotIndex = null;
@@ -688,7 +682,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'adventure':
-                // *** NOVO: Chama o pré-carregamento uma vez por batalha ***
                 if (!projectilesPreloaded) {
                     preloadProjectileImages();
                     projectilesPreloaded = true;
@@ -1059,12 +1052,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 tempEquipment[`weapon${slot}`] = { type: typeSelect.value, img: null, isRanged: false };
                 imageDisplay.style.backgroundImage = 'none';
                 if (typeSelect.value !== 'Desarmado') {
-                    showWeaponImageSelectionModal(`npc-weapon${slot}`);
+                     showWeaponImageSelectionModal(`npc-weapon${slot}`, (weaponData) => {
+                        tempEquipment[`weapon${slot}`] = weaponData;
+                        imageDisplay.style.backgroundImage = weaponData.img ? `url("${weaponData.img}")` : 'none';
+                     });
                 }
             };
             imageDisplay.onclick = () => {
                 if (typeSelect.value !== 'Desarmado') {
-                     showWeaponImageSelectionModal(`npc-weapon${slot}`, tempEquipment, (weaponData) => {
+                     showWeaponImageSelectionModal(`npc-weapon${slot}`, (weaponData) => {
                         tempEquipment[`weapon${slot}`] = weaponData;
                         imageDisplay.style.backgroundImage = weaponData.img ? `url("${weaponData.img}")` : 'none';
                      });
@@ -2512,16 +2508,16 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('sheet-spells-selected-count').textContent = stagedCharacterSheet.spells.length;
     }
 
-    function showWeaponImageSelectionModal(weaponSlot, npcEquipment = null, callback = null) {
+    function showWeaponImageSelectionModal(weaponSlot, npcTempEquip = null, callback = null) {
         const isNpc = weaponSlot.startsWith('npc-');
         const weaponId = isNpc ? weaponSlot.replace('npc-', '') : weaponSlot;
         const weaponType = document.getElementById(isNpc ? `npc-cfg-${weaponId}` : `sheet-${weaponId}-type`).value;
         const images = ALL_WEAPON_IMAGES[weaponType];
-        
+
         if (!images || (images.melee.length === 0 && images.ranged.length === 0)) {
             const data = { img: null, isRanged: false, type: weaponType };
             if(callback) callback(data);
-            else stagedCharacterSheet[weaponSlot] = data;
+            else if(!isNpc) stagedCharacterSheet[weaponId] = data;
             
             if(!isNpc) updateCharacterSheet();
             return;
@@ -2546,7 +2542,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.onclick = () => {
                         const data = { img: imgPath, isRanged: isRanged, type: weaponType };
                         if(callback) callback(data);
-                        else stagedCharacterSheet[weaponSlot] = data;
+                        else if(!isNpc) stagedCharacterSheet[weaponId] = data;
                         
                         weaponImageModal.classList.add('hidden');
                         if (!isNpc) updateCharacterSheet();
@@ -2565,8 +2561,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('weapon-image-modal-cancel').onclick = () => {
              weaponImageModal.classList.add('hidden');
              if(!isNpc) {
-                document.getElementById(`sheet-${weaponSlot}-type`).value = 'Desarmado';
-                stagedCharacterSheet[weaponSlot].img = null;
+                document.getElementById(`sheet-${weaponId}-type`).value = 'Desarmado';
+                stagedCharacterSheet[weaponId].img = null;
                 updateCharacterSheet();
              }
         };
