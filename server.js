@@ -312,10 +312,19 @@ function createNewFighterState(data) {
         fighter.sheet = {
             baseAttributes: {}, // NPCs use finalAttributes directly
             finalAttributes: {},
-            equipment: data.equipment || { weapon1: {type: 'Desarmado', name: '', img: null, isRanged: false}, weapon2: {type: 'Desarmado', name: '', img: null, isRanged: false}, armor: 'Nenhuma', shield: 'Nenhum' },
+            equipment: data.equipment || { weapon1: {type: 'Desarmado', name: 'Desarmado', img: null, isRanged: false}, weapon2: {type: 'Desarmado', name: 'Desarmado', img: null, isRanged: false}, armor: 'Nenhuma', shield: 'Nenhum' },
             spells: data.spells || []
         };
         
+        // *** CORREÇÃO APLICADA AQUI ***
+        // Garante que o nome da arma seja definido, usando o tipo como fallback.
+        ['weapon1', 'weapon2'].forEach(slot => {
+            const weapon = fighter.sheet.equipment[slot];
+            if (weapon && !weapon.name) {
+                weapon.name = weapon.type;
+            }
+        });
+
         fighter.isMultiPart = !!data.isMultiPart;
 
         if (fighter.isMultiPart && data.parts) {
