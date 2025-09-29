@@ -44,8 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isShopOpen = false;
     let stagedLevelUpChanges = {};
     let isRacePreviewFixed = false;
-    let projectilesPreloaded = false;
-
+    
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
     const gameWrapper = document.getElementById('game-wrapper');
@@ -664,7 +663,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         switch(gameState.mode) {
             case 'lobby':
-                projectilesPreloaded = false;
                 defeatAnimationPlayed.clear();
                 stagedNpcSlots.fill(null);
                 selectedSlotIndex = null;
@@ -682,10 +680,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 break;
             case 'adventure':
-                if (!projectilesPreloaded) {
-                    preloadProjectileImages();
-                    projectilesPreloaded = true;
-                }
                 isShopOpen = false;
                 if(shopModal) shopModal.classList.add('hidden');
                 handleAdventureMode(gameState);
@@ -3657,6 +3651,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_SCENARIOS = data.scenarios || {};
         ALL_PLAYER_IMAGES = data.playerImages || [];
     
+        // *** CORREÇÃO APLICADA AQUI (PRELOADING) ***
+        // Pré-carrega as imagens dos projéteis assim que os dados do jogo são recebidos.
+        preloadProjectileImages();
+
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoomId = urlParams.get('room');
 

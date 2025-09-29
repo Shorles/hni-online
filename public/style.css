@@ -477,7 +477,7 @@ top: var(--end-y);
 }
 @keyframes spin-counter-clockwise-npc {
     from { transform: translate(-50%, -50%) scaleX(-1) scale(var(--projectile-scale, 1.0)) rotate(0deg); }
-    to { transform: translate(-50%, -50%) scaleX(-1) scale(var(--projectile-scale, 1.0)) rotate(-360deg); }
+    to { transform: translate(-50%, -50%) scaleX(-1) scale(var(--projectile-scale, 1.0)) rotate(360deg); }
 }
 .visual-effect.projectile,
 .visual-effect.projectile_fire, .visual-effect.projectile_rock, .visual-effect.projectile_blue_fire, .visual-effect.projectile_lightning {
