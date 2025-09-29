@@ -567,17 +567,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // *** CORREÇÃO APLICADA AQUI (PRELOADING) ***
     function preloadProjectileImages() {
         const imageUrlsToPreload = new Set();
+        // Adiciona um projétil padrão/fallback
         imageUrlsToPreload.add('/images/armas/bullet.png');
 
         if (ALL_WEAPON_IMAGES && ALL_WEAPON_IMAGES.customProjectiles) {
             for (const key in ALL_WEAPON_IMAGES.customProjectiles) {
                 const projectileInfo = ALL_WEAPON_IMAGES.customProjectiles[key];
                 if (projectileInfo && projectileInfo.name) {
+                    // Trata o caso especial da machadinha que usa outra imagem de arma
                     if (projectileInfo.name === 'machadinha') {
                         imageUrlsToPreload.add('/images/armas/Leve (5).png');
                     } else {
+                        // Constrói o caminho para os outros projéteis
                         imageUrlsToPreload.add(`/images/armas/${projectileInfo.name}.png`);
                     }
                 }
