@@ -146,14 +146,16 @@ const games = {};
 
 // --- FUNÇÕES DE UTILIDADE PARA COMBATE ---
 function rollD20() { return Math.floor(Math.random() * 20) + 1; }
+
 function rollDice(diceString) {
     if (!diceString || typeof diceString !== 'string') return 0;
     
-    let match = diceString.toString().match(/(\d+)d(\d+)(\+\d+)?/i);
+    const match = diceString.match(/(\d+)d(\d+)(\s*\+\s*(\d+))?/i);
+    
     if (match) {
         const numDice = parseInt(match[1], 10);
         const diceSides = parseInt(match[2], 10);
-        const bonus = match[3] ? parseInt(match[3], 10) : 0;
+        const bonus = match[4] ? parseInt(match[4], 10) : 0;
 
         let total = 0;
         for (let i = 0; i < numDice; i++) {
@@ -162,21 +164,7 @@ function rollDice(diceString) {
         return total + bonus;
     }
     
-    let mainParts = diceString.split('+');
-    let formula = mainParts[0];
-    let bonusLegacy = mainParts[1] ? parseInt(mainParts[1], 10) : 0;
-
-    const parts = formula.match(/(\d+)d(\d+)/i);
-    if (!parts) return parseInt(diceString) || bonusLegacy;
-    
-    const numDiceLegacy = parseInt(parts[1], 10);
-    const diceSidesLegacy = parseInt(parts[2], 10);
-
-    let totalLegacy = 0;
-    for (let i = 0; i < numDiceLegacy; i++) {
-        totalLegacy += Math.floor(Math.random() * diceSidesLegacy) + 1;
-    }
-    return totalLegacy + bonusLegacy;
+    return parseInt(diceString, 10) || 0;
 }
 
 
@@ -316,8 +304,6 @@ function createNewFighterState(data) {
             spells: data.spells || []
         };
         
-        // *** CORREÇÃO APLICADA AQUI ***
-        // Garante que o nome da arma seja definido, usando o tipo como fallback.
         ['weapon1', 'weapon2'].forEach(slot => {
             const weapon = fighter.sheet.equipment[slot];
             if (weapon && !weapon.name) {
@@ -974,7 +960,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         
         attacker.pa -= (isDual && weaponKey === 'weapon1') ? 0 : paCost; // PA é consumido uma vez para ataque duplo
 
-        // CORREÇÃO: Verifica se o ATACANTE tem um debuff que o faça errar
         const missChanceEffects = attacker.activeEffects.filter(e => e.type === 'miss_chance');
         for (const effect of missChanceEffects) {
             if (Math.random() < effect.chance) {
@@ -1056,7 +1041,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 totalDamage += weaponBuffInfo.total;
             }
 
-            // CORREÇÃO: Lógica para dano em cadeia
             const chainLightningBuff = attacker.activeEffects.find(e => e.type === 'weapon_buff_chain_lightning');
             if (chainLightningBuff) {
                 const chainDamage = rollDice(chainLightningBuff.damageFormula);
@@ -1155,7 +1139,6 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 }
             });
             
-            // CORREÇÃO: Verifica o onCrit
             if (isCrit) {
                 const onCritBuffs = attacker.activeEffects.filter(e => e.type === 'weapon_buff' && e.onCrit);
                 onCritBuffs.forEach(buff => {
@@ -1356,18 +1339,33 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             break;
         case 'adjacent_enemy':
             if (primaryTarget) {
-                 targets.push(primaryTarget);
-                 const primaryTargetIndex = state.npcSlots.indexOf(targetKey);
-                 if (primaryTargetIndex !== -1) {
-                    if (primaryTargetIndex > 0 && primaryTargetIndex < 4) {
-                        const leftNpc = getFighter(state, state.npcSlots[primaryTargetIndex - 1]);
-                        if(leftNpc && leftNpc.status === 'active') targets.push(leftNpc);
-                    }
-                    if (primaryTargetIndex < 3) {
-                        const rightNpc = getFighter(state, state.npcSlots[primaryTargetIndex + 1]);
-                        if(rightNpc && rightNpc.status === 'active') targets.push(rightNpc);
-                    }
-                 }
+                const primaryTargetIndex = state.npcSlots.indexOf(targetKey);
+
+                // *** NOVA LÓGICA DE ADJACÊNCIA ***
+                const adjacencyMap = {
+                    0: [0, 1],       // Target Slot 1 -> Hits 1, 2
+                    1: [0, 1, 2, 4], // Target Slot 2 -> Hits 1, 2, 3, 5
+                    2: [1, 2, 3, 4], // Target Slot 3 -> Hits 2, 3, 4, 5
+                    3: [2, 3],       // Target Slot 4 -> Hits 3, 4
+                    4: [1, 2, 4]     // Target Slot 5 -> Hits 2, 3, 5
+                };
+
+                const hitIndices = adjacencyMap[primaryTargetIndex];
+
+                if (hitIndices) {
+                    hitIndices.forEach(index => {
+                        const npcId = state.npcSlots[index];
+                        if (npcId) {
+                            const fighter = getFighter(state, npcId);
+                            if (fighter && fighter.status === 'active') {
+                                targets.push(fighter);
+                            }
+                        }
+                    });
+                } else {
+                    // Fallback se o índice for inválido, apenas adiciona o alvo clicado
+                    targets.push(primaryTarget);
+                }
             }
             break;
         case 'single_ally_down':
@@ -1644,8 +1642,8 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         case 'lifesteal_buff':
         case 'reflect_damage_buff':
         case 'spell_shield':
-        // CORREÇÃO: Adicionado o tipo weapon_buff_chain_lightning
         case 'weapon_buff_chain_lightning':
+        case 'miss_chance':
             const newEffect = {
                 name: spell.name,
                 type: spell.effect.type,
@@ -1656,16 +1654,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             recalculateFighterStats(target);
             break;
         
-        // CORREÇÃO: Adicionado o tipo miss_chance
-        case 'miss_chance':
-            target.activeEffects.push({
-                name: spell.name,
-                type: 'miss_chance',
-                duration: spell.effect.duration + 1,
-                chance: spell.effect.chance
-            });
-            break;
-
         case 'random_debuff':
             if (Math.random() < (spell.effect.chance || 1.0)) {
                 const attributes = spell.effect.attributes;
@@ -1706,7 +1694,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             }
             break;
         
-        // CORREÇÃO: Adicionado o tipo global_debuff
         case 'global_debuff':
             const allFighters = [
                 ...Object.values(state.fighters.players),
@@ -1764,7 +1751,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             logMessage(state, `${target.nome} recebe uma ${spell.effect.markType}! (Total: ${target.marks[spell.effect.markType]})`, 'info');
             break;
         
-        // CORREÇÃO: Adicionado o tipo apply_stacking_mark
         case 'apply_stacking_mark':
             if (!target.marks[spell.effect.markType]) {
                 target.marks[spell.effect.markType] = 0;
@@ -1779,7 +1765,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             }
             break;
         
-        // CORREÇÃO: Adicionado o tipo multi_stun
         case 'multi_stun':
             (spell.effect.chances || []).forEach((chance, i) => {
                 if (Math.random() < chance) {
@@ -2722,7 +2707,6 @@ io.on('connection', (socket) => {
 
                             const itemData = shopItem.itemData;
                             
-                            // *** CORREÇÃO APLICADA AQUI ***
                             if (itemData.isAmmunition) {
                                 playerInfo.characterSheet.ammunition = (playerInfo.characterSheet.ammunition || 0) + quantityToTake;
                                 logMessage(theaterState, `${playerInfo.characterName} comprou ${quantityToTake}x Munição.`);

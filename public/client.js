@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isShopOpen = false;
     let stagedLevelUpChanges = {};
     let isRacePreviewFixed = false;
-    let characterSheetCheatActive = false; // <-- NOVA VARIÁVEL PARA O CHEAT
+    let characterSheetCheatActive = false;
     
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -568,21 +568,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // *** CORREÇÃO APLICADA AQUI (PRELOADING) ***
     function preloadProjectileImages() {
         const imageUrlsToPreload = new Set();
-        // Adiciona um projétil padrão/fallback
         imageUrlsToPreload.add('/images/armas/bullet.png');
 
         if (ALL_WEAPON_IMAGES && ALL_WEAPON_IMAGES.customProjectiles) {
             for (const key in ALL_WEAPON_IMAGES.customProjectiles) {
                 const projectileInfo = ALL_WEAPON_IMAGES.customProjectiles[key];
                 if (projectileInfo && projectileInfo.name) {
-                    // Trata o caso especial da machadinha que usa outra imagem de arma
                     if (projectileInfo.name === 'machadinha') {
                         imageUrlsToPreload.add('/images/armas/Leve (5).png');
                     } else {
-                        // Constrói o caminho para os outros projéteis
                         imageUrlsToPreload.add(`/images/armas/${projectileInfo.name}.png`);
                     }
                 }
@@ -1020,9 +1016,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }));
                 } else { updatedStats.hp = parseInt(document.getElementById('npc-cfg-hp').value, 10); }
 
-                // *** CORREÇÃO APLICADA AQUI ***
-                // O objeto `tempEquipment` já contém as armas detalhadas.
-                // Apenas atualizamos armadura e escudo, que são strings simples.
                 tempEquipment.armor = document.getElementById('npc-cfg-armor').value;
                 tempEquipment.shield = document.getElementById('npc-cfg-shield').value;
 
@@ -1268,7 +1261,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const fighter = getFighter(currentGameState, container.id);
             if (!fighter) return;
     
-            // *** AJUSTE 2: Condição para permitir alvejar alvos derrotados ***
             if (targetingAction.spell?.targetType === 'single_ally_down') {
                 if (fighter.status !== 'down' && fighter.status !== 'active') return;
             } else {
@@ -1578,10 +1570,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (spell.targetType === 'adjacent_enemy') {
             const targetIndex = currentGameState.npcSlots.indexOf(targetKey);
             if (targetIndex !== -1) {
-                const affectedIndexes = [targetIndex];
-                if (targetIndex > 0) affectedIndexes.push(targetIndex - 1);
-                if (targetIndex < 3) affectedIndexes.push(targetIndex + 1);
+                // *** CORREÇÃO: NOVA LÓGICA DE ADJACÊNCIA ***
+                const adjacencyMap = {
+                    0: [0, 1],       // Alvo no Slot 1 -> Atinge 1, 2
+                    1: [0, 1, 2, 4], // Alvo no Slot 2 -> Atinge 1, 2, 3, 5
+                    2: [1, 2, 3, 4], // Alvo no Slot 3 -> Atinge 2, 3, 4, 5
+                    3: [2, 3],       // Alvo no Slot 4 -> Atinge 3, 4
+                    4: [1, 2, 4]     // Alvo no Slot 5 -> Atinge 2, 3, 5
+                };
                 
+                const affectedIndexes = adjacencyMap[targetIndex] || [targetIndex];
+
                 affectedIndexes.forEach(index => {
                     const npcId = currentGameState.npcSlots[index];
                     if (npcId) {
@@ -1955,8 +1954,7 @@ document.addEventListener('DOMContentLoaded', () => {
              if (isGm) socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
         });
     }
-
-    // --- NOVA FUNÇÃO PARA ATIVAR O CHEAT ---
+    
     function activateCharacterSheetCheat() {
         characterSheetCheatActive = true;
         showInfoModal("Cheat Ativado", "Pontos e dinheiro aumentados. Todas as magias estão disponíveis.", true);
@@ -1964,7 +1962,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function initializeGlobalKeyListeners() {
-        // --- NOVA LÓGICA DO CHEAT ---
         const cheatCode = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'a', 'b'];
         let userInputSequence = [];
 
@@ -1979,7 +1976,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Lógica de detecção do cheat code
             const characterSheetScreen = document.getElementById('character-sheet-screen');
             if (characterSheetScreen.classList.contains('active')) {
                 const key = e.key.toLowerCase();
@@ -1989,7 +1985,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (JSON.stringify(userInputSequence) === JSON.stringify(cheatCode)) {
                     activateCharacterSheetCheat();
-                    userInputSequence = []; // Reseta a sequência
+                    userInputSequence = [];
                 }
             }
 
@@ -2391,7 +2387,6 @@ document.addEventListener('DOMContentLoaded', () => {
         shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldImgName}.png")`.replace(/ /g, '%20') : 'none';
 
 
-        // --- LÓGICA DO CHEAT (DINHEIRO) ---
         const startingMoney = characterSheetCheatActive ? 5000 : 200;
         let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
         if (cost > startingMoney && event && event.target && event.type === 'change') {
@@ -2402,7 +2397,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         document.getElementById('sheet-money-copper').textContent = startingMoney - cost;
         
-        // --- LÓGICA DO CHEAT (PONTOS) ---
         let maxAttrPoints = characterSheetCheatActive ? 500 : (5 + (raceData.bon?.escolha || 0));
         const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
         const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
@@ -2470,10 +2464,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const spellGrid = document.getElementById('spell-selection-grid');
         spellGrid.innerHTML = '';
         
-        // --- LÓGICA DO CHEAT (MAGIAS) ---
         let availableSpells = [];
         if (characterSheetCheatActive) {
-            // Se o cheat está ativo, carrega todas as magias de todos os graus
             availableSpells = [
                 ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.advanced_grade1 || []),
                 ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.advanced_grade2 || []),
@@ -2481,7 +2473,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ...(ALL_SPELLS.grade_combined || [])
             ];
         } else {
-            // Lógica normal
             const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
             const allSpellsForNormalMode = [
                 ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.advanced_grade1 || []),
@@ -2534,7 +2525,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.addEventListener('click', () => {
                 if (stagedCharacterSheet.spells.includes(spell.name)) {
                     stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(s => s !== spell.name);
-                } else if (characterSheetCheatActive || stagedCharacterSheet.spells.length < 2) { // <-- CHEAT APLICADO AQUI
+                } else if (characterSheetCheatActive || stagedCharacterSheet.spells.length < 2) {
                     stagedCharacterSheet.spells.push(spell.name);
                 } else {
                     alert("Você pode escolher no máximo 2 magias iniciais.");
@@ -2544,7 +2535,6 @@ document.addEventListener('DOMContentLoaded', () => {
             spellGrid.appendChild(card);
         });
         
-        // --- LÓGICA DO CHEAT (CONTADOR DE MAGIAS) ---
         const spellCountSpan = document.getElementById('sheet-spells-selected-count');
         if (characterSheetCheatActive) {
             spellCountSpan.parentElement.innerHTML = `(<span id="sheet-spells-selected-count">${stagedCharacterSheet.spells.length}</span> selecionadas)`;
@@ -3707,8 +3697,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_SCENARIOS = data.scenarios || {};
         ALL_PLAYER_IMAGES = data.playerImages || [];
     
-        // *** CORREÇÃO APLICADA AQUI (PRELOADING) ***
-        // Pré-carrega as imagens dos projéteis assim que os dados do jogo são recebidos.
         preloadProjectileImages();
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -3816,13 +3804,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const casterRect = casterEl.getBoundingClientRect();
         let targetRect = targetEl ? targetEl.getBoundingClientRect() : casterRect;
 
-        // Caso especial para self_summon
         if (animation === 'self_summon') {
             const summonerIsPlayer = casterEl.classList.contains('player-char-container');
             const summonPosX = (casterRect.left - gameWrapperRect.left) / gameScale + (summonerIsPlayer ? 80 : -80);
             const summonPosY = (casterRect.top - gameWrapperRect.top) / gameScale + 50;
             
-            // Simula um retângulo na posição da futura invocação para o efeito
             targetRect = { 
                 left: summonPosX * gameScale + gameWrapperRect.left, 
                 top: summonPosY * gameScale + gameWrapperRect.top, 
@@ -3845,7 +3831,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let effectX = (animation.startsWith('self')) ? startX : endX;
             let effectY = (animation.startsWith('self')) ? startY : endY;
             if (animation === 'self_summon') {
-                 effectX = endX; // Usa a posição calculada da futura invocação
+                 effectX = endX;
                  effectY = endY;
             }
             effectEl.style.setProperty('--start-x', `${effectX}px`);
