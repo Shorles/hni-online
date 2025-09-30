@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isShopOpen = false;
     let stagedLevelUpChanges = {};
     let isRacePreviewFixed = false;
+    let characterSheetCheatActive = false; // <-- NOVA VARIÁVEL PARA O CHEAT
     
     // --- ELEMENTOS DO DOM ---
     const allScreens = document.querySelectorAll('.screen');
@@ -1954,8 +1955,19 @@ document.addEventListener('DOMContentLoaded', () => {
              if (isGm) socket.emit('playerAction', {type: 'updateGlobalScale', scale: parseFloat(e.target.value)});
         });
     }
+
+    // --- NOVA FUNÇÃO PARA ATIVAR O CHEAT ---
+    function activateCharacterSheetCheat() {
+        characterSheetCheatActive = true;
+        showInfoModal("Cheat Ativado", "Pontos e dinheiro aumentados. Todas as magias estão disponíveis.", true);
+        updateCharacterSheet(); // Atualiza a ficha para refletir os novos valores
+    }
     
     function initializeGlobalKeyListeners() {
+        // --- NOVA LÓGICA DO CHEAT ---
+        const cheatCode = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'a', 'b'];
+        let userInputSequence = [];
+
         window.addEventListener('keydown', (e) => {
             if (!currentGameState) return;
 
@@ -1966,6 +1978,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return;
             }
+
+            // Lógica de detecção do cheat code
+            const characterSheetScreen = document.getElementById('character-sheet-screen');
+            if (characterSheetScreen.classList.contains('active')) {
+                const key = e.key.toLowerCase();
+                userInputSequence.push(key);
+                if (userInputSequence.length > cheatCode.length) {
+                    userInputSequence.shift();
+                }
+                if (JSON.stringify(userInputSequence) === JSON.stringify(cheatCode)) {
+                    activateCharacterSheetCheat();
+                    userInputSequence = []; // Reseta a sequência
+                }
+            }
+
 
             if (currentGameState.mode === 'adventure' && isTargeting && e.key === 'Escape') {
                 cancelTargeting();
@@ -2102,6 +2129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA DE PERSONAGEM (ALMARA RPG) ---
     function initializeCharacterSheet() {
+        characterSheetCheatActive = false; // Reseta o cheat ao inicializar a ficha
         stagedCharacterSheet = {
             spells: [],
             weapon1: { img: null, isRanged: false },
@@ -2363,23 +2391,25 @@ document.addEventListener('DOMContentLoaded', () => {
         shieldImgDiv.style.backgroundImage = (shieldType !== 'Nenhum') ? `url("/images/armas/${shieldImgName}.png")`.replace(/ /g, '%20') : 'none';
 
 
+        // --- LÓGICA DO CHEAT (DINHEIRO) ---
+        const startingMoney = characterSheetCheatActive ? 5000 : 200;
         let cost = (weapon1Data.cost || 0) + (weapon2Data.cost || 0) + (armorData.cost || 0) + (shieldData.cost || 0);
-        if (cost > 200 && event && event.target && event.type === 'change') {
+        if (cost > startingMoney && event && event.target && event.type === 'change') {
             alert("Dinheiro insuficiente!");
             const changedElement = event.target;
             changedElement.value = (changedElement.id.includes('weapon')) ? "Desarmado" : (changedElement.id.includes('armor') ? "Nenhuma" : "Nenhum");
             return updateCharacterSheet();
         }
+        document.getElementById('sheet-money-copper').textContent = startingMoney - cost;
         
-        document.getElementById('sheet-money-copper').textContent = 200 - cost;
-        
-        let maxAttrPoints = 5 + (raceData.bon?.escolha || 0);
+        // --- LÓGICA DO CHEAT (PONTOS) ---
+        let maxAttrPoints = characterSheetCheatActive ? 500 : (5 + (raceData.bon?.escolha || 0));
         const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
         const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
         document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
         document.querySelectorAll('#attribute-points-header ~ .attributes-grid .up-arrow').forEach(btn => btn.disabled = attrPointsRemaining <= 0);
 
-        const maxElemPoints = 2;
+        const maxElemPoints = characterSheetCheatActive ? 100 : 2;
         const totalElemPoints = Object.values(elements).reduce((sum, val) => sum + val, 0);
         const elemPointsRemaining = maxElemPoints - totalElemPoints;
         document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
@@ -2439,23 +2469,36 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const spellGrid = document.getElementById('spell-selection-grid');
         spellGrid.innerHTML = '';
-        const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
         
-        const allSpells = [
-            ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.advanced_grade1 || []),
-            ...(ALL_SPELLS.grade_combined || [])
-        ];
+        // --- LÓGICA DO CHEAT (MAGIAS) ---
+        let availableSpells = [];
+        if (characterSheetCheatActive) {
+            // Se o cheat está ativo, carrega todas as magias de todos os graus
+            availableSpells = [
+                ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.advanced_grade1 || []),
+                ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.advanced_grade2 || []),
+                ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade3 || []),
+                ...(ALL_SPELLS.grade_combined || [])
+            ];
+        } else {
+            // Lógica normal
+            const availableElements = Object.keys(elements).filter(e => elements[e] > 0);
+            const allSpellsForNormalMode = [
+                ...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.advanced_grade1 || []),
+                ...(ALL_SPELLS.grade_combined || [])
+            ];
+            
+            availableSpells = allSpellsForNormalMode.filter(spell => {
+                if (spell.requiredElements) {
+                    return spell.requiredElements.every(reqElem => availableElements.includes(reqElem));
+                }
+                if (spell.isAdvanced) {
+                    return elements[spell.element] === 2;
+                }
+                return availableElements.includes(spell.element);
+            });
+        }
         
-        const availableSpells = allSpells.filter(spell => {
-            if (spell.requiredElements) {
-                return spell.requiredElements.every(reqElem => availableElements.includes(reqElem));
-            }
-            if (spell.isAdvanced) {
-                return elements[spell.element] === 2;
-            }
-            return availableElements.includes(spell.element);
-        });
-
         stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(spellName => 
             availableSpells.some(availableSpell => availableSpell.name === spellName)
         );
@@ -2491,7 +2534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.addEventListener('click', () => {
                 if (stagedCharacterSheet.spells.includes(spell.name)) {
                     stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(s => s !== spell.name);
-                } else if (stagedCharacterSheet.spells.length < 2) {
+                } else if (characterSheetCheatActive || stagedCharacterSheet.spells.length < 2) { // <-- CHEAT APLICADO AQUI
                     stagedCharacterSheet.spells.push(spell.name);
                 } else {
                     alert("Você pode escolher no máximo 2 magias iniciais.");
@@ -2501,7 +2544,13 @@ document.addEventListener('DOMContentLoaded', () => {
             spellGrid.appendChild(card);
         });
         
-        document.getElementById('sheet-spells-selected-count').textContent = stagedCharacterSheet.spells.length;
+        // --- LÓGICA DO CHEAT (CONTADOR DE MAGIAS) ---
+        const spellCountSpan = document.getElementById('sheet-spells-selected-count');
+        if (characterSheetCheatActive) {
+            spellCountSpan.parentElement.innerHTML = `(<span id="sheet-spells-selected-count">${stagedCharacterSheet.spells.length}</span> selecionadas)`;
+        } else {
+            spellCountSpan.parentElement.innerHTML = `(<span id="sheet-spells-selected-count">${stagedCharacterSheet.spells.length}</span>/2 selecionadas)`;
+        }
     }
 
     function showWeaponImageSelectionModal(weaponSlot, callback = null) {
@@ -2749,7 +2798,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (stagedCharacterSheet.spells.length > 2) {
+        if (!characterSheetCheatActive && stagedCharacterSheet.spells.length > 2) {
             alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
             return;
         }
@@ -2758,9 +2807,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const elemPointsRemaining = parseInt(document.getElementById('sheet-points-elem-remaining').textContent, 10);
 
         let warnings = [];
-        if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
-        if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
-        if(stagedCharacterSheet.spells.length === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
+        if(!characterSheetCheatActive) {
+            if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
+            if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
+            if(stagedCharacterSheet.spells.length === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
+        }
+
 
         const sendData = () => {
             const finalSheet = getCharacterSheetData('creation');
