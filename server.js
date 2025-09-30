@@ -496,7 +496,7 @@ function calculateESQ(fighter) {
     const details = {};
     const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
     let total = 10 + agiBreakdown.value;
-    Object.assign(details, agiBreakdown.details);
+    Object.assign(details, agiBreakdown.details); // CORREÇÃO: Puxa o breakdown da agilidade
     details['Base'] = 10;
     
     return { value: total, details };
@@ -506,7 +506,7 @@ function calculateMagicDefense(fighter) {
     const details = {};
     const intBreakdown = getAttributeBreakdown(fighter, 'inteligencia');
     let total = 10 + intBreakdown.value;
-    Object.assign(details, intBreakdown.details);
+    Object.assign(details, intBreakdown.details); // CORREÇÃO: Puxa o breakdown da inteligência
     details['Base'] = 10;
     return { value: total, details };
 }
@@ -514,7 +514,7 @@ function calculateMagicDefense(fighter) {
 function getBtaBreakdown(fighter, weaponKey = null) {
     const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
     let total = agiBreakdown.value;
-    const details = { ...agiBreakdown.details };
+    const details = { ...agiBreakdown.details }; // CORREÇÃO: Puxa o breakdown da agilidade
 
     const weapon1 = fighter.sheet.equipment.weapon1;
     const weapon2 = fighter.sheet.equipment.weapon2;
@@ -1341,13 +1341,12 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
             if (primaryTarget) {
                 const primaryTargetIndex = state.npcSlots.indexOf(targetKey);
 
-                // *** NOVA LÓGICA DE ADJACÊNCIA ***
                 const adjacencyMap = {
-                    0: [0, 1],       // Target Slot 1 -> Hits 1, 2
-                    1: [0, 1, 2, 4], // Target Slot 2 -> Hits 1, 2, 3, 5
-                    2: [1, 2, 3, 4], // Target Slot 3 -> Hits 2, 3, 4, 5
-                    3: [2, 3],       // Target Slot 4 -> Hits 3, 4
-                    4: [1, 2, 4]     // Target Slot 5 -> Hits 2, 3, 5
+                    0: [0, 1],
+                    1: [0, 1, 2, 4],
+                    2: [1, 2, 3, 4],
+                    3: [2, 3],
+                    4: [1, 2, 4]
                 };
 
                 const hitIndices = adjacencyMap[primaryTargetIndex];
@@ -1357,13 +1356,12 @@ function useSpell(state, roomId, attackerKey, targetKey, spellName) {
                         const npcId = state.npcSlots[index];
                         if (npcId) {
                             const fighter = getFighter(state, npcId);
-                            if (fighter && fighter.status === 'active') {
+                            if (fighter && fighter.status === 'active' && !targets.some(t => t.id === fighter.id)) {
                                 targets.push(fighter);
                             }
                         }
                     });
                 } else {
-                    // Fallback se o índice for inválido, apenas adiciona o alvo clicado
                     targets.push(primaryTarget);
                 }
             }
@@ -1481,6 +1479,16 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             case 'spell_shield':
                 const newEffect = { name: spell.name, ...effect, duration: effect.duration + 1 };
                 currentTarget.activeEffects.push(newEffect);
+                if (newEffect.modifiers) {
+                    newEffect.modifiers.forEach(mod => {
+                        const attrName = mod.attribute.charAt(0).toUpperCase() + mod.attribute.slice(1).replace('cao', 'ção');
+                        const valueText = mod.value > 0 ? `+${mod.value}` : mod.value;
+                        io.to(roomId).emit('floatingTextTriggered', { targetId: currentTarget.id, text: `${attrName.toUpperCase()} ${valueText}`, type: 'buff' });
+                    });
+                } else if (newEffect.value !== undefined && (newEffect.type === 'bta_buff' || newEffect.type === 'bta_debuff')) {
+                     const valueText = newEffect.value > 0 ? `+${newEffect.value}` : newEffect.value;
+                     io.to(roomId).emit('floatingTextTriggered', { targetId: currentTarget.id, text: `ACERTO ${valueText}`, type: 'buff' });
+                }
                 recalculateFighterStats(currentTarget);
                 break;
             case 'heal':
@@ -1651,6 +1659,16 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 ...spell.effect
             };
             target.activeEffects.push(newEffect);
+            if (newEffect.modifiers) {
+                newEffect.modifiers.forEach(mod => {
+                    const attrName = mod.attribute.charAt(0).toUpperCase() + mod.attribute.slice(1).replace('cao', 'ção');
+                    const valueText = mod.value > 0 ? `+${mod.value}` : mod.value;
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${attrName.toUpperCase()} ${valueText}`, type: 'buff' });
+                });
+            } else if (newEffect.value !== undefined && (newEffect.type === 'bta_buff' || newEffect.type === 'bta_debuff')) {
+                 const valueText = newEffect.value > 0 ? `+${newEffect.value}` : newEffect.value;
+                 io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `ACERTO ${valueText}`, type: 'buff' });
+            }
             recalculateFighterStats(target);
             break;
         
@@ -1664,7 +1682,9 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                     duration: spell.effect.duration + 1,
                     modifiers: [{ attribute: randomAttr, value: spell.effect.value }]
                 });
-                logMessage(state, `${target.nome} teve seu atributo ${randomAttr} reduzido por ${spell.name}!`, 'info');
+                const attrName = randomAttr.charAt(0).toUpperCase() + randomAttr.slice(1);
+                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${attrName.toUpperCase()} ZERADO`, type: 'buff' });
+                logMessage(state, `${target.nome} teve seu atributo ${attrName} reduzido por ${spell.name}!`, 'info');
                 recalculateFighterStats(target);
             } else {
                  logMessage(state, `${target.nome} resistiu a ${spell.name}!`, 'info');
@@ -1680,6 +1700,9 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                     modifiers: [{ attribute: spell.effect.attribute, value: spell.effect.value * i }]
                 });
             }
+            const attrNameStacking = spell.effect.attribute.charAt(0).toUpperCase() + spell.effect.attribute.slice(1);
+            const valueTextStacking = spell.effect.value > 0 ? `+${spell.effect.value}` : spell.effect.value;
+            io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${attrNameStacking.toUpperCase()} ${valueTextStacking}`, type: 'buff' });
             recalculateFighterStats(target);
             break;
             
@@ -1973,7 +1996,6 @@ io.on('connection', (socket) => {
                     cachePlayerStats(room);
                     room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
                     
-                    // Admitir jogadores em espera ao mudar para o modo cenário
                     if(activeState.waitingPlayers) {
                         Object.keys(activeState.waitingPlayers).forEach(playerId => {
                             logMessage(room.gameModes.theater || lobbyState, `${activeState.waitingPlayers[playerId].nome} juntou-se à sessão.`);

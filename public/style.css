@@ -1541,3 +1541,30 @@ margin-top: -10px;
 }
 .skill-check-crit-text.result-crit-success { color: #28a745; }
 .skill-check-crit-text.result-crit-fail { color: #dc3545; }
+
+/* === NOVOS ESTILOS (BUFF/DEBUFF DISPLAY) === */
+.effects-display-container {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-weight: bold;
+    font-size: 1.1em;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.9), -1px -1px 3px rgba(0,0,0,0.9);
+}
+.player-char-container .effects-display-container {
+    left: 105%; /* Posiciona à direita do personagem jogador */
+}
+.npc-char-container .effects-display-container,
+.summon-char-container .effects-display-container {
+    right: 105%; /* Posiciona à esquerda do inimigo/invocação */
+    align-items: flex-end;
+}
+.effect-buff {
+    color: #4CAF50; /* Verde */
+}
+.effect-debuff {
+    color: #F44336; /* Vermelho */
+}

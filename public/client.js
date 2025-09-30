@@ -1240,7 +1240,33 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const durationHtml = fighter.isSummon && fighter.duration ? `<span class="summon-duration">(${fighter.duration} turnos)</span>` : '';
     
-        container.innerHTML = `${marksHtml}${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome} ${durationHtml}</div>`;
+        // *** NOVA LÓGICA PARA EXIBIR BUFFS/DEBUFFS ***
+        let effectsHtml = '<div class="effects-display-container">';
+        const combinedEffects = {};
+        if (fighter.activeEffects) {
+            fighter.activeEffects.forEach(effect => {
+                if(effect.modifiers) {
+                    effect.modifiers.forEach(mod => {
+                        if (!combinedEffects[mod.attribute]) {
+                            combinedEffects[mod.attribute] = 0;
+                        }
+                        combinedEffects[mod.attribute] += mod.value;
+                    });
+                }
+            });
+        }
+        
+        Object.entries(combinedEffects).forEach(([attr, value]) => {
+            if (value !== 0) {
+                const attrAbbr = attr.substring(0, 3).toUpperCase();
+                const sign = value > 0 ? '+' : '';
+                const className = value > 0 ? 'effect-buff' : 'effect-debuff';
+                effectsHtml += `<div class="${className}">${sign}${value} ${attrAbbr}</div>`;
+            }
+        });
+        effectsHtml += '</div>';
+
+        container.innerHTML = `${effectsHtml}${marksHtml}${paHtml}${healthBarHtml}<img src="${fighter.img}" class="fighter-img-ingame"><div class="fighter-name-ingame">${fighter.nome} ${durationHtml}</div>`;
         return container;
     }
 
@@ -1570,13 +1596,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (spell.targetType === 'adjacent_enemy') {
             const targetIndex = currentGameState.npcSlots.indexOf(targetKey);
             if (targetIndex !== -1) {
-                // *** CORREÇÃO: NOVA LÓGICA DE ADJACÊNCIA ***
                 const adjacencyMap = {
-                    0: [0, 1],       // Alvo no Slot 1 -> Atinge 1, 2
-                    1: [0, 1, 2, 4], // Alvo no Slot 2 -> Atinge 1, 2, 3, 5
-                    2: [1, 2, 3, 4], // Alvo no Slot 3 -> Atinge 2, 3, 4, 5
-                    3: [2, 3],       // Alvo no Slot 4 -> Atinge 3, 4
-                    4: [1, 2, 4]     // Alvo no Slot 5 -> Atinge 2, 3, 5
+                    0: [0, 1],
+                    1: [0, 1, 2, 4],
+                    2: [1, 2, 3, 4],
+                    3: [2, 3],
+                    4: [1, 2, 4]
                 };
                 
                 const affectedIndexes = adjacencyMap[targetIndex] || [targetIndex];
