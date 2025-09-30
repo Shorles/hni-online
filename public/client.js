@@ -1240,18 +1240,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const durationHtml = fighter.isSummon && fighter.duration ? `<span class="summon-duration">(${fighter.duration} turnos)</span>` : '';
     
-        // *** NOVA LÓGICA PARA EXIBIR BUFFS/DEBUFFS ***
         let effectsHtml = '<div class="effects-display-container">';
         const combinedEffects = {};
         if (fighter.activeEffects) {
             fighter.activeEffects.forEach(effect => {
+                const processModifier = (mod) => {
+                    if (!combinedEffects[mod.attribute]) {
+                        combinedEffects[mod.attribute] = 0;
+                    }
+                    combinedEffects[mod.attribute] += mod.value;
+                };
+
                 if(effect.modifiers) {
-                    effect.modifiers.forEach(mod => {
-                        if (!combinedEffects[mod.attribute]) {
-                            combinedEffects[mod.attribute] = 0;
-                        }
-                        combinedEffects[mod.attribute] += mod.value;
-                    });
+                    effect.modifiers.forEach(processModifier);
+                }
+                if (effect.type === 'bta_buff' || effect.type === 'bta_debuff') {
+                    processModifier({ attribute: 'bta', value: effect.value });
                 }
             });
         }
@@ -1261,6 +1265,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const attrAbbr = attr.substring(0, 3).toUpperCase();
                 const sign = value > 0 ? '+' : '';
                 const className = value > 0 ? 'effect-buff' : 'effect-debuff';
+                // *** CORREÇÃO APLICADA AQUI: Texto em uma única linha ***
                 effectsHtml += `<div class="${className}">${sign}${value} ${attrAbbr}</div>`;
             }
         });

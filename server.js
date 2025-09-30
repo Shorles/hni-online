@@ -496,7 +496,7 @@ function calculateESQ(fighter) {
     const details = {};
     const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
     let total = 10 + agiBreakdown.value;
-    Object.assign(details, agiBreakdown.details); // CORREÇÃO: Puxa o breakdown da agilidade
+    Object.assign(details, agiBreakdown.details);
     details['Base'] = 10;
     
     return { value: total, details };
@@ -506,7 +506,7 @@ function calculateMagicDefense(fighter) {
     const details = {};
     const intBreakdown = getAttributeBreakdown(fighter, 'inteligencia');
     let total = 10 + intBreakdown.value;
-    Object.assign(details, intBreakdown.details); // CORREÇÃO: Puxa o breakdown da inteligência
+    Object.assign(details, intBreakdown.details);
     details['Base'] = 10;
     return { value: total, details };
 }
@@ -514,7 +514,7 @@ function calculateMagicDefense(fighter) {
 function getBtaBreakdown(fighter, weaponKey = null) {
     const agiBreakdown = getAttributeBreakdown(fighter, 'agilidade');
     let total = agiBreakdown.value;
-    const details = { ...agiBreakdown.details }; // CORREÇÃO: Puxa o breakdown da agilidade
+    const details = { ...agiBreakdown.details };
 
     const weapon1 = fighter.sheet.equipment.weapon1;
     const weapon2 = fighter.sheet.equipment.weapon2;
@@ -1465,6 +1465,10 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         effectModifier -= 1;
     }
 
+    // *** CORREÇÃO: DURAÇÃO DE 1 TURNO ***
+    // Função auxiliar para garantir que a duração seja correta
+    const getEffectiveDuration = (duration) => (duration > 0 ? duration + 1 : 0);
+
     const applySubEffect = (effect, currentTarget) => {
         switch (effect.type) {
             case 'buff':
@@ -1477,7 +1481,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             case 'lifesteal_buff':
             case 'reflect_damage_buff':
             case 'spell_shield':
-                const newEffect = { name: spell.name, ...effect, duration: effect.duration + 1 };
+                const newEffect = { name: spell.name, ...effect, duration: getEffectiveDuration(effect.duration) };
                 currentTarget.activeEffects.push(newEffect);
                 if (newEffect.modifiers) {
                     newEffect.modifiers.forEach(mod => {
@@ -1613,7 +1617,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             target.activeEffects.push({
                 name: spell.name,
                 type: 'hot',
-                duration: spell.effect.duration + 1,
+                duration: getEffectiveDuration(spell.effect.duration),
                 heal: spell.effect.heal,
                 bonusAttribute: spell.effect.bonusAttribute,
                 casterId: attacker.id
@@ -1655,7 +1659,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             const newEffect = {
                 name: spell.name,
                 type: spell.effect.type,
-                duration: spell.effect.duration + 1,
+                duration: getEffectiveDuration(spell.effect.duration),
                 ...spell.effect
             };
             target.activeEffects.push(newEffect);
@@ -1679,7 +1683,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 target.activeEffects.push({
                     name: spell.name,
                     type: 'debuff',
-                    duration: spell.effect.duration + 1,
+                    duration: getEffectiveDuration(spell.effect.duration),
                     modifiers: [{ attribute: randomAttr, value: spell.effect.value }]
                 });
                 const attrName = randomAttr.charAt(0).toUpperCase() + randomAttr.slice(1);
@@ -1696,7 +1700,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 target.activeEffects.push({
                     name: `${spell.name} (Turno ${i})`,
                     type: 'debuff',
-                    duration: i + 1,
+                    duration: getEffectiveDuration(i),
                     modifiers: [{ attribute: spell.effect.attribute, value: spell.effect.value * i }]
                 });
             }
@@ -1735,7 +1739,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             attacker.activeEffects.push({
                 name: spell.name,
                 type: 'weapon_buff',
-                duration: spell.effect.duration + 1,
+                duration: getEffectiveDuration(spell.effect.duration),
                 damageFormula: spell.effect.damageFormula,
                 animationOnHit: spell.effect.animationOnHit,
                 onHitEffect: spell.effect.onHitEffect, 
@@ -1747,7 +1751,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             target.activeEffects.push({
                 name: spell.name,
                 type: spell.effect.type,
-                duration: spell.effect.duration + 1,
+                duration: getEffectiveDuration(spell.effect.duration),
                 ...spell.effect
             });
             break;
@@ -1757,7 +1761,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  target.activeEffects.push({
                     name: spell.name,
                     type: spell.effect.type,
-                    duration: spell.effect.duration + 1,
+                    duration: getEffectiveDuration(spell.effect.duration),
                     ...spell.effect
                 });
             } else {
@@ -1796,7 +1800,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                         name: `${spell.name} (Stun ${stunDuration})`,
                         type: 'status_effect',
                         status: 'stunned',
-                        duration: stunDuration + 1
+                        duration: getEffectiveDuration(stunDuration)
                     });
                     logMessage(state, `${target.nome} foi atordoado por ${spell.name} por ${stunDuration} turno(s)!`);
                 }
