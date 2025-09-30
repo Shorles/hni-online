@@ -974,6 +974,16 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
         
         attacker.pa -= (isDual && weaponKey === 'weapon1') ? 0 : paCost; // PA é consumido uma vez para ataque duplo
 
+        // CORREÇÃO: Verifica se o ATACANTE tem um debuff que o faça errar
+        const missChanceEffects = attacker.activeEffects.filter(e => e.type === 'miss_chance');
+        for (const effect of missChanceEffects) {
+            if (Math.random() < effect.chance) {
+                logMessage(state, `${attacker.nome} erra o ataque devido ao efeito de ${effect.name}!`, 'miss');
+                io.to(roomId).emit('floatingTextTriggered', { targetId: attacker.id, text: `Errou! (${effect.name})`, type: 'status-fail' });
+                return { hit: false, debugInfo: { attackerName: attacker.nome, targetName: target.nome, weaponUsed: 'N/A', hit: false, reason: `Efeito '${effect.name}' ativado` } };
+            }
+        }
+
         const spellShields = target.activeEffects.filter(e => e.type === 'spell_shield');
         for (const shield of spellShields) {
             if (Math.random() < shield.chance) {
@@ -1044,6 +1054,20 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                     }
                 });
                 totalDamage += weaponBuffInfo.total;
+            }
+
+            // CORREÇÃO: Lógica para dano em cadeia
+            const chainLightningBuff = attacker.activeEffects.find(e => e.type === 'weapon_buff_chain_lightning');
+            if (chainLightningBuff) {
+                const chainDamage = rollDice(chainLightningBuff.damageFormula);
+                const otherEnemies = Object.values(state.fighters.npcs).filter(
+                    npc => npc.id !== target.id && npc.status === 'active'
+                );
+                otherEnemies.forEach(enemy => {
+                    enemy.hp = Math.max(0, enemy.hp - chainDamage);
+                    logMessage(state, `${enemy.nome} sofre ${chainDamage} de dano em cadeia de ${chainLightningBuff.name}!`, 'hit');
+                    io.to(roomId).emit('floatingTextTriggered', { targetId: enemy.id, text: `-${chainDamage}`, type: 'damage-hp' });
+                });
             }
 
             const protectionBreakdown = getProtectionBreakdown(target);
@@ -1131,6 +1155,16 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
                 }
             });
             
+            // CORREÇÃO: Verifica o onCrit
+            if (isCrit) {
+                const onCritBuffs = attacker.activeEffects.filter(e => e.type === 'weapon_buff' && e.onCrit);
+                onCritBuffs.forEach(buff => {
+                    const tempSpell = { name: buff.name, effect: buff.onCrit };
+                    applySpellEffect(state, roomId, attacker, target, tempSpell, {});
+                    logMessage(state, `Efeito crítico de ${buff.name} ativado em ${target.nome}!`, 'crit');
+                });
+            }
+
             if (attacker.isSummon && attacker.specialEffect && attacker.specialEffect.type === 'on_basic_attack') {
                 if (Math.random() < attacker.specialEffect.chance) {
                     const owner = getFighter(state, attacker.ownerId);
@@ -1610,6 +1644,8 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         case 'lifesteal_buff':
         case 'reflect_damage_buff':
         case 'spell_shield':
+        // CORREÇÃO: Adicionado o tipo weapon_buff_chain_lightning
+        case 'weapon_buff_chain_lightning':
             const newEffect = {
                 name: spell.name,
                 type: spell.effect.type,
@@ -1618,6 +1654,16 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             };
             target.activeEffects.push(newEffect);
             recalculateFighterStats(target);
+            break;
+        
+        // CORREÇÃO: Adicionado o tipo miss_chance
+        case 'miss_chance':
+            target.activeEffects.push({
+                name: spell.name,
+                type: 'miss_chance',
+                duration: spell.effect.duration + 1,
+                chance: spell.effect.chance
+            });
             break;
 
         case 'random_debuff':
@@ -1658,6 +1704,20 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             } else {
                  logMessage(state, `${target.nome} resistiu ao efeito de ${spell.name}.`, 'miss');
             }
+            break;
+        
+        // CORREÇÃO: Adicionado o tipo global_debuff
+        case 'global_debuff':
+            const allFighters = [
+                ...Object.values(state.fighters.players),
+                ...Object.values(state.fighters.npcs),
+                ...Object.values(state.fighters.summons)
+            ].filter(f => f.status === 'active');
+
+            allFighters.forEach(fighter => {
+                applySubEffect(spell.effect.debuff, fighter);
+            });
+            logMessage(state, `Um debuff global de ${spell.name} foi aplicado a todos!`);
             break;
 
 
@@ -1702,6 +1762,37 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             }
             target.marks[spell.effect.markType]++;
             logMessage(state, `${target.nome} recebe uma ${spell.effect.markType}! (Total: ${target.marks[spell.effect.markType]})`, 'info');
+            break;
+        
+        // CORREÇÃO: Adicionado o tipo apply_stacking_mark
+        case 'apply_stacking_mark':
+            if (!target.marks[spell.effect.markType]) {
+                target.marks[spell.effect.markType] = 0;
+            }
+            target.marks[spell.effect.markType]++;
+            logMessage(state, `${target.nome} recebe uma marca de ${spell.name}! (Total: ${target.marks[spell.effect.markType]})`);
+
+            if (target.marks[spell.effect.markType] >= spell.effect.stacksToProc) {
+                logMessage(state, `As marcas em ${target.nome} ativaram o efeito de ${spell.name}!`, 'crit');
+                applySpellEffect(state, roomId, attacker, target, { name: spell.name, effect: spell.effect.effectOnProc }, {});
+                target.marks[spell.effect.markType] = 0; // Reseta as marcas
+            }
+            break;
+        
+        // CORREÇÃO: Adicionado o tipo multi_stun
+        case 'multi_stun':
+            (spell.effect.chances || []).forEach((chance, i) => {
+                if (Math.random() < chance) {
+                    const stunDuration = i + 1; // 1 turno para a primeira chance, 2 para a segunda, etc.
+                    target.activeEffects.push({
+                        name: `${spell.name} (Stun ${stunDuration})`,
+                        type: 'status_effect',
+                        status: 'stunned',
+                        duration: stunDuration + 1
+                    });
+                    logMessage(state, `${target.nome} foi atordoado por ${spell.name} por ${stunDuration} turno(s)!`);
+                }
+            });
             break;
     }
 
