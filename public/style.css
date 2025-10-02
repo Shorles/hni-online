@@ -544,6 +544,8 @@ left: var(--start-x);
 top: var(--start-y);
 transform: translate(-50%, -50%);
 }
+/* === CORREÇÃO 1: NOVA ANIMAÇÃO PARA CAMPO GRAVITACIONAL === */
+.visual-effect.area_gravity,
 .visual-effect.area_steam, .visual-effect.area_sandstorm, .visual-effect.area_magma, .visual-effect.area_gold_fire, .visual-effect.area_rain_storm, .visual-effect.area_mud, .visual-effect.area_aurora, .visual-effect.area_null_shield {
 left: 50%;
 top: 50%;
@@ -561,6 +563,8 @@ animation: area-fade-in-out 1.2s ease-out forwards;
 .visual-effect.area_mud { background: radial-gradient(circle, rgba(139, 69, 19, 0.7), transparent 70%); }
 .visual-effect.area_aurora { background: radial-gradient(circle, rgba(123, 104, 238, 0.5), rgba(0, 255, 127, 0.5)); opacity: 0.5; }
 .visual-effect.area_null_shield { border: 10px solid grey; box-shadow: 0 0 30px grey; }
+.visual-effect.area_gravity { background: radial-gradient(circle, rgba(72, 61, 139, 0.8), transparent 70%); }
+/* === FIM DA CORREÇÃO 1 === */
 .visual-effect.target_bubble {
 width: 100px; height: 100px;
 background: radial-gradient(circle, rgba(200, 225, 255, 0.5) 30%, rgba(100, 150, 255, 0.7) 100%);

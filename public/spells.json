@@ -653,8 +653,30 @@
       "effect": { "type": "multi_effect", "chance": 0.85, "effects": [ { "type": "buff", "target": "self", "duration": 3, "modifiers": [{ "attribute": "agilidade", "value": 3 }, { "attribute": "forca", "value": 3 }] }, { "type": "debuff", "target": "enemy", "duration": 3, "modifiers": [{ "attribute": "agilidade", "value": -4 }] } ], "animationOnCast": "target_purple_aura" }
     },
     {
-      "name": "Campo Gravitacional", "element": "escuridao", "isAdvanced": true, "description": "Causa 2D4 de dano em todos os inimigos. 50% de chance de zerar 2 atributos (For, Agi, Int, Pro) por 3 turnos.", "costMahou": 4, "costPA": 3, "cooldown": 2, "targetType": "all_enemies", "inCombat": true, "requiresHitRoll": true,
-      "effect": { "type": "direct_damage", "calculation": "magical", "damageFormula": "2D4", "secondaryEffect": { "type": "random_debuff", "chance": 0.50, "duration": 3, "attributes": ["forca", "agilidade", "inteligencia", "protecao"], "value": "zero_out", "count": 2 }, "animationOnCast": "target_gravity" }
+      "name": "Campo Gravitacional",
+      "element": "escuridao",
+      "isAdvanced": true,
+      "description": "Causa 2D4 de dano em todos os inimigos. 50% de chance de zerar 2 atributos (For, Agi, Int, Pro) por 3 turnos.",
+      "costMahou": 4,
+      "costPA": 3,
+      "cooldown": 2,
+      "targetType": "all_enemies",
+      "inCombat": true,
+      "requiresHitRoll": true,
+      "effect": {
+        "type": "direct_damage",
+        "calculation": "magical",
+        "damageFormula": "2D4",
+        "secondaryEffect": {
+          "type": "random_debuff",
+          "chance": 0.50,
+          "duration": 3,
+          "attributes": ["forca", "agilidade", "inteligencia", "protecao"],
+          "value": "zero_out",
+          "count": 2
+        },
+        "animationOnCast": "area_gravity"
+      }
     },
     { "name": "Manipulação Gravitacional", "element": "escuridao", "isAdvanced": true, "description": "Aumenta, diminui ou zera a gravidade de objetos inanimados.", "costMahou": 2, "costPA": 1, "inCombat": false, "targetType": "utility" }
   ],
