@@ -1251,7 +1251,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!combinedEffects[mod.attribute]) {
                         combinedEffects[mod.attribute] = 0;
                     }
-                    combinedEffects[mod.attribute] += mod.value;
+                    if (mod.value === 'zero_out') {
+                        combinedEffects[mod.attribute] = 'zero_out';
+                    } else if (typeof combinedEffects[mod.attribute] === 'number') {
+                        combinedEffects[mod.attribute] += mod.value;
+                    }
                 };
 
                 if(effect.modifiers) {
@@ -1260,15 +1264,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (effect.type === 'bta_buff' || effect.type === 'bta_debuff') {
                     processModifier({ attribute: 'bta', value: effect.value });
                 }
+                 if (effect.type === 'progressive_debuff') {
+                    const turnsPassed = (effect.initial_duration - effect.duration) + 1;
+                    const currentValue = effect.value * turnsPassed;
+                    processModifier({ attribute: effect.attribute, value: currentValue });
+                }
             });
         }
         
         Object.entries(combinedEffects).forEach(([attr, value]) => {
             if (value !== 0) {
                 const attrAbbr = attr.substring(0, 3).toUpperCase();
-                const sign = value > 0 ? '+' : '';
+                let valueText;
+                if (value === 'zero_out') {
+                    valueText = 'ZERADO';
+                } else {
+                    valueText = (value > 0 ? '+' : '') + value;
+                }
                 const className = value > 0 ? 'effect-buff' : 'effect-debuff';
-                effectsHtml += `<div class="${className}">${sign}${value} ${attrAbbr}</div>`;
+                effectsHtml += `<div class="${className}">${valueText} ${attrAbbr}</div>`;
             }
         });
         effectsHtml += '</div>';
@@ -1288,7 +1302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!canIControlThisTurn) return;
         
         const isActiveFighterPlayerSide = activeFighter.isPlayer || activeFighter.isSummon;
-        const isAllyTargetAction = targetingAction.type === 'use_spell' && ['single_ally', 'all_allies', 'single_ally_down'].includes(targetingAction.spell.targetType);
+        const isAllyTargetAction = targetingAction.type === 'use_spell' && ['self', 'single_ally', 'all_allies', 'single_ally_down'].includes(targetingAction.spell.targetType);
     
         document.querySelectorAll('.char-container').forEach(container => {
             const fighter = getFighter(currentGameState, container.id);
@@ -4048,7 +4062,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const formatBreakdown = (breakdown) => {
                 if (!breakdown) return '';
                 return Object.entries(breakdown)
-                    .map(([key, value]) => `<div class="breakdown-item"><span>${key}:</span> <span>${value >= 0 ? '+' : ''}${value}</span></div>`)
+                    .map(([key, value]) => `<div class="breakdown-item"><span>${key}:</span> <span>${value === 'zero_out' ? value : (value >= 0 ? '+' : '') + value}</span></div>`)
                     .join('');
             };
 

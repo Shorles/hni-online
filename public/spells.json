@@ -587,7 +587,10 @@
       "inCombat": true,
       "requiresHitRoll": false,
       "effect": {
-        "type": "stacking_debuff", "duration": 4, "attribute": "agilidade", "value": -1,
+        "type": "progressive_debuff",
+        "duration": 4,
+        "attribute": "agilidade",
+        "value": -1,
         "animationOnCast": "target_gravity"
       }
     }

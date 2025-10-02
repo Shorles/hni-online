@@ -461,27 +461,51 @@ function getFighter(state, key) {
 function getAttributeBreakdown(fighter, attr) {
     const details = {};
     let total = 0;
+    let isZeroedOut = false;
 
-    if (fighter && fighter.sheet) {
+    if (fighter && fighter.activeEffects) {
+        for (const effect of fighter.activeEffects) {
+            if (effect.modifiers) {
+                for (const mod of effect.modifiers) {
+                    if (mod.attribute === attr && mod.value === 'zero_out') {
+                        isZeroedOut = true;
+                        details[`Efeito (${effect.name})`] = 'zero_out'; 
+                        break;
+                    }
+                }
+            }
+            if (isZeroedOut) break;
+        }
+    }
+
+    if (!isZeroedOut && fighter && fighter.sheet) {
         const baseAttributes = fighter.sheet.finalAttributes;
         const baseValue = baseAttributes[attr] || 0;
         details[`Base (${attr})`] = baseValue;
         total += baseValue;
+    } else if (isZeroedOut) {
+        details[`Base (${attr})`] = 0;
     }
 
     if (fighter && fighter.activeEffects && fighter.activeEffects.length > 0) {
         fighter.activeEffects.forEach(effect => {
             if (effect.modifiers) {
                 effect.modifiers.forEach(mod => {
-                    if (mod.attribute === attr) {
+                    if (mod.attribute === attr && typeof mod.value === 'number') {
                         details[`Efeito (${effect.name})`] = mod.value;
                         total += mod.value;
                     }
                 });
-            } 
-            else if (effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff')) {
+            } else if (effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff')) {
                 details[`Efeito (${effect.name})`] = effect.value;
                 total += effect.value;
+            } else if (effect.type === 'progressive_debuff' && effect.attribute === attr) {
+                // Turnos passados: duração inicial menos duração atual + 1
+                // Ex: Duração 4. Turno 1: (4-4)+1=1. Turno 2: (4-3)+1=2.
+                const turnsPassed = (effect.initial_duration - effect.duration) + 1;
+                const currentValue = effect.value * turnsPassed;
+                total += currentValue;
+                details[`Efeito (${effect.name})`] = currentValue;
             }
         });
     }
@@ -727,7 +751,6 @@ function processActiveEffects(state, fighter, roomId) {
                 break;
 
             case 'status_effect':
-                // CORREÇÃO: "invulnerable_and_pacified" AGORA também causa stun
                 if (effect.status === 'stunned' || effect.status === 'invulnerable_and_pacified') {
                     isStunned = true;
                     const message = effect.status === 'stunned' ? 'está atordoado' : 'está protegido e não pode atacar';
@@ -1700,19 +1723,18 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             }
             break;
 
-        case 'stacking_debuff':
-            for (let i = 1; i <= spell.effect.duration; i++) {
-                target.activeEffects.push({
-                    name: `${spell.name} (Turno ${i})`,
-                    type: 'debuff',
-                    duration: getEffectiveDuration(i),
-                    modifiers: [{ attribute: spell.effect.attribute, value: spell.effect.value * i }]
-                });
-            }
-            const attrNameStacking = spell.effect.attribute.charAt(0).toUpperCase() + spell.effect.attribute.slice(1);
-            const valueTextStacking = spell.effect.value > 0 ? `+${spell.effect.value}` : spell.effect.value;
-            io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${attrNameStacking.toUpperCase()} ${valueTextStacking}`, type: 'buff' });
-            recalculateFighterStats(target);
+        case 'progressive_debuff':
+        case 'stacking_debuff': // Mantém compatibilidade, se necessário
+            target.activeEffects.push({
+                name: spell.name,
+                type: 'progressive_debuff',
+                duration: getEffectiveDuration(spell.effect.duration),
+                initial_duration: spell.effect.duration,
+                attribute: spell.effect.attribute,
+                value: spell.effect.value 
+            });
+            logMessage(state, `${target.nome} foi afetado por ${spell.name}!`, 'info');
+            // A aplicação do valor real acontece na função processActiveEffects
             break;
             
         case 'multi_effect':
@@ -1798,18 +1820,25 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             break;
         
         case 'multi_stun':
-            (spell.effect.chances || []).forEach((chance, i) => {
-                if (Math.random() < chance) {
-                    const stunDuration = i + 1; // 1 turno para a primeira chance, 2 para a segunda, etc.
-                    target.activeEffects.push({
-                        name: `${spell.name} (Stun ${stunDuration})`,
-                        type: 'status_effect',
-                        status: 'stunned',
-                        duration: getEffectiveDuration(stunDuration)
-                    });
-                    logMessage(state, `${target.nome} foi atordoado por ${spell.name} por ${stunDuration} turno(s)!`);
+            let totalStunDuration = 0;
+            if (spell.effect.chances && spell.effect.chances.length > 0) {
+                if (Math.random() < spell.effect.chances[0]) {
+                    totalStunDuration = 1;
+                    if (spell.effect.chances.length > 1 && Math.random() < spell.effect.chances[1]) {
+                        totalStunDuration = 2;
+                    }
                 }
-            });
+            }
+
+            if (totalStunDuration > 0) {
+                target.activeEffects.push({
+                    name: spell.name,
+                    type: 'status_effect',
+                    status: 'stunned',
+                    duration: getEffectiveDuration(totalStunDuration)
+                });
+                logMessage(state, `${target.nome} foi atordoado por ${spell.name} por ${totalStunDuration} turno(s)!`);
+            }
             break;
     }
 
