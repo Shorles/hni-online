@@ -1154,7 +1154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
         if (fighter.isSummon) {
-            container.classList.add('summon-char-container'); // CORREÇÃO BUG HOVER
+            container.classList.add('summon-char-container');
         }
         container.id = fighter.id;
         container.dataset.key = fighter.id;
