@@ -159,6 +159,11 @@ outline-offset: 2px;
 box-shadow: 0 0 25px 10px rgba(255, 235, 59, 0.7);
 border-radius: 50%;
 }
+/* === INÍCIO DA CORREÇÃO 4 (BUG VISUAL DA INVOCAÇÃO) === */
+.summon-char-container.target-highlight .fighter-img-ingame {
+    transform: scaleX(-1); /* Força o espelhamento quando a classe de highlight é aplicada */
+}
+/* === FIM DA CORREÇÃO 4 === */
 #targeting-indicator{position:absolute;bottom:180px;left:50%;transform:translateX(-50%);background-color:rgba(220,53,69,.9);color:#fff;padding:10px 25px;border-radius:8px;font-weight:700;z-index:100;pointer-events:none}
 #coords-display{position:absolute;top:20px;left:20px;background-color:rgba(0,0,0,.8);color:#ffeb3b;padding:5px 10px;border-radius:5px;font-family:monospace;font-size:1.2em;z-index:9000;pointer-events:none;line-height:1.5}#turn-order-sidebar{position:absolute;top:20px;right:20px;width:100px;background-color:rgba(0,0,0,.6);border-radius:10px;border:2px solid #555;padding:10px;display:flex;flex-direction:column;gap:10px;z-index:5;max-height:calc(100% - 40px);overflow:hidden;pointer-events:auto}.turn-order-card{display:flex;flex-direction:column;align-items:center;transition:all .3s ease-in-out}.turn-order-card img{width:60px;height:60px;object-fit:contain;border-radius:50%;border:3px solid #888;background-color:#333;transition:all .3s ease-in-out}.turn-order-card.active-turn-indicator img{border-color:#ffeb3b;transform:scale(1.2);box-shadow:0 0 15px #ffeb3b}
 .turn-order-card.summon-card img { border-color: #9400D3; }
@@ -1412,8 +1417,6 @@ font-size: 0.8em;
 font-weight: bold;
 padding: 2px 6px;
 border-radius: 4px;
-code
-Code
 /* Truque para o gradiente no texto */
 background-clip: text;
 -webkit-background-clip: text;
