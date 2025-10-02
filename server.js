@@ -625,8 +625,6 @@ function getProtectionBreakdown(fighter) {
     let total = protBreakdown.value;
     const details = protBreakdown.details;
     
-    // Bônus passivos de armadura e escudo já estão inclusos no `finalAttributes`,
-    // que é a base para `getAttributeBreakdown`. Aqui adicionamos apenas efeitos temporários.
     fighter.activeEffects.forEach(effect => {
         if (effect.type === 'shield_defense_buff') {
             details[`Efeito (${effect.name})`] = effect.bonus;
@@ -729,9 +727,11 @@ function processActiveEffects(state, fighter, roomId) {
                 break;
 
             case 'status_effect':
-                if (effect.status === 'stunned') {
+                // CORREÇÃO: "invulnerable_and_pacified" AGORA também causa stun
+                if (effect.status === 'stunned' || effect.status === 'invulnerable_and_pacified') {
                     isStunned = true;
-                    logMessage(state, `${fighter.nome} está atordoado e perde o turno!`, 'miss');
+                    const message = effect.status === 'stunned' ? 'está atordoado' : 'está protegido e não pode atacar';
+                    logMessage(state, `${fighter.nome} ${message} e perde o turno!`, 'miss');
                     io.to(roomId).emit('floatingTextTriggered', { targetId: fighter.id, text: 'Perdeu o Turno', type: 'status-fail' });
                 }
                 if (effect.status === 'banished') {
@@ -948,6 +948,13 @@ function executeAttack(state, roomId, attackerKey, targetKey, weaponChoice, targ
     const performSingleAttack = (weaponKey, isDual = false) => {
         target = getFighter(state, targetKey);
         if (!target || target.status !== 'active') return null;
+        
+        if (target.activeEffects.some(e => e.status === 'invulnerable_and_pacified')) {
+            logMessage(state, `O ataque contra ${target.nome} é anulado por um efeito protetor!`, 'miss');
+            io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `Anulou`, type: 'status-resist' });
+            // Não consome PA nem munição se o ataque for anulado
+            return { hit: false, debugInfo: { attackerName: attacker.nome, targetName: target.nome, weaponUsed: 'N/A', hit: false, reason: 'Alvo invulnerável' } };
+        }
 
         const weapon = attacker.sheet.equipment[weaponKey];
         if (weapon.isRanged) {
@@ -1465,8 +1472,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         effectModifier -= 1;
     }
 
-    // *** CORREÇÃO: DURAÇÃO DE 1 TURNO ***
-    // Função auxiliar para garantir que a duração seja correta
     const getEffectiveDuration = (duration) => (duration > 0 ? duration + 1 : 0);
 
     const applySubEffect = (effect, currentTarget) => {

@@ -1153,6 +1153,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function createFighterElement(fighter, type, state, position) {
         const container = document.createElement('div');
         container.className = `char-container ${type}-char-container`;
+        if (fighter.isSummon) {
+            container.classList.add('summon-char-container'); // CORREÇÃO BUG HOVER
+        }
         container.id = fighter.id;
         container.dataset.key = fighter.id;
     
@@ -1265,7 +1268,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const attrAbbr = attr.substring(0, 3).toUpperCase();
                 const sign = value > 0 ? '+' : '';
                 const className = value > 0 ? 'effect-buff' : 'effect-debuff';
-                // *** CORREÇÃO APLICADA AQUI: Texto em uma única linha ***
                 effectsHtml += `<div class="${className}">${sign}${value} ${attrAbbr}</div>`;
             }
         });
@@ -1323,7 +1325,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMySummonTurn = activeFighter.isSummon && activeFighter.ownerId === myPlayerKey;
         const canControl = (myRole === 'player' && state.activeCharacterKey === myPlayerKey) || (isGm && isNpcTurn) || isMySummonTurn;
         
-        const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned');
+        const isStunned = activeFighter.activeEffects && activeFighter.activeEffects.some(e => e.status === 'stunned' || e.status === 'invulnerable_and_pacified');
         const finalCanControl = canControl && !isStunned;
         
         let attackButtonAdded = false;

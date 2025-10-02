@@ -625,7 +625,7 @@ opacity: 0;
 }
 .floating-text {
 position: absolute;
-z-index: 101;
+z-index: 10001;
 font-size: 1.5em;
 font-weight: bold;
 text-shadow: 2px 2px 3px rgba(0,0,0,0.8);
@@ -1555,10 +1555,13 @@ margin-top: -10px;
     pointer-events: none;
     width: 100px;
 }
-.player-char-container .effects-display-container,
+.player-char-container .effects-display-container {
+    left: 90%; 
+}
 .npc-char-container .effects-display-container,
 .summon-char-container .effects-display-container {
-    left: 90%; /* CORREÇÃO: Posiciona à direita para todos */
+    left: 90%; 
+    align-items: flex-start;
 }
 
 .effect-buff {
