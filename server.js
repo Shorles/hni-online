@@ -500,8 +500,6 @@ function getAttributeBreakdown(fighter, attr) {
                 details[`Efeito (${effect.name})`] = effect.value;
                 total += effect.value;
             } else if (effect.type === 'progressive_debuff' && effect.attribute === attr) {
-                // Turnos passados: duração inicial menos duração atual + 1
-                // Ex: Duração 4. Turno 1: (4-4)+1=1. Turno 2: (4-3)+1=2.
                 const turnsPassed = (effect.initial_duration - effect.duration) + 1;
                 const currentValue = effect.value * turnsPassed;
                 total += currentValue;
@@ -1722,19 +1720,20 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  logMessage(state, `${target.nome} resistiu a ${spell.name}!`, 'info');
             }
             break;
-
+        
+        // --- CORREÇÃO 1: Lógica de 'Peso Aumentado' corrigida
         case 'progressive_debuff':
-        case 'stacking_debuff': // Mantém compatibilidade, se necessário
-            target.activeEffects.push({
-                name: spell.name,
-                type: 'progressive_debuff',
-                duration: getEffectiveDuration(spell.effect.duration),
-                initial_duration: spell.effect.duration,
-                attribute: spell.effect.attribute,
-                value: spell.effect.value 
-            });
-            logMessage(state, `${target.nome} foi afetado por ${spell.name}!`, 'info');
-            // A aplicação do valor real acontece na função processActiveEffects
+        case 'stacking_debuff':
+            for (let i = 1; i <= spell.effect.duration; i++) {
+                target.activeEffects.push({
+                    name: `${spell.name} (Pilha ${i})`,
+                    type: 'debuff',
+                    duration: getEffectiveDuration(i),
+                    modifiers: [{ attribute: spell.effect.attribute, value: spell.effect.value }]
+                });
+            }
+            logMessage(state, `${target.nome} foi afetado por ${spell.name}! Sua agilidade será reduzida progressivamente.`, 'info');
+            recalculateFighterStats(target);
             break;
             
         case 'multi_effect':
@@ -1819,13 +1818,21 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             }
             break;
         
+        // --- CORREÇÃO 2: Lógica do `multi_stun` (Golpe do Colapso)
         case 'multi_stun':
             let totalStunDuration = 0;
             if (spell.effect.chances && spell.effect.chances.length > 0) {
+                // Checa a primeira chance (100%)
                 if (Math.random() < spell.effect.chances[0]) {
                     totalStunDuration = 1;
-                    if (spell.effect.chances.length > 1 && Math.random() < spell.effect.chances[1]) {
-                        totalStunDuration = 2;
+                    // Se a primeira acertou, checa a segunda (50%)
+                    if (spell.effect.chances.length > 1) {
+                        if (Math.random() < spell.effect.chances[1]) {
+                            totalStunDuration = 2;
+                            logMessage(state, `Sorte! O atordoamento de ${spell.name} foi estendido por mais um turno.`, 'info');
+                        } else {
+                            logMessage(state, `A chance de 50% para estender o atordoamento de ${spell.name} falhou.`, 'miss');
+                        }
                     }
                 }
             }
