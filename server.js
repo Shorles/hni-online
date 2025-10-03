@@ -1720,16 +1720,17 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                  logMessage(state, `${target.nome} resistiu a ${spell.name}!`, 'info');
             }
             break;
-        
-        // --- CORREÇÃO 1: Lógica de 'Peso Aumentado' corrigida
+
+        case 'stacking_debuff': // Mantido para compatibilidade, caso use em outro lugar
         case 'progressive_debuff':
-        case 'stacking_debuff':
+            // --- CORREÇÃO 1: PESO AUMENTADO ---
+            // Aplica múltiplos debuffs com durações variadas para simular o acúmulo.
             for (let i = 1; i <= spell.effect.duration; i++) {
                 target.activeEffects.push({
                     name: `${spell.name} (Pilha ${i})`,
                     type: 'debuff',
-                    duration: getEffectiveDuration(i),
-                    modifiers: [{ attribute: spell.effect.attribute, value: spell.effect.value }]
+                    duration: getEffectiveDuration(i), // O debuff de -4 dura 1 turno, o de -3 dura 2, etc.
+                    modifiers: [{ attribute: spell.effect.attribute, value: spell.effect.value * i }]
                 });
             }
             logMessage(state, `${target.nome} foi afetado por ${spell.name}! Sua agilidade será reduzida progressivamente.`, 'info');
@@ -1818,8 +1819,8 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             }
             break;
         
-        // --- CORREÇÃO 2: Lógica do `multi_stun` (Golpe do Colapso)
         case 'multi_stun':
+            // --- CORREÇÃO 2: GOLPE DO COLAPSO ---
             let totalStunDuration = 0;
             if (spell.effect.chances && spell.effect.chances.length > 0) {
                 // Checa a primeira chance (100%)
@@ -1842,7 +1843,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                     name: spell.name,
                     type: 'status_effect',
                     status: 'stunned',
-                    duration: getEffectiveDuration(totalStunDuration)
+                    duration: totalStunDuration // Aplica a duração calculada diretamente
                 });
                 logMessage(state, `${target.nome} foi atordoado por ${spell.name} por ${totalStunDuration} turno(s)!`);
             }
