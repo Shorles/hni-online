@@ -579,7 +579,7 @@
       "name": "Peso Aumentado",
       "element": "escuridao",
       "isAdvanced": true,
-      "description": "Reduz a Agilidade do alvo em -1, -2, -3 e -4 nos próximos 4 turnos.",
+      "description": "Reduz a Agilidade do alvo em -1 no 1º turno, -3 no 2º, -6 no 3º e -10 no 4º.",
       "costMahou": 3,
       "costPA": 3,
       "cooldown": 2,
@@ -587,10 +587,10 @@
       "inCombat": true,
       "requiresHitRoll": false,
       "effect": {
-        "type": "progressive_debuff",
+        "type": "progressive_debuff_custom",
         "duration": 4,
         "attribute": "agilidade",
-        "value": -1,
+        "values": [ -1, -3, -6, -10 ],
         "animationOnCast": "target_gravity"
       }
     }

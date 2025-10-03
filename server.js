@@ -499,6 +499,16 @@ function getAttributeBreakdown(fighter, attr) {
             } else if (effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff')) {
                 details[`Efeito (${effect.name})`] = effect.value;
                 total += effect.value;
+            } else if (effect.type === 'progressive_debuff_custom' && effect.attribute === attr) {
+                // Lógica para o novo "Peso Aumentado"
+                // A duração do efeito é decrementada em processActiveEffects ANTES desta função ser chamada no turno do personagem
+                const turnsPassed = effect.initial_duration - (effect.duration - 1);
+                const valueIndex = turnsPassed - 1;
+                if (valueIndex >= 0 && valueIndex < effect.values.length) {
+                    const value = effect.values[valueIndex];
+                    details[`Efeito (${effect.name})`] = value;
+                    total += value;
+                }
             }
         });
     }
@@ -1723,18 +1733,15 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             }
             break;
 
-        case 'stacking_debuff':
-            // --- CORREÇÃO 1: PESO AUMENTADO (NOVA LÓGICA) ---
-            const baseValue = spell.effect.value; // ex: -1
-            const totalDuration = spell.effect.duration; // ex: 4
-            for (let i = 1; i <= totalDuration; i++) {
-                target.activeEffects.push({
-                    name: `${spell.name} (Pilha ${i})`,
-                    type: 'debuff',
-                    duration: getEffectiveDuration(i), // O debuff de -4 dura 1 turno, o de -3 dura 2, etc.
-                    modifiers: [{ attribute: spell.effect.attribute, value: baseValue }]
-                });
-            }
+        case 'progressive_debuff_custom':
+            target.activeEffects.push({
+                name: spell.name,
+                type: 'progressive_debuff_custom',
+                duration: getEffectiveDuration(spell.effect.duration),
+                initial_duration: spell.effect.duration, // Armazena a duração inicial para o cálculo
+                attribute: spell.effect.attribute,
+                values: spell.effect.values
+            });
             logMessage(state, `${target.nome} foi afetado por ${spell.name}! Sua agilidade será reduzida progressivamente.`, 'info');
             recalculateFighterStats(target);
             break;
