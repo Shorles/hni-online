@@ -499,11 +499,6 @@ function getAttributeBreakdown(fighter, attr) {
             } else if (effect.attribute === attr && (effect.type === 'buff' || effect.type === 'debuff')) {
                 details[`Efeito (${effect.name})`] = effect.value;
                 total += effect.value;
-            } else if (effect.type === 'progressive_debuff' && effect.attribute === attr) {
-                const turnsPassed = (effect.initial_duration - effect.duration) + 1;
-                const currentValue = effect.value * turnsPassed;
-                total += currentValue;
-                details[`Efeito (${effect.name})`] = currentValue;
             }
         });
     }
@@ -1573,7 +1568,6 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             if (spell.effect.secondaryEffect) {
                 if (Math.random() < (spell.effect.secondaryEffect.chance || 1.0)) {
                     applySpellEffect(state, roomId, attacker, target, { name: spell.name, effect: spell.effect.secondaryEffect }, {});
-                    logMessage(state, `Efeito secundário de ${spell.name} ativado em ${target.nome}!`, 'info');
                 }
             }
             if (spell.effect.selfEffect) {
@@ -1704,33 +1698,41 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
         
         case 'random_debuff':
             if (Math.random() < (spell.effect.chance || 1.0)) {
-                const attributes = spell.effect.attributes;
-                const randomAttr = attributes[Math.floor(Math.random() * attributes.length)];
-                target.activeEffects.push({
-                    name: spell.name,
-                    type: 'debuff',
-                    duration: getEffectiveDuration(spell.effect.duration),
-                    modifiers: [{ attribute: randomAttr, value: spell.effect.value }]
-                });
-                const attrName = randomAttr.charAt(0).toUpperCase() + randomAttr.slice(1);
-                io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${attrName.toUpperCase()} ZERADO`, type: 'buff' });
-                logMessage(state, `${target.nome} teve seu atributo ${attrName} reduzido por ${spell.name}!`, 'info');
+                const attributes = [...spell.effect.attributes];
+                const count = spell.effect.count || 1;
+                const affectedAttrs = [];
+                for(let i=0; i<count; i++){
+                    if(attributes.length > 0){
+                        const randomIndex = Math.floor(Math.random() * attributes.length);
+                        const randomAttr = attributes.splice(randomIndex, 1)[0];
+                        affectedAttrs.push(randomAttr);
+                        target.activeEffects.push({
+                            name: spell.name,
+                            type: 'debuff',
+                            duration: getEffectiveDuration(spell.effect.duration),
+                            modifiers: [{ attribute: randomAttr, value: spell.effect.value }]
+                        });
+                        const attrName = randomAttr.charAt(0).toUpperCase() + randomAttr.slice(1);
+                        io.to(roomId).emit('floatingTextTriggered', { targetId: target.id, text: `${attrName.toUpperCase()} ZERADO`, type: 'buff' });
+                    }
+                }
+                logMessage(state, `Efeito secundário de ${spell.name} zerou ${affectedAttrs.join(' e ')} de ${target.nome}!`, 'info');
                 recalculateFighterStats(target);
             } else {
-                 logMessage(state, `${target.nome} resistiu a ${spell.name}!`, 'info');
+                 logMessage(state, `${target.nome} resistiu ao efeito secundário de ${spell.name}!`, 'info');
             }
             break;
 
-        case 'stacking_debuff': // Mantido para compatibilidade, caso use em outro lugar
-        case 'progressive_debuff':
-            // --- CORREÇÃO 1: PESO AUMENTADO ---
-            // Aplica múltiplos debuffs com durações variadas para simular o acúmulo.
-            for (let i = 1; i <= spell.effect.duration; i++) {
+        case 'stacking_debuff':
+            // --- CORREÇÃO 1: PESO AUMENTADO (NOVA LÓGICA) ---
+            const baseValue = spell.effect.value; // ex: -1
+            const totalDuration = spell.effect.duration; // ex: 4
+            for (let i = 1; i <= totalDuration; i++) {
                 target.activeEffects.push({
                     name: `${spell.name} (Pilha ${i})`,
                     type: 'debuff',
                     duration: getEffectiveDuration(i), // O debuff de -4 dura 1 turno, o de -3 dura 2, etc.
-                    modifiers: [{ attribute: spell.effect.attribute, value: spell.effect.value * i }]
+                    modifiers: [{ attribute: spell.effect.attribute, value: baseValue }]
                 });
             }
             logMessage(state, `${target.nome} foi afetado por ${spell.name}! Sua agilidade será reduzida progressivamente.`, 'info');
