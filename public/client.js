@@ -1269,6 +1269,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const currentValue = effect.value * turnsPassed;
                     processModifier({ attribute: effect.attribute, value: currentValue });
                 }
+                if (effect.type === 'progressive_debuff_custom') {
+                    // duration is remaining. initial_duration is the original.
+                    // Server sends duration+1 initially. It gets decremented before this runs.
+                    // So, for a 4 turn effect, initial_duration=4. 
+                    // Turn 1 starts, duration becomes 4. turnsPassed = 4 - (4-1) = 1. index = 0.
+                    const turnsPassed = effect.initial_duration - (effect.duration - 1);
+                    const valueIndex = turnsPassed - 1;
+                    if (valueIndex >= 0 && valueIndex < effect.values.length) {
+                        const currentValue = effect.values[valueIndex];
+                        processModifier({ attribute: effect.attribute, value: currentValue });
+                    }
+                }
             });
         }
         
