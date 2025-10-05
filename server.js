@@ -1831,13 +1831,10 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
             break;
         
         case 'multi_stun':
-            // --- CORREÇÃO 2: GOLPE DO COLAPSO ---
             let totalStunDuration = 0;
             if (spell.effect.chances && spell.effect.chances.length > 0) {
-                // Checa a primeira chance (100%)
                 if (Math.random() < spell.effect.chances[0]) {
                     totalStunDuration = 1;
-                    // Se a primeira acertou, checa a segunda (50%)
                     if (spell.effect.chances.length > 1) {
                         if (Math.random() < spell.effect.chances[1]) {
                             totalStunDuration = 2;
@@ -1854,7 +1851,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                     name: spell.name,
                     type: 'status_effect',
                     status: 'stunned',
-                    duration: totalStunDuration // Aplica a duração calculada diretamente
+                    duration: totalStunDuration
                 });
                 logMessage(state, `${target.nome} foi atordoado por ${spell.name} por ${totalStunDuration} turno(s)!`);
             }
@@ -2777,8 +2774,8 @@ io.on('connection', (socket) => {
                                     playerToUpdate.characterSheet.ammunition = action.newAmmunition;
                                 }
                                 
-                                if (room.activeMode === 'adventure' && adventureState.fighters.players[action.playerId]) {
-                                    const adventureFighter = adventureState.fighters.players[action.playerId];
+                                if (room.activeMode === 'adventure' && room.gameModes.adventure?.fighters.players[action.playerId]) {
+                                    const adventureFighter = room.gameModes.adventure.fighters.players[action.playerId];
                                     if (action.newInventory) {
                                         adventureFighter.inventory = action.newInventory;
                                         adventureFighter.sheet.inventory = action.newInventory;
