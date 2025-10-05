@@ -3777,11 +3777,10 @@ document.addEventListener('DOMContentLoaded', () => {
             { text: 'Cancelar', closes: true }
         ]);
 
-        // Adiciona o listener para os tokens dos jogadores
         document.querySelectorAll('.gm-player-token').forEach(tokenEl => {
             tokenEl.addEventListener('click', (e) => {
                 const playerId = e.currentTarget.dataset.playerId;
-                modal.classList.add('hidden'); // Fecha o modal de recompensas
+                modal.classList.add('hidden');
                 showGmPlayerSheetView(playerId);
             });
         });

@@ -936,7 +936,7 @@ function handleSummon(state, roomId, action) {
             duration: spell.effect.duration,
             sheetData: {
                 name: choice,
-                img: ALL_NPCS[choice] ? `/images/lutadores/${name}.png` : '/images/lutadores/default.png',
+                img: ALL_NPCS[choice] ? `/images/lutadores/${choice}.png` : '/images/lutadores/default.png',
                 ...summonBaseData
             }
         });
