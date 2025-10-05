@@ -1580,3 +1580,148 @@ margin-top: -10px;
 .effect-debuff {
     color: #F44336; /* Vermelho */
 }
+/* === NOVOS ESTILOS (EDITOR DE INVENTÁRIO DO GM) === */
+.gm-award-player-item .token.gm-player-token {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid #888;
+}
+.gm-award-player-item .token.gm-player-token:hover {
+    border-color: #ffeb3b;
+    transform: scale(1.1);
+}
+.gm-view-mode .sheet-footer, .gm-view-mode #ingame-sheet-footer {
+    display: none;
+}
+.gm-view-mode .ingame-sheet-scrollable-content {
+    pointer-events: none;
+}
+.gm-view-mode .sheet-header {
+    position: relative;
+}
+.gm-edit-inventory-btn {
+    position: absolute;
+    top: 50%;
+    right: 50px;
+    transform: translateY(-50%);
+    padding: 8px 16px;
+    font-size: 1em;
+}
+.gm-inventory-editor-modal #modal-content {
+    max-width: 90%;
+    width: 1200px;
+    height: 85%;
+}
+.gm-inventory-layout {
+    display: flex;
+    gap: 15px;
+    flex-grow: 1;
+    min-height: 0;
+}
+.inventory-panel, .item-catalog-panel {
+    flex: 1;
+    background-color: rgba(0,0,0,0.3);
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+}
+.inventory-panel h4, .item-catalog-panel h4 {
+    margin-top: 0;
+    text-align: center;
+    color: #ffc107;
+}
+.inventory-search {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    background-color: #111;
+    border: 1px solid #555;
+    color: #fff;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+.gm-inventory-grid {
+    flex-grow: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    align-content: start;
+    padding: 5px;
+}
+.gm-inv-item-card {
+    background-color: #333;
+    border: 1px solid #555;
+    border-radius: 5px;
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    font-size: 0.8em;
+    cursor: pointer;
+}
+.gm-inv-item-card:hover {
+    border-color: #ffeb3b;
+}
+.gm-inv-item-card img {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+}
+.gm-inv-item-card .item-name {
+    margin-top: 5px;
+    text-align: center;
+    word-break: break-word;
+    height: 2.4em;
+    overflow: hidden;
+}
+.item-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 5px;
+}
+.item-controls button.quantity-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    font-size: 1.2em;
+    line-height: 18px;
+}
+.item-controls input.quantity-input {
+    width: 30px;
+    text-align: center;
+    background-color: #222;
+    color: #fff;
+    border: 1px solid #555;
+    margin: 0 2px;
+    -moz-appearance: textfield;
+}
+.gm-inv-item-card .remove-item-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    line-height: 16px;
+    font-size: 1.1em;
+}
+.gm-inventory-ammo-control {
+    border-top: 1px solid #444;
+    padding-top: 15px;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.gm-inventory-ammo-control label {
+    font-weight: bold;
+}
+.gm-inventory-ammo-control input {
+    width: 60px;
+}
