@@ -3092,6 +3092,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function populateIngameSheet(fighter) {
         if (!fighter || !fighter.sheet) return;
+
+        // Limpa estado de visualização do GM
+        ingameSheetModal.classList.remove('gm-view-mode');
+        document.getElementById('gm-edit-inventory-btn').classList.add('hidden');
     
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
@@ -3786,6 +3790,175 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- NOVA FUNÇÃO: GM VISUALIZA E EDITA A FICHA DO JOGADOR ---
+    function showGmPlayerSheetView(playerId) {
+        const playerFighter = getFighter(currentGameState, playerId);
+        if (!playerFighter) return;
+
+        populateIngameSheet(playerFighter);
+
+        const sheetModal = document.getElementById('ingame-sheet-modal');
+        sheetModal.classList.add('gm-view-mode');
+
+        const editBtn = document.getElementById('gm-edit-inventory-btn');
+        editBtn.classList.remove('hidden');
+        editBtn.onclick = () => {
+            sheetModal.classList.add('hidden');
+            showGmInventoryEditor(playerFighter);
+        };
+
+        sheetModal.classList.remove('hidden');
+    }
+
+    function showGmInventoryEditor(player) {
+        let stagedInventory = JSON.parse(JSON.stringify(player.inventory || {}));
+        let stagedAmmunition = player.ammunition || 0;
+    
+        const buildItemCatalogHtml = () => {
+            const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
+            const allGameItems = {
+                'Armas': Object.values(ALL_WEAPON_IMAGES)
+                    .flatMap(cat => [...cat.melee, ...cat.ranged])
+                    .map(imgPath => {
+                        const name = imgPath.split('/').pop().split('.')[0];
+                        return { name, img: imgPath, type: 'weapon' };
+                     })
+                    .concat(Object.entries(GAME_RULES.weapons).map(([name, data]) => ({ name, type: 'weapon', ...data }))),
+                'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })),
+                'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })),
+                'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: 'item', ...data })),
+            };
+    
+            let catalogHtml = '<div class="shop-tabs">';
+            Object.keys(allGameItems).forEach((cat, i) => {
+                catalogHtml += `<button class="shop-tab-btn ${i === 0 ? 'active' : ''}" data-category="${cat}">${cat}</button>`;
+            });
+            catalogHtml += '</div><div class="shop-item-grids-container">';
+    
+            Object.entries(allGameItems).forEach(([category, items], i) => {
+                catalogHtml += `<div class="gm-inventory-grid shop-item-grid ${i === 0 ? 'active' : ''}" id="catalog-grid-${category}">`;
+                const uniqueItems = Array.from(new Map(items.map(item => [item.name, item])).values());
+                
+                uniqueItems.filter(item => !nonItems.includes(item.name)).forEach(item => {
+                    let imgPath = item.img;
+                     if (!imgPath) {
+                        if (item.type === 'armor') imgPath = `/images/armas/Armadura ${item.name === 'Mediana' ? 'Mediana' : item.name}.png`.replace(/ /g, '%20');
+                        else if (item.type === 'shield') imgPath = `/images/armas/Escudo ${item.name === 'Médio' ? 'Medio' : item.name}.png`.replace(/ /g, '%20');
+                    }
+                    catalogHtml += `
+                        <div class="gm-inv-item-card" data-item-name="${item.name}" title="Adicionar ${item.name}">
+                            <img src="${imgPath || ''}" alt="${item.name}" onerror="this.style.display='none'">
+                            <div class="item-name">${item.name}</div>
+                        </div>`;
+                });
+                catalogHtml += '</div>';
+            });
+            catalogHtml += '</div>';
+            return catalogHtml;
+        };
+    
+        const content = `
+            <div class="gm-inventory-layout">
+                <div class="inventory-panel">
+                    <h4>Inventário de ${player.nome}</h4>
+                    <div class="gm-inventory-grid" id="gm-player-inventory-grid"></div>
+                    <div class="gm-inventory-ammo-control">
+                        <label for="gm-ammo-input">Munição:</label>
+                        <input type="number" id="gm-ammo-input" class="quantity-input" value="${stagedAmmunition}" min="0">
+                    </div>
+                </div>
+                <div class="item-catalog-panel">
+                    <h4>Catálogo de Itens</h4>
+                    <input type="text" id="gm-inventory-search" class="inventory-search" placeholder="Buscar item...">
+                    <div id="gm-item-catalog-container">
+                        ${buildItemCatalogHtml()}
+                    </div>
+                </div>
+            </div>`;
+    
+        showCustomModal(`Editar Inventário de ${player.nome}`, content, [
+            { text: 'Confirmar Alterações', closes: true, onClick: () => {
+                 socket.emit('playerAction', {
+                    type: 'gmUpdatesPlayerInventory',
+                    playerId: player.id,
+                    newInventory: stagedInventory,
+                    newAmmunition: parseInt(document.getElementById('gm-ammo-input').value, 10)
+                });
+            }},
+            { text: 'Cancelar', closes: true, className: 'btn-danger' }
+        ], 'gm-inventory-editor-modal');
+    
+        const renderPlayerInventory = () => {
+            const grid = document.getElementById('gm-player-inventory-grid');
+            grid.innerHTML = '';
+            Object.values(stagedInventory).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'gm-inv-item-card';
+                card.innerHTML = `
+                    <button class="remove-staged-npc remove-item-btn" title="Remover Item">X</button>
+                    <img src="${item.img || ''}" alt="${item.name}" onerror="this.style.display='none'">
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-controls">
+                        <button class="arrow-btn down-arrow quantity-btn">-</button>
+                        <input type="number" class="quantity-input" value="${item.quantity}" min="1">
+                        <button class="arrow-btn up-arrow quantity-btn">+</button>
+                    </div>`;
+                
+                card.querySelector('.remove-item-btn').onclick = () => {
+                    delete stagedInventory[item.name];
+                    renderPlayerInventory();
+                };
+                card.querySelector('.down-arrow').onclick = () => {
+                    stagedInventory[item.name].quantity = Math.max(1, stagedInventory[item.name].quantity - 1);
+                    renderPlayerInventory();
+                };
+                card.querySelector('.up-arrow').onclick = () => {
+                    stagedInventory[item.name].quantity++;
+                    renderPlayerInventory();
+                };
+                card.querySelector('.quantity-input').onchange = (e) => {
+                     stagedInventory[item.name].quantity = Math.max(1, parseInt(e.target.value, 10) || 1);
+                     renderPlayerInventory();
+                };
+                grid.appendChild(card);
+            });
+        };
+    
+        renderPlayerInventory();
+        
+        // Event Listeners for catalog
+        const catalogContainer = document.getElementById('gm-item-catalog-container');
+        catalogContainer.querySelectorAll('.shop-tab-btn').forEach(btn => {
+            btn.onclick = () => {
+                catalogContainer.querySelectorAll('.shop-tab-btn, .shop-item-grid').forEach(el => el.classList.remove('active'));
+                btn.classList.add('active');
+                catalogContainer.querySelector(`#catalog-grid-${btn.dataset.category}`).classList.add('active');
+            };
+        });
+    
+        catalogContainer.querySelectorAll('.gm-inv-item-card').forEach(card => {
+            card.onclick = () => {
+                const itemName = card.dataset.itemName;
+                if (!stagedInventory[itemName]) {
+                    const allItems = { ...ALL_ITEMS, ...GAME_RULES.weapons, ...GAME_RULES.armors, ...GAME_RULES.shields };
+                    const sourceItem = Object.values(allItems).find(i => i.name === itemName) || { name: itemName, img: card.querySelector('img').src, type: 'item' };
+                    stagedInventory[itemName] = { ...sourceItem, quantity: 1 };
+                    renderPlayerInventory();
+                } else {
+                    stagedInventory[itemName].quantity++;
+                    renderPlayerInventory();
+                }
+            };
+        });
+        
+        document.getElementById('gm-inventory-search').oninput = (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            catalogContainer.querySelectorAll('.gm-inv-item-card').forEach(card => {
+                const itemName = card.dataset.itemName.toLowerCase();
+                card.style.display = itemName.includes(searchTerm) ? '' : 'none';
+            });
+        };
+    }
 
     // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
