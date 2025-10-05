@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ALL_ITEMS = {}; 
     let ALL_PLAYER_IMAGES = [];
     let ALL_SUMMONS = {};
+    let LEVEL_UP_TABLE = {};
 
     // --- VARIÁVEIS DE ESTADO ---
     let myRole = null, myPlayerKey = null, isGm = false;
@@ -2185,12 +2186,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeCharacterSheet() {
         characterSheetCheatActive = false; // Reseta o cheat ao inicializar a ficha
         stagedCharacterSheet = {
+            level: 1,
             spells: [],
             weapon1: { img: null, isRanged: false },
             weapon2: { img: null, isRanged: false },
             tokenImg: null, // Token final
             manualTokenImg: null, // Token escolhido manualmente
             raceTokenImg: null, // Token vindo da raça
+            maxAttrPoints: 5,
+            maxElemPoints: 2,
+            maxSpells: 2
         };
         racePreviewModal.classList.add('hidden');
 
@@ -2455,13 +2460,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         document.getElementById('sheet-money-copper').textContent = startingMoney - cost;
         
-        let maxAttrPoints = characterSheetCheatActive ? 500 : (5 + (raceData.bon?.escolha || 0));
+        const maxAttrPoints = characterSheetCheatActive ? 500 : (stagedCharacterSheet.maxAttrPoints + (raceData.bon?.escolha || 0));
         const totalAttrPoints = Object.values(baseAttributes).reduce((sum, val) => sum + val, 0);
         const attrPointsRemaining = maxAttrPoints - totalAttrPoints;
         document.getElementById('sheet-points-attr-remaining').textContent = attrPointsRemaining;
         document.querySelectorAll('#attribute-points-header ~ .attributes-grid .up-arrow').forEach(btn => btn.disabled = attrPointsRemaining <= 0);
 
-        const maxElemPoints = characterSheetCheatActive ? 100 : 2;
+        const maxElemPoints = characterSheetCheatActive ? 100 : stagedCharacterSheet.maxElemPoints;
         const totalElemPoints = Object.values(elements).reduce((sum, val) => sum + val, 0);
         const elemPointsRemaining = maxElemPoints - totalElemPoints;
         document.getElementById('sheet-points-elem-remaining').textContent = elemPointsRemaining;
@@ -2551,6 +2556,8 @@ document.addEventListener('DOMContentLoaded', () => {
         stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(spellName => 
             availableSpells.some(availableSpell => availableSpell.name === spellName)
         );
+
+        const maxSpells = characterSheetCheatActive ? 999 : (stagedCharacterSheet.maxSpells || 2);
         
         availableSpells.forEach(spell => {
             const card = document.createElement('div');
@@ -2583,10 +2590,10 @@ document.addEventListener('DOMContentLoaded', () => {
             card.addEventListener('click', () => {
                 if (stagedCharacterSheet.spells.includes(spell.name)) {
                     stagedCharacterSheet.spells = stagedCharacterSheet.spells.filter(s => s !== spell.name);
-                } else if (characterSheetCheatActive || stagedCharacterSheet.spells.length < 2) {
+                } else if (stagedCharacterSheet.spells.length < maxSpells) {
                     stagedCharacterSheet.spells.push(spell.name);
                 } else {
-                    alert("Você pode escolher no máximo 2 magias iniciais.");
+                    alert(`Você pode escolher no máximo ${maxSpells} magias.`);
                 }
                 updateCharacterSheet();
             });
@@ -2597,7 +2604,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (characterSheetCheatActive) {
             spellCountSpan.parentElement.innerHTML = `(<span id="sheet-spells-selected-count">${stagedCharacterSheet.spells.length}</span> selecionadas)`;
         } else {
-            spellCountSpan.parentElement.innerHTML = `(<span id="sheet-spells-selected-count">${stagedCharacterSheet.spells.length}</span>/2 selecionadas)`;
+            spellCountSpan.parentElement.innerHTML = `(<span id="sheet-spells-selected-count">${stagedCharacterSheet.spells.length}</span>/${maxSpells} selecionadas)`;
         }
     }
 
@@ -2700,7 +2707,7 @@ document.addEventListener('DOMContentLoaded', () => {
             class: isCreation ? document.getElementById('sheet-class').value : myFighter.sheet.class,
             race: isCreation ? document.getElementById('sheet-race-select').value : myFighter.sheet.race,
             money: parseInt(document.getElementById(isCreation ? 'sheet-money-copper' : 'ingame-sheet-money')?.textContent || '0', 10),
-            level: myFighter?.level || 1,
+            level: myFighter?.level || stagedCharacterSheet.level || 1,
             xp: myFighter?.xp || 0,
             xpNeeded: myFighter?.xpNeeded || 100,
             baseAttributes: {},
@@ -2722,6 +2729,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ['fogo', 'agua', 'terra', 'vento', 'luz', 'escuridao'].forEach(elem => {
                 data.elements[elem] = parseInt(document.getElementById(`sheet-elem-${elem}`).value) || 0;
             });
+            // Preserve inventory and ammo if it exists from a loaded file
+            if (stagedCharacterSheet.inventory) data.inventory = stagedCharacterSheet.inventory;
+            if (stagedCharacterSheet.ammunition) data.ammunition = stagedCharacterSheet.ammunition;
         } else {
             data.baseAttributes = myFighter.sheet.baseAttributes;
             data.elements = myFighter.sheet.elements;
@@ -2790,6 +2800,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!GAME_RULES.races[decryptedData.race]) {
                         throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida nas regras atuais do jogo.`);
                     }
+
+                    // --- AJUSTE PARA CARREGAR PERSONAGEM DE NÍVEL ALTO ---
+                    const level = decryptedData.level || 1;
+                    let maxAttrPoints = 5;
+                    let maxElemPoints = 2;
+                    let maxSpells = 2;
+
+                    for (let i = 2; i <= level; i++) {
+                        const levelData = LEVEL_UP_TABLE[i];
+                        if (levelData) {
+                            maxAttrPoints += levelData.rewards.attrPoints || 0;
+                            maxElemPoints += levelData.rewards.elemPoints || 0;
+                            maxSpells += levelData.rewards.spellCount || 0;
+                        }
+                    }
+
+                    stagedCharacterSheet.level = level;
+                    stagedCharacterSheet.maxAttrPoints = maxAttrPoints;
+                    stagedCharacterSheet.maxElemPoints = maxElemPoints;
+                    stagedCharacterSheet.maxSpells = maxSpells;
+                    stagedCharacterSheet.inventory = decryptedData.inventory; // Preserva inventário
+                    stagedCharacterSheet.ammunition = decryptedData.ammunition; // Preserva munição
+                    // --- FIM DO AJUSTE ---
+
                     stagedCharacterSheet.tokenImg = decryptedData.tokenImg || null;
                     stagedCharacterSheet.manualTokenImg = decryptedData.tokenImg || null;
                     stagedCharacterSheet.raceTokenImg = null;
@@ -2846,8 +2880,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (!characterSheetCheatActive && stagedCharacterSheet.spells.length > 2) {
-            alert("Você só pode escolher até 2 magias iniciais. Por favor, desmarque o excedente.");
+        const maxSpells = characterSheetCheatActive ? 999 : (stagedCharacterSheet.maxSpells || 2);
+        if (stagedCharacterSheet.spells.length > maxSpells) {
+            alert(`Você só pode ter até ${maxSpells} magias. Por favor, desmarque o excedente.`);
             return;
         }
 
@@ -2858,7 +2893,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!characterSheetCheatActive) {
             if(attrPointsRemaining > 0) warnings.push(`Você ainda tem ${attrPointsRemaining} pontos de atributo para distribuir.`);
             if(elemPointsRemaining > 0) warnings.push(`Você ainda tem ${elemPointsRemaining} pontos de elemento para distribuir.`);
-            if(stagedCharacterSheet.spells.length === 0) warnings.push(`Você não selecionou nenhuma magia inicial.`);
+            if(stagedCharacterSheet.spells.length < maxSpells) warnings.push(`Você pode escolher mais ${maxSpells - stagedCharacterSheet.spells.length} magias.`);
         }
 
 
@@ -3678,7 +3713,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let playerListHtml = players.map(player => `
             <div class="gm-award-player-item">
-                <div class="token" style="background-image: url('${player.characterSheet.tokenImg}')"></div>
+                <div class="token gm-player-token" style="background-image: url('${player.characterSheet.tokenImg}')" data-player-id="${player.socketId}" title="Ver/Editar Ficha de ${player.characterName}"></div>
                 <span class="name">${player.characterName}</span>
                 <input type="number" class="award-xp-input" placeholder="XP" data-player-id="${player.socketId}">
                 <input type="number" class="award-money-input" placeholder="Moedas" data-player-id="${player.socketId}">
@@ -3741,6 +3776,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }},
             { text: 'Cancelar', closes: true }
         ]);
+
+        // Adiciona o listener para os tokens dos jogadores
+        document.querySelectorAll('.gm-player-token').forEach(tokenEl => {
+            tokenEl.addEventListener('click', (e) => {
+                const playerId = e.currentTarget.dataset.playerId;
+                modal.classList.add('hidden'); // Fecha o modal de recompensas
+                showGmPlayerSheetView(playerId);
+            });
+        });
     }
 
 
@@ -3754,6 +3798,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
         ALL_SCENARIOS = data.scenarios || {};
         ALL_PLAYER_IMAGES = data.playerImages || [];
+        LEVEL_UP_TABLE = data.levelUpTable || {};
     
         preloadProjectileImages();
 

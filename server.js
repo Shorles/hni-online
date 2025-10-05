@@ -936,7 +936,7 @@ function handleSummon(state, roomId, action) {
             duration: spell.effect.duration,
             sheetData: {
                 name: choice,
-                img: ALL_NPCS[choice] ? `/images/lutadores/${choice}.png` : '/images/lutadores/default.png',
+                img: ALL_NPCS[choice] ? `/images/lutadores/${name}.png` : '/images/lutadores/default.png',
                 ...summonBaseData
             }
         });
@@ -1487,14 +1487,14 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
     if (attacker.sheet.race === 'Tulku' && spell.element === 'luz') {
         effectModifier -= 1; logMessage(state, `A natureza Tulku de ${attacker.nome} enfraquece a magia de Luz!`, 'info');
     }
-    if (attacker.sheet.race === 'Anjo' && spell.effect.type === 'heal') {
+    if (attacker.sheet.race === 'Anjo' && (spell.effect.type === 'heal' || spell.effect.type === 'hot' || spell.effect.type === 'revive')) {
         effectModifier += 1; logMessage(state, `A natureza angelical de ${attacker.nome} fortalece a magia de cura!`, 'info');
     }
     if (attacker.sheet.race === 'Demônio' && spell.element === 'escuridao') {
         effectModifier += 1; logMessage(state, `O poder demoníaco de ${attacker.nome} fortalece a magia de Escuridão!`, 'info');
     }
 
-    if (target.sheet.race === 'Demônio' && (spell.effect.type === 'heal' || spell.effect.type === 'hot')) {
+    if (target.sheet.race === 'Demônio' && (spell.effect.type === 'heal' || spell.effect.type === 'hot' || spell.effect.type === 'revive')) {
         effectModifier -= 1;
     }
 
@@ -1619,6 +1619,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 if (spell.effect.bonusAttribute) {
                     reviveHealAmount += getAttributeBreakdown(attacker, spell.effect.bonusAttribute).value;
                 }
+                reviveHealAmount += effectModifier;
                 reviveHealAmount = Math.max(1, reviveHealAmount);
                 target.hp = Math.min(target.hpMax, reviveHealAmount);
                 
@@ -1633,6 +1634,7 @@ function applySpellEffect(state, roomId, attacker, target, spell, debugInfo) {
                 if (spell.effect.bonusAttribute) {
                     healAmountRevive += getAttributeBreakdown(attacker, spell.effect.bonusAttribute).value;
                 }
+                healAmountRevive += effectModifier;
                 const healedAmountRevive = Math.min(target.hpMax - target.hp, healAmountRevive);
                 if (healedAmountRevive > 0) {
                     target.hp += healedAmountRevive;
@@ -1970,7 +1972,8 @@ io.on('connection', (socket) => {
             })), 
             dynamic: DYNAMIC_CHARACTERS 
         }, 
-        scenarios: ALL_SCENARIOS 
+        scenarios: ALL_SCENARIOS,
+        levelUpTable: LEVEL_UP_TABLE
     });
 
     socket.on('gmCreatesLobby', () => {
@@ -2122,9 +2125,11 @@ io.on('connection', (socket) => {
                 characterData.equipment.weapon2.isRanged = action.isRanged.weapon2;
                 characterData.equipment.weapon2.img = action.weaponImages.weapon2;
                 
-                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment, true); 
-                characterData.inventory = inventory;
-                characterData.ammunition = ammunition;
+                const isNewChar = !characterData.inventory && (!characterData.level || characterData.level === 1);
+                const { inventory, ammunition, updatedEquipment } = createInventoryFromEquipment(characterData.equipment, isNewChar); 
+
+                characterData.inventory = characterData.inventory || inventory;
+                characterData.ammunition = characterData.ammunition !== undefined ? characterData.ammunition : ammunition;
                 characterData.equipment = updatedEquipment;
         
                 playerInfo.characterSheet = characterData;
@@ -2760,6 +2765,30 @@ io.on('connection', (socket) => {
                                         }
                                     }
                                 });
+                            }
+                            break;
+                        case 'gmUpdatesPlayerInventory':
+                            const playerToUpdate = lobbyState.connectedPlayers[action.playerId];
+                            if (playerToUpdate && playerToUpdate.characterSheet) {
+                                if (action.newInventory) {
+                                    playerToUpdate.characterSheet.inventory = action.newInventory;
+                                }
+                                if (action.newAmmunition !== undefined) {
+                                    playerToUpdate.characterSheet.ammunition = action.newAmmunition;
+                                }
+                                
+                                if (room.activeMode === 'adventure' && adventureState.fighters.players[action.playerId]) {
+                                    const adventureFighter = adventureState.fighters.players[action.playerId];
+                                    if (action.newInventory) {
+                                        adventureFighter.inventory = action.newInventory;
+                                        adventureFighter.sheet.inventory = action.newInventory;
+                                    }
+                                    if (action.newAmmunition !== undefined) {
+                                        adventureFighter.ammunition = action.newAmmunition;
+                                        adventureFighter.sheet.ammunition = action.newAmmunition;
+                                    }
+                                }
+                                logMessage(activeState, `GM editou o inventário de ${playerToUpdate.characterName}.`);
                             }
                             break;
                      }
