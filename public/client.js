@@ -2206,7 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
             weapon1: { img: null, isRanged: false },
             weapon2: { img: null, isRanged: false },
             tokenImg: null, // Token final
-            manualTokenImg: null, // Token escolhido manualmente
+            manualTokenImg: null, // Token escolhido manually
             raceTokenImg: null, // Token vindo da raça
             maxAttrPoints: 5,
             maxElemPoints: 2,
@@ -2944,6 +2944,150 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
+    function renderIngameInventory(fighter, isGmView = false) {
+        if (!fighter || !fighter.sheet) return;
+    
+        const inventory = fighter.inventory || {};
+        const inventoryGrid = document.getElementById('inventory-grid');
+        inventoryGrid.innerHTML = '';
+        const MAX_SLOTS = 24;
+    
+        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
+        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
+        const armor = document.getElementById('ingame-sheet-armor-type').value;
+        const shield = document.getElementById('ingame-sheet-shield-type').value;
+        const equippedItemNames = [weapon1, weapon2, armor, shield];
+    
+        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
+    
+        const isAdventureMode = currentGameState.mode === 'adventure';
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === fighter.id;
+        const canInteract = !isGmView && (!isAdventureMode || isMyTurn);
+    
+        itemsToDisplay.forEach(item => {
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            
+            const itemDetails = ALL_ITEMS[item.name];
+            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
+            
+            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
+            if (imgPath) {
+                slot.style.backgroundImage = `url("${imgPath}")`;
+            } else {
+                 slot.style.backgroundImage = 'none';
+            }
+    
+            if (item.quantity > 1) {
+                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
+            }
+            
+            if (canInteract) {
+                slot.classList.add('item');
+                slot.addEventListener('click', () => showItemContextMenu(item));
+            } else {
+                slot.style.cursor = 'default';
+            }
+    
+            inventoryGrid.appendChild(slot);
+        });
+    
+        const filledSlots = itemsToDisplay.length;
+        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
+            const emptySlot = document.createElement('div');
+            emptySlot.className = 'inventory-slot';
+            inventoryGrid.appendChild(emptySlot);
+        }
+    }
+
+    function showItemContextMenu(item) {
+        const itemDetails = ALL_ITEMS[item.name] || {};
+        const effectiveDetails = {
+            ...itemDetails,
+            img: item.img || itemDetails.img,
+            description: itemDetails.description || `Tipo: ${item.type}`,
+            isUsable: itemDetails.isUsable || false
+        };
+    
+        let content = `
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
+                <div>
+                    <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
+                    <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
+                </div>
+            </div>`;
+    
+        const buttons = [];
+    
+        if (effectiveDetails.isUsable) {
+            const costPA = effectiveDetails.costPA || 3;
+            buttons.push({
+                text: `Usar`,
+                closes: false,
+                onClick: () => {
+                    const myFighter = getFighter(currentGameState, myPlayerKey);
+                    if (!myFighter) return;
+    
+                    if (currentGameState.mode === 'adventure') {
+                        if (currentGameState.activeCharacterKey !== myPlayerKey) {
+                            showInfoModal("Ação Bloqueada", "Você só pode usar itens no seu turno.");
+                            return;
+                        }
+                        if (myFighter.pa < costPA) {
+                            showInfoModal("PA Insuficiente", `Você precisa de ${costPA} PA para usar este item, mas só tem ${myFighter.pa}.`);
+                            return;
+                        }
+                        showCustomModal(
+                            "Confirmar Uso de Item",
+                            `Usar <strong>${item.name}</strong> custará ${costPA} Pontos de Ação. Deseja continuar?`,
+                            [
+                                { text: 'Sim, Confirmar', closes: true, onClick: () => {
+                                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                                    document.getElementById('ingame-sheet-modal').classList.add('hidden');
+                                }},
+                                { text: 'Cancelar', closes: true, className: 'btn-danger' }
+                            ]
+                        );
+                    } else {
+                        socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                        modal.classList.add('hidden');
+                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
+                    }
+                }
+            });
+        }
+        
+        buttons.push({
+            text: 'Descartar',
+            closes: false, 
+            className: 'btn-danger',
+            onClick: () => {
+                showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
+                    {
+                        text: 'Sim, Descartar',
+                        closes: true,
+                        className: 'btn-danger',
+                        onClick: () => {
+                             socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
+                             const fighter = getFighter(currentGameState, myPlayerKey);
+                             if(fighter && fighter.sheet.inventory[item.name]) {
+                                delete fighter.sheet.inventory[item.name];
+                                renderIngameInventory(fighter);
+                             }
+                        }
+                    },
+                    { text: 'Não', closes: true, className: 'btn-secondary' }
+                ]);
+            }
+        });
+    
+        buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
+        
+        showCustomModal(item.name, content, buttons);
+    }
+
+
     function toggleIngameSheet() {
         const modal = document.getElementById('ingame-sheet-modal');
         if (!modal || !currentGameState) return;
@@ -2972,7 +3116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('gm-edit-inventory-btn').classList.add('hidden');
     
         const isAdventureMode = currentGameState.mode === 'adventure';
-        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === fighter.id;
         const canEditEquipment = !isGmView && (!isAdventureMode || isMyTurn);
         
         const loadBtn = document.getElementById('ingame-sheet-load-btn');
@@ -3690,36 +3834,45 @@ document.addEventListener('DOMContentLoaded', () => {
         let stagedAmmunition = player.ammunition || 0;
     
         const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
-        const allGameItems = {
-            'Armas': Object.values(GAME_RULES.weapons)
-                .flatMap(weaponData => {
-                    const imageConf = Object.values(ALL_WEAPON_IMAGES).find(conf => conf.meleePrefix || conf.rangedPrefix);
-                    const weaponImages = ALL_WEAPON_IMAGES[weaponData.name] || {};
-                    const items = [];
-                    (weaponImages.melee || []).forEach(imgPath => items.push({ ...weaponData, name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: weaponData.name, isRanged: false }));
-                    (weaponImages.ranged || []).forEach(imgPath => items.push({ ...weaponData, name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: weaponData.name, isRanged: true }));
-                    if (items.length === 0 && !nonItems.includes(weaponData.name)) items.push({ ...weaponData, name: weaponData.name, type: 'weapon', baseType: weaponData.name });
-                    return items;
-                }).filter(i => i.name),
-            'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ ...data, name, type: 'armor', baseType: name })),
-            'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ ...data, name, type: 'shield', baseType: name })),
-            'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ ...data, name, type: 'item', baseType: name })),
-        };
         
-        const allItemsMap = new Map(Object.values(allGameItems).flat().map(item => [item.name, item]));
+        // CORREÇÃO: Criar um mapa de todos os itens do jogo UMA VEZ para consulta.
+        const allGameItemsFlat = [
+            ...Object.values(GAME_RULES.weapons).flatMap(weaponData => {
+                const items = [];
+                const weaponImages = ALL_WEAPON_IMAGES[weaponData.name] || {};
+                (weaponImages.melee || []).forEach(imgPath => items.push({ ...weaponData, name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: weaponData.name, isRanged: false }));
+                (weaponImages.ranged || []).forEach(imgPath => items.push({ ...weaponData, name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: weaponData.name, isRanged: true }));
+                if (items.length === 0 && !nonItems.includes(weaponData.name)) {
+                     items.push({ ...weaponData, name: weaponData.name, type: 'weapon', baseType: weaponData.name });
+                }
+                return items;
+            }),
+            ...Object.entries(GAME_RULES.armors).map(([name, data]) => ({ ...data, name, type: 'armor', baseType: name })),
+            ...Object.entries(GAME_RULES.shields).map(([name, data]) => ({ ...data, name, type: 'shield', baseType: name })),
+            ...Object.entries(ALL_ITEMS).map(([name, data]) => ({ ...data, name, type: 'item', baseType: name }))
+        ];
+        const allItemsMap = new Map(allGameItemsFlat.map(item => [item.name, item]));
+
 
         const buildItemCatalogHtml = () => {
+            const allGameItemsCategorized = {
+                'Armas': allGameItemsFlat.filter(i => i.type === 'weapon' && !nonItems.includes(i.name)),
+                'Armaduras': allGameItemsFlat.filter(i => i.type === 'armor' && !nonItems.includes(i.name)),
+                'Escudos': allGameItemsFlat.filter(i => i.type === 'shield' && !nonItems.includes(i.name)),
+                'Itens': allGameItemsFlat.filter(i => i.type === 'item' && !nonItems.includes(i.name)),
+            };
+    
             let catalogHtml = '<div class="shop-tabs">';
-            Object.keys(allGameItems).forEach((cat, i) => {
+            Object.keys(allGameItemsCategorized).forEach((cat, i) => {
                 catalogHtml += `<button class="shop-tab-btn ${i === 0 ? 'active' : ''}" data-category="${cat}">${cat}</button>`;
             });
             catalogHtml += '</div><div class="shop-item-grids-container">';
     
-            Object.entries(allGameItems).forEach(([category, items], i) => {
+            Object.entries(allGameItemsCategorized).forEach(([category, items], i) => {
                 catalogHtml += `<div class="gm-inventory-grid shop-item-grid ${i === 0 ? 'active' : ''}" id="catalog-grid-${category}">`;
                 const uniqueItems = Array.from(new Map(items.map(item => [item.name, item])).values());
                 
-                uniqueItems.filter(item => !nonItems.includes(item.name)).forEach(item => {
+                uniqueItems.forEach(item => {
                     let imgPath = item.img;
                      if (!imgPath) {
                         if (item.type === 'armor') imgPath = `/images/armas/Armadura ${item.name === 'Mediana' ? 'Mediana' : item.name}.png`.replace(/ /g, '%20');
@@ -3823,7 +3976,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (sourceItem) {
                     if (!stagedInventory[itemName]) {
-                        stagedInventory[itemName] = { ...sourceItem, quantity: 1 };
+                        // CORREÇÃO: Usar uma cópia profunda do item original para evitar mutações
+                        stagedInventory[itemName] = { ...JSON.parse(JSON.stringify(sourceItem)), quantity: 1 };
                     } else {
                         stagedInventory[itemName].quantity++;
                     }
