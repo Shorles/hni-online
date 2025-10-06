@@ -610,6 +610,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         scaleGame(); 
 
+        // AJUSTE: Lógica de atualização em tempo real da ficha
+        const ingameSheetModal = document.getElementById('ingame-sheet-modal');
+        if (!ingameSheetModal.classList.contains('hidden')) {
+            const viewingPlayerId = ingameSheetModal.dataset.viewingPlayerId;
+            if (viewingPlayerId) {
+                const updatedFighterData = getFighter(gameState, viewingPlayerId);
+                if (updatedFighterData) {
+                    const isOwner = viewingPlayerId === myPlayerKey;
+                    if (isOwner || isGm) {
+                        populateIngameSheet(updatedFighterData, isGm && !isOwner);
+                    }
+                }
+            }
+        }
+
         if (gameState.mode === 'adventure' && gameState.customPositions) customFighterPositions = gameState.customPositions;
         
         const myPlayerData = gameState.connectedPlayers?.[socket.id];
@@ -2929,7 +2944,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-    function renderIngameInventory(fighter) {
+    function renderIngameInventory(fighter, isGmView = false) {
         if (!fighter || !fighter.sheet) return;
     
         const inventory = fighter.inventory || {};
@@ -2947,7 +2962,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canInteract = !isAdventureMode || isMyTurn;
+        const canInteract = !isGmView && (!isAdventureMode || isMyTurn);
     
         itemsToDisplay.forEach(item => {
             const slot = document.createElement('div');
@@ -2971,7 +2986,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 slot.classList.add('item');
                 slot.addEventListener('click', () => showItemContextMenu(item));
             } else {
-                slot.style.cursor = 'not-allowed';
+                slot.style.cursor = 'default';
             }
     
             inventoryGrid.appendChild(slot);
@@ -3082,28 +3097,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const myFighterData = getFighter(currentGameState, myPlayerKey);
             if (!myFighterData) return;
             originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment));
-            populateIngameSheet(myFighterData);
+            populateIngameSheet(myFighterData, false);
             modal.classList.remove('hidden');
         } else {
             handleEquipmentChangeConfirmation();
             handlePointDistributionConfirmation();
+            modal.dataset.viewingPlayerId = '';
         }
     }
     
-    function populateIngameSheet(fighter) {
+    function populateIngameSheet(fighter, isGmView = false) {
         if (!fighter || !fighter.sheet) return;
-
-        // Limpa estado de visualização do GM
-        ingameSheetModal.classList.remove('gm-view-mode');
+    
+        const sheetModal = document.getElementById('ingame-sheet-modal');
+        sheetModal.classList.toggle('gm-view-mode', isGmView);
+        sheetModal.dataset.viewingPlayerId = fighter.id;
         document.getElementById('gm-edit-inventory-btn').classList.add('hidden');
     
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canEditEquipment = !isAdventureMode || isMyTurn;
+        const canEditEquipment = !isGmView && (!isAdventureMode || isMyTurn);
         
         const loadBtn = document.getElementById('ingame-sheet-load-btn');
-        loadBtn.disabled = isAdventureMode;
-        loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
+        loadBtn.disabled = isGmView || isAdventureMode;
+        loadBtn.title = (isGmView || isAdventureMode) ? 'Não é possível carregar um personagem neste modo.' : 'Carregar Ficha';
 
         document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
         const tokenImg = fighter.sheet.tokenImg;
@@ -3215,7 +3232,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
             document.getElementById('ingame-equipment-info-text').textContent = infoText;
-            renderIngameInventory(fighter);
+            renderIngameInventory(fighter, isGmView);
         };
 
         const populateAllSelects = () => {
@@ -3307,7 +3324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.className = 'spell-card ingame-spell';
                     
                     const isUsableOutside = (spellData.inCombat === false || spellData.usableOutsideCombat === true);
-                    if (isUsableOutside) {
+                    if (isUsableOutside && !isGmView) {
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
                     }
@@ -3796,15 +3813,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerFighter = getFighter(currentGameState, playerId);
         if (!playerFighter) return;
 
-        populateIngameSheet(playerFighter);
+        populateIngameSheet(playerFighter, true);
 
         const sheetModal = document.getElementById('ingame-sheet-modal');
-        sheetModal.classList.add('gm-view-mode');
-
+        
         const editBtn = document.getElementById('gm-edit-inventory-btn');
         editBtn.classList.remove('hidden');
         editBtn.onclick = () => {
             sheetModal.classList.add('hidden');
+            sheetModal.dataset.viewingPlayerId = ''; // Limpa o ID ao fechar
             showGmInventoryEditor(playerFighter);
         };
 
@@ -4508,7 +4525,9 @@ document.addEventListener('DOMContentLoaded', () => {
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
             handleEquipmentChangeConfirmation();
-            handlePointDistributionConfirmation(); // Adicionado para confirmar pontos ao fechar
+            handlePointDistributionConfirmation();
+            ingameSheetModal.classList.add('hidden');
+            ingameSheetModal.dataset.viewingPlayerId = '';
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
