@@ -2206,7 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
             weapon1: { img: null, isRanged: false },
             weapon2: { img: null, isRanged: false },
             tokenImg: null, // Token final
-            manualTokenImg: null, // Token escolhido manually
+            manualTokenImg: null, // Token escolhido manualmente
             raceTokenImg: null, // Token vindo da raça
             maxAttrPoints: 5,
             maxElemPoints: 2,
@@ -2944,440 +2944,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-    function renderIngameInventory(fighter, isGmView = false) {
-        if (!fighter || !fighter.sheet) return;
-    
-        const inventory = fighter.inventory || {};
-        const inventoryGrid = document.getElementById('inventory-grid');
-        inventoryGrid.innerHTML = '';
-        const MAX_SLOTS = 24;
-    
-        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
-        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
-        const armor = document.getElementById('ingame-sheet-armor-type').value;
-        const shield = document.getElementById('ingame-sheet-shield-type').value;
-        const equippedItemNames = [weapon1, weapon2, armor, shield];
-    
-        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
-    
-        const isAdventureMode = currentGameState.mode === 'adventure';
-        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === fighter.id;
-        const canInteract = !isGmView && (!isAdventureMode || isMyTurn);
-    
-        itemsToDisplay.forEach(item => {
-            const slot = document.createElement('div');
-            slot.className = 'inventory-slot';
-            
-            const itemDetails = ALL_ITEMS[item.name];
-            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
-            
-            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
-            if (imgPath) {
-                slot.style.backgroundImage = `url("${imgPath}")`;
-            } else {
-                 slot.style.backgroundImage = 'none';
-            }
-    
-            if (item.quantity > 1) {
-                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
-            }
-            
-            if (canInteract) {
-                slot.classList.add('item');
-                slot.addEventListener('click', () => showItemContextMenu(item));
-            } else {
-                slot.style.cursor = 'default';
-            }
-    
-            inventoryGrid.appendChild(slot);
-        });
-    
-        const filledSlots = itemsToDisplay.length;
-        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
-            const emptySlot = document.createElement('div');
-            emptySlot.className = 'inventory-slot';
-            inventoryGrid.appendChild(emptySlot);
-        }
-    }
-
-    function showItemContextMenu(item) {
-        const itemDetails = ALL_ITEMS[item.name] || {};
-        const effectiveDetails = {
-            ...itemDetails,
-            img: item.img || itemDetails.img,
-            description: itemDetails.description || `Tipo: ${item.type}`,
-            isUsable: itemDetails.isUsable || false
-        };
-    
-        let content = `
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
-                <div>
-                    <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
-                    <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
-                </div>
-            </div>`;
-    
-        const buttons = [];
-    
-        if (effectiveDetails.isUsable) {
-            const costPA = effectiveDetails.costPA || 3;
-            buttons.push({
-                text: `Usar`,
-                closes: false,
-                onClick: () => {
-                    const myFighter = getFighter(currentGameState, myPlayerKey);
-                    if (!myFighter) return;
-    
-                    if (currentGameState.mode === 'adventure') {
-                        if (currentGameState.activeCharacterKey !== myPlayerKey) {
-                            showInfoModal("Ação Bloqueada", "Você só pode usar itens no seu turno.");
-                            return;
-                        }
-                        if (myFighter.pa < costPA) {
-                            showInfoModal("PA Insuficiente", `Você precisa de ${costPA} PA para usar este item, mas só tem ${myFighter.pa}.`);
-                            return;
-                        }
-                        showCustomModal(
-                            "Confirmar Uso de Item",
-                            `Usar <strong>${item.name}</strong> custará ${costPA} Pontos de Ação. Deseja continuar?`,
-                            [
-                                { text: 'Sim, Confirmar', closes: true, onClick: () => {
-                                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                                    document.getElementById('ingame-sheet-modal').classList.add('hidden');
-                                }},
-                                { text: 'Cancelar', closes: true, className: 'btn-danger' }
-                            ]
-                        );
-                    } else {
-                        socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                        modal.classList.add('hidden');
-                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
-                    }
-                }
-            });
-        }
-        
-        buttons.push({
-            text: 'Descartar',
-            closes: false, 
-            className: 'btn-danger',
-            onClick: () => {
-                showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
-                    {
-                        text: 'Sim, Descartar',
-                        closes: true,
-                        className: 'btn-danger',
-                        onClick: () => {
-                             socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
-                             const fighter = getFighter(currentGameState, myPlayerKey);
-                             if(fighter && fighter.sheet.inventory[item.name]) {
-                                delete fighter.sheet.inventory[item.name];
-                                renderIngameInventory(fighter);
-                             }
-                        }
-                    },
-                    { text: 'Não', closes: true, className: 'btn-secondary' }
-                ]);
-            }
-        });
-    
-        buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
-        
-        showCustomModal(item.name, content, buttons);
-    }
-
-
-    function toggleIngameSheet() {
-        const modal = document.getElementById('ingame-sheet-modal');
-        if (!modal || !currentGameState) return;
-    
-        const isHidden = modal.classList.contains('hidden');
-        if (isHidden) {
-            const myFighterData = getFighter(currentGameState, myPlayerKey);
-            if (!myFighterData) return;
-            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment));
-            populateIngameSheet(myFighterData, false);
-            modal.classList.remove('hidden');
-        } else {
-            handleEquipmentChangeConfirmation();
-            handlePointDistributionConfirmation();
-            modal.classList.add('hidden');
-            modal.dataset.viewingPlayerId = '';
-        }
-    }
-    
-    function populateIngameSheet(fighter, isGmView = false) {
-        if (!fighter || !fighter.sheet) return;
-
-        const sheetModal = document.getElementById('ingame-sheet-modal');
-        sheetModal.classList.toggle('gm-view-mode', isGmView);
-        sheetModal.dataset.viewingPlayerId = fighter.id;
-        document.getElementById('gm-edit-inventory-btn').classList.add('hidden');
-    
-        const isAdventureMode = currentGameState.mode === 'adventure';
-        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === fighter.id;
-        const canEditEquipment = !isGmView && (!isAdventureMode || isMyTurn);
-        
-        const loadBtn = document.getElementById('ingame-sheet-load-btn');
-        loadBtn.disabled = isGmView || isAdventureMode;
-        loadBtn.title = (isGmView || isAdventureMode) ? 'Não é possível carregar um personagem neste modo.' : 'Carregar Ficha';
-
-        document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
-        const tokenImg = fighter.sheet.tokenImg;
-        document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
-        
-        // Atualiza HP, Mahou, Nível e XP
-        document.getElementById('ingame-sheet-hp-current').textContent = fighter.hp;
-        document.getElementById('ingame-sheet-hp-max').textContent = fighter.hpMax;
-        document.getElementById('ingame-sheet-mahou-current').textContent = fighter.mahou;
-        document.getElementById('ingame-sheet-mahou-max').textContent = fighter.mahouMax;
-        document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
-        document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
-        document.getElementById('ingame-sheet-xp-needed').textContent = fighter.xpNeeded || 100;
-        document.getElementById('ingame-sheet-money').textContent = fighter.money !== undefined ? fighter.money : 0;
-    
-        const equipment = fighter.sheet.equipment;
-        
-        const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
-        const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
-        const armorSelect = document.getElementById('ingame-sheet-armor-type');
-        const shieldSelect = document.getElementById('ingame-sheet-shield-type');
-    
-        const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
-        allEquipmentSelectors.forEach(sel => sel.onchange = null);
-
-        weapon1Select.disabled = !canEditEquipment;
-        weapon2Select.disabled = !canEditEquipment;
-        armorSelect.disabled = !canEditEquipment;
-        shieldSelect.disabled = !canEditEquipment;
-    
-        const updateAllEquipment = (eventSource) => {
-            const inventory = fighter.inventory || {};
-            const forca = fighter.sheet.finalAttributes.forca || 0;
-            let infoText = '';
-
-            const checkAndHandleRequirement = (itemName, itemType, itemSelect, defaultOption) => {
-                const itemData = (GAME_RULES[itemType] || {})[itemName] || {};
-                if (itemData.req_forca && forca < itemData.req_forca) {
-                    if (itemSelect.value !== defaultOption) {
-                        showInfoModal("Requisito não atendido", `Você precisa de ${itemData.req_forca} de Força para usar ${itemName}.`);
-                        itemSelect.value = defaultOption;
-                        return true;
-                    }
-                }
-                return false;
-            };
-
-            if (checkAndHandleRequirement(weapon1Select.value, 'weapons', weapon1Select, 'Desarmado')) return updateAllEquipment(null);
-            if (checkAndHandleRequirement(weapon2Select.value, 'weapons', weapon2Select, 'Desarmado')) return updateAllEquipment(null);
-            if (checkAndHandleRequirement(shieldSelect.value, 'shields', shieldSelect, 'Nenhum')) return updateAllEquipment(null);
-
-            
-            let selectedW1 = weapon1Select.value;
-            let weapon1Item = inventory[selectedW1] || {};
-            let weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
-            let weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
-            
-            let selectedW2 = weapon2Select.value;
-            let weapon2Item = inventory[selectedW2] || {};
-            let weapon2BaseType = weapon2Item.baseType || (selectedW2 === 'Desarmado' ? 'Desarmado' : null);
-            let weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
-
-            const canWield2HInOneHand = forca >= 4;
-            let changed = false;
-
-            if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-                if (weapon2Select.value !== 'Desarmado') { weapon2Select.value = 'Desarmado'; changed = true; }
-                if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
-            }
-            if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
-                if (weapon1Select.value !== 'Desarmado') { weapon1Select.value = 'Desarmado'; changed = true; }
-                if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
-            }
-            
-            if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
-                shieldSelect.value = 'Nenhum';
-                changed = true;
-            }
-
-            if (shieldSelect.value !== 'Nenhum' && weapon2Select.value !== 'Desarmado') {
-                 weapon2Select.value = 'Desarmado';
-                 changed = true;
-            }
-
-            if (weapon1Select.value !== 'Desarmado' && weapon1Select.value === weapon2Select.value) {
-                if (eventSource === weapon1Select) {
-                    weapon2Select.value = 'Desarmado';
-                } else {
-                    weapon1Select.value = 'Desarmado';
-                }
-                changed = true;
-            }
-
-            if (changed) {
-                updateAllEquipment(null); 
-                return;
-            }
-
-            const finalW1 = weapon1Select.value;
-            const finalW2 = weapon2Select.value;
-            const finalShield = shieldSelect.value;
-            const finalW1Item = inventory[finalW1] || {};
-            const finalW1BaseType = finalW1Item.baseType || (finalW1 === 'Desarmado' ? 'Desarmado' : null);
-            const finalW1Data = GAME_RULES.weapons[finalW1BaseType] || {};
-
-            weapon2Select.disabled = !canEditEquipment || (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
-            shieldSelect.disabled = !canEditEquipment || finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
-
-            document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
-            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
-            document.getElementById('ingame-equipment-info-text').textContent = infoText;
-            renderIngameInventory(fighter, isGmView);
-        };
-
-        const populateAllSelects = () => {
-            const inventory = fighter.inventory || {};
-            const populate = (selectEl, itemType, nullOption) => {
-                selectEl.innerHTML = '';
-                const items = Object.values(inventory).filter(item => item.type === itemType);
-    
-                const noneOpt = document.createElement('option');
-                noneOpt.value = nullOption;
-                noneOpt.textContent = nullOption;
-                selectEl.appendChild(noneOpt);
-    
-                items.forEach(item => {
-                    const opt = document.createElement('option');
-                    opt.value = item.name;
-                    opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
-                    selectEl.appendChild(opt);
-                });
-            };
-            populate(weapon1Select, 'weapon', 'Desarmado');
-            populate(weapon2Select, 'weapon', 'Desarmado');
-            populate(armorSelect, 'armor', 'Nenhuma');
-            populate(shieldSelect, 'shield', 'Nenhum');
-        };
-        
-        populateAllSelects();
-        
-        weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
-        weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
-        armorSelect.value = equipment.armor || 'Nenhuma';
-        shieldSelect.value = equipment.shield || 'Nenhum';
-        
-        allEquipmentSelectors.forEach(sel => {
-            sel.onchange = (event) => updateAllEquipment(event.target);
-        });
-
-        updateAllEquipment(null); // Initial sync
-    
-        const attributesGrid = document.getElementById('ingame-sheet-attributes');
-        attributesGrid.innerHTML = '';
-        attributesGrid.classList.remove('is-distributing');
-        const finalAttributes = fighter.sheet.finalAttributes || {};
-        const baseAttributes = fighter.sheet.baseAttributes || {};
-        for (const attr in finalAttributes) {
-            const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1).replace('cao', 'ção');
-            attributesGrid.innerHTML += `
-                <div class="attr-item point-distribution-grid" data-attr-container="${attr}">
-                    <label>${capitalized}</label>
-                    <span data-attr-span="${attr}">${finalAttributes[attr]}</span>
-                    <div class="number-input-wrapper hidden" data-attr-wrapper="${attr}">
-                        <button class="arrow-btn down-arrow" disabled>-</button>
-                        <input type="number" data-attr="${attr}" value="${baseAttributes[attr]}" readonly>
-                        <button class="arrow-btn up-arrow">+</button>
-                    </div>
-                </div>`;
-        }
-    
-        const elementsGrid = document.getElementById('ingame-sheet-elements');
-        elementsGrid.innerHTML = '';
-        elementsGrid.classList.remove('is-distributing');
-        const allElements = ['fogo', 'agua', 'terra', 'vento', 'luz', 'escuridao'];
-        const elements = fighter.sheet.elements || {};
-        allElements.forEach(elem => {
-            const capitalized = elem.charAt(0).toUpperCase() + elem.slice(1).replace('ao', 'ão');
-            const elemValue = elements[elem] || 0;
-            elementsGrid.innerHTML += `
-                <div class="attr-item point-distribution-grid" data-elem-container="${elem}">
-                    <label>${capitalized}</label>
-                    <span data-elem-span="${elem}">${elemValue}</span>
-                     <div class="number-input-wrapper hidden" data-elem-wrapper="${elem}">
-                        <button class="arrow-btn down-arrow" disabled>-</button>
-                        <input type="number" data-elem="${elem}" value="${elemValue}" readonly>
-                        <button class="arrow-btn up-arrow">+</button>
-                    </div>
-                </div>`;
-        });
-        
-        const spellsGrid = document.getElementById('ingame-sheet-spells-grid');
-        spellsGrid.innerHTML = '';
-        const spells = fighter.sheet.spells || [];
-        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade1 || []), ...(ALL_SPELLS.advanced_grade2 || []), ...(ALL_SPELLS.advanced_grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
-        
-        if (spells.length > 0) {
-            spells.forEach(spellName => {
-                const spellData = allSpells.find(s => s.name === spellName);
-                if(spellData) {
-                    const card = document.createElement('div');
-                    card.className = 'spell-card ingame-spell';
-                    
-                    const isUsableOutside = (spellData.inCombat === false || spellData.usableOutsideCombat === true);
-                    if (isUsableOutside && !isGmView) {
-                        card.classList.add('usable-outside-combat');
-                        card.addEventListener('click', () => handleUtilitySpellClick(spellData));
-                    }
-                    card.dataset.spellName = spellData.name;
-                    const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
-
-                    let elementHtml;
-                    if (spellData.combinedElementName) {
-                        const colors = getElementColors(spellData.combinedElementName, spellData.requiredElements);
-                        elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spellData.combinedElementName}</span>`;
-                    } else {
-                        const elementName = spellData.isAdvanced ? GAME_RULES.advancedElements[spellData.element] : spellData.element;
-                        const color = getElementColors(elementName);
-                        const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
-                        elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
-                    }
-
-                    card.innerHTML = `
-                        <div class="spell-card-header">
-                            <h4>${spellData.name} <small>${spellType}</small></h4>
-                            <div class="spell-details">
-                                ${elementHtml}
-                                <span class="spell-cost">${spellData.costMahou} Mahou</span>
-                            </div>
-                        </div>
-                        <p>${spellData.description}</p>`;
-                    spellsGrid.appendChild(card);
-                }
-            });
-        } else {
-            spellsGrid.innerHTML = `<p style="color: #888; text-align: center; grid-column: 1 / -1;">Nenhuma magia conhecida.</p>`;
-        }
-        
-        const ammoContainer = document.getElementById('ingame-sheet-ammunition');
-        const ammoList = document.getElementById('ingame-sheet-ammo-list');
-        ammoList.innerHTML = '';
-        const ammunition = fighter.ammunition;
-        let hasRangedWeapon = false;
-        
-        ['weapon1', 'weapon2'].forEach(slot => {
-            if (fighter.sheet.equipment[slot] && fighter.sheet.equipment[slot].isRanged) {
-                hasRangedWeapon = true;
-            }
-        });
-
-        ammoList.innerHTML = `<div class="ammo-item"><span>Munição:</span><span>${ammunition || 0}</span></div>`;
-        ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
-        
-        // Lógica de Level Up
-        renderLevelUpDistribution(fighter);
-    }
-    
     function handleUtilitySpellClick(spell) {
         // Magias que não precisam de um alvo específico (como Iluminar)
         if (spell.targetType === 'utility' || spell.targetType === 'self') {
@@ -3835,15 +3401,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
         
-        // CORREÇÃO: Criar um mapa de todos os itens do jogo UMA VEZ para consulta.
         const allGameItemsFlat = [
-            ...Object.values(GAME_RULES.weapons).flatMap(weaponData => {
+            ...Object.entries(GAME_RULES.weapons).flatMap(([weaponName, weaponData]) => {
                 const items = [];
-                const weaponImages = ALL_WEAPON_IMAGES[weaponData.name] || {};
-                (weaponImages.melee || []).forEach(imgPath => items.push({ ...weaponData, name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: weaponData.name, isRanged: false }));
-                (weaponImages.ranged || []).forEach(imgPath => items.push({ ...weaponData, name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: weaponData.name, isRanged: true }));
-                if (items.length === 0 && !nonItems.includes(weaponData.name)) {
-                     items.push({ ...weaponData, name: weaponData.name, type: 'weapon', baseType: weaponData.name });
+                const weaponImages = ALL_WEAPON_IMAGES[weaponName] || {};
+                (weaponImages.melee || []).forEach(imgPath => {
+                    const name = imgPath.split('/').pop().split('.')[0];
+                    items.push({ ...weaponData, name, img: imgPath, type: 'weapon', baseType: weaponName, isRanged: false });
+                });
+                (weaponImages.ranged || []).forEach(imgPath => {
+                    const name = imgPath.split('/').pop().split('.')[0];
+                    items.push({ ...weaponData, name, img: imgPath, type: 'weapon', baseType: weaponName, isRanged: true });
+                });
+                if (items.length === 0 && !nonItems.includes(weaponName)) {
+                     items.push({ ...weaponData, name: weaponName, type: 'weapon', baseType: weaponName });
                 }
                 return items;
             }),
@@ -3853,29 +3424,30 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         const allItemsMap = new Map(allGameItemsFlat.map(item => [item.name, item]));
 
-
         const buildItemCatalogHtml = () => {
             const allGameItemsCategorized = {
-                'Armas': allGameItemsFlat.filter(i => i.type === 'weapon' && !nonItems.includes(i.name)),
-                'Armaduras': allGameItemsFlat.filter(i => i.type === 'armor' && !nonItems.includes(i.name)),
-                'Escudos': allGameItemsFlat.filter(i => i.type === 'shield' && !nonItems.includes(i.name)),
-                'Itens': allGameItemsFlat.filter(i => i.type === 'item' && !nonItems.includes(i.name)),
+                'Armas': allGameItemsFlat.filter(i => i.type === 'weapon' && i.name && !nonItems.includes(i.name)),
+                'Armaduras': allGameItemsFlat.filter(i => i.type === 'armor' && i.name && !nonItems.includes(i.name)),
+                'Escudos': allGameItemsFlat.filter(i => i.type === 'shield' && i.name && !nonItems.includes(i.name)),
+                'Itens': allGameItemsFlat.filter(i => i.type === 'item' && i.name && !nonItems.includes(i.name)),
             };
     
             let catalogHtml = '<div class="shop-tabs">';
+            const sanitizeForId = (str) => str.replace(/\s+/g, '-');
+
             Object.keys(allGameItemsCategorized).forEach((cat, i) => {
-                catalogHtml += `<button class="shop-tab-btn ${i === 0 ? 'active' : ''}" data-category="${cat}">${cat}</button>`;
+                catalogHtml += `<button class="shop-tab-btn ${i === 0 ? 'active' : ''}" data-category="${sanitizeForId(cat)}">${cat}</button>`;
             });
             catalogHtml += '</div><div class="shop-item-grids-container">';
     
             Object.entries(allGameItemsCategorized).forEach(([category, items], i) => {
-                catalogHtml += `<div class="gm-inventory-grid shop-item-grid ${i === 0 ? 'active' : ''}" id="catalog-grid-${category}">`;
+                catalogHtml += `<div class="gm-inventory-grid shop-item-grid ${i === 0 ? 'active' : ''}" id="catalog-grid-${sanitizeForId(category)}">`;
                 const uniqueItems = Array.from(new Map(items.map(item => [item.name, item])).values());
                 
                 uniqueItems.forEach(item => {
                     let imgPath = item.img;
                      if (!imgPath) {
-                        if (item.type === 'armor') imgPath = `/images/armas/Armadura ${item.name === 'Mediana' ? 'Mediana' : item.name}.png`.replace(/ /g, '%20');
+                        if (item.type === 'armor') imgPath = `/images/armas/Armadura ${item.name}.png`.replace(/ /g, '%20');
                         else if (item.type === 'shield') imgPath = `/images/armas/Escudo ${item.name === 'Médio' ? 'Medio' : item.name}.png`.replace(/ /g, '%20');
                     }
                     catalogHtml += `
@@ -3961,6 +3533,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Event Listeners for catalog
         const catalogContainer = document.getElementById('gm-item-catalog-container');
+        const sanitizeForId = (str) => str.replace(/\s+/g, '-');
         catalogContainer.querySelectorAll('.shop-tab-btn').forEach(btn => {
             btn.onclick = () => {
                 catalogContainer.querySelectorAll('.shop-tab-btn, .shop-item-grid').forEach(el => el.classList.remove('active'));
@@ -3976,7 +3549,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (sourceItem) {
                     if (!stagedInventory[itemName]) {
-                        // CORREÇÃO: Usar uma cópia profunda do item original para evitar mutações
                         stagedInventory[itemName] = { ...JSON.parse(JSON.stringify(sourceItem)), quantity: 1 };
                     } else {
                         stagedInventory[itemName].quantity++;
