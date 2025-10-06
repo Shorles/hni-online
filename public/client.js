@@ -3790,6 +3790,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+
     // --- NOVA FUNÇÃO: GM VISUALIZA E EDITA A FICHA DO JOGADOR ---
     function showGmPlayerSheetView(playerId) {
         const playerFighter = getFighter(currentGameState, playerId);
@@ -3816,13 +3817,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const buildItemCatalogHtml = () => {
             const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
-            const allGameItems = {
-                'Armas': Object.values(ALL_WEAPON_IMAGES)
-                    .flatMap(cat => [...cat.melee, ...cat.ranged])
+             const allGameItems = {
+                'Armas': Object.entries(ALL_WEAPON_IMAGES)
+                    .filter(([key]) => key !== 'customProjectiles')
+                    .flatMap(([key, cat]) => [...(cat.melee || []), ...(cat.ranged || [])])
                     .map(imgPath => {
                         const name = imgPath.split('/').pop().split('.')[0];
                         return { name, img: imgPath, type: 'weapon' };
-                     })
+                    })
                     .concat(Object.entries(GAME_RULES.weapons).map(([name, data]) => ({ name, type: 'weapon', ...data }))),
                 'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })),
                 'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })),

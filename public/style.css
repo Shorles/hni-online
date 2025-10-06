@@ -1592,7 +1592,7 @@ margin-top: -10px;
     display: none;
 }
 .gm-view-mode .ingame-sheet-scrollable-content {
-    pointer-events: none;
+    /* pointer-events: none; REMOVIDO PARA PERMITIR SCROLL */
 }
 .gm-view-mode .sheet-header {
     position: relative;
