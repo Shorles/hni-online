@@ -2951,7 +2951,7 @@ document.addEventListener('DOMContentLoaded', () => {
         stagedLevelUpChanges = {};
         ingameSheetModal.classList.add('hidden');
     }
-    
+
     function handleUtilitySpellClick(spell) {
         // Magias que não precisam de um alvo específico (como Iluminar)
         if (spell.targetType === 'utility' || spell.targetType === 'self') {
@@ -4120,7 +4120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
             handleEquipmentChangeConfirmation();
-            handlePointDistributionConfirmation(); // Adicionado para confirmar pontos ao fechar
+            handlePointDistributionConfirmation();
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
