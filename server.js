@@ -2739,7 +2739,7 @@ io.on('connection', (socket) => {
                                         sheet.hp = Math.max(0, Math.min(hpMax, (sheet.hp || hpMax) + finalHp));
                                         sheet.mahou = Math.max(0, Math.min(mahouMax, (sheet.mahou || mahouMax) + finalMahou));
 
-                                        if(room.activeMode === 'adventure' && room.gameModes.adventure.fighters.players[playerId]){
+                                        if(room.activeMode === 'adventure' && room.gameModes.adventure?.fighters.players[playerId]){
                                             const adventureFighter = room.gameModes.adventure.fighters.players[playerId];
                                             adventureFighter.xp = sheet.xp;
                                             adventureFighter.money = sheet.money;

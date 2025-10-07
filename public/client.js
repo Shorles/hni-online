@@ -192,6 +192,38 @@ document.addEventListener('DOMContentLoaded', () => {
     
         return null;
     }
+
+    // --- NOVA FUNÇÃO: TOGGLE IN-GAME SHEET ---
+    function toggleIngameSheet(isGmViewing = false, viewingPlayerId = null) {
+        const modal = document.getElementById('ingame-sheet-modal');
+        const isCurrentlyVisible = !modal.classList.contains('hidden');
+    
+        // Se a ficha já está visível, fecha ela.
+        if (isCurrentlyVisible) {
+            const currentlyViewingId = modal.dataset.viewingPlayerId;
+            // Apenas o dono da ficha pode confirmar mudanças
+            if (currentlyViewingId === myPlayerKey) {
+                handleEquipmentChangeConfirmation();
+                handlePointDistributionConfirmation();
+            }
+            modal.classList.add('hidden');
+            modal.dataset.viewingPlayerId = '';
+            // Limpa classes de modo de visualização
+            modal.querySelector('.sheet-container').classList.remove('gm-view-mode');
+        } else {
+            // Se estiver abrindo, define qual jogador mostrar.
+            const playerIdToShow = isGmViewing ? viewingPlayerId : myPlayerKey;
+            if (!playerIdToShow) return;
+    
+            const fighterData = getFighter(currentGameState, playerIdToShow);
+            if (fighterData) {
+                modal.dataset.viewingPlayerId = playerIdToShow;
+                // Popula a ficha com os dados e o modo de visualização correto
+                populateIngameSheet(fighterData, isGmViewing && playerIdToShow !== myPlayerKey);
+                modal.classList.remove('hidden');
+            }
+        }
+    }
     
     // --- LÓGICA DA LOJA ---
     function toggleShop() {
@@ -2942,6 +2974,85 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // --- NOVA FUNÇÃO: MODAL DE RECOMPENSAS DO GM ---
+    function showGmAwardModal() {
+        if (!currentGameState || currentGameState.mode !== 'theater') return;
+
+        const players = Object.values(currentGameState.connectedPlayers).filter(p => p.role === 'player' && p.characterFinalized);
+
+        let content = `<div class="gm-award-modal-content">
+            <div class="gm-award-player-list">`;
+
+        players.forEach(player => {
+            const sheet = player.characterSheet;
+            content += `
+                <div class="gm-award-player-item" data-player-id="${player.socketId}">
+                    <div class="token gm-player-token" style="background-image: url('${sheet.tokenImg}')" title="Ver ficha de ${sheet.name}"></div>
+                    <span class="name">${sheet.name}</span>
+                    <input type="number" class="award-input" data-type="xp" placeholder="XP">
+                    <input type="number" class="award-input" data-type="money" placeholder="Moedas">
+                    <input type="number" class="award-input" data-type="hp" placeholder="HP">
+                    <input type="number" class="award-input" data-type="mahou" placeholder="Mahou">
+                </div>
+            `;
+        });
+
+        content += `</div>
+            <div class="gm-award-all-container">
+                <div>
+                    <label>Para todos:</label>
+                    <input type="number" id="award-all-xp" class="award-input-all" data-type="xp" placeholder="XP para todos">
+                    <input type="number" id="award-all-money" class="award-input-all" data-type="money" placeholder="Moedas para todos">
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <input type="number" id="award-all-hp" class="award-input-all" data-type="hp" placeholder="HP para todos">
+                    <input type="number" id="award-all-mahou" class="award-input-all" data-type="mahou" placeholder="Mahou para todos">
+                </div>
+            </div>
+        </div>`;
+
+        showCustomModal("Conceder Recompensas", content, [
+            { text: "Confirmar", closes: true, onClick: () => {
+                const awards = [];
+                document.querySelectorAll('.gm-award-player-item').forEach(item => {
+                    const playerId = item.dataset.playerId;
+                    const award = { playerId };
+                    let hasValue = false;
+                    item.querySelectorAll('.award-input').forEach(input => {
+                        if (input.value) {
+                            award[input.dataset.type] = input.value;
+                            hasValue = true;
+                        }
+                    });
+                    if (hasValue) awards.push(award);
+                });
+                if (awards.length > 0) {
+                    socket.emit('playerAction', { type: 'gmAwardsRewards', awards });
+                }
+            }},
+            { text: "Cancelar", closes: true, className: 'btn-danger' }
+        ]);
+
+        document.querySelectorAll('.award-input-all').forEach(input => {
+            input.addEventListener('input', () => {
+                const type = input.dataset.type;
+                document.querySelectorAll(`.award-input[data-type="${type}"]`).forEach(playerInput => {
+                    playerInput.value = input.value;
+                });
+            });
+        });
+
+        // Adiciona o listener para abrir a ficha do jogador
+        document.querySelectorAll('.gm-player-token').forEach(tokenEl => {
+            tokenEl.addEventListener('click', (e) => {
+                const playerId = e.target.closest('.gm-award-player-item').dataset.playerId;
+                modal.classList.add('hidden'); // Fecha o modal de recompensas
+                toggleIngameSheet(true, playerId); // Abre a ficha do jogador
+            });
+        });
+    }
+
     function initialize() {
         showScreen(document.getElementById('loading-screen'));
 
@@ -2997,14 +3108,21 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeGlobalKeyListeners();
         window.addEventListener('resize', scaleGame);
 
-        playerInfoWidget.addEventListener('click', toggleIngameSheet);
+        playerInfoWidget.addEventListener('click', () => toggleIngameSheet());
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
-            handleEquipmentChangeConfirmation();
-            handlePointDistributionConfirmation();
+            toggleIngameSheet();
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
         document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
+        
+        // Listener para o botão de editar inventário (será mostrado/ocultado dinamicamente)
+        document.getElementById('gm-edit-inventory-btn').addEventListener('click', () => {
+            const viewingPlayerId = ingameSheetModal.dataset.viewingPlayerId;
+            if (viewingPlayerId) {
+                showGmInventoryEditorModal(viewingPlayerId);
+            }
+        });
     }
     
     initialize();
