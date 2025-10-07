@@ -1,5 +1,209 @@
 // client.js
 
+const socket = io();
+
+// --- LÓGICA DE COMUNICAÇÃO COM O SERVIDOR (BLOCO FALTANTE) ---
+
+socket.on('initialData', (data) => {
+    console.log("Recebendo dados iniciais do servidor...");
+    GAME_RULES = data.rules || {};
+    ALL_SPELLS = data.spells || {};
+    ALL_WEAPON_IMAGES = data.weaponImages || {};
+    ALL_ITEMS = data.items || {};
+    ALL_PLAYER_IMAGES = data.playerImages || [];
+    ALL_CHARACTERS = data.characters || { players: [], npcs: [], dynamic: [] };
+    ALL_SCENARIOS = data.scenarios || {};
+    ALL_SUMMONS = data.summons || {};
+    LEVEL_UP_TABLE = data.levelUpTable || {};
+
+    preloadProjectileImages();
+
+    clientFlowState = 'initial_data_received';
+    document.querySelector('#loading-screen p').textContent = 'Analisando URL da sala...';
+
+    const urlParams = new URLSearchParams(window.location.search);
+    myRoomId = urlParams.get('room');
+    if (myRoomId) {
+        socket.emit('playerJoinsLobby', { roomId: myRoomId });
+    } else {
+        socket.emit('gmCreatesLobby');
+    }
+});
+
+socket.on('gameUpdate', (gameState) => {
+    if (gameState) {
+        renderGame(gameState);
+    }
+});
+
+socket.on('roomCreated', (roomId) => {
+    myRoomId = roomId;
+    const inviteUrl = `${window.location.origin}?room=${roomId}`;
+    const gmLinkInvite = document.getElementById('gm-link-invite');
+    gmLinkInvite.textContent = inviteUrl;
+    gmLinkInvite.onclick = () => copyToClipboard(inviteUrl, gmLinkInvite);
+    history.pushState({}, '', `?room=${roomId}`);
+});
+
+socket.on('assignRole', (data) => {
+    myRole = data.role;
+    isGm = data.isGm || data.role === 'gm';
+    myPlayerKey = socket.id;
+    myRoomId = data.roomId;
+});
+
+socket.on('promptForRole', ({ isFull }) => {
+    showScreen(document.getElementById('role-selection-screen'));
+    const playerBtn = document.getElementById('join-as-player-btn');
+    const msg = document.getElementById('room-full-message');
+    playerBtn.disabled = isFull;
+    msg.classList.toggle('hidden', !isFull);
+    if(isFull) msg.textContent = "A sala de jogadores está cheia. Você pode entrar como espectador.";
+});
+
+socket.on('error', (error) => {
+    alert(error.message);
+});
+
+socket.on('attackResolved', ({ attackerKey, targetKey, hit, debugInfo, animationType, projectileInfo, isDual, isSecondHit }) => {
+    const attackerEl = document.getElementById(attackerKey);
+    const targetEl = document.getElementById(targetKey);
+    if (!attackerEl || !targetEl) return;
+
+    if (animationType === 'melee') {
+        const isPlayer = attackerEl.classList.contains('player-char-container');
+        const animationClass = isPlayer ? 'attack-player' : 'attack-npc';
+        attackerEl.classList.add(animationClass);
+        setTimeout(() => attackerEl.classList.remove(animationClass), 500);
+    } else if (animationType === 'projectile') {
+        createProjectileEffect(attackerKey, targetKey, projectileInfo);
+    }
+
+    const delay = isDual ? (isSecondHit ? 0 : 600) : 500;
+
+    setTimeout(() => {
+        if (hit) {
+            const targetImg = targetEl.querySelector('.fighter-img-ingame');
+            if (targetImg) {
+                targetImg.classList.add('is-hit-flash');
+                setTimeout(() => targetImg.classList.remove('is-hit-flash'), 400);
+            }
+        }
+    }, delay);
+
+    if (isGm && isGmDebugModeActive && debugInfo) {
+        showDebugModal(debugInfo);
+    }
+});
+
+socket.on('spellResolved', ({ debugReports }) => {
+    if (isGm && isGmDebugModeActive && debugReports) {
+        showDebugModal(debugReports);
+    }
+});
+
+socket.on('fleeResolved', ({ actorKey }) => {
+    const actorEl = document.getElementById(actorKey);
+    if (!actorEl) return;
+    const isPlayer = actorEl.classList.contains('player-char-container');
+    actorEl.classList.add(isPlayer ? 'is-fleeing-player' : 'is-fleeing-npc');
+});
+
+socket.on('visualEffectTriggered', ({ casterId, targetId, animation }) => {
+    createVisualEffect(casterId, targetId, animation);
+});
+
+socket.on('floatingTextTriggered', ({ targetId, text, type }) => {
+    createFloatingText(targetId, text, type);
+});
+
+socket.on('promptForSummon', ({ tier, choices, spell }) => {
+    let content = '<h4>Escolha uma criatura para invocar:</h4><div class="character-list-container">';
+    choices.forEach(choice => {
+        content += `
+            <div class="char-card" data-choice="${choice.name}">
+                <img src="${choice.img}" alt="${choice.name}">
+                <div class="char-name">${choice.name}</div>
+            </div>`;
+    });
+    content += '</div>';
+
+    showInfoModal(`Invocação (Grau ${tier})`, content, false);
+    document.querySelectorAll('#modal .char-card').forEach(card => {
+        card.onclick = () => {
+            const choice = card.dataset.choice;
+            socket.emit('playerAction', {
+                type: 'playerSummonsCreature',
+                summonerId: myPlayerKey,
+                spell: spell,
+                choice: choice
+            });
+            modal.classList.add('hidden');
+        };
+    });
+});
+
+socket.on('promptForAdventureType', () => {
+    showCustomModal("Modo Aventura", "Deseja continuar a aventura anterior ou iniciar uma nova batalha?", [
+        { text: "Continuar Aventura", closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'continue' }) },
+        { text: "Nova Batalha", closes: true, onClick: () => socket.emit('playerAction', { type: 'gmChoosesAdventureType', choice: 'new' }) }
+    ]);
+});
+
+socket.on('showSkillCheckResult', (data) => {
+    const { playerName, checkType, roll, bonus, total } = data;
+    const isCritSuccess = roll === 20;
+    const isCritFail = roll === 1;
+    let critText = '';
+    let resultClass = 'result-normal';
+    if (isCritSuccess) {
+        critText = '<p class="skill-check-crit-text result-crit-success">ACERTO CRÍTICO!</p>';
+        resultClass = 'result-crit-success';
+    }
+    if (isCritFail) {
+        critText = '<p class="skill-check-crit-text result-crit-fail">ERRO CRÍTICO!</p>';
+        resultClass = 'result-crit-fail';
+    }
+
+    const contentHtml = `
+        <p class="skill-check-result-title">${playerName} fez um Teste de ${checkType}</p>
+        <p class="skill-check-result-details">Rolagem (D20): ${roll} | Bônus: ${bonus}</p>
+        <p class="skill-check-result-final ${resultClass}">${total}</p>
+        ${critText}
+    `;
+    const buttons = isGm ? [{ text: 'Fechar', closes: true, onClick: () => socket.emit('playerAction', {type: 'gmClosesSkillCheck'}) }] : [];
+    
+    showCustomModal("Resultado do Teste", contentHtml, buttons, 'skill-check-result-modal');
+});
+
+socket.on('closeSkillCheckResult', () => {
+    if (!modal.classList.contains('hidden')) {
+        modal.classList.add('hidden');
+    }
+});
+
+socket.on('globalAnnounceEffect', (data) => {
+    const { casterName, targetName, spellName, effectText, costText, element } = data;
+    
+    const announcement = document.createElement('div');
+    announcement.className = 'global-effect-announcement';
+    announcement.style.setProperty('--element-color', getElementHexColor(element));
+
+    let mainText = `${casterName} usou ${spellName}`;
+    if (targetName) {
+        mainText += ` em ${targetName}`;
+    }
+    
+    announcement.innerHTML = `
+        <div class="announcement-main">${mainText}!</div>
+        <div class="announcement-sub">${effectText || ''} ${costText || ''}</div>
+    `;
+
+    gameWrapper.appendChild(announcement);
+    setTimeout(() => announcement.remove(), 4000);
+});
+
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- VARIÁVEIS DE REGRAS DO JOGO (CARREGADAS DE JSON) ---
     let GAME_RULES = {};
@@ -14,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let myRole = null, myPlayerKey = null, isGm = false;
     let currentGameState = null, oldGameState = null;
     let defeatAnimationPlayed = new Set();
-    const socket = io();
     let myRoomId = null; 
     let coordsModeActive = false;
     let clientFlowState = 'initializing';
@@ -203,8 +406,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentlyViewingId = modal.dataset.viewingPlayerId;
             // Apenas o dono da ficha pode confirmar mudanças
             if (currentlyViewingId === myPlayerKey) {
-                handleEquipmentChangeConfirmation();
-                handlePointDistributionConfirmation();
+                // Estas funções precisam existir
+                if(typeof handleEquipmentChangeConfirmation === 'function') handleEquipmentChangeConfirmation();
+                if(typeof handlePointDistributionConfirmation === 'function') handlePointDistributionConfirmation();
             }
             modal.classList.add('hidden');
             modal.dataset.viewingPlayerId = '';
