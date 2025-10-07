@@ -2951,7 +2951,7 @@ document.addEventListener('DOMContentLoaded', () => {
         stagedLevelUpChanges = {};
         ingameSheetModal.classList.add('hidden');
     }
-
+    
     function handleUtilitySpellClick(spell) {
         // Magias que não precisam de um alvo específico (como Iluminar)
         if (spell.targetType === 'utility' || spell.targetType === 'self') {
@@ -3049,7 +3049,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handlePointDistributionConfirmation() {
-        if (Object.keys(stagedLevelUpChanges).length === 0) {
+        if (!stagedLevelUpChanges || Object.keys(stagedLevelUpChanges).length === 0) {
             ingameSheetModal.classList.add('hidden');
             return;
         }
@@ -3415,7 +3415,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (items.length === 0 && !nonItems.includes(weaponName)) {
                      items.push({ ...weaponData, name: weaponName, type: 'weapon', baseType: weaponName });
                 }
-                return items;
+                return items.filter(item => item.name); // Filtra itens sem nome (undefined)
             }),
             ...Object.entries(GAME_RULES.armors).map(([name, data]) => ({ ...data, name, type: 'armor', baseType: name })),
             ...Object.entries(GAME_RULES.shields).map(([name, data]) => ({ ...data, name, type: 'shield', baseType: name })),
@@ -4120,9 +4120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
             handleEquipmentChangeConfirmation();
-            handlePointDistributionConfirmation();
-            ingameSheetModal.classList.add('hidden');
-            ingameSheetModal.dataset.viewingPlayerId = '';
+            handlePointDistributionConfirmation(); // Adicionado para confirmar pontos ao fechar
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
