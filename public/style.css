@@ -809,6 +809,9 @@ color: #aaa;
 cursor: not-allowed;
 opacity: 0.7;
 }
+.ingame-sheet-equipment select option:disabled {
+    color: #888;
+}
 .elements-grid.view-only .attr-item {
 background: none;
 padding: 0;
@@ -1588,11 +1591,20 @@ margin-top: -10px;
     border-color: #ffeb3b;
     transform: scale(1.1);
 }
+/* AJUSTE 1: Bloqueia interações na ficha para o GM */
+.gm-view-mode .ingame-sheet-scrollable-content {
+    pointer-events: none;
+    user-select: none;
+}
+.gm-view-mode .ingame-sheet-scrollable-content * {
+    pointer-events: auto; /* Permite scroll */
+}
+.gm-view-mode .inventory-slot.item,
+.gm-view-mode .spell-card.usable-outside-combat {
+    cursor: not-allowed !important;
+}
 .gm-view-mode .sheet-footer, .gm-view-mode #ingame-sheet-footer {
     display: none;
-}
-.gm-view-mode .ingame-sheet-scrollable-content {
-    /* pointer-events: none; REMOVIDO PARA PERMITIR SCROLL */
 }
 .gm-view-mode .sheet-header {
     position: relative;
@@ -1615,6 +1627,8 @@ margin-top: -10px;
 .gm-edit-inventory-btn:hover {
      background-color:#007bff;
 }
+
+/* AJUSTE 2: Estilos para o modal de edição de inventário do GM */
 .gm-inventory-editor-modal #modal-content {
     max-width: 90%;
     width: 1200px;
@@ -1634,6 +1648,7 @@ margin-top: -10px;
     padding: 15px;
     display: flex;
     flex-direction: column;
+    min-width: 0; /* Correção de Flexbox */
 }
 .inventory-panel h4, .item-catalog-panel h4 {
     margin-top: 0;
@@ -1732,4 +1747,13 @@ margin-top: -10px;
 }
 .gm-inventory-ammo-control input {
     width: 60px;
+}
+#gm-item-catalog-container {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
+}
+#gm-item-catalog-container .shop-item-grids-container {
+    padding-right: 0;
 }

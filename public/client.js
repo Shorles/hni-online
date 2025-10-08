@@ -2929,7 +2929,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-    function renderIngameInventory(fighter) {
+    function renderIngameInventory(fighter, isGmView = false) { // AJUSTE 1: Adicionado parâmetro isGmView
         if (!fighter || !fighter.sheet) return;
     
         const inventory = fighter.inventory || {};
@@ -2947,7 +2947,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canInteract = !isAdventureMode || isMyTurn;
+        const canInteract = !isGmView && (!isAdventureMode || isMyTurn); // AJUSTE 1: GM não pode interagir
     
         itemsToDisplay.forEach(item => {
             const slot = document.createElement('div');
@@ -3090,16 +3090,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function populateIngameSheet(fighter) {
+    function populateIngameSheet(fighter, isGmView = false) { // AJUSTE 1: Adicionado parâmetro isGmView
         if (!fighter || !fighter.sheet) return;
 
         // Limpa estado de visualização do GM
-        ingameSheetModal.classList.remove('gm-view-mode');
+        ingameSheetModal.classList.toggle('gm-view-mode', isGmView); // AJUSTE 1: Usa o parâmetro para adicionar a classe
         document.getElementById('gm-edit-inventory-btn').classList.add('hidden');
     
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canEditEquipment = !isAdventureMode || isMyTurn;
+        const canEditEquipment = !isGmView && (!isAdventureMode || isMyTurn); // AJUSTE 1: GM não pode editar equipamento
         
         const loadBtn = document.getElementById('ingame-sheet-load-btn');
         loadBtn.disabled = isAdventureMode;
@@ -3215,11 +3215,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
             document.getElementById('ingame-equipment-info-text').textContent = infoText;
-            renderIngameInventory(fighter);
+            renderIngameInventory(fighter, isGmView); // AJUSTE 1: Passa a flag para o renderizador do inventário
         };
 
+        // AJUSTE 3: Lógica de população dos dropdowns de equipamento
         const populateAllSelects = () => {
             const inventory = fighter.inventory || {};
+            const forca = fighter.sheet.finalAttributes.forca || 0;
+            
             const populate = (selectEl, itemType, nullOption) => {
                 selectEl.innerHTML = '';
                 const items = Object.values(inventory).filter(item => item.type === itemType);
@@ -3233,6 +3236,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const opt = document.createElement('option');
                     opt.value = item.name;
                     opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
+                    
+                    // Verifica requisitos de força
+                    const ruleData = (GAME_RULES[item.type + 's'] || {})[item.baseType];
+                    if (ruleData && ruleData.req_forca && forca < ruleData.req_forca) {
+                        opt.disabled = true;
+                        opt.textContent += ` (Força ${ruleData.req_forca} necessária)`;
+                    }
+
                     selectEl.appendChild(opt);
                 });
             };
@@ -3307,7 +3318,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.className = 'spell-card ingame-spell';
                     
                     const isUsableOutside = (spellData.inCombat === false || spellData.usableOutsideCombat === true);
-                    if (isUsableOutside) {
+                    if (isUsableOutside && !isGmView) { // AJUSTE 1: GM não pode clicar
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
                     }
@@ -3796,10 +3807,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerFighter = getFighter(currentGameState, playerId);
         if (!playerFighter) return;
 
-        populateIngameSheet(playerFighter);
+        populateIngameSheet(playerFighter, true); // AJUSTE 1: Passa true para indicar que é a visão do GM
 
         const sheetModal = document.getElementById('ingame-sheet-modal');
-        sheetModal.classList.add('gm-view-mode');
 
         const editBtn = document.getElementById('gm-edit-inventory-btn');
         editBtn.classList.remove('hidden');
@@ -3815,20 +3825,25 @@ document.addEventListener('DOMContentLoaded', () => {
         let stagedInventory = JSON.parse(JSON.stringify(player.inventory || {}));
         let stagedAmmunition = player.ammunition || 0;
     
+        // AJUSTE 2: Lógica de Abas do Catálogo
         const buildItemCatalogHtml = () => {
             const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
-             const allGameItems = {
-                'Armas': Object.entries(ALL_WEAPON_IMAGES)
-                    .filter(([key]) => key !== 'customProjectiles')
-                    .flatMap(([key, cat]) => [...(cat.melee || []), ...(cat.ranged || [])])
-                    .map(imgPath => {
-                        const name = imgPath.split('/').pop().split('.')[0];
-                        return { name, img: imgPath, type: 'weapon' };
-                    })
-                    .concat(Object.entries(GAME_RULES.weapons).map(([name, data]) => ({ name, type: 'weapon', ...data }))),
-                'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })),
-                'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })),
-                'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: 'item', ...data })),
+    
+            // Coleta e categoriza todos os itens do jogo
+            const allGameItems = {
+                'Armas': [
+                    ...Object.entries(ALL_WEAPON_IMAGES)
+                        .filter(([key]) => key !== 'customProjectiles')
+                        .flatMap(([key, cat]) => {
+                            const weaponData = GAME_RULES.weapons[key] || {};
+                            const melee = (cat.melee || []).map(imgPath => ({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: key, ...weaponData }));
+                            const ranged = (cat.ranged || []).map(imgPath => ({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: key, ...weaponData }));
+                            return [...melee, ...ranged];
+                        })
+                ],
+                'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', baseType: name, ...data })),
+                'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', baseType: name, ...data })),
+                'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: data.isAmmunition ? 'ammunition' : 'item', baseType: name, ...data })),
             };
     
             let catalogHtml = '<div class="shop-tabs">';
@@ -3843,12 +3858,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 uniqueItems.filter(item => !nonItems.includes(item.name)).forEach(item => {
                     let imgPath = item.img;
-                     if (!imgPath) {
-                        if (item.type === 'armor') imgPath = `/images/armas/Armadura ${item.name === 'Mediana' ? 'Mediana' : item.name}.png`.replace(/ /g, '%20');
-                        else if (item.type === 'shield') imgPath = `/images/armas/Escudo ${item.name === 'Médio' ? 'Medio' : item.name}.png`.replace(/ /g, '%20');
+                    if (!imgPath) {
+                        if (item.type === 'armor') imgPath = `/images/armas/${item.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${item.name}`}.png`.replace(/ /g, '%20');
+                        else if (item.type === 'shield') imgPath = `/images/armas/${item.name === 'Médio' ? 'Escudo Medio' : `Escudo ${item.name}`}.png`.replace(/ /g, '%20');
                     }
                     catalogHtml += `
-                        <div class="gm-inv-item-card" data-item-name="${item.name}" title="Adicionar ${item.name}">
+                        <div class="gm-inv-item-card" data-item-json='${JSON.stringify(item)}' title="Adicionar ${item.name}">
                             <img src="${imgPath || ''}" alt="${item.name}" onerror="this.style.display='none'">
                             <div class="item-name">${item.name}</div>
                         </div>`;
@@ -3928,37 +3943,47 @@ document.addEventListener('DOMContentLoaded', () => {
     
         renderPlayerInventory();
         
-        // Event Listeners for catalog
         const catalogContainer = document.getElementById('gm-item-catalog-container');
         catalogContainer.querySelectorAll('.shop-tab-btn').forEach(btn => {
             btn.onclick = () => {
                 catalogContainer.querySelectorAll('.shop-tab-btn, .shop-item-grid').forEach(el => el.classList.remove('active'));
                 btn.classList.add('active');
-                catalogContainer.querySelector(`#catalog-grid-${btn.dataset.category}`).classList.add('active');
+                const activeGrid = catalogContainer.querySelector(`#catalog-grid-${btn.dataset.category}`);
+                activeGrid.classList.add('active');
+                // Re-aplica o filtro de busca ao trocar de aba
+                document.getElementById('gm-inventory-search').dispatchEvent(new Event('input'));
             };
         });
     
         catalogContainer.querySelectorAll('.gm-inv-item-card').forEach(card => {
             card.onclick = () => {
-                const itemName = card.dataset.itemName;
+                const itemData = JSON.parse(card.dataset.itemJson);
+                const itemName = itemData.name;
+                
+                if (itemData.isAmmunition) {
+                     stagedAmmunition++;
+                     document.getElementById('gm-ammo-input').value = stagedAmmunition;
+                     return;
+                }
+
                 if (!stagedInventory[itemName]) {
-                    const allItems = { ...ALL_ITEMS, ...GAME_RULES.weapons, ...GAME_RULES.armors, ...GAME_RULES.shields };
-                    const sourceItem = Object.values(allItems).find(i => i.name === itemName) || { name: itemName, img: card.querySelector('img').src, type: 'item' };
-                    stagedInventory[itemName] = { ...sourceItem, quantity: 1 };
-                    renderPlayerInventory();
+                    stagedInventory[itemName] = { ...itemData, quantity: 1 };
                 } else {
                     stagedInventory[itemName].quantity++;
-                    renderPlayerInventory();
                 }
+                renderPlayerInventory();
             };
         });
         
         document.getElementById('gm-inventory-search').oninput = (e) => {
             const searchTerm = e.target.value.toLowerCase();
-            catalogContainer.querySelectorAll('.gm-inv-item-card').forEach(card => {
-                const itemName = card.dataset.itemName.toLowerCase();
-                card.style.display = itemName.includes(searchTerm) ? '' : 'none';
-            });
+            const activeGrid = catalogContainer.querySelector('.shop-item-grid.active');
+            if(activeGrid) {
+                activeGrid.querySelectorAll('.gm-inv-item-card').forEach(card => {
+                    const itemName = JSON.parse(card.dataset.itemJson).name.toLowerCase();
+                    card.style.display = itemName.includes(searchTerm) ? '' : 'flex';
+                });
+            }
         };
     }
 
