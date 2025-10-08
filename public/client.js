@@ -1271,10 +1271,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     processModifier({ attribute: effect.attribute, value: currentValue });
                 }
                 if (effect.type === 'progressive_debuff_custom') {
-                    // duration is remaining. initial_duration is the original.
-                    // Server sends duration+1 initially. It gets decremented before this runs.
-                    // So, for a 4 turn effect, initial_duration=4. 
-                    // Turn 1 starts, duration becomes 4. turnsPassed = 4 - (4-1) = 1. index = 0.
                     const turnsPassed = effect.initial_duration - (effect.duration - 1);
                     const valueIndex = turnsPassed - 1;
                     if (valueIndex >= 0 && valueIndex < effect.values.length) {
@@ -2801,7 +2797,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         throw new Error(`Raça "${decryptedData.race}" do arquivo não é válida nas regras atuais do jogo.`);
                     }
 
-                    // --- AJUSTE PARA CARREGAR PERSONAGEM DE NÍVEL ALTO ---
                     const level = decryptedData.level || 1;
                     let maxAttrPoints = 5;
                     let maxElemPoints = 2;
@@ -2820,9 +2815,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     stagedCharacterSheet.maxAttrPoints = maxAttrPoints;
                     stagedCharacterSheet.maxElemPoints = maxElemPoints;
                     stagedCharacterSheet.maxSpells = maxSpells;
-                    stagedCharacterSheet.inventory = decryptedData.inventory; // Preserva inventário
-                    stagedCharacterSheet.ammunition = decryptedData.ammunition; // Preserva munição
-                    // --- FIM DO AJUSTE ---
+                    stagedCharacterSheet.inventory = decryptedData.inventory;
+                    stagedCharacterSheet.ammunition = decryptedData.ammunition;
 
                     stagedCharacterSheet.tokenImg = decryptedData.tokenImg || null;
                     stagedCharacterSheet.manualTokenImg = decryptedData.tokenImg || null;
@@ -2928,6 +2922,167 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
+    
+    // AJUSTE 1: Movi a função para cima para corrigir o ReferenceError
+    function showItemContextMenu(item) {
+        // AJUSTE 1: GM não deve ver as opções de usar/descartar
+        if (isGm && myRole === 'gm') {
+            const itemDetails = ALL_ITEMS[item.name] || {};
+            const effectiveDetails = { ...itemDetails, img: item.img || itemDetails.img, description: itemDetails.description || `Tipo: ${item.type}` };
+            let content = `
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                    <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
+                    <div>
+                        <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
+                        <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
+                    </div>
+                </div>`;
+            showCustomModal(item.name, content, [{ text: 'OK', closes: true }]);
+            return;
+        }
+
+        const itemDetails = ALL_ITEMS[item.name] || {};
+        const effectiveDetails = {
+            ...itemDetails,
+            img: item.img || itemDetails.img,
+            description: itemDetails.description || `Tipo: ${item.type}`,
+            isUsable: itemDetails.isUsable || false
+        };
+    
+        let content = `
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
+                <div>
+                    <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
+                    <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
+                </div>
+            </div>`;
+    
+        const buttons = [];
+    
+        if (effectiveDetails.isUsable) {
+            const costPA = effectiveDetails.costPA || 3;
+            buttons.push({
+                text: `Usar`,
+                closes: false,
+                onClick: () => {
+                    const myFighter = getFighter(currentGameState, myPlayerKey);
+                    if (!myFighter) return;
+    
+                    if (currentGameState.mode === 'adventure') {
+                        if (currentGameState.activeCharacterKey !== myPlayerKey) {
+                            showInfoModal("Ação Bloqueada", "Você só pode usar itens no seu turno.");
+                            return;
+                        }
+                        if (myFighter.pa < costPA) {
+                            showInfoModal("PA Insuficiente", `Você precisa de ${costPA} PA para usar este item, mas só tem ${myFighter.pa}.`);
+                            return;
+                        }
+                        showCustomModal(
+                            "Confirmar Uso de Item",
+                            `Usar <strong>${item.name}</strong> custará ${costPA} Pontos de Ação. Deseja continuar?`,
+                            [
+                                { text: 'Sim, Confirmar', closes: true, onClick: () => {
+                                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                                    document.getElementById('ingame-sheet-modal').classList.add('hidden');
+                                }},
+                                { text: 'Cancelar', closes: true, className: 'btn-danger' }
+                            ]
+                        );
+                    } else {
+                        socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
+                        modal.classList.add('hidden');
+                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
+                    }
+                }
+            });
+        }
+        
+        buttons.push({
+            text: 'Descartar',
+            closes: false, 
+            className: 'btn-danger',
+            onClick: () => {
+                showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
+                    {
+                        text: 'Sim, Descartar',
+                        closes: true,
+                        className: 'btn-danger',
+                        onClick: () => {
+                             socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
+                             const fighter = getFighter(currentGameState, myPlayerKey);
+                             if(fighter && fighter.sheet.inventory[item.name]) {
+                                delete fighter.sheet.inventory[item.name];
+                                renderIngameInventory(fighter);
+                             }
+                        }
+                    },
+                    { text: 'Não', closes: true, className: 'btn-secondary' }
+                ]);
+            }
+        });
+    
+        buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
+        
+        showCustomModal(item.name, content, buttons);
+    }
+    
+    // AJUSTE 1: Movi a função para cima para corrigir o ReferenceError
+    function renderIngameInventory(fighter, isGmView = false) {
+        if (!fighter || !fighter.sheet) return;
+    
+        const inventory = fighter.inventory || {};
+        const inventoryGrid = document.getElementById('inventory-grid');
+        inventoryGrid.innerHTML = '';
+        const MAX_SLOTS = 24;
+    
+        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
+        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
+        const armor = document.getElementById('ingame-sheet-armor-type').value;
+        const shield = document.getElementById('ingame-sheet-shield-type').value;
+        const equippedItemNames = [weapon1, weapon2, armor, shield];
+    
+        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
+    
+        const isAdventureMode = currentGameState.mode === 'adventure';
+        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
+        const canInteract = !isGmView && (!isAdventureMode || isMyTurn);
+    
+        itemsToDisplay.forEach(item => {
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot';
+            
+            const itemDetails = ALL_ITEMS[item.name];
+            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
+            
+            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
+            if (imgPath) {
+                slot.style.backgroundImage = `url("${imgPath}")`;
+            } else {
+                 slot.style.backgroundImage = 'none';
+            }
+    
+            if (item.quantity > 1) {
+                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
+            }
+            
+            if (canInteract) {
+                slot.classList.add('item');
+                slot.addEventListener('click', () => showItemContextMenu(item));
+            } else {
+                slot.style.cursor = 'not-allowed';
+            }
+    
+            inventoryGrid.appendChild(slot);
+        });
+    
+        const filledSlots = itemsToDisplay.length;
+        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
+            const emptySlot = document.createElement('div');
+            emptySlot.className = 'inventory-slot';
+            inventoryGrid.appendChild(emptySlot);
+        }
+    }
 
     function toggleIngameSheet() {
         const modal = document.getElementById('ingame-sheet-modal');
@@ -2941,7 +3096,6 @@ document.addEventListener('DOMContentLoaded', () => {
             populateIngameSheet(myFighterData);
             modal.classList.remove('hidden');
         } else {
-            // AJUSTE 1: Apenas executa a lógica de confirmação se não for o GM vendo a ficha de outro
             if (!ingameSheetModal.classList.contains('gm-view-mode')) {
                 handleEquipmentChangeConfirmation();
                 handlePointDistributionConfirmation();
@@ -2995,7 +3149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const updateAllEquipment = (eventSource) => {
             const inventory = fighter.inventory || {};
-            const forca = fighter.sheet.finalAttributes.forca || 0;
+            const forca = (fighter.sheet.finalAttributes || {}).forca || 0;
             let infoText = '';
 
             const checkAndHandleRequirement = (itemName, itemType, itemSelect, defaultOption) => {
@@ -3079,7 +3233,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderIngameInventory(fighter, isGmView);
         };
         
-        // AJUSTE 3: Lógica de população dos dropdowns de equipamento
         const populateAllSelects = () => {
             const inventory = fighter.inventory || {};
             const forca = (fighter.sheet.finalAttributes || {}).forca || 0;
@@ -3234,21 +3387,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleUtilitySpellClick(spell) {
-        if (isGm) return; // AJUSTE 1: Bloqueia o GM de usar magias
+        if (isGm && ingameSheetModal.classList.contains('gm-view-mode')) return;
 
-        // Magias que não precisam de um alvo específico (como Iluminar)
         if (spell.targetType === 'utility' || spell.targetType === 'self') {
             socket.emit('playerAction', {
                 type: 'useUtilitySpell',
                 casterId: myPlayerKey,
-                targetId: myPlayerKey, // O alvo é o próprio caster
+                targetId: myPlayerKey,
                 spellName: spell.name
             });
             ingameSheetModal.classList.add('hidden');
             return;
         }
 
-        // Magias que requerem um alvo aliado (como curas)
         if (spell.targetType === 'single_ally' || spell.targetType === 'single_ally_down') {
             let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
             Object.keys(currentGameState.connectedPlayers).forEach(playerId => {
@@ -3332,14 +3483,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handlePointDistributionConfirmation() {
-        // AJUSTE 1: A função não deve rodar se não for o jogador
-        if (isGm) {
+        if (ingameSheetModal.classList.contains('gm-view-mode')) {
             ingameSheetModal.classList.add('hidden');
             return;
         }
         
         const myFighter = getFighter(currentGameState, myPlayerKey);
-        // AJUSTE 1: Adiciona verificação para evitar erro de 'null'
         if (!myFighter || !myFighter.sheet) {
             ingameSheetModal.classList.add('hidden');
             return;
@@ -3701,7 +3850,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let stagedInventory = JSON.parse(JSON.stringify(player.inventory || {}));
         let stagedAmmunition = player.ammunition || 0;
     
-        // AJUSTE 2: Lógica de Abas do Catálogo
         const buildItemCatalogHtml = () => {
             const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
     
@@ -3723,12 +3871,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
             let catalogHtml = '<div class="shop-tabs">';
             Object.keys(allGameItems).forEach((cat, i) => {
-                catalogHtml += `<button class="shop-tab-btn ${i === 0 ? 'active' : ''}" data-category="${cat}">${cat}</button>`;
+                const categorySlug = cat.replace(/\s+/g, '-'); // AJUSTE 2: Cria um slug para o ID
+                catalogHtml += `<button class="shop-tab-btn ${i === 0 ? 'active' : ''}" data-category="${categorySlug}">${cat}</button>`;
             });
             catalogHtml += '</div><div class="shop-item-grids-container">';
     
             Object.entries(allGameItems).forEach(([category, items], i) => {
-                catalogHtml += `<div class="gm-inventory-grid shop-item-grid ${i === 0 ? 'active' : ''}" id="catalog-grid-${category}">`;
+                const categorySlug = category.replace(/\s+/g, '-'); // AJUSTE 2: Usa o slug no ID
+                catalogHtml += `<div class="gm-inventory-grid shop-item-grid ${i === 0 ? 'active' : ''}" id="catalog-grid-${categorySlug}">`;
                 const uniqueItems = Array.from(new Map(items.map(item => [item.name, item])).values());
                 
                 uniqueItems.filter(item => !nonItems.includes(item.name)).forEach(item => {
@@ -3818,13 +3968,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
         renderPlayerInventory();
         
+        // AJUSTE 2: Lógica de abas corrigida para usar o slug do data-attribute
         const catalogContainer = document.getElementById('gm-item-catalog-container');
         catalogContainer.querySelectorAll('.shop-tab-btn').forEach(btn => {
             btn.onclick = () => {
                 catalogContainer.querySelectorAll('.shop-tab-btn, .shop-item-grid').forEach(el => el.classList.remove('active'));
                 btn.classList.add('active');
-                const activeGrid = catalogContainer.querySelector(`#catalog-grid-${btn.dataset.category}`);
-                activeGrid.classList.add('active');
+                const categorySlug = btn.dataset.category;
+                const activeGrid = catalogContainer.querySelector(`#catalog-grid-${categorySlug}`);
+                if (activeGrid) {
+                    activeGrid.classList.add('active');
+                }
                 document.getElementById('gm-inventory-search').dispatchEvent(new Event('input'));
             };
         });
@@ -3851,13 +4005,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('gm-inventory-search').oninput = (e) => {
             const searchTerm = e.target.value.toLowerCase();
-            const activeGrid = catalogContainer.querySelector('.shop-item-grid.active');
-            if(activeGrid) {
-                activeGrid.querySelectorAll('.gm-inv-item-card').forEach(card => {
+            catalogContainer.querySelectorAll('.shop-item-grid').forEach(grid => {
+                grid.querySelectorAll('.gm-inv-item-card').forEach(card => {
                     const itemName = JSON.parse(card.dataset.itemJson).name.toLowerCase();
-                    card.style.display = itemName.includes(searchTerm) ? '' : 'flex';
+                    card.style.display = itemName.includes(searchTerm) ? '' : 'none';
                 });
-            }
+            });
         };
     }
 
@@ -3900,7 +4053,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!ingameSheetModal.classList.contains('hidden') && !ingameSheetModal.classList.contains('gm-view-mode')) {
             const myFighter = getFighter(gameState, myPlayerKey);
             if (myFighter) {
+                // Preserva o estado original do equipamento para evitar conflitos com a lógica de confirmação de troca
+                const currentOriginalEquipment = originalEquipmentState ? JSON.parse(JSON.stringify(originalEquipmentState)) : null;
                 populateIngameSheet(myFighter, false);
+                originalEquipmentState = currentOriginalEquipment; // Restaura para não perder a referência da troca pendente
             }
         }
     });
@@ -4413,15 +4569,13 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', scaleGame);
 
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
-        // AJUSTE 1: A lógica do botão de fechar é simplificada e a confirmação movida
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
             const sheetModal = document.getElementById('ingame-sheet-modal');
             if (!sheetModal.classList.contains('gm-view-mode')) {
                 handleEquipmentChangeConfirmation();
-                handlePointDistributionConfirmation();
-            } else {
-                sheetModal.classList.add('hidden');
             }
+            // A confirmação de pontos agora é centralizada em handlePointDistributionConfirmation
+            handlePointDistributionConfirmation();
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
