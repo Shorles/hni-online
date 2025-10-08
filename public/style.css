@@ -1591,19 +1591,8 @@ margin-top: -10px;
 .gm-view-mode .sheet-footer, .gm-view-mode #ingame-sheet-footer {
     display: none;
 }
-.gm-view-mode .inventory-slot.item {
-    cursor: default;
-}
-.gm-view-mode .inventory-slot.item:hover {
-    border-color: #555;
-}
-.gm-view-mode .spell-card.usable-outside-combat {
-    cursor: default;
-    border-color: #28a745;
-    background-color: rgba(40, 167, 69, 0.15);
-}
-.gm-view-mode .spell-card.usable-outside-combat:hover {
-    box-shadow: none;
+.gm-view-mode .ingame-sheet-scrollable-content {
+    /* pointer-events: none; REMOVIDO PARA PERMITIR SCROLL */
 }
 .gm-view-mode .sheet-header {
     position: relative;
