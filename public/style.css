@@ -809,6 +809,7 @@ color: #aaa;
 cursor: not-allowed;
 opacity: 0.7;
 }
+/* AJUSTE 3: Estilo para opções desabilitadas no dropdown */
 .ingame-sheet-equipment select option:disabled {
     color: #888;
 }
@@ -1581,32 +1582,23 @@ margin-top: -10px;
     color: #F44336; /* Vermelho */
 }
 
-/* === NOVOS ESTILOS (EDITOR DE INVENTÁRIO DO GM) === */
-.gm-award-player-item .token.gm-player-token {
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 2px solid #888;
-}
-.gm-award-player-item .token.gm-player-token:hover {
-    border-color: #ffeb3b;
-    transform: scale(1.1);
-}
 /* AJUSTE 1: Bloqueia interações na ficha para o GM */
-.gm-view-mode .ingame-sheet-scrollable-content {
+.ingame-sheet.gm-view-mode .ingame-sheet-scrollable-content {
     pointer-events: none;
     user-select: none;
 }
-.gm-view-mode .ingame-sheet-scrollable-content * {
+.ingame-sheet.gm-view-mode .ingame-sheet-scrollable-content * {
     pointer-events: auto; /* Permite scroll */
 }
-.gm-view-mode .inventory-slot.item,
-.gm-view-mode .spell-card.usable-outside-combat {
+.ingame-sheet.gm-view-mode .inventory-slot.item,
+.ingame-sheet.gm-view-mode .spell-card.usable-outside-combat {
     cursor: not-allowed !important;
 }
-.gm-view-mode .sheet-footer, .gm-view-mode #ingame-sheet-footer {
+.ingame-sheet.gm-view-mode .sheet-footer, 
+.ingame-sheet.gm-view-mode #ingame-sheet-footer {
     display: none;
 }
-.gm-view-mode .sheet-header {
+.ingame-sheet.gm-view-mode .sheet-header {
     position: relative;
 }
 .gm-edit-inventory-btn {
@@ -1648,7 +1640,7 @@ margin-top: -10px;
     padding: 15px;
     display: flex;
     flex-direction: column;
-    min-width: 0; /* Correção de Flexbox */
+    min-width: 0;
 }
 .inventory-panel h4, .item-catalog-panel h4 {
     margin-top: 0;
