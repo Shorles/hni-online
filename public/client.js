@@ -2929,150 +2929,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-    function renderIngameInventory(fighter, isGmView = false) { // AJUSTE 1: Adicionado parâmetro isGmView
-        if (!fighter || !fighter.sheet) return;
-    
-        const inventory = fighter.inventory || {};
-        const inventoryGrid = document.getElementById('inventory-grid');
-        inventoryGrid.innerHTML = '';
-        const MAX_SLOTS = 24;
-    
-        const weapon1 = document.getElementById('ingame-sheet-weapon1-type').value;
-        const weapon2 = document.getElementById('ingame-sheet-weapon2-type').value;
-        const armor = document.getElementById('ingame-sheet-armor-type').value;
-        const shield = document.getElementById('ingame-sheet-shield-type').value;
-        const equippedItemNames = [weapon1, weapon2, armor, shield];
-    
-        const itemsToDisplay = Object.values(inventory).filter(item => !equippedItemNames.includes(item.name));
-    
-        const isAdventureMode = currentGameState.mode === 'adventure';
-        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canInteract = !isGmView && (!isAdventureMode || isMyTurn); // AJUSTE 1: GM não pode interagir
-    
-        itemsToDisplay.forEach(item => {
-            const slot = document.createElement('div');
-            slot.className = 'inventory-slot';
-            
-            const itemDetails = ALL_ITEMS[item.name];
-            slot.title = `${item.name}\n${itemDetails ? itemDetails.description : `Tipo: ${item.type || 'Equipamento'}`}`;
-            
-            const imgPath = item.img || (itemDetails ? itemDetails.img : null);
-            if (imgPath) {
-                slot.style.backgroundImage = `url("${imgPath}")`;
-            } else {
-                 slot.style.backgroundImage = 'none';
-            }
-    
-            if (item.quantity > 1) {
-                slot.innerHTML = `<span class="item-quantity">${item.quantity}</span>`;
-            }
-            
-            if (canInteract) {
-                slot.classList.add('item');
-                slot.addEventListener('click', () => showItemContextMenu(item));
-            } else {
-                slot.style.cursor = 'not-allowed';
-            }
-    
-            inventoryGrid.appendChild(slot);
-        });
-    
-        const filledSlots = itemsToDisplay.length;
-        for (let i = 0; i < MAX_SLOTS - filledSlots; i++) {
-            const emptySlot = document.createElement('div');
-            emptySlot.className = 'inventory-slot';
-            inventoryGrid.appendChild(emptySlot);
-        }
-    }
-
-    function showItemContextMenu(item) {
-        const itemDetails = ALL_ITEMS[item.name] || {};
-        const effectiveDetails = {
-            ...itemDetails,
-            img: item.img || itemDetails.img,
-            description: itemDetails.description || `Tipo: ${item.type}`,
-            isUsable: itemDetails.isUsable || false
-        };
-    
-        let content = `
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
-                <div class="inventory-slot item" style="background-image: url('${effectiveDetails.img}'); margin: 0; flex-shrink: 0;"></div>
-                <div>
-                    <h4 style="margin: 0 0 5px 0;">${item.name}</h4>
-                    <p style="margin: 0; color: #ccc;">${effectiveDetails.description}</p>
-                </div>
-            </div>`;
-    
-        const buttons = [];
-    
-        if (effectiveDetails.isUsable) {
-            const costPA = effectiveDetails.costPA || 3;
-            buttons.push({
-                text: `Usar`,
-                closes: false,
-                onClick: () => {
-                    const myFighter = getFighter(currentGameState, myPlayerKey);
-                    if (!myFighter) return;
-    
-                    if (currentGameState.mode === 'adventure') {
-                        if (currentGameState.activeCharacterKey !== myPlayerKey) {
-                            showInfoModal("Ação Bloqueada", "Você só pode usar itens no seu turno.");
-                            return;
-                        }
-                        if (myFighter.pa < costPA) {
-                            showInfoModal("PA Insuficiente", `Você precisa de ${costPA} PA para usar este item, mas só tem ${myFighter.pa}.`);
-                            return;
-                        }
-                        showCustomModal(
-                            "Confirmar Uso de Item",
-                            `Usar <strong>${item.name}</strong> custará ${costPA} Pontos de Ação. Deseja continuar?`,
-                            [
-                                { text: 'Sim, Confirmar', closes: true, onClick: () => {
-                                    socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                                    document.getElementById('ingame-sheet-modal').classList.add('hidden');
-                                }},
-                                { text: 'Cancelar', closes: true, className: 'btn-danger' }
-                            ]
-                        );
-                    } else {
-                        socket.emit('playerAction', { type: 'useItem', actorKey: myPlayerKey, itemName: item.name });
-                        modal.classList.add('hidden');
-                        document.getElementById('ingame-sheet-modal').classList.add('hidden');
-                    }
-                }
-            });
-        }
-        
-        buttons.push({
-            text: 'Descartar',
-            closes: false, 
-            className: 'btn-danger',
-            onClick: () => {
-                showCustomModal('Confirmar Descarte', `Você tem certeza que deseja descartar <strong>${item.name}</strong>? Esta ação não pode ser desfeita.`, [
-                    {
-                        text: 'Sim, Descartar',
-                        closes: true,
-                        className: 'btn-danger',
-                        onClick: () => {
-                             socket.emit('playerAction', { type: 'discardItem', itemName: item.name });
-                             const fighter = getFighter(currentGameState, myPlayerKey);
-                             if(fighter && fighter.sheet.inventory[item.name]) {
-                                delete fighter.sheet.inventory[item.name];
-                                renderIngameInventory(fighter);
-                             }
-                        }
-                    },
-                    { text: 'Não', closes: true, className: 'btn-secondary' }
-                ]);
-            }
-        });
-    
-        buttons.push({ text: 'Cancelar', closes: true, className: 'btn-secondary' });
-        
-        showCustomModal(item.name, content, buttons);
-    }
-
-
     function toggleIngameSheet() {
         const modal = document.getElementById('ingame-sheet-modal');
         if (!modal || !currentGameState) return;
@@ -3085,21 +2941,25 @@ document.addEventListener('DOMContentLoaded', () => {
             populateIngameSheet(myFighterData);
             modal.classList.remove('hidden');
         } else {
-            handleEquipmentChangeConfirmation();
-            handlePointDistributionConfirmation();
+            // AJUSTE 1: Apenas executa a lógica de confirmação se não for o GM vendo a ficha de outro
+            if (!ingameSheetModal.classList.contains('gm-view-mode')) {
+                handleEquipmentChangeConfirmation();
+                handlePointDistributionConfirmation();
+            } else {
+                ingameSheetModal.classList.add('hidden');
+            }
         }
     }
     
-    function populateIngameSheet(fighter, isGmView = false) { // AJUSTE 1: Adicionado parâmetro isGmView
+    function populateIngameSheet(fighter, isGmView = false) {
         if (!fighter || !fighter.sheet) return;
 
-        // Limpa estado de visualização do GM
-        ingameSheetModal.classList.toggle('gm-view-mode', isGmView); // AJUSTE 1: Usa o parâmetro para adicionar a classe
-        document.getElementById('gm-edit-inventory-btn').classList.add('hidden');
+        ingameSheetModal.classList.toggle('gm-view-mode', isGmView);
+        document.getElementById('gm-edit-inventory-btn').classList.toggle('hidden', !isGmView);
     
         const isAdventureMode = currentGameState.mode === 'adventure';
         const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canEditEquipment = !isGmView && (!isAdventureMode || isMyTurn); // AJUSTE 1: GM não pode editar equipamento
+        const canEditEquipment = !isGmView && (!isAdventureMode || isMyTurn);
         
         const loadBtn = document.getElementById('ingame-sheet-load-btn');
         loadBtn.disabled = isAdventureMode;
@@ -3109,7 +2969,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const tokenImg = fighter.sheet.tokenImg;
         document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
         
-        // Atualiza HP, Mahou, Nível e XP
         document.getElementById('ingame-sheet-hp-current').textContent = fighter.hp;
         document.getElementById('ingame-sheet-hp-max').textContent = fighter.hpMax;
         document.getElementById('ingame-sheet-mahou-current').textContent = fighter.mahou;
@@ -3140,7 +2999,9 @@ document.addEventListener('DOMContentLoaded', () => {
             let infoText = '';
 
             const checkAndHandleRequirement = (itemName, itemType, itemSelect, defaultOption) => {
-                const itemData = (GAME_RULES[itemType] || {})[itemName] || {};
+                const item = inventory[itemName] || {};
+                const itemBaseType = item.baseType || itemName;
+                const itemData = (GAME_RULES[itemType] || {})[itemBaseType] || {};
                 if (itemData.req_forca && forca < itemData.req_forca) {
                     if (itemSelect.value !== defaultOption) {
                         showInfoModal("Requisito não atendido", `Você precisa de ${itemData.req_forca} de Força para usar ${itemName}.`);
@@ -3215,13 +3076,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
             document.getElementById('ingame-equipment-info-text').textContent = infoText;
-            renderIngameInventory(fighter, isGmView); // AJUSTE 1: Passa a flag para o renderizador do inventário
+            renderIngameInventory(fighter, isGmView);
         };
-
+        
         // AJUSTE 3: Lógica de população dos dropdowns de equipamento
         const populateAllSelects = () => {
             const inventory = fighter.inventory || {};
-            const forca = fighter.sheet.finalAttributes.forca || 0;
+            const forca = (fighter.sheet.finalAttributes || {}).forca || 0;
             
             const populate = (selectEl, itemType, nullOption) => {
                 selectEl.innerHTML = '';
@@ -3237,8 +3098,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     opt.value = item.name;
                     opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
                     
-                    // Verifica requisitos de força
-                    const ruleData = (GAME_RULES[item.type + 's'] || {})[item.baseType];
+                    const ruleDataKey = item.baseType || item.name;
+                    const ruleSet = GAME_RULES[item.type === 'weapon' ? 'weapons' : item.type + 's'] || {};
+                    const ruleData = ruleSet[ruleDataKey];
+
                     if (ruleData && ruleData.req_forca && forca < ruleData.req_forca) {
                         opt.disabled = true;
                         opt.textContent += ` (Força ${ruleData.req_forca} necessária)`;
@@ -3264,7 +3127,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sel.onchange = (event) => updateAllEquipment(event.target);
         });
 
-        updateAllEquipment(null); // Initial sync
+        updateAllEquipment(null);
     
         const attributesGrid = document.getElementById('ingame-sheet-attributes');
         attributesGrid.innerHTML = '';
@@ -3318,7 +3181,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     card.className = 'spell-card ingame-spell';
                     
                     const isUsableOutside = (spellData.inCombat === false || spellData.usableOutsideCombat === true);
-                    if (isUsableOutside && !isGmView) { // AJUSTE 1: GM não pode clicar
+                    if (isUsableOutside && !isGmView) {
                         card.classList.add('usable-outside-combat');
                         card.addEventListener('click', () => handleUtilitySpellClick(spellData));
                     }
@@ -3367,11 +3230,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ammoList.innerHTML = `<div class="ammo-item"><span>Munição:</span><span>${ammunition || 0}</span></div>`;
         ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
         
-        // Lógica de Level Up
         renderLevelUpDistribution(fighter);
     }
     
     function handleUtilitySpellClick(spell) {
+        if (isGm) return; // AJUSTE 1: Bloqueia o GM de usar magias
+
         // Magias que não precisam de um alvo específico (como Iluminar)
         if (spell.targetType === 'utility' || spell.targetType === 'self') {
             socket.emit('playerAction', {
@@ -3443,7 +3307,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasChanged = JSON.stringify(originalEquipmentState) !== JSON.stringify(newEquipment);
     
         if (!hasChanged) {
-            return; // Nenhuma mudança, não faz nada
+            return;
         }
     
         if (currentGameState.mode === 'adventure') {
@@ -3468,12 +3332,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handlePointDistributionConfirmation() {
-        if (Object.keys(stagedLevelUpChanges).length === 0) {
+        // AJUSTE 1: A função não deve rodar se não for o jogador
+        if (isGm) {
+            ingameSheetModal.classList.add('hidden');
+            return;
+        }
+        
+        const myFighter = getFighter(currentGameState, myPlayerKey);
+        // AJUSTE 1: Adiciona verificação para evitar erro de 'null'
+        if (!myFighter || !myFighter.sheet) {
             ingameSheetModal.classList.add('hidden');
             return;
         }
 
-        const myFighter = getFighter(currentGameState, myPlayerKey);
+        if (Object.keys(stagedLevelUpChanges).length === 0) {
+            ingameSheetModal.classList.add('hidden');
+            return;
+        }
+        
         const { unallocatedAttrPoints, unallocatedElemPoints, spellChoicesAvailable } = myFighter.sheet;
 
         if (stagedLevelUpChanges.attrPointsSpent < unallocatedAttrPoints || 
@@ -3807,7 +3683,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const playerFighter = getFighter(currentGameState, playerId);
         if (!playerFighter) return;
 
-        populateIngameSheet(playerFighter, true); // AJUSTE 1: Passa true para indicar que é a visão do GM
+        populateIngameSheet(playerFighter, true);
 
         const sheetModal = document.getElementById('ingame-sheet-modal');
 
@@ -3829,20 +3705,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const buildItemCatalogHtml = () => {
             const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
     
-            // Coleta e categoriza todos os itens do jogo
             const allGameItems = {
                 'Armas': [
                     ...Object.entries(ALL_WEAPON_IMAGES)
-                        .filter(([key]) => key !== 'customProjectiles')
+                        .filter(([key]) => key !== 'customProjectiles' && key !== 'Desarmado')
                         .flatMap(([key, cat]) => {
                             const weaponData = GAME_RULES.weapons[key] || {};
-                            const melee = (cat.melee || []).map(imgPath => ({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: key, ...weaponData }));
-                            const ranged = (cat.ranged || []).map(imgPath => ({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: key, ...weaponData }));
+                            const melee = (cat.melee || []).map(imgPath => ({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: key, isRanged: false, ...weaponData }));
+                            const ranged = (cat.ranged || []).map(imgPath => ({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: key, isRanged: true, ...weaponData }));
                             return [...melee, ...ranged];
                         })
                 ],
-                'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', baseType: name, ...data })),
-                'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', baseType: name, ...data })),
+                'Armaduras': Object.entries(GAME_RULES.armors).filter(([name]) => name !== 'Nenhuma').map(([name, data]) => ({ name, type: 'armor', baseType: name, ...data })),
+                'Escudos': Object.entries(GAME_RULES.shields).filter(([name]) => name !== 'Nenhum').map(([name, data]) => ({ name, type: 'shield', baseType: name, ...data })),
                 'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: data.isAmmunition ? 'ammunition' : 'item', baseType: name, ...data })),
             };
     
@@ -3858,7 +3733,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 uniqueItems.filter(item => !nonItems.includes(item.name)).forEach(item => {
                     let imgPath = item.img;
-                    if (!imgPath) {
+                     if (!imgPath) {
                         if (item.type === 'armor') imgPath = `/images/armas/${item.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${item.name}`}.png`.replace(/ /g, '%20');
                         else if (item.type === 'shield') imgPath = `/images/armas/${item.name === 'Médio' ? 'Escudo Medio' : `Escudo ${item.name}`}.png`.replace(/ /g, '%20');
                     }
@@ -3950,7 +3825,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.classList.add('active');
                 const activeGrid = catalogContainer.querySelector(`#catalog-grid-${btn.dataset.category}`);
                 activeGrid.classList.add('active');
-                // Re-aplica o filtro de busca ao trocar de aba
                 document.getElementById('gm-inventory-search').dispatchEvent(new Event('input'));
             };
         });
@@ -4014,13 +3888,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('levelUpNotification', () => {
-        // Apenas um log ou talvez nada, já que o texto flutuante já notifica.
         console.log("Level Up! Abra a ficha para distribuir os pontos.");
     });
     
     socket.on('gameUpdate', (gameState) => { 
         if (clientFlowState === 'initializing') return;
         renderGame(gameState); 
+        
+        // AJUSTE 3: Atualiza a ficha em tempo real se estiver aberta
+        const ingameSheetModal = document.getElementById('ingame-sheet-modal');
+        if (!ingameSheetModal.classList.contains('hidden') && !ingameSheetModal.classList.contains('gm-view-mode')) {
+            const myFighter = getFighter(gameState, myPlayerKey);
+            if (myFighter) {
+                populateIngameSheet(myFighter, false);
+            }
+        }
     });
 
     socket.on('globalAnnounceEffect', (data) => {
@@ -4531,9 +4413,15 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', scaleGame);
 
         playerInfoWidget.addEventListener('click', toggleIngameSheet);
+        // AJUSTE 1: A lógica do botão de fechar é simplificada e a confirmação movida
         document.getElementById('ingame-sheet-close-btn').addEventListener('click', () => {
-            handleEquipmentChangeConfirmation();
-            handlePointDistributionConfirmation(); // Adicionado para confirmar pontos ao fechar
+            const sheetModal = document.getElementById('ingame-sheet-modal');
+            if (!sheetModal.classList.contains('gm-view-mode')) {
+                handleEquipmentChangeConfirmation();
+                handlePointDistributionConfirmation();
+            } else {
+                sheetModal.classList.add('hidden');
+            }
         });
         document.getElementById('ingame-sheet-save-btn').addEventListener('click', () => handleSaveCharacter('ingame'));
         document.getElementById('ingame-sheet-load-btn').addEventListener('click', () => document.getElementById('ingame-load-char-input').click());
