@@ -2923,9 +2923,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
     
-    // AJUSTE 1: Movi a função para cima para corrigir o ReferenceError
     function showItemContextMenu(item) {
-        // AJUSTE 1: GM não deve ver as opções de usar/descartar
         if (isGm && myRole === 'gm') {
             const itemDetails = ALL_ITEMS[item.name] || {};
             const effectiveDetails = { ...itemDetails, img: item.img || itemDetails.img, description: itemDetails.description || `Tipo: ${item.type}` };
@@ -3027,7 +3025,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showCustomModal(item.name, content, buttons);
     }
     
-    // AJUSTE 1: Movi a função para cima para corrigir o ReferenceError
     function renderIngameInventory(fighter, isGmView = false) {
         if (!fighter || !fighter.sheet) return;
     
@@ -3167,7 +3164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             if (checkAndHandleRequirement(weapon1Select.value, 'weapons', weapon1Select, 'Desarmado')) return updateAllEquipment(null);
-            if (checkAndHandleRequirement(weapon2Select.value, 'weapons', weapon2Select, 'Desarmado')) return updateAllEquipment(null);
+            if (checkAndHandleRequirement(weapon2Select.value, 'weapons', weapon2Select, 'Nenhum')) return updateAllEquipment(null);
             if (checkAndHandleRequirement(shieldSelect.value, 'shields', shieldSelect, 'Nenhum')) return updateAllEquipment(null);
 
             
@@ -3853,17 +3850,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const buildItemCatalogHtml = () => {
             const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
     
+            const meleeWeapons = [];
+            const rangedWeapons = [];
+            const magicWeapons = [];
+    
+            Object.entries(ALL_WEAPON_IMAGES).forEach(([weaponType, imageSets]) => {
+                if (weaponType === 'customProjectiles') return;
+                const weaponData = GAME_RULES.weapons[weaponType];
+                if (!weaponData || weaponType === 'Desarmado') return;
+                const isMagicWeapon = weaponType === 'Cetro' || weaponType === 'Cajado';
+    
+                if (imageSets.melee && imageSets.melee.length > 0) {
+                    imageSets.melee.forEach(imgPath => {
+                        const itemToAdd = { name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: weaponType, isRanged: false, ...weaponData };
+                        if (isMagicWeapon) magicWeapons.push(itemToAdd);
+                        else meleeWeapons.push(itemToAdd);
+                    });
+                }
+                if (imageSets.ranged && imageSets.ranged.length > 0) {
+                    imageSets.ranged.forEach(imgPath => {
+                        rangedWeapons.push({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: weaponType, isRanged: true, ...weaponData });
+                    });
+                }
+            });
+    
             const allGameItems = {
-                'Armas': [
-                    ...Object.entries(ALL_WEAPON_IMAGES)
-                        .filter(([key]) => key !== 'customProjectiles' && key !== 'Desarmado')
-                        .flatMap(([key, cat]) => {
-                            const weaponData = GAME_RULES.weapons[key] || {};
-                            const melee = (cat.melee || []).map(imgPath => ({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: key, isRanged: false, ...weaponData }));
-                            const ranged = (cat.ranged || []).map(imgPath => ({ name: imgPath.split('/').pop().split('.')[0], img: imgPath, type: 'weapon', baseType: key, isRanged: true, ...weaponData }));
-                            return [...melee, ...ranged];
-                        })
-                ],
+                'Armas Corpo a Corpo': meleeWeapons,
+                'Armas de Distância': rangedWeapons,
+                'Armas Mágicas': magicWeapons,
                 'Armaduras': Object.entries(GAME_RULES.armors).filter(([name]) => name !== 'Nenhuma').map(([name, data]) => ({ name, type: 'armor', baseType: name, ...data })),
                 'Escudos': Object.entries(GAME_RULES.shields).filter(([name]) => name !== 'Nenhum').map(([name, data]) => ({ name, type: 'shield', baseType: name, ...data })),
                 'Itens': Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: data.isAmmunition ? 'ammunition' : 'item', baseType: name, ...data })),
@@ -3871,13 +3885,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
             let catalogHtml = '<div class="shop-tabs">';
             Object.keys(allGameItems).forEach((cat, i) => {
-                const categorySlug = cat.replace(/\s+/g, '-'); // AJUSTE 2: Cria um slug para o ID
+                const categorySlug = cat.replace(/\s+/g, '-');
                 catalogHtml += `<button class="shop-tab-btn ${i === 0 ? 'active' : ''}" data-category="${categorySlug}">${cat}</button>`;
             });
             catalogHtml += '</div><div class="shop-item-grids-container">';
     
             Object.entries(allGameItems).forEach(([category, items], i) => {
-                const categorySlug = category.replace(/\s+/g, '-'); // AJUSTE 2: Usa o slug no ID
+                const categorySlug = category.replace(/\s+/g, '-');
                 catalogHtml += `<div class="gm-inventory-grid shop-item-grid ${i === 0 ? 'active' : ''}" id="catalog-grid-${categorySlug}">`;
                 const uniqueItems = Array.from(new Map(items.map(item => [item.name, item])).values());
                 
@@ -3968,7 +3982,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         renderPlayerInventory();
         
-        // AJUSTE 2: Lógica de abas corrigida para usar o slug do data-attribute
         const catalogContainer = document.getElementById('gm-item-catalog-container');
         catalogContainer.querySelectorAll('.shop-tab-btn').forEach(btn => {
             btn.onclick = () => {
@@ -4048,15 +4061,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (clientFlowState === 'initializing') return;
         renderGame(gameState); 
         
-        // AJUSTE 3: Atualiza a ficha em tempo real se estiver aberta
         const ingameSheetModal = document.getElementById('ingame-sheet-modal');
         if (!ingameSheetModal.classList.contains('hidden') && !ingameSheetModal.classList.contains('gm-view-mode')) {
             const myFighter = getFighter(gameState, myPlayerKey);
             if (myFighter) {
-                // Preserva o estado original do equipamento para evitar conflitos com a lógica de confirmação de troca
                 const currentOriginalEquipment = originalEquipmentState ? JSON.parse(JSON.stringify(originalEquipmentState)) : null;
                 populateIngameSheet(myFighter, false);
-                originalEquipmentState = currentOriginalEquipment; // Restaura para não perder a referência da troca pendente
+                originalEquipmentState = currentOriginalEquipment; 
             }
         }
     });
