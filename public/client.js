@@ -77,6 +77,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const ingameSheetModal = document.getElementById('ingame-sheet-modal');
     const racePreviewModal = document.getElementById('race-preview-modal');
 
+    // =============================================================
+    // =========== DECLARAÇÃO DE TODAS AS FUNÇÕES ==================
+    // =============================================================
+
     // --- FUNÇÕES DE UTILIDADE ---
     function scaleGame() {
         setTimeout(() => {
@@ -193,408 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
     
-    // --- LÓGICA DA LOJA ---
-    function toggleShop() {
-        if (!currentGameState || currentGameState.mode !== 'theater' || !shopModal) return;
-        isShopOpen = !isShopOpen;
-        shopModal.classList.toggle('hidden', !isShopOpen);
-        shopModal.classList.toggle('active', isShopOpen);
-        if (isShopOpen) {
-            renderShopModal();
-        } else if (isGm) {
-            socket.emit('playerAction', { type: 'gmClosesShop' });
-        }
-    }
-
-    function renderShopModal() {
-        const shopModalContent = document.getElementById('shop-modal-content');
-        if (!shopModalContent) return;
-        
-        if (isGm) {
-            renderGmShopPanel(shopModalContent);
-        } else {
-            renderPlayerShopPanel(shopModalContent);
-        }
-    }
-    
-    function renderGmShopPanel(container) {
-        container.innerHTML = ''; // Limpa o conteúdo anterior
-    
-        const state = currentGameState.shop;
-        if (!state) return;
-    
-        const nonItems = ['Desarmado', 'Nenhuma', 'Nenhum'];
-    
-        const meleeWeapons = [];
-        const rangedWeapons = [];
-        const magicWeapons = [];
-    
-        Object.entries(ALL_WEAPON_IMAGES).forEach(([weaponType, imageSets]) => {
-            if (weaponType === 'customProjectiles') return; // Pula a chave de configuração de projéteis
-            const weaponData = GAME_RULES.weapons[weaponType];
-            if (!weaponData || weaponType === 'Desarmado') return;
-    
-            const isMagicWeapon = weaponType === 'Cetro' || weaponType === 'Cajado';
-    
-            if (imageSets.melee && imageSets.melee.length > 0) {
-                imageSets.melee.forEach(imgPath => {
-                    const itemName = imgPath.split('/').pop().split('.')[0];
-                    const itemToAdd = {
-                        name: itemName,
-                        type: 'weapon',
-                        baseType: weaponType,
-                        img: imgPath,
-                        isRanged: false,
-                        ...weaponData
-                    };
-                    if (isMagicWeapon) {
-                        magicWeapons.push(itemToAdd);
-                    } else {
-                        meleeWeapons.push(itemToAdd);
-                    }
-                });
-            }
-    
-            if (imageSets.ranged && imageSets.ranged.length > 0) {
-                imageSets.ranged.forEach(imgPath => {
-                    const itemName = imgPath.split('/').pop().split('.')[0];
-                    rangedWeapons.push({
-                        name: itemName,
-                        type: 'weapon',
-                        baseType: weaponType,
-                        img: imgPath,
-                        isRanged: true,
-                        ...weaponData
-                    });
-                });
-            }
-        });
-
-        // Adiciona o item "Munição" à lista de armas de distância para a loja
-        const ammunitionItem = ALL_ITEMS['Munição'];
-        if (ammunitionItem) {
-            rangedWeapons.push({
-                name: 'Munição',
-                type: 'ammunition',
-                ...ammunitionItem
-            });
-        }
-    
-        const allGameItems = {
-            'Armas Corpo a Corpo': meleeWeapons,
-            'Armas de Distância': rangedWeapons,
-            'Armas Mágicas': magicWeapons,
-            'Armaduras': Object.entries(GAME_RULES.armors).map(([name, data]) => ({ name, type: 'armor', ...data })).filter(item => !nonItems.includes(item.name)),
-            'Escudos': Object.entries(GAME_RULES.shields).map(([name, data]) => ({ name, type: 'shield', ...data })).filter(item => !nonItems.includes(item.name)),
-            'Itens': Object.entries(ALL_ITEMS).filter(([name]) => name !== 'Munição').map(([name, data]) => ({ name, type: 'item', ...data })),
-        };
-        
-        container.innerHTML = `
-            <div class="shop-header">
-                <h2>Gerenciador da Loja (GM)</h2>
-                <button id="shop-close-btn" class="close-btn">&times;</button>
-            </div>
-            <div class="shop-layout">
-                <div class="shop-selection-panel">
-                    <h3>Catálogo de Itens</h3>
-                    <div class="shop-tabs"></div>
-                    <div class="shop-item-grids-container"></div>
-                </div>
-                <div class="shop-staging-panel">
-                    <h3>Itens à Venda</h3>
-                    <div id="shop-staging-area"></div>
-                    <button id="shop-publish-btn" class="mode-btn">Publicar Loja para Jogadores</button>
-                </div>
-            </div>
-        `;
-        
-        const tabsContainer = container.querySelector('.shop-tabs');
-        const gridsContainer = container.querySelector('.shop-item-grids-container');
-        
-        Object.keys(allGameItems).forEach((category, index) => {
-            const tabBtn = document.createElement('button');
-            tabBtn.className = `shop-tab-btn ${index === 0 ? 'active' : ''}`;
-            tabBtn.dataset.category = category;
-            tabBtn.textContent = category;
-            tabsContainer.appendChild(tabBtn);
-            
-            const grid = document.createElement('div');
-            grid.className = `shop-item-grid ${index === 0 ? 'active' : ''}`;
-            grid.id = `shop-grid-${category}`;
-            gridsContainer.appendChild(grid);
-            
-            allGameItems[category].forEach(itemData => {
-                const card = document.createElement('div');
-                card.className = 'shop-item-card';
-                card.title = itemData.description || itemData.name;
-                
-                let imgPath = itemData.img;
-                if (!imgPath) { // Fallback para armaduras/escudos sem imagem definida em all_weapon_images
-                    if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
-                        const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
-                        imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
-                    } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                         const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
-                         imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
-                    }
-                }
-                
-                let handInfo = '';
-                if (itemData.type === 'weapon' && itemData.hand) {
-                    handInfo = `<div class="shop-item-hand">${itemData.hand} Mão${itemData.hand > 1 ? 's' : ''}</div>`;
-                }
-
-                card.innerHTML = `
-                    ${handInfo}
-                    <img src="${imgPath || ''}" alt="${itemData.name}" onerror="this.style.display='none'">
-                    <div class="shop-item-name">${itemData.name}</div>
-                `;
-                card.onclick = () => showAddItemToShopModal(itemData);
-                grid.appendChild(card);
-            });
-            
-            tabBtn.onclick = () => {
-                container.querySelectorAll('.shop-tab-btn, .shop-item-grid').forEach(el => el.classList.remove('active'));
-                tabBtn.classList.add('active');
-                grid.classList.add('active');
-            };
-        });
-
-        renderStagedItemsForGm(container.querySelector('#shop-staging-area'));
-        
-        container.querySelector('#shop-publish-btn').onclick = () => {
-             socket.emit('playerAction', { type: 'gmPublishesShop', items: shopStagedItems });
-             showInfoModal("Loja Publicada", "Os jogadores agora podem ver e comprar os itens.");
-        };
-
-        container.querySelector('#shop-close-btn').onclick = toggleShop;
-    }
-
-    function showAddItemToShopModal(itemData) {
-        const itemId = itemData.name.replace(/\s+/g, '-');
-        const existingItem = shopStagedItems[itemId];
-
-        const content = `
-            <div class="npc-config-grid" style="grid-template-columns: auto 1fr; max-width: 300px; margin: auto;">
-                <label for="shop-item-price">Preço:</label>
-                <input type="number" id="shop-item-price" value="${existingItem ? existingItem.price : (itemData.cost || 10)}" min="0">
-                <label for="shop-item-quantity">Quantidade:</label>
-                <input type="number" id="shop-item-quantity" value="${existingItem ? existingItem.quantity : 1}" min="1">
-            </div>
-        `;
-        
-        showCustomModal(`Adicionar ${itemData.name} à Loja`, content, [
-            { text: 'Confirmar', closes: true, onClick: () => {
-                const price = parseInt(document.getElementById('shop-item-price').value, 10);
-                const quantity = parseInt(document.getElementById('shop-item-quantity').value, 10);
-                
-                if (price >= 0 && quantity > 0) {
-                    shopStagedItems[itemId] = {
-                        id: itemId,
-                        name: itemData.name,
-                        price: price,
-                        quantity: quantity,
-                        itemData: itemData // Store original data
-                    };
-                    renderStagedItemsForGm(document.getElementById('shop-staging-area'));
-                    socket.emit('playerAction', { type: 'gmUpdatesShop', items: shopStagedItems });
-                }
-            }},
-            { text: 'Cancelar', closes: true }
-        ]);
-    }
-
-    function renderStagedItemsForGm(container) {
-        if (!container) return;
-        container.innerHTML = '';
-        Object.values(shopStagedItems).forEach(stagedItem => {
-            const card = document.createElement('div');
-            card.className = 'staged-item-card';
-
-            const itemData = stagedItem.itemData;
-            let imgPath = itemData.img;
-            if (!imgPath) {
-                if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
-                    const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
-                    imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
-                } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
-                     imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
-                }
-            }
-            
-            card.innerHTML = `
-                <button class="remove-staged-npc" style="top:2px; right:2px;">X</button>
-                <img src="${imgPath || ''}" alt="${stagedItem.name}" onerror="this.style.display='none'">
-                <div class="staged-item-info">
-                    <div>${stagedItem.name}</div>
-                    <div>Preço: ${stagedItem.price}</div>
-                    <div>Qtd: ${stagedItem.quantity}</div>
-                </div>
-            `;
-            card.onclick = (e) => {
-                if (e.target.tagName !== 'BUTTON') {
-                    showAddItemToShopModal(stagedItem.itemData);
-                }
-            };
-            card.querySelector('button').onclick = () => {
-                delete shopStagedItems[stagedItem.id];
-                renderStagedItemsForGm(container);
-                socket.emit('playerAction', { type: 'gmUpdatesShop', items: shopStagedItems });
-            };
-            container.appendChild(card);
-        });
-    }
-
-    function renderPlayerShopPanel(container) {
-        container.innerHTML = ''; // Limpa o conteúdo anterior
-        const state = currentGameState.shop;
-        if (!state || !state.playerItems) return;
-
-        const myFighter = getFighter(currentGameState, myPlayerKey);
-        const myMoney = myFighter ? myFighter.money : 0;
-
-        container.innerHTML = `
-            <div class="shop-header">
-                <h2>Loja</h2>
-                <span>Seu Dinheiro: ${myMoney} moedas</span>
-            </div>
-            <div id="shop-player-view-area"></div>
-        `;
-        
-        const playerViewArea = container.querySelector('#shop-player-view-area');
-        
-        if (state.playerItems.length === 0) {
-            playerViewArea.innerHTML = '<p style="text-align: center; color: #888;">A loja está fechada ou não há itens à venda no momento.</p>';
-            return;
-        }
-
-        state.playerItems.forEach(shopItem => {
-            const card = document.createElement('div');
-            card.className = 'shop-item-card player-view';
-            card.title = shopItem.itemData.description || `${shopItem.name}\n${shopItem.price > 0 ? 'Preço: ' + shopItem.price + '\n' : ''}Disponível: ${shopItem.quantity}`;
-
-            const itemData = shopItem.itemData;
-            let imgPath = itemData.img;
-            if (!imgPath) {
-                if(itemData.type === 'weapon') {
-                   const weaponTypeImages = ALL_WEAPON_IMAGES[itemData.name];
-                   if (weaponTypeImages && weaponTypeImages.melee.length > 0) {
-                       imgPath = weaponTypeImages.melee[0];
-                   }
-                } else if (itemData.type === 'armor' && itemData.name !== 'Nenhuma') {
-                    const armorImgName = itemData.name === 'Mediana' ? 'Armadura Mediana' : `Armadura ${itemData.name}`;
-                    imgPath = `/images/armas/${armorImgName}.png`.replace(/ /g, '%20');
-                } else if (itemData.type === 'shield' && itemData.name !== 'Nenhum') {
-                     const shieldImgName = itemData.name === 'Médio' ? 'Escudo Medio' : `Escudo ${itemData.name}`;
-                     imgPath = `/images/armas/${shieldImgName}.png`.replace(/ /g, '%20');
-                }
-            }
-            
-            const priceHtml = shopItem.price > 0 ? `<div class="shop-item-price">Preço: ${shopItem.price}</div>` : '';
-
-            card.innerHTML = `
-                <img src="${imgPath || ''}" alt="${shopItem.name}" onerror="this.style.display='none'">
-                <div class="shop-item-name">${shopItem.name}</div>
-                ${priceHtml}
-            `;
-            
-            card.onclick = () => showBuyItemModal(shopItem, myMoney);
-            playerViewArea.appendChild(card);
-        });
-    }
-
-    function showBuyItemModal(shopItem, myMoney) {
-        const isFree = shopItem.price === 0;
-        
-        const content = `
-            <div style="text-align: center;">
-                <p>${shopItem.itemData.description || 'Um item valioso.'}</p>
-                <p><strong>Disponível:</strong> ${shopItem.quantity}</p>
-                ${isFree ? '' : `
-                    <p><strong>Preço:</strong> ${shopItem.price} moedas cada</p>
-                    <div class="npc-config-grid" style="grid-template-columns: auto 1fr; max-width: 250px; margin: 20px auto;">
-                        <label for="buy-quantity">Quantidade:</label>
-                        <input type="number" id="buy-quantity" value="1" min="1" max="${shopItem.quantity}">
-                    </div>
-                    <p><strong>Custo Total:</strong> <span id="total-cost">${shopItem.price}</span> moedas</p>
-                `}
-            </div>
-        `;
-        
-        const buyBtn = {
-            text: isFree ? 'Pegar' : 'Comprar',
-            closes: true,
-            onClick: () => {
-                const quantity = isFree ? 1 : parseInt(document.getElementById('buy-quantity').value, 10);
-                if (quantity > 0) {
-                    socket.emit('playerAction', {
-                        type: 'playerBuysItem',
-                        itemId: shopItem.id,
-                        quantity: quantity
-                    });
-                }
-            }
-        };
-
-        if (!isFree && myMoney < shopItem.price) {
-            buyBtn.className = 'disabled-btn';
-        }
-
-        showCustomModal(`${isFree ? 'Pegar' : 'Comprar'} ${shopItem.name}`, content, [
-            buyBtn,
-            { text: 'Cancelar', closes: true, className: 'btn-danger' }
-        ]);
-        
-        if (!isFree) {
-            const quantityInput = document.getElementById('buy-quantity');
-            const totalCostSpan = document.getElementById('total-cost');
-            const buyButtonInModal = document.querySelector('.modal-button-container button:first-child');
-            
-            const updateTotal = () => {
-                const quantity = parseInt(quantityInput.value, 10) || 0;
-                const total = quantity * shopItem.price;
-                totalCostSpan.textContent = total;
-                if (total > myMoney || quantity <= 0 || quantity > shopItem.quantity) {
-                    buyButtonInModal.classList.add('disabled-btn');
-                    buyButtonInModal.disabled = true;
-                } else {
-                    buyButtonInModal.classList.remove('disabled-btn');
-                    buyButtonInModal.disabled = false;
-                }
-            };
-            
-            quantityInput.oninput = updateTotal;
-            updateTotal(); // Initial call
-        }
-    }
-
-    function preloadProjectileImages() {
-        const imageUrlsToPreload = new Set();
-        imageUrlsToPreload.add('/images/armas/bullet.png');
-
-        if (ALL_WEAPON_IMAGES && ALL_WEAPON_IMAGES.customProjectiles) {
-            for (const key in ALL_WEAPON_IMAGES.customProjectiles) {
-                const projectileInfo = ALL_WEAPON_IMAGES.customProjectiles[key];
-                if (projectileInfo && projectileInfo.name) {
-                    if (projectileInfo.name === 'machadinha') {
-                        imageUrlsToPreload.add('/images/armas/Leve (5).png');
-                    } else {
-                        imageUrlsToPreload.add(`/images/armas/${projectileInfo.name}.png`);
-                    }
-                }
-            }
-        }
-        console.log("Pré-carregando projéteis:", Array.from(imageUrlsToPreload));
-        imageUrlsToPreload.forEach(url => {
-            const img = new Image();
-            img.src = url;
-        });
-    }
-
-    // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO (Funções movidas para cima) ---
-    // AJUSTE 1 (CORREÇÃO CRÍTICA): Todas as funções relacionadas à ficha em jogo foram movidas para cima,
-    // garantindo que elas sejam declaradas antes de serem chamadas pela função initialize().
+    // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
     function showItemContextMenu(item) {
         if (ingameSheetModal.classList.contains('gm-view-mode')) {
             const itemDetails = ALL_ITEMS[item.name] || {};
@@ -1623,8 +1226,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderPlayerInventory();
                 };
                 card.querySelector('.down-arrow').onclick = () => {
-                    stagedInventory[item.name].quantity = Math.max(1, stagedInventory[item.name].quantity - 1);
-                    renderPlayerInventory();
+                    if (stagedInventory[item.name].quantity > 1) {
+                        stagedInventory[item.name].quantity--;
+                        renderPlayerInventory();
+                    }
                 };
                 card.querySelector('.up-arrow').onclick = () => {
                     stagedInventory[item.name].quantity++;
@@ -1685,7 +1290,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // --- INICIALIZAÇÃO E LISTENERS DE SOCKET ---
+    // =============================================================
+    // =========== INÍCIO DA EXECUÇÃO DO SCRIPT ===================
+    // =============================================================
+    
+    // --- LÓGICA DE INICIALIZAÇÃO E LISTENERS DE SOCKET ---
     socket.on('initialData', (data) => {
         GAME_RULES = data.rules;
         ALL_SPELLS = data.spells;
@@ -1717,16 +1326,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('gameUpdate', (gameState) => { 
         if (clientFlowState === 'initializing') {
-            currentGameState = gameState; // Armazena o primeiro estado
+            currentGameState = gameState;
             return;
         }
 
-        // AJUSTE 3: Lógica de atualização da ficha em tempo real
-        const oldFighter = currentGameState ? getFighter(currentGameState, myPlayerKey) : null;
-        const newFighter = gameState ? getFighter(gameState, myPlayerKey) : null;
-
+        const oldFighter = oldGameState ? getFighter(oldGameState, myPlayerKey) : null;
+        
         renderGame(gameState); 
         
+        const newFighter = getFighter(gameState, myPlayerKey);
         const ingameSheetModal = document.getElementById('ingame-sheet-modal');
         if (!ingameSheetModal.classList.contains('hidden') && !ingameSheetModal.classList.contains('gm-view-mode')) {
             if (newFighter && oldFighter) {
@@ -2196,6 +1804,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- FUNÇÃO DE INICIALIZAÇÃO ---
     function initialize() {
         showScreen(document.getElementById('loading-screen'));
 
@@ -2264,5 +1873,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ingame-load-char-input').addEventListener('change', (e) => handleLoadCharacter(e, 'ingame'));
     }
     
+    // =============================================================
+    // =========== INÍCIO DA EXECUÇÃO DO SCRIPT ===================
+    // =============================================================
     initialize();
 });
