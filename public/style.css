@@ -809,6 +809,7 @@ color: #aaa;
 cursor: not-allowed;
 opacity: 0.7;
 }
+/* AJUSTE 3: Estilo para opções desabilitadas no dropdown */
 .ingame-sheet-equipment select option:disabled {
     color: #888;
 }
@@ -1621,9 +1622,9 @@ margin-top: -10px;
 
 /* AJUSTE 2: Estilos para o modal de edição de inventário do GM */
 .gm-inventory-editor-modal #modal-content {
-    max-width: 95%; /* Aumentado */
+    max-width: 90%;
     width: 1200px;
-    height: 90%; /* Aumentado */
+    height: 85%;
 }
 .gm-inventory-layout {
     display: flex;
@@ -1664,7 +1665,6 @@ margin-top: -10px;
     gap: 10px;
     align-content: start;
     padding: 5px;
-    min-height: 150px; /* Garante altura mínima */
 }
 .gm-inv-item-card {
     background-color: #333;
