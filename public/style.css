@@ -1618,8 +1618,7 @@ margin-top: -10px;
      background-color:#007bff;
 }
 
-/* AJUSTES PARA O MODAL DE EDIÇÃO DE INVENTÁRIO DO GM */
-.gm-inventory-editor-modal#modal-content {
+.gm-inventory-editor-modal #modal-content {
     max-width: 95%;
     width: 1200px;
     height: 90%;
