@@ -596,8 +596,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // ================= FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO ==============
     // =================================================================
     function renderGame(gameState) {
+        // AJUSTE 3: Captura o estado antigo ANTES de sobrescrevê-lo
+        const oldFighterSheet = currentGameState ? getFighter(currentGameState, myPlayerKey)?.sheet : null;
+
         oldGameState = currentGameState;
         currentGameState = gameState;
+
+        // AJUSTE 3: Lógica de atualização da ficha movida para o listener do socket.on('gameUpdate')
+        const ingameSheet = document.getElementById('ingame-sheet-modal');
+        if (!ingameSheet.classList.contains('hidden') && !ingameSheet.classList.contains('gm-view-mode')) {
+            const newFighter = getFighter(gameState, myPlayerKey);
+            if (newFighter && oldFighterSheet) {
+                const oldInv = JSON.stringify(oldFighterSheet.inventory);
+                const newInv = JSON.stringify(newFighter.sheet.inventory);
+                if (oldInv !== newInv) {
+                    populateIngameSheet(newFighter, false);
+                }
+            }
+        }
 
         if (oldGameState && oldGameState.activeCharacterKey !== currentGameState.activeCharacterKey) {
             cancelTargeting();
@@ -2921,356 +2937,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
-
-    function toggleIngameSheet() {
-        const modal = document.getElementById('ingame-sheet-modal');
-        if (!modal || !currentGameState) return;
-    
-        const isHidden = modal.classList.contains('hidden');
-        if (isHidden) {
-            const myFighterData = getFighter(currentGameState, myPlayerKey);
-            if (!myFighterData) return;
-            originalEquipmentState = JSON.parse(JSON.stringify(myFighterData.sheet.equipment));
-            populateIngameSheet(myFighterData);
-            modal.classList.remove('hidden');
-        } else {
-            if (!ingameSheetModal.classList.contains('gm-view-mode')) {
-                handleEquipmentChangeConfirmation();
-                handlePointDistributionConfirmation();
-            } else {
-                ingameSheetModal.classList.add('hidden');
-            }
-        }
-    }
-    
-    function populateIngameSheet(fighter, isGmView = false) {
-        if (!fighter || !fighter.sheet) return;
-
-        ingameSheetModal.classList.toggle('gm-view-mode', isGmView);
-        document.getElementById('gm-edit-inventory-btn').classList.toggle('hidden', !isGmView);
-    
-        const isAdventureMode = currentGameState.mode === 'adventure';
-        const isMyTurn = isAdventureMode && currentGameState.activeCharacterKey === myPlayerKey;
-        const canEditEquipment = !isGmView && (!isAdventureMode || isMyTurn);
-        
-        const loadBtn = document.getElementById('ingame-sheet-load-btn');
-        loadBtn.disabled = isAdventureMode;
-        loadBtn.title = isAdventureMode ? 'Não é possível carregar um personagem durante o combate.' : 'Carregar Ficha';
-
-        document.getElementById('ingame-sheet-name').textContent = fighter.sheet.name || fighter.nome;
-        const tokenImg = fighter.sheet.tokenImg;
-        document.getElementById('ingame-sheet-token').style.backgroundImage = tokenImg ? `url("${tokenImg}")` : 'none';
-        
-        document.getElementById('ingame-sheet-hp-current').textContent = fighter.hp;
-        document.getElementById('ingame-sheet-hp-max').textContent = fighter.hpMax;
-        document.getElementById('ingame-sheet-mahou-current').textContent = fighter.mahou;
-        document.getElementById('ingame-sheet-mahou-max').textContent = fighter.mahouMax;
-        document.getElementById('ingame-sheet-level').textContent = fighter.level || 1;
-        document.getElementById('ingame-sheet-xp').textContent = fighter.xp || 0;
-        document.getElementById('ingame-sheet-xp-needed').textContent = fighter.xpNeeded || 100;
-        document.getElementById('ingame-sheet-money').textContent = fighter.money !== undefined ? fighter.money : 0;
-    
-        const equipment = fighter.sheet.equipment;
-        
-        const weapon1Select = document.getElementById('ingame-sheet-weapon1-type');
-        const weapon2Select = document.getElementById('ingame-sheet-weapon2-type');
-        const armorSelect = document.getElementById('ingame-sheet-armor-type');
-        const shieldSelect = document.getElementById('ingame-sheet-shield-type');
-    
-        const allEquipmentSelectors = [weapon1Select, weapon2Select, armorSelect, shieldSelect];
-        allEquipmentSelectors.forEach(sel => sel.onchange = null);
-
-        weapon1Select.disabled = !canEditEquipment;
-        weapon2Select.disabled = !canEditEquipment;
-        armorSelect.disabled = !canEditEquipment;
-        shieldSelect.disabled = !canEditEquipment;
-    
-        const updateAllEquipment = (eventSource) => {
-            const inventory = fighter.inventory || {};
-            const forca = (fighter.sheet.finalAttributes || {}).forca || 0;
-            let infoText = '';
-
-            const checkAndHandleRequirement = (itemName, itemType, itemSelect, defaultOption) => {
-                const item = inventory[itemName] || {};
-                const itemBaseType = item.baseType || itemName;
-                const itemData = (GAME_RULES[itemType] || {})[itemBaseType] || {};
-                if (itemData.req_forca && forca < itemData.req_forca) {
-                    if (itemSelect.value !== defaultOption) {
-                        showInfoModal("Requisito não atendido", `Você precisa de ${itemData.req_forca} de Força para usar ${itemName}.`);
-                        itemSelect.value = defaultOption;
-                        return true;
-                    }
-                }
-                return false;
-            };
-
-            if (checkAndHandleRequirement(weapon1Select.value, 'weapons', weapon1Select, 'Desarmado')) return updateAllEquipment(null);
-            if (checkAndHandleRequirement(weapon2Select.value, 'weapons', weapon2Select, 'Desarmado')) return updateAllEquipment(null);
-            if (checkAndHandleRequirement(shieldSelect.value, 'shields', shieldSelect, 'Nenhum')) return updateAllEquipment(null);
-
-            
-            let selectedW1 = weapon1Select.value;
-            let weapon1Item = inventory[selectedW1] || {};
-            let weapon1BaseType = weapon1Item.baseType || (selectedW1 === 'Desarmado' ? 'Desarmado' : null);
-            let weapon1Data = GAME_RULES.weapons[weapon1BaseType] || {};
-            
-            let selectedW2 = weapon2Select.value;
-            let weapon2Item = inventory[selectedW2] || {};
-            let weapon2BaseType = weapon2Item.baseType || (selectedW2 === 'Desarmado' ? 'Desarmado' : null);
-            let weapon2Data = GAME_RULES.weapons[weapon2BaseType] || {};
-
-            const canWield2HInOneHand = forca >= 4;
-            let changed = false;
-
-            if (weapon1Data.hand === 2 && !canWield2HInOneHand) {
-                if (weapon2Select.value !== 'Desarmado') { weapon2Select.value = 'Desarmado'; changed = true; }
-                if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
-            }
-            if (weapon2Data.hand === 2 && !canWield2HInOneHand) {
-                if (weapon1Select.value !== 'Desarmado') { weapon1Select.value = 'Desarmado'; changed = true; }
-                if (shieldSelect.value !== 'Nenhum') { shieldSelect.value = 'Nenhum'; changed = true; }
-            }
-            
-            if (weapon2Select.value !== 'Desarmado' && shieldSelect.value !== 'Nenhum') {
-                shieldSelect.value = 'Nenhum';
-                changed = true;
-            }
-
-            if (shieldSelect.value !== 'Nenhum' && weapon2Select.value !== 'Desarmado') {
-                 weapon2Select.value = 'Desarmado';
-                 changed = true;
-            }
-
-            if (weapon1Select.value !== 'Desarmado' && weapon1Select.value === weapon2Select.value) {
-                if (eventSource === weapon1Select) {
-                    weapon2Select.value = 'Desarmado';
-                } else {
-                    weapon1Select.value = 'Desarmado';
-                }
-                changed = true;
-            }
-
-            if (changed) {
-                updateAllEquipment(null); 
-                return;
-            }
-
-            const finalW1 = weapon1Select.value;
-            const finalW2 = weapon2Select.value;
-            const finalShield = shieldSelect.value;
-            const finalW1Item = inventory[finalW1] || {};
-            const finalW1BaseType = finalW1Item.baseType || (finalW1 === 'Desarmado' ? 'Desarmado' : null);
-            const finalW1Data = GAME_RULES.weapons[finalW1BaseType] || {};
-
-            weapon2Select.disabled = !canEditEquipment || (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
-            shieldSelect.disabled = !canEditEquipment || finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
-
-            document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
-            document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
-            document.getElementById('ingame-equipment-info-text').textContent = infoText;
-            renderIngameInventory(fighter, isGmView);
-        };
-        
-        const populateAllSelects = () => {
-            const inventory = fighter.inventory || {};
-            const forca = (fighter.sheet.finalAttributes || {}).forca || 0;
-            
-            const populate = (selectEl, itemType, nullOption) => {
-                selectEl.innerHTML = '';
-                const items = Object.values(inventory).filter(item => item.type === itemType);
-    
-                const noneOpt = document.createElement('option');
-                noneOpt.value = nullOption;
-                noneOpt.textContent = nullOption;
-                selectEl.appendChild(noneOpt);
-    
-                items.forEach(item => {
-                    const opt = document.createElement('option');
-                    opt.value = item.name;
-                    opt.textContent = (item.name === item.baseType || !item.baseType) ? item.name : `${item.name} (${item.baseType})`;
-                    
-                    const ruleDataKey = item.baseType || item.name;
-                    const ruleSet = GAME_RULES[item.type === 'weapon' ? 'weapons' : item.type + 's'] || {};
-                    const ruleData = ruleSet[ruleDataKey];
-
-                    if (ruleData && ruleData.req_forca && forca < ruleData.req_forca) {
-                        opt.disabled = true;
-                        opt.textContent += ` (Força ${ruleData.req_forca} necessária)`;
-                    }
-
-                    selectEl.appendChild(opt);
-                });
-            };
-            populate(weapon1Select, 'weapon', 'Desarmado');
-            populate(weapon2Select, 'weapon', 'Desarmado');
-            populate(armorSelect, 'armor', 'Nenhuma');
-            populate(shieldSelect, 'shield', 'Nenhum');
-        };
-        
-        populateAllSelects();
-        
-        weapon1Select.value = equipment.weapon1?.name || 'Desarmado';
-        weapon2Select.value = equipment.weapon2?.name || 'Desarmado';
-        armorSelect.value = equipment.armor || 'Nenhuma';
-        shieldSelect.value = equipment.shield || 'Nenhum';
-        
-        allEquipmentSelectors.forEach(sel => {
-            sel.onchange = (event) => updateAllEquipment(event.target);
-        });
-
-        updateAllEquipment(null);
-    
-        const attributesGrid = document.getElementById('ingame-sheet-attributes');
-        attributesGrid.innerHTML = '';
-        attributesGrid.classList.remove('is-distributing');
-        const finalAttributes = fighter.sheet.finalAttributes || {};
-        const baseAttributes = fighter.sheet.baseAttributes || {};
-        for (const attr in finalAttributes) {
-            const capitalized = attr.charAt(0).toUpperCase() + attr.slice(1).replace('cao', 'ção');
-            attributesGrid.innerHTML += `
-                <div class="attr-item point-distribution-grid" data-attr-container="${attr}">
-                    <label>${capitalized}</label>
-                    <span data-attr-span="${attr}">${finalAttributes[attr]}</span>
-                    <div class="number-input-wrapper hidden" data-attr-wrapper="${attr}">
-                        <button class="arrow-btn down-arrow" disabled>-</button>
-                        <input type="number" data-attr="${attr}" value="${baseAttributes[attr]}" readonly>
-                        <button class="arrow-btn up-arrow">+</button>
-                    </div>
-                </div>`;
-        }
-    
-        const elementsGrid = document.getElementById('ingame-sheet-elements');
-        elementsGrid.innerHTML = '';
-        elementsGrid.classList.remove('is-distributing');
-        const allElements = ['fogo', 'agua', 'terra', 'vento', 'luz', 'escuridao'];
-        const elements = fighter.sheet.elements || {};
-        allElements.forEach(elem => {
-            const capitalized = elem.charAt(0).toUpperCase() + elem.slice(1).replace('ao', 'ão');
-            const elemValue = elements[elem] || 0;
-            elementsGrid.innerHTML += `
-                <div class="attr-item point-distribution-grid" data-elem-container="${elem}">
-                    <label>${capitalized}</label>
-                    <span data-elem-span="${elem}">${elemValue}</span>
-                     <div class="number-input-wrapper hidden" data-elem-wrapper="${elem}">
-                        <button class="arrow-btn down-arrow" disabled>-</button>
-                        <input type="number" data-elem="${elem}" value="${elemValue}" readonly>
-                        <button class="arrow-btn up-arrow">+</button>
-                    </div>
-                </div>`;
-        });
-        
-        const spellsGrid = document.getElementById('ingame-sheet-spells-grid');
-        spellsGrid.innerHTML = '';
-        const spells = fighter.sheet.spells || [];
-        const allSpells = [...(ALL_SPELLS.grade1 || []), ...(ALL_SPELLS.grade2 || []), ...(ALL_SPELLS.grade3 || []), ...(ALL_SPELLS.advanced_grade1 || []), ...(ALL_SPELLS.advanced_grade2 || []), ...(ALL_SPELLS.advanced_grade3 || []), ...(ALL_SPELLS.grade_combined || [])];
-        
-        if (spells.length > 0) {
-            spells.forEach(spellName => {
-                const spellData = allSpells.find(s => s.name === spellName);
-                if(spellData) {
-                    const card = document.createElement('div');
-                    card.className = 'spell-card ingame-spell';
-                    
-                    const isUsableOutside = (spellData.inCombat === false || spellData.usableOutsideCombat === true);
-                    if (isUsableOutside && !isGmView) {
-                        card.classList.add('usable-outside-combat');
-                        card.addEventListener('click', () => handleUtilitySpellClick(spellData));
-                    }
-                    card.dataset.spellName = spellData.name;
-                    const spellType = spellData.inCombat ? '(Combate)' : '(Utilitário)';
-
-                    let elementHtml;
-                    if (spellData.combinedElementName) {
-                        const colors = getElementColors(spellData.combinedElementName, spellData.requiredElements);
-                        elementHtml = `<span class="spell-element" style="background-image: ${colors};">${spellData.combinedElementName}</span>`;
-                    } else {
-                        const elementName = spellData.isAdvanced ? GAME_RULES.advancedElements[spellData.element] : spellData.element;
-                        const color = getElementColors(elementName);
-                        const capitalizedElement = elementName.charAt(0).toUpperCase() + elementName.slice(1);
-                        elementHtml = `<span class="spell-element" style="background-image: ${color};">${capitalizedElement}</span>`;
-                    }
-
-                    card.innerHTML = `
-                        <div class="spell-card-header">
-                            <h4>${spellData.name} <small>${spellType}</small></h4>
-                            <div class="spell-details">
-                                ${elementHtml}
-                                <span class="spell-cost">${spellData.costMahou} Mahou</span>
-                            </div>
-                        </div>
-                        <p>${spellData.description}</p>`;
-                    spellsGrid.appendChild(card);
-                }
-            });
-        } else {
-            spellsGrid.innerHTML = `<p style="color: #888; text-align: center; grid-column: 1 / -1;">Nenhuma magia conhecida.</p>`;
-        }
-        
-        const ammoContainer = document.getElementById('ingame-sheet-ammunition');
-        const ammoList = document.getElementById('ingame-sheet-ammo-list');
-        ammoList.innerHTML = '';
-        const ammunition = fighter.ammunition;
-        let hasRangedWeapon = false;
-        
-        ['weapon1', 'weapon2'].forEach(slot => {
-            if (fighter.sheet.equipment[slot] && fighter.sheet.equipment[slot].isRanged) {
-                hasRangedWeapon = true;
-            }
-        });
-
-        ammoList.innerHTML = `<div class="ammo-item"><span>Munição:</span><span>${ammunition || 0}</span></div>`;
-        ammoContainer.classList.toggle('hidden', !hasRangedWeapon);
-        
-        renderLevelUpDistribution(fighter);
-    }
-    
-    function handleUtilitySpellClick(spell) {
-        if (isGm && ingameSheetModal.classList.contains('gm-view-mode')) return;
-
-        if (spell.targetType === 'utility' || spell.targetType === 'self') {
-            socket.emit('playerAction', {
-                type: 'useUtilitySpell',
-                casterId: myPlayerKey,
-                targetId: myPlayerKey,
-                spellName: spell.name
-            });
-            ingameSheetModal.classList.add('hidden');
-            return;
-        }
-
-        if (spell.targetType === 'single_ally' || spell.targetType === 'single_ally_down') {
-            let content = `<p>Selecione o alvo para <strong>${spell.name}</strong>:</p><div class="utility-spell-target-list">`;
-            Object.keys(currentGameState.connectedPlayers).forEach(playerId => {
-                const player = currentGameState.connectedPlayers[playerId];
-                if(player.role === 'player' && player.characterSheet) {
-                     content += `<button class="utility-spell-target-btn" data-player-id="${playerId}">
-                        <div class="utility-spell-token" style="background-image: url('${player.characterSheet.tokenImg}')"></div>
-                        <span>${player.characterName}</span>
-                    </button>`;
-                }
-            });
-            content += `</div>`;
-    
-            showCustomModal(`Usar ${spell.name}`, content, [
-                { text: 'Cancelar', closes: true, className: 'btn-danger'}
-            ]);
-    
-            document.querySelectorAll('.utility-spell-target-btn').forEach(btn => {
-                btn.onclick = () => {
-                    const targetId = btn.dataset.playerId;
-                    socket.emit('playerAction', {
-                        type: 'useUtilitySpell',
-                        casterId: myPlayerKey,
-                        targetId: targetId,
-                        spellName: spell.name
-                    });
-                     modal.classList.add('hidden');
-                     ingameSheetModal.classList.add('hidden');
-                };
-            });
-        }
-    }
+    // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO (Funções movidas para cima) ---
 
     function handleEquipmentChangeConfirmation() {
         const myFighter = getFighter(currentGameState, myPlayerKey);
@@ -3696,7 +3363,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 'Armas': [], 'Armaduras': [], 'Escudos': [], 'Itens': []
             };
 
-            // Popula Armas do weaponImages.json
             Object.entries(ALL_WEAPON_IMAGES)
                 .filter(([key]) => key !== 'customProjectiles' && key !== 'Desarmado')
                 .forEach(([key, cat]) => {
@@ -3706,11 +3372,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     allGameItems['Armas'].push(...melee, ...ranged);
                 });
             
-            // Popula Armaduras e Escudos do rules.json
             allGameItems['Armaduras'] = Object.entries(GAME_RULES.armors).filter(([name]) => name !== 'Nenhuma').map(([name, data]) => ({ name, type: 'armor', baseType: name, ...data }));
             allGameItems['Escudos'] = Object.entries(GAME_RULES.shields).filter(([name]) => name !== 'Nenhum').map(([name, data]) => ({ name, type: 'shield', baseType: name, ...data }));
-
-            // Popula Itens do items.json
             allGameItems['Itens'] = Object.entries(ALL_ITEMS).map(([name, data]) => ({ name, type: data.isAmmunition ? 'ammunition' : 'item', baseType: name, ...data }));
 
             let catalogHtml = '<div class="shop-tabs">';
@@ -3891,18 +3554,21 @@ document.addEventListener('DOMContentLoaded', () => {
     
     socket.on('gameUpdate', (gameState) => { 
         if (clientFlowState === 'initializing') return;
-        const oldSheetState = currentGameState ? getFighter(currentGameState, myPlayerKey)?.sheet : null;
-        renderGame(gameState);
         
-        // AJUSTE 3: Atualiza a ficha em tempo real se estiver aberta e houve mudança no inventário
+        const oldFighterSheetForUpdate = currentGameState ? getFighter(currentGameState, myPlayerKey)?.sheet : null;
+        
+        renderGame(gameState); 
+        
         const ingameSheetModal = document.getElementById('ingame-sheet-modal');
         if (!ingameSheetModal.classList.contains('hidden') && !ingameSheetModal.classList.contains('gm-view-mode')) {
             const newFighter = getFighter(gameState, myPlayerKey);
-            if (newFighter && oldSheetState) {
-                const oldInv = JSON.stringify(oldSheetState.inventory);
+            if (newFighter && oldFighterSheetForUpdate) {
+                const oldInv = JSON.stringify(oldFighterSheetForUpdate.inventory);
                 const newInv = JSON.stringify(newFighter.sheet.inventory);
-                if (oldInv !== newInv) {
+                if (oldInv !== newInv || oldFighterSheetForUpdate.ammunition !== newFighter.sheet.ammunition) {
+                     const currentOriginalEquipment = originalEquipmentState ? JSON.parse(JSON.stringify(originalEquipmentState)) : null;
                      populateIngameSheet(newFighter, false);
+                     originalEquipmentState = currentOriginalEquipment;
                 }
             }
         }
