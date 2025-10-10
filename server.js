@@ -2046,7 +2046,6 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('gameUpdate', getFullState(room));
                 return;
             }
-            // *** INÍCIO DA MODIFICAÇÃO ***
             if (action.type === 'gmSwitchesMode') {
                 if (room.activeMode === 'adventure') {
                     cachePlayerStats(room);
@@ -2059,9 +2058,21 @@ io.on('connection', (socket) => {
                         activeState.waitingPlayers = {};
                     }
                     room.activeMode = 'theater';
+                    
                     if (!room.gameModes.theater) {
                         room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
+                    } else {
+                        // *** INÍCIO DA MODIFICAÇÃO ***
+                        // Se o GM está voltando para o Modo Cenário, força o cenário atual a voltar para o estado de "staging".
+                        // Isso garante que o botão "Publicar Cenário" apareça para o GM.
+                        const theaterState = room.gameModes.theater;
+                        const currentScenarioPath = theaterState.currentScenario;
+                        if (currentScenarioPath && theaterState.scenarioStates[currentScenarioPath]) {
+                            theaterState.scenarioStates[currentScenarioPath].isStaging = true;
+                        }
+                        // *** FIM DA MODIFICAÇÃO ***
                     }
+
                 } else if (room.activeMode === 'theater') {
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
@@ -2073,12 +2084,9 @@ io.on('connection', (socket) => {
                         }
                     }
                 }
-                // Envia a atualização do novo modo APENAS para o GM.
-                // Os players só receberão a atualização quando a batalha começar ou o cenário for publicado.
                 io.to(lobbyState.gmId).emit('gameUpdate', getFullState(room));
-                shouldUpdate = false; // Impede a transmissão global no final do handler.
+                shouldUpdate = false;
             }
-            // *** FIM DA MODIFICAÇÃO ***
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
@@ -2135,8 +2143,6 @@ io.on('connection', (socket) => {
         
                 playerInfo.characterSheet = characterData;
                 
-                // *** CORREÇÃO APLICADA AQUI ***
-                // Garante que HP e Mahou sejam inicializados para novos personagens.
                 if (playerInfo.characterSheet.hp === undefined || playerInfo.characterSheet.mahou === undefined) {
                     const constituicao = playerInfo.characterSheet.finalAttributes.constituicao || 0;
                     const mente = playerInfo.characterSheet.finalAttributes.mente || 0;
