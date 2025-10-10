@@ -2130,6 +2130,23 @@ io.on('connection', (socket) => {
                 characterData.equipment = updatedEquipment;
         
                 playerInfo.characterSheet = characterData;
+                
+                // *** CORREÇÃO APLICADA AQUI ***
+                // Garante que HP e Mahou sejam inicializados para novos personagens.
+                if (playerInfo.characterSheet.hp === undefined || playerInfo.characterSheet.mahou === undefined) {
+                    const constituicao = playerInfo.characterSheet.finalAttributes.constituicao || 0;
+                    const mente = playerInfo.characterSheet.finalAttributes.mente || 0;
+                    const hpMax = 20 + (constituicao * 5);
+                    const mahouMax = 10 + (mente * 5);
+
+                    if (playerInfo.characterSheet.hp === undefined) {
+                        playerInfo.characterSheet.hp = hpMax;
+                    }
+                    if (playerInfo.characterSheet.mahou === undefined) {
+                        playerInfo.characterSheet.mahou = mahouMax;
+                    }
+                }
+                
                 playerInfo.characterName = characterData.name;
                 playerInfo.characterFinalized = true;
                 logMessage(lobbyState, `Jogador ${playerInfo.characterName} está pronto!`);
