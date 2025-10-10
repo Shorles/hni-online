@@ -2923,7 +2923,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- LÓGICA DA FICHA/INVENTÁRIO EM JOGO ---
 
-    // **CORREÇÃO: Funções movidas para antes de serem chamadas.**
     function showItemContextMenu(item) {
         if (isGm && ingameSheetModal.classList.contains('gm-view-mode')) {
             const itemDetails = ALL_ITEMS[item.name] || {};
@@ -3217,16 +3216,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const finalW1 = weapon1Select.value;
             const finalW2 = weapon2Select.value;
+            const finalArmor = armorSelect.value;
             const finalShield = shieldSelect.value;
+
             const finalW1Item = inventory[finalW1] || {};
             const finalW1BaseType = finalW1Item.baseType || (finalW1 === 'Desarmado' ? 'Desarmado' : null);
             const finalW1Data = GAME_RULES.weapons[finalW1BaseType] || {};
+
+            const finalArmorItem = inventory[finalArmor] || {};
+            const finalShieldItem = inventory[finalShield] || {};
 
             weapon2Select.disabled = !canEditEquipment || (finalW1Data.hand === 2 && !canWield2HInOneHand) || finalShield !== 'Nenhum';
             shieldSelect.disabled = !canEditEquipment || finalW2 !== 'Desarmado' || (finalW1Data.hand === 2 && !canWield2HInOneHand);
 
             document.getElementById('ingame-sheet-weapon1-image').style.backgroundImage = finalW1Item.img ? `url("${finalW1Item.img}")` : 'none';
             document.getElementById('ingame-sheet-weapon2-image').style.backgroundImage = (inventory[finalW2] || {}).img ? `url("${(inventory[finalW2] || {}).img}")` : 'none';
+            
+            // *** CORREÇÃO APLICADA AQUI ***
+            document.getElementById('ingame-sheet-armor-image').style.backgroundImage = finalArmorItem.img ? `url("${finalArmorItem.img}")` : 'none';
+            document.getElementById('ingame-sheet-shield-image').style.backgroundImage = finalShieldItem.img ? `url("${finalShieldItem.img}")` : 'none';
+
             document.getElementById('ingame-equipment-info-text').textContent = infoText;
             renderIngameInventory(fighter, isGmView);
         };
@@ -4034,8 +4043,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const searchTerm = e.target.value.toLowerCase();
                     const activeGrid = catalogContainer.querySelector('.shop-item-grid.active');
                     if (activeGrid) {
-                        // Esconde todos os cards de todas as grids
-                        catalogContainer.querySelectorAll('.shop-item-grid .gm-inv-item-card').forEach(card => {
+                        // Esconde todos os cards de todas as grids para garantir que apenas a ativa será filtrada
+                        catalogContainer.querySelectorAll('.gm-inventory-grid .gm-inv-item-card').forEach(card => {
                             card.style.display = 'none';
                         });
                         // Mostra apenas os cards da grid ativa que correspondem à busca
