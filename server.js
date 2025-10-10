@@ -2062,15 +2062,11 @@ io.on('connection', (socket) => {
                     if (!room.gameModes.theater) {
                         room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                     } else {
-                        // *** INÍCIO DA MODIFICAÇÃO ***
-                        // Se o GM está voltando para o Modo Cenário, força o cenário atual a voltar para o estado de "staging".
-                        // Isso garante que o botão "Publicar Cenário" apareça para o GM.
                         const theaterState = room.gameModes.theater;
                         const currentScenarioPath = theaterState.currentScenario;
                         if (currentScenarioPath && theaterState.scenarioStates[currentScenarioPath]) {
                             theaterState.scenarioStates[currentScenarioPath].isStaging = true;
                         }
-                        // *** FIM DA MODIFICAÇÃO ***
                     }
 
                 } else if (room.activeMode === 'theater') {
@@ -2720,6 +2716,24 @@ io.on('connection', (socket) => {
                             actorSheet.mahou = (actorSheet.mahou || mahouMax) + healedMahou;
                         }
                         logMessage(theaterState, `${actorSheet.name} usou ${action.itemName} fora de combate.`, 'info');
+
+                        // *** INÍCIO DA MODIFICAÇÃO ***
+                        const effectParts = [];
+                        if (healedHp > 0) effectParts.push(`+${healedHp} HP`);
+                        if (healedMahou > 0) effectParts.push(`+${healedMahou} Mahou`);
+                        const effectText = effectParts.length > 0 ? effectParts.join(' & ') : null;
+
+                        if (effectText) {
+                            io.to(roomId).emit('globalAnnounceEffect', {
+                                casterName: actorSheet.name,
+                                targetName: actorSheet.name, // Itens consumíveis são em si mesmo
+                                spellName: action.itemName,
+                                effectText: effectText,
+                                costText: null, // Itens não tem custo de Mahou para exibir
+                                element: 'item' // Elemento neutro para o cliente
+                            });
+                        }
+                        // *** FIM DA MODIFICAÇÃO ***
                     }
                  }
                  if (isGm) {
