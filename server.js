@@ -2046,8 +2046,9 @@ io.on('connection', (socket) => {
                 io.to(roomId).emit('gameUpdate', getFullState(room));
                 return;
             }
+            // *** INÍCIO DA MODIFICAÇÃO ***
             if (action.type === 'gmSwitchesMode') {
-                 if (room.activeMode === 'adventure') {
+                if (room.activeMode === 'adventure') {
                     cachePlayerStats(room);
                     room.adventureCache = JSON.parse(JSON.stringify(room.gameModes.adventure));
                     
@@ -2057,9 +2058,11 @@ io.on('connection', (socket) => {
                         });
                         activeState.waitingPlayers = {};
                     }
-
                     room.activeMode = 'theater';
-                 } else if (room.activeMode === 'theater') {
+                    if (!room.gameModes.theater) {
+                        room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
+                    }
+                } else if (room.activeMode === 'theater') {
                     if (room.adventureCache) {
                         socket.emit('promptForAdventureType');
                         shouldUpdate = false; 
@@ -2069,12 +2072,13 @@ io.on('connection', (socket) => {
                              room.gameModes.adventure = createNewAdventureState(lobbyState.gmId, lobbyState.connectedPlayers);
                         }
                     }
-                 }
-
-                 if (room.activeMode === 'theater' && !room.gameModes.theater) {
-                    room.gameModes.theater = createNewTheaterState(lobbyState.gmId, 'cenarios externos/externo (1).png');
                 }
+                // Envia a atualização do novo modo APENAS para o GM.
+                // Os players só receberão a atualização quando a batalha começar ou o cenário for publicado.
+                io.to(lobbyState.gmId).emit('gameUpdate', getFullState(room));
+                shouldUpdate = false; // Impede a transmissão global no final do handler.
             }
+            // *** FIM DA MODIFICAÇÃO ***
             if (action.type === 'gmChoosesAdventureType') {
                 if (action.choice === 'continue' && room.adventureCache) {
                     room.gameModes.adventure = room.adventureCache;
